@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, ValidationPipe, UsePipes, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { DeviceGroupService } from './device-group.service';
 import { PeerService } from './peer.service';
 import { DeviceGroupQueryDto } from './dto/device-group.dto';
@@ -17,6 +18,8 @@ import { AdminGuard } from '../../common/guards/admin.guard';
  * - GET /api/peers - 获取可访问的设备列表
  * - GET /api/users - 获取可访问的用户列表
  */
+@ApiTags('设备组')
+@ApiBearerAuth('JWT-auth')
 @Controller()
 export class DeviceGroupController {
   constructor(
@@ -42,6 +45,11 @@ export class DeviceGroupController {
    * @returns 可访问的设备组列表（分页）
    */
   @Get('device-group/accessible')
+  @ApiOperation({ summary: '获取可访问的设备组', description: '获取当前用户有权限访问的设备组列表，支持分页和搜索' })
+  @ApiResponse({ status: 200, description: '成功返回设备组列表', type: Object })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: '页码' })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: '搜索关键词' })
   async getAccessibleDeviceGroups(
     @CurrentUser('id') userId: string,
     @CurrentUser('isAdmin') isAdmin: boolean,
@@ -67,6 +75,12 @@ export class DeviceGroupController {
    * @returns 可访问的设备列表（分页）
    */
   @Get('peers')
+  @ApiOperation({ summary: '获取可访问的设备列表', description: '获取当前用户有权限访问的设备列表，支持分页、搜索和状态过滤' })
+  @ApiResponse({ status: 200, description: '成功返回设备列表', type: Object })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: '页码' })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: '搜索关键词' })
+  @ApiQuery({ name: 'status', required: false, type: String, description: '设备状态' })
   async getAccessiblePeers(
     @CurrentUser('id') userId: string,
     @CurrentUser('isAdmin') isAdmin: boolean,
@@ -92,6 +106,12 @@ export class DeviceGroupController {
    * @returns 可访问的用户列表（分页）
    */
   @Get('users')
+  @ApiOperation({ summary: '获取可访问的用户列表', description: '获取当前用户有权限访问的用户列表，支持分页和搜索' })
+  @ApiResponse({ status: 200, description: '成功返回用户列表', type: Object })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: '页码' })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: '搜索关键词' })
+  @ApiQuery({ name: 'status', required: false, type: String, description: '用户状态' })
   async getAccessibleUsers(
     @CurrentUser('id') userId: string,
     @CurrentUser('isAdmin') isAdmin: boolean,
@@ -113,6 +133,11 @@ export class DeviceGroupController {
    */
   @Get('device-groups')
   @UseGuards(AdminGuard)
+  @ApiOperation({ summary: '获取所有设备组（管理员）', description: '管理员查看系统中的所有设备组' })
+  @ApiResponse({ status: 200, description: '成功返回设备组列表', type: Object })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: '页码' })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: '搜索关键词' })
   async getDeviceGroups(
     @CurrentUser('id') userId: string,
     @CurrentUser('isAdmin') isAdmin: boolean,
@@ -131,6 +156,18 @@ export class DeviceGroupController {
   @Post('device-groups')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '创建设备组（管理员）', description: '创建新的设备组，用于组织和管理设备' })
+  @ApiResponse({ status: 201, description: '设备组创建成功', type: Object })
+  @ApiBody({
+    schema: {
+      example: {
+        name: '新设备组',
+        note: '设备组描述',
+        allowed_incomings: ['option1', 'option2']
+      }
+    },
+    description: '设备组信息'
+  })
   async createDeviceGroup(
     @Body() body: {
       name: string;
@@ -152,6 +189,19 @@ export class DeviceGroupController {
   @Patch('device-groups/:guid')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '更新设备组（管理员）', description: '更新指定设备组的名称、备注等信息' })
+  @ApiResponse({ status: 200, description: '更新成功', type: Object })
+  @ApiParam({ name: 'guid', description: '设备组 GUID', type: 'string' })
+  @ApiBody({
+    schema: {
+      example: {
+        name: '更新后的名称',
+        note: '更新的备注',
+        allowed_incomings: ['option1']
+      }
+    },
+    description: '要更新的字段'
+  })
   async updateDeviceGroup(
     @Param('guid') guid: string,
     @Body() body: {
@@ -173,6 +223,9 @@ export class DeviceGroupController {
   @Delete('device-groups/:guid')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '删除设备组（管理员）', description: '删除指定的设备组及其关联数据' })
+  @ApiResponse({ status: 200, description: '删除成功', schema: { example: { message: '设备组删除成功' } } })
+  @ApiParam({ name: 'guid', description: '设备组 GUID', type: 'string' })
   async deleteDeviceGroup(@Param('guid') guid: string) {
     await this.deviceGroupService.deleteDeviceGroup(guid);
     return { message: '设备组删除成功' };
@@ -189,6 +242,15 @@ export class DeviceGroupController {
   @Post('device-groups/:guid')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '添加设备到设备组（管理员）', description: '将一个或多个设备添加到指定设备组' })
+  @ApiResponse({ status: 200, description: '添加成功', type: Object })
+  @ApiParam({ name: 'guid', description: '设备组 GUID', type: 'string' })
+  @ApiBody({
+    schema: {
+      example: ['device-uuid-1', 'device-uuid-2']
+    },
+    description: '要添加的设备 ID 列表'
+  })
   async addDevicesToGroup(
     @Param('guid') guid: string,
     @Body() body: string[]
@@ -207,6 +269,15 @@ export class DeviceGroupController {
   @Delete('device-groups/:guid/devices')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '从设备组移除设备（管理员）', description: '从指定设备组中移除一个或多个设备' })
+  @ApiResponse({ status: 200, description: '移除成功', type: Object })
+  @ApiParam({ name: 'guid', description: '设备组 GUID', type: 'string' })
+  @ApiBody({
+    schema: {
+      example: ['device-uuid-1', 'device-uuid-2']
+    },
+    description: '要移除的设备 ID 列表'
+  })
   async removeDevicesFromGroup(
     @Param('guid') guid: string,
     @Body() body: string[]
@@ -224,6 +295,12 @@ export class DeviceGroupController {
    * @returns 设备列表（分页）
    */
   @Get('devices')
+  @ApiOperation({ summary: '获取设备列表', description: '获取系统中所有设备的列表，支持分页和状态过滤' })
+  @ApiResponse({ status: 200, description: '成功返回设备列表', type: Object })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: '页码' })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: '搜索关键词' })
+  @ApiQuery({ name: 'status', required: false, type: String, description: '设备状态' })
   async getDevices(
     @CurrentUser('id') userId: string,
     @CurrentUser('isAdmin') isAdmin: boolean,
@@ -242,6 +319,9 @@ export class DeviceGroupController {
   @Post('devices/:guid/disable')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '禁用设备（管理员）', description: '禁用指定设备，使其无法连接' })
+  @ApiResponse({ status: 200, description: '禁用成功', schema: { example: { message: '设备已禁用' } } })
+  @ApiParam({ name: 'guid', description: '设备 GUID', type: 'string' })
   async disableDevice(@Param('guid') guid: string) {
     await this.deviceGroupService.disableDevice(guid);
     return { message: '设备已禁用' };
@@ -257,6 +337,9 @@ export class DeviceGroupController {
   @Post('devices/:guid/enable')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '启用设备（管理员）', description: '重新启用已禁用的设备' })
+  @ApiResponse({ status: 200, description: '启用成功', schema: { example: { message: '设备已启用' } } })
+  @ApiParam({ name: 'guid', description: '设备 GUID', type: 'string' })
   async enableDevice(@Param('guid') guid: string) {
     await this.deviceGroupService.enableDevice(guid);
     return { message: '设备已启用' };
@@ -272,6 +355,9 @@ export class DeviceGroupController {
   @Delete('devices/:guid')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '删除设备（管理员）', description: '永久删除指定设备及其相关数据' })
+  @ApiResponse({ status: 200, description: '删除成功', schema: { example: { message: '设备已删除' } } })
+  @ApiParam({ name: 'guid', description: '设备 GUID', type: 'string' })
   async deleteDevice(@Param('guid') guid: string) {
     await this.deviceGroupService.deleteDevice(guid);
     return { message: '设备已删除' };
@@ -288,6 +374,18 @@ export class DeviceGroupController {
   @Post('devices/:guid/assign')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '分配设备属性（管理员）', description: '为设备分配自定义属性（如标签、分组等）' })
+  @ApiResponse({ status: 200, description: '分配成功', schema: { example: { message: '设备属性已分配' } } })
+  @ApiParam({ name: 'guid', description: '设备 GUID', type: 'string' })
+  @ApiBody({
+    schema: {
+      example: {
+        type: 'tag',
+        value: '重要设备'
+      }
+    },
+    description: '属性类型和值'
+  })
   async assignDevice(
     @Param('guid') guid: string,
     @Body() body: {

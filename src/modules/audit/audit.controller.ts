@@ -1,5 +1,6 @@
 import { Controller, Post, Body, UseGuards, Get, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiQuery as SwaggerApiQuery } from '@nestjs/swagger';
 import { AuditService } from './audit.service';
 import { ConnectionAuditDto } from './dto/connection-audit.dto';
 import { FileAuditDto } from './dto/file-audit.dto';
@@ -20,6 +21,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
  * - GET /api/audits/alarm - 查询告警审计
  * - GET /api/audits/console - 查询控制台审计
  */
+@ApiTags('审计')
 @Controller('audit')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
@@ -46,6 +48,9 @@ export class AuditController {
   @Public()
   @Throttle({ default: { limit: 50, ttl: 60000 } })
   @Post('conn')
+  @ApiOperation({ summary: '记录连接审计', description: '记录远程桌面连接事件（客户端调用）' })
+  @ApiResponse({ status: 201, description: '记录成功', schema: { example: { message: '连接审计记录成功', status: 'success', data: {} } } })
+  @ApiBody({ type: ConnectionAuditDto, description: '连接审计数据' })
   async auditConnection(@Body() dto: ConnectionAuditDto) {
     const result = await this.auditService.auditConnection(dto);
     return {
@@ -76,6 +81,9 @@ export class AuditController {
   @Public()
   @Throttle({ default: { limit: 50, ttl: 60000 } })
   @Post('file')
+  @ApiOperation({ summary: '记录文件审计', description: '记录文件传输事件（客户端调用）' })
+  @ApiResponse({ status: 201, description: '记录成功', schema: { example: { message: '文件审计记录成功', status: 'success', data: {} } } })
+  @ApiBody({ type: FileAuditDto, description: '文件审计数据' })
   async auditFile(@Body() dto: FileAuditDto) {
     const result = await this.auditService.auditFile(dto);
     return {
@@ -106,6 +114,9 @@ export class AuditController {
   @Public()
   @Throttle({ default: { limit: 50, ttl: 60000 } })
   @Post('alarm')
+  @ApiOperation({ summary: '记录告警审计', description: '记录安全告警事件（客户端调用）' })
+  @ApiResponse({ status: 201, description: '记录成功', schema: { example: { message: '告警审计记录成功', status: 'success', data: {} } } })
+  @ApiBody({ type: AlarmAuditDto, description: '告警审计数据' })
   async auditAlarm(@Body() dto: AlarmAuditDto) {
     const result = await this.auditService.auditAlarm(dto);
     return {
@@ -116,6 +127,8 @@ export class AuditController {
   }
 }
 
+@ApiTags('审计查询')
+@ApiBearerAuth('JWT-auth')
 @Controller('audits')
 export class AuditsController {
   constructor(private readonly auditService: AuditService) {}
@@ -145,6 +158,13 @@ export class AuditsController {
    */
   @UseGuards(AdminGuard)
   @Get('conn')
+  @ApiOperation({ summary: '查询连接审计（管理员）', description: '查询远程桌面连接的审计记录' })
+  @ApiResponse({ status: 200, description: '成功返回列表', type: Object })
+  @SwaggerApiQuery({ name: 'remote', required: false, type: String, description: '远程设备ID（模糊匹配）' })
+  @SwaggerApiQuery({ name: 'conn_type', required: false, type: Number, description: '连接类型' })
+  @SwaggerApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @SwaggerApiQuery({ name: 'current', required: false, type: Number, description: '当前页码' })
+  @SwaggerApiQuery({ name: 'created_at', required: false, type: String, description: '创建时间（UTC）' })
   async queryConnectionAudits(
     @Query('remote') remote?: string,
     @Query('conn_type') conn_type?: number,
@@ -182,6 +202,12 @@ export class AuditsController {
    */
   @UseGuards(AdminGuard)
   @Get('file')
+  @ApiOperation({ summary: '查询文件审计（管理员）', description: '查询文件传输的审计记录' })
+  @ApiResponse({ status: 200, description: '成功返回列表', type: Object })
+  @SwaggerApiQuery({ name: 'remote', required: false, type: String, description: '远程设备ID（模糊匹配）' })
+  @SwaggerApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @SwaggerApiQuery({ name: 'current', required: false, type: Number, description: '当前页码' })
+  @SwaggerApiQuery({ name: 'created_at', required: false, type: String, description: '创建时间（UTC）' })
   async queryFileAudits(
     @Query('remote') remote?: string,
     @Query('pageSize') pageSize?: number,
@@ -217,6 +243,12 @@ export class AuditsController {
    */
   @UseGuards(AdminGuard)
   @Get('alarm')
+  @ApiOperation({ summary: '查询告警审计（管理员）', description: '查询安全告警的审计记录' })
+  @ApiResponse({ status: 200, description: '成功返回列表', type: Object })
+  @SwaggerApiQuery({ name: 'device', required: false, type: String, description: '设备ID（模糊匹配）' })
+  @SwaggerApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @SwaggerApiQuery({ name: 'current', required: false, type: Number, description: '当前页码' })
+  @SwaggerApiQuery({ name: 'created_at', required: false, type: String, description: '创建时间（UTC）' })
   async queryAlarmAudits(
     @Query('device') device?: string,
     @Query('pageSize') pageSize?: number,
@@ -252,6 +284,12 @@ export class AuditsController {
    */
   @UseGuards(AdminGuard)
   @Get('console')
+  @ApiOperation({ summary: '查询控制台审计（管理员）', description: '查询控制台操作的审计记录' })
+  @ApiResponse({ status: 200, description: '成功返回列表', type: Object })
+  @SwaggerApiQuery({ name: 'operator', required: false, type: String, description: '操作人（模糊匹配）' })
+  @SwaggerApiQuery({ name: 'pageSize', required: false, type: Number, description: '每页数量' })
+  @SwaggerApiQuery({ name: 'current', required: false, type: Number, description: '当前页码' })
+  @SwaggerApiQuery({ name: 'created_at', required: false, type: String, description: '创建时间（UTC）' })
   async queryConsoleAudits(
     @Query('operator') operator?: string,
     @Query('pageSize') pageSize?: number,

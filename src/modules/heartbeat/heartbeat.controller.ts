@@ -1,5 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { HeartbeatService } from './heartbeat.service';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 import { Public } from '../auth/decorators/public.decorator';
@@ -11,6 +12,7 @@ import { Public } from '../auth/decorators/public.decorator';
  * 端点数量：1个
  * - POST /api/heartbeat - 接收设备心跳
  */
+@ApiTags('心跳')
 @Controller('heartbeat')
 export class HeartbeatController {
   constructor(private readonly HeartbeatService: HeartbeatService) {}
@@ -36,6 +38,9 @@ export class HeartbeatController {
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post()
+  @ApiOperation({ summary: '接收设备心跳', description: '处理设备发送的心跳数据，更新设备在线状态和最后活跃时间' })
+  @ApiResponse({ status: 200, description: '处理成功', schema: { example: { message: '心跳接收成功', status: 'online' } } })
+  @ApiBody({ type: HeartbeatDto, description: '心跳数据' })
   receiveHeartbeat(@Body() HeartbeatDto: HeartbeatDto) {
     return this.HeartbeatService.handleHeartbeat(HeartbeatDto);
   }

@@ -1,5 +1,6 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { AuthService } from './services';
 import { LoginDto, CurrentUserDto, LogoutDto } from './dto/auth.dto';
 import { Public } from './decorators/public.decorator';
@@ -15,6 +16,7 @@ import type { Request } from 'express';
  * - POST /api/logout - 用户登出
  * - POST /api/currentUser - 获取当前用户信息
  */
+@ApiTags('认证')
 @Controller()
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -36,6 +38,10 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '用户登录', description: '验证用户名和密码，返回 JWT 访问令牌和用户信息' })
+  @ApiResponse({ status: 200, description: '登录成功', schema: { example: { access_token: 'eyJhbGciOiJIUzI1NiIs...', user: { id: 'uuid', name: 'admin', isAdmin: true, email: 'admin@example.com' } } } })
+  @ApiResponse({ status: 401, description: '用户名或密码错误' })
+  @ApiBody({ type: LoginDto, description: '登录凭证' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
@@ -55,8 +61,13 @@ export class AuthController {
    * @returns 登出成功消息
    * @throws UnauthorizedException 令牌无效或已过期
    */
+  @ApiBearerAuth('JWT-auth')
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '用户登出', description: '撤销当前用户的 JWT 访问令牌' })
+  @ApiResponse({ status: 200, description: '登出成功', schema: { example: { message: '登出成功' } } })
+  @ApiResponse({ status: 401, description: '未授权或令牌无效' })
+  @ApiBody({ type: LogoutDto, description: '设备信息（可选）' })
   async logout(
     @CurrentUser('id') userId: string,
     @Body() logoutDto: LogoutDto,
@@ -84,8 +95,13 @@ export class AuthController {
    * @returns 当前用户的详细信息
    * @throws UnauthorizedException 令牌无效或已过期
    */
+  @ApiBearerAuth('JWT-auth')
   @Post('currentUser')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '获取当前用户信息', description: '根据 JWT 令牌返回当前登录用户的详细信息' })
+  @ApiResponse({ status: 200, description: '成功返回用户信息', type: Object })
+  @ApiResponse({ status: 401, description: '未授权或令牌无效' })
+  @ApiBody({ type: CurrentUserDto, description: '设备信息（可选）' })
   async getCurrentUser(
     @CurrentUser('id') userId: string,
     @Body() currentUserDto: CurrentUserDto,

@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { OidcService } from './oidc.service';
 import { OidcAuthRequestDto } from './dto/oidc.dto';
 import { Public } from '../auth/decorators/public.decorator';
@@ -15,6 +16,7 @@ import { Public } from '../auth/decorators/public.decorator';
  *
  * 注意：OIDC功能正在开发中，暂时关闭所有相关接口
  */
+@ApiTags('OIDC (开发中)')
 @Controller()
 export class OidcController {
   constructor(private readonly oidcService: OidcService) {}
@@ -37,6 +39,8 @@ export class OidcController {
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('login-options')
+  @ApiOperation({ summary: '获取登录选项', description: '获取当前可用的登录方式列表（包括OIDC第三方登录）' })
+  @ApiResponse({ status: 200, description: '成功返回登录选项列表', schema: { example: [] } })
   async getLoginOptions() {
     // OIDC 功能正在开发中，暂时返回空列表
     return [];
@@ -62,6 +66,9 @@ export class OidcController {
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('oidc/auth')
+  @ApiOperation({ summary: '请求OIDC授权', description: '发起OIDC第三方登录授权请求（功能开发中）' })
+  @ApiResponse({ status: 400, description: '功能暂不可用', schema: { example: { statusCode: 400, message: 'OIDC 功能正在开发中，暂时不可用', error: 'Bad Request' } } })
+  @ApiBody({ type: OidcAuthRequestDto, description: 'OIDC 授权请求' })
   async requestAuth(@Body() authRequest: OidcAuthRequestDto) {
     throw new BadRequestException('OIDC 功能正在开发中，暂时不可用');
   }
@@ -87,6 +94,11 @@ export class OidcController {
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('oidc/auth-query')
+  @ApiOperation({ summary: '查询OIDC授权状态', description: '查询OIDC授权的当前状态（功能开发中）' })
+  @ApiResponse({ status: 400, description: '功能暂不可用', schema: { example: { statusCode: 400, message: 'OIDC 功能正在开发中，暂时不可用', error: 'Bad Request' } } })
+  @ApiQuery({ name: 'code', required: true, type: String, description: '授权码' })
+  @ApiQuery({ name: 'id', required: true, type: String, description: '设备ID' })
+  @ApiQuery({ name: 'uuid', required: true, type: String, description: '设备UUID' })
   async queryAuth(
     @Query('code') code: string,
     @Query('id') deviceId: string,

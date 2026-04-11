@@ -1,5 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { SysinfoService } from './sysinfo.service';
 import { SysinfoDto } from './dto/sysinfo.dto';
 import { Public } from '../auth/decorators/public.decorator';
@@ -11,6 +12,7 @@ import { Public } from '../auth/decorators/public.decorator';
  * 端点数量：1个
  * - POST /api/sysinfo - 提交系统信息
  */
+@ApiTags('系统信息')
 @Controller()
 export class SysinfoController {
   constructor(private readonly sysinfoService: SysinfoService) {}
@@ -36,6 +38,9 @@ export class SysinfoController {
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('sysinfo')
+  @ApiOperation({ summary: '提交系统信息', description: '接收设备上报的系统信息并保存到数据库' })
+  @ApiResponse({ status: 201, description: '提交成功', schema: { example: { message: '提交系统信息成功', success: true, data: { uuid: 'device-uuid', submitTime: '2024-01-01T00:00:00.000Z' } } } })
+  @ApiBody({ type: SysinfoDto, description: '系统信息数据' })
   async submitSysInfo(@Body() sysinfoDto: SysinfoDto) {
     const result = await this.sysinfoService.createSysinfo(sysinfoDto);
     return {
