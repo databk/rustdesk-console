@@ -1,98 +1,301 @@
+# RustDesk Console API
+
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <strong>Backend API Service for RustDesk Remote Desktop Management Console</strong>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+---
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+## 📖 Overview
+
+**RustDesk Console API** is a comprehensive backend service built with [NestJS](https://nestjs.com/) that powers the RustDesk remote desktop management console. It provides robust device management, user authentication, address book management, security auditing, and real-time monitoring capabilities for enterprise-grade remote desktop deployments.
+
+This API serves as the central hub for managing RustDesk clients, handling everything from user authentication and authorization to device grouping, access control, and comprehensive audit logging.
+
+## ✨ Key Features
+
+### 🔐 Authentication & Security
+- **JWT-based Authentication**: Secure token-based authentication with automatic token refresh and revocation
+- **Two-Factor Authentication (TFA/OTP)**: Enhanced security using TOTP (Time-based One-Time Password) via `otplib`
+- **Email Verification**: Email-based verification system using Nodemailer with Handlebars templates
+- **OIDC Integration**: Support for OpenID Connect providers (e.g., Google, Azure AD, Okta)
+- **Password Encryption**: Secure password hashing using `bcryptjs`
+- **Rate Limiting**: Built-in request throttling to prevent abuse (100 req/min default, 5 req/min for login)
+
+### 👥 User Management
+- Complete CRUD operations for user accounts
+- User invitation via email
+- Enable/disable user accounts
+- Force logout capabilities
+- Admin role-based access control
+- TFA enforcement policies
+
+### 📖 Address Book Management
+- Personal and shared address books
+- Device peer management (add, update, delete)
+- Tag-based organization with custom colors
+- Access rules and permission levels
+- Legacy API compatibility support
+- Pagination and search functionality
+
+### 🖥️ Device Group Management
+- Create and manage device groups
+- Assign devices to groups with role-based permissions
+- User-to-user permission mapping
+- Device enable/disable controls
+- Accessible resource queries based on user permissions
+
+### 📊 Audit & Compliance
+- **Connection Auditing**: Track all remote connections (established, closed, authorized)
+- **File Transfer Auditing**: Monitor file send/receive operations with file details
+- **Security Alarm Auditing**: Log security events (IP whitelist violations, brute force attempts, etc.)
+- Comprehensive timestamp tracking (requested, established, closed times)
+
+### 💓 Real-time Monitoring
+- **Heartbeat System**: Monitor device online status and last activity
+- **System Information Collection**: Gather hardware/OS details from connected devices
+- Automatic status updates and device tracking
+
+### 📧 Email Services
+- Welcome email templates
+- Verification code emails
+- Customizable Handlebars templates
+- SMTP configuration support
+
+## 🛠️ Tech Stack
+
+| Category | Technology |
+|----------|------------|
+| **Framework** | NestJS 11 (TypeScript) |
+| **Database** | SQLite via TypeORM 0.3 |
+| **Authentication** | JWT (passport-jwt), Passport.js |
+| **Security** | bcryptjs, otplib (TOTP), @nestjs/throttler |
+| **Email** | Nodemailer + Handlebars templates |
+| **Validation** | class-validator, class-transformer |
+| **Utilities** | uuid, dotenv |
+| **Testing** | Jest, supertest |
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js** >= 18.0.0
+- **npm** >= 9.0.0
+- **SQLite3** (included as dependency)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/databk/rustdesk-console.git
+cd rustdesk-console
+
+# Install dependencies
+npm install
+
+# Copy environment configuration
+cp .env.example .env
+
+# Edit .env with your configuration (see Environment Variables section)
+nano .env
+```
+
+### Running the Application
+
+```bash
+# Development mode (with hot reload)
+npm run start:dev
+
+# Standard development mode
+npm run start
+
+# Production mode
+npm run build
+npm run start:prod
+
+# Debug mode
+npm run start:debug
+```
+
+The API will be available at `http://localhost:3000/api` (configurable via `PORT` env var).
+
+## 📁 Project Structure
+
+```
+src/
+├── main.ts                    # Application entry point
+├── app.module.ts              # Root application module
+│
+├── modules/
+│   ├── auth/                  # Authentication & authorization (JWT, TFA, OIDC, email)
+│   ├── user/                  # User management (admin CRUD operations)
+│   ├── address-book/          # Address book & device peer management
+│   ├── device-group/          # Device grouping & permissions
+│   ├── audit/                 # Connection/file/alarm audit logging
+│   ├── heartbeat/             # Device heartbeat monitoring
+│   ├── sysinfo/               # System information collection
+│   ├── oidc/                  # OpenID Connect integration
+│   └── email/                 # Email services (templates, SMTP)
+│
+├── common/                    # Shared utilities (guards, decorators, entities)
+└── database/                  # Database initialization & seed data
+```
+
+> **Note**: For detailed API endpoint documentation and database schema, please refer to the dedicated documentation files (coming soon).
+
+## ⚙️ Environment Configuration
+
+Copy `.env.example` to `.env` and configure the following variables:
+
+```env
+# Server Configuration
+PORT=3000                          # API server port
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key-change-in-production  # Secret key for signing JWTs
+
+# Default Admin Account (auto-created on first run)
+ADMIN_USERNAME=admin               # Default admin username
+ADMIN_EMAIL=admin@example.com      # Default admin email
+ADMIN_PASSWORD=admin123           # Default admin password (CHANGE IN PRODUCTION!)
+
+# Database Configuration
+# Currently uses SQLite (rustdesk.db file in project root)
+# To use PostgreSQL/MySQL, modify TypeORM config in src/app.module.ts
+
+# SMTP Configuration (for email verification & notifications)
+SMTP_HOST=smtp.example.com        # SMTP server hostname
+SMTP_PORT=587                     # SMTP port (587 for TLS, 465 for SSL)
+SMTP_SECURE=false                 # Use true for SSL/TLS
+SMTP_USER=your-email@example.com  # SMTP username
+SMTP_PASS=your-email-password     # SMTP password
+SMTP_FROM="No Reply" <noreply@example.com>  # Sender display name & email
+```
+
+> ⚠️ **Security Note**: Always change default passwords and JWT secrets before deploying to production!
+
+## 🗄️ Database
+
+The application uses **SQLite** as the default database engine (file: `rustdesk.db` in project root), managed by **TypeORM 0.3**.
+
+**Core Data Models Include:**
+- User accounts & tokens
+- Address books, peers, tags & access rules
+- Device groups & permissions
+- Audit logs (connections, file transfers, alarms)
+- Device system information & heartbeats
+- OIDC provider configurations & auth states
+- Email verification sessions
+
+> **Configuration**: Database settings can be modified in [`src/app.module.ts`](src/app.module.ts). The application supports migration to PostgreSQL or MySQL for production deployments requiring higher concurrency.
+
+## 🛡️ Security Features
+
+### Authentication Flow
+1. User submits credentials to `POST /api/login`
+2. Server validates credentials (with optional TFA check)
+3. Returns JWT access token + refresh token
+4. Client includes Bearer token in Authorization header for subsequent requests
+5. Token is validated on each request via `JwtAuthGuard`
+6. Token can be revoked via `POST /api/logout`
+
+### Rate Limiting Strategy
+- **Global**: 100 requests per minute per IP
+- **Login endpoint**: 5 attempts per minute (brute force protection)
+- **Heartbeat submissions**: 10 per minute per device
+- **System info submissions**: 5 per minute per device
+
+### Security Layers
+- **JwtAuthGuard**: Global JWT authentication (bypassed via `@Public()` decorator)
+- **AdminGuard**: Restricts sensitive endpoints to admin users only
+- **ThrottlerGuard**: Global rate limiting protection
+- **DeviceThrottlerGuard**: Specialized rate limiting for device endpoints
+- **ValidationPipe**: Global input validation with auto-whitelisting and transformation
+- **CORS**: Configured to allow all origins (restrict in production)
+
+## 🧪 Development
+
+### Available Scripts
+
+```bash
+# Development
+npm run start:dev      # Start with hot-reload (watch mode)
+npm run start:debug    # Start with debug mode
+
+# Building
+npm run build          # Compile TypeScript to JavaScript
+
+# Code Quality
+npm run lint           # Lint code with ESLint
+npm run format         # Format code with Prettier
+
+# Testing
+npm run test           # Run unit tests
+npm run test:watch     # Run tests in watch mode
+npm run test:cov       # Run tests with coverage report
+npm run test:e2e       # Run end-to-end tests
+npm run test:debug     # Run tests in debug mode
+```
+
+### Code Style
+- **Language**: TypeScript with strict typing
+- **Linting**: ESLint with Prettier integration
+- **Naming Conventions**:
+  - Files: kebab-case (`auth.service.ts`)
+  - Classes: PascalCase (`AuthService`)
+  - Methods/Variables: camelCase (`getUserById`)
+- **Documentation**: JSDoc comments on public methods
+
+## 🐳 Deployment Considerations
+
+### Production Checklist
+- [ ] Change `JWT_SECRET` to a strong random value (min 32 chars)
+- [ ] Change default admin password in `.env`
+- [ ] Configure production SMTP settings
+- [ ] Set `synchronize: false` in TypeORM config and use migrations
+- [ ] Configure CORS origins to your frontend domain only
+- [ ] Set up HTTPS/reverse proxy (nginx, Apache, etc.)
+- [ ] Configure backup strategy for SQLite database
+- [ ] Set up process manager (PM2, systemd) for auto-restart
+- [ ] Review and adjust rate limiting for your traffic patterns
+- [ ] Enable proper logging (currently disabled: `logging: false`)
+
+### Scaling Notes
+- **SQLite Limitations**: Single-writer, suitable for small-medium deployments (< 100 concurrent users)
+- **For High Availability**: Migrate to PostgreSQL with connection pooling
+- **Horizontal Scaling**: Consider Redis for session/token storage if running multiple instances
+- **Performance**: Enable WAL mode for better SQLite read concurrency
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+**Commit Message Format**: Follow [Conventional Commits](https://www.conventionalcommits.org/)
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation changes
+- `style:` Code style changes (formatting, etc.)
+- `refactor:` Code refactoring
+- `test:` Adding/updating tests
+- `chore:` Maintenance tasks
+
+## 📄 License
+
+This project is licensed under a custom license - see LICENSE file for details.
+
+## 📚 Additional Resources
+
+- [NestJS Documentation](https://docs.nestjs.com/) - Framework documentation
+- [TypeORM Documentation](https://typeorm.io/) - ORM documentation
+- [RustDesk Official Site](https://rustdesk.com/) - Main product information
+- [Passport.js Documentation](http://www.passportjs.org/) - Authentication middleware
+
+---
+
+<p align="center">
+  <strong>Built with ❤️ using NestJS | Powering RustDesk Console</strong>
 </p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
-```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
