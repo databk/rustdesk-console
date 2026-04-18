@@ -1,16 +1,16 @@
-# RustDesk Console API
+# RustDesk Console
 
 <p align="center">
-  <strong>Backend API Service for RustDesk Remote Desktop Management Console</strong>
+  <strong>Remote Desktop Management Console for RustDesk</strong>
 </p>
 
 ---
 
 ## 📖 Overview
 
-**RustDesk Console API** is a comprehensive backend service built with [NestJS](https://nestjs.com/) that powers the RustDesk remote desktop management console. It provides robust device management, user authentication, address book management, security auditing, and real-time monitoring capabilities for enterprise-grade remote desktop deployments.
+**RustDesk Console** is a comprehensive management platform built with [NestJS](https://nestjs.com/) that powers the RustDesk remote desktop ecosystem. It provides robust device management, user authentication, address book management, security auditing, and real-time monitoring capabilities for enterprise-grade remote desktop deployments.
 
-This API serves as the central hub for managing RustDesk clients, handling everything from user authentication and authorization to device grouping, access control, and comprehensive audit logging.
+This console serves as the central hub for managing RustDesk clients, handling everything from user authentication and authorization to device grouping, access control, and comprehensive audit logging.
 
 ## ✨ Key Features
 
@@ -84,6 +84,83 @@ This API serves as the central hub for managing RustDesk clients, handling every
 - **SQLite3** (included as dependency)
 
 ### Installation
+
+RustDesk Console provides multiple installation methods to suit different deployment needs:
+
+#### 📦 Option 1: GitHub Release (Recommended for Quick Setup)
+
+Download pre-built binaries from the [GitHub Releases](https://github.com/databk/rustdesk-console/releases) page:
+
+```bash
+# Download the latest release for your platform
+# Visit: https://github.com/databk/rustdesk-console/releases
+# Extract and run the binary directly
+```
+
+#### 🐳 Option 2: Docker
+
+Pull and run the official Docker image:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/databk/rustdesk-console:latest
+
+# Run with default configuration
+docker run -d \
+  --name rustdesk-console \
+  -p 3000:3000 \
+  -v $(pwd)/data:/app/data \
+  ghcr.io/databk/rustdesk-console:latest
+
+# Run with custom environment variables
+docker run -d \
+  --name rustdesk-console \
+  -p 3000:3000 \
+  -v $(pwd)/data:/app/data \
+  -e JWT_SECRET=your-super-secret-key \
+  -e ADMIN_PASSWORD=your-secure-password \
+  -e SMTP_HOST=smtp.example.com \
+  ghcr.io/databk/rustdesk-console:latest
+```
+
+**Docker Compose** (recommended for production):
+
+```yaml
+version: '3.8'
+services:
+  rustdesk-console:
+    image: ghcr.io/databk/rustdesk-console:latest
+    container_name: rustdesk-console
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+```
+
+#### 📦 Option 3: GitHub Container Registry (ghcr)
+
+For Kubernetes or container orchestration platforms:
+
+```bash
+# Pull from GitHub Container Registry
+docker pull ghcr.io/databk/rustdesk-console:latest
+
+# Or use in Kubernetes deployment
+# image: ghcr.io/databk/rustdesk-console:latest
+```
+
+Available tags:
+- `latest` - Latest stable release
+- `vX.Y.Z` - Specific version (e.g., `v1.0.0`)
+- `dev` - Latest development build
+
+#### 🔧 Option 4: Build from Source
+
+For development or customization:
 
 ```bash
 # Clone the repository
