@@ -87,26 +87,23 @@ This console serves as the central hub for managing RustDesk clients, handling e
 
 RustDesk Console provides multiple installation methods to suit different deployment needs:
 
-#### 📦 Option 1: GitHub Release (Recommended for Quick Setup)
+#### 🔧 Option 1: Build from Source (Recommended for Development)
 
-Download the source code package from [GitHub Releases](https://github.com/databk/rustdesk-console/releases):
+Clone the repository and build from source:
 
 ```bash
-# Download the latest release
-# Visit: https://github.com/databk/rustdesk-console/releases
-# Download the source code tarball/zip
-
-# Extract and install dependencies
-tar -xzf rustdesk-console-vX.Y.Z.tar.gz
+# Clone the repository
+git clone https://github.com/databk/rustdesk-console.git
 cd rustdesk-console
+
+# Install dependencies
 npm install
 
-# Configure environment
+# Copy environment configuration
 cp .env.example .env
-nano .env
 
-# Start the application
-npm run build && npm run start:prod
+# Edit .env with your configuration (see Environment Variables section)
+nano .env
 ```
 
 #### 🐳 Option 2: Docker Hub
@@ -164,27 +161,8 @@ docker pull ghcr.io/databk/rustdesk-console:latest
 
 Available tags for both Docker Hub and GHCR:
 - `latest` - Latest stable release
-- `vX.Y.Z` - Specific version (e.g., `v1.0.0`)
+- `X.Y.Z` - Specific version (e.g., `1.0.0`)
 - `dev` - Latest development build
-
-#### 🔧 Option 4: Build from Source
-
-For development or customization:
-
-```bash
-# Clone the repository
-git clone https://github.com/databk/rustdesk-console.git
-cd rustdesk-console
-
-# Install dependencies
-npm install
-
-# Copy environment configuration
-cp .env.example .env
-
-# Edit .env with your configuration (see Environment Variables section)
-nano .env
-```
 
 ### Running the Application
 
