@@ -89,38 +89,48 @@ RustDesk Console provides multiple installation methods to suit different deploy
 
 #### 📦 Option 1: GitHub Release (Recommended for Quick Setup)
 
-Download pre-built binaries from the [GitHub Releases](https://github.com/databk/rustdesk-console/releases) page:
+Download the source code package from [GitHub Releases](https://github.com/databk/rustdesk-console/releases):
 
 ```bash
-# Download the latest release for your platform
+# Download the latest release
 # Visit: https://github.com/databk/rustdesk-console/releases
-# Extract and run the binary directly
+# Download the source code tarball/zip
+
+# Extract and install dependencies
+tar -xzf rustdesk-console-vX.Y.Z.tar.gz
+cd rustdesk-console
+npm install
+
+# Configure environment
+cp .env.example .env
+nano .env
+
+# Start the application
+npm run build && npm run start:prod
 ```
 
-#### 🐳 Option 2: Docker
+#### 🐳 Option 2: Docker Hub
 
-Pull and run the official Docker image:
+Pull and run the official Docker image from Docker Hub:
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/databk/rustdesk-console:latest
+docker pull databk/rustdesk-console:latest
 
 # Run with default configuration
 docker run -d \
   --name rustdesk-console \
   -p 3000:3000 \
-  -v $(pwd)/data:/app/data \
-  ghcr.io/databk/rustdesk-console:latest
+  databk/rustdesk-console:latest
 
 # Run with custom environment variables
 docker run -d \
   --name rustdesk-console \
   -p 3000:3000 \
-  -v $(pwd)/data:/app/data \
   -e JWT_SECRET=your-super-secret-key \
   -e ADMIN_PASSWORD=your-secure-password \
   -e SMTP_HOST=smtp.example.com \
-  ghcr.io/databk/rustdesk-console:latest
+  databk/rustdesk-console:latest
 ```
 
 **Docker Compose** (recommended for production):
@@ -129,21 +139,20 @@ docker run -d \
 version: '3.8'
 services:
   rustdesk-console:
-    image: ghcr.io/databk/rustdesk-console:latest
+    image: databk/rustdesk-console:latest
     container_name: rustdesk-console
     ports:
       - "3000:3000"
-    volumes:
-      - ./data:/app/data
-      - ./.env:/app/.env
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=your-super-secret-key
+      - ADMIN_PASSWORD=your-secure-password
     restart: unless-stopped
 ```
 
 #### 📦 Option 3: GitHub Container Registry (ghcr)
 
-For Kubernetes or container orchestration platforms:
+For users who prefer GitHub Container Registry or Kubernetes deployments:
 
 ```bash
 # Pull from GitHub Container Registry
@@ -153,7 +162,7 @@ docker pull ghcr.io/databk/rustdesk-console:latest
 # image: ghcr.io/databk/rustdesk-console:latest
 ```
 
-Available tags:
+Available tags for both Docker Hub and GHCR:
 - `latest` - Latest stable release
 - `vX.Y.Z` - Specific version (e.g., `v1.0.0`)
 - `dev` - Latest development build
@@ -362,7 +371,7 @@ npm run test:debug     # Run tests in debug mode
 
 ## 📄 License
 
-This project is licensed under a custom license - see LICENSE file for details.
+This project is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0) - see [LICENSE](LICENSE) file for details.
 
 ## 📚 Additional Resources
 
