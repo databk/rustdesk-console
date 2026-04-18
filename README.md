@@ -361,5 +361,5 @@ This project is licensed under the **GNU Affero General Public License v3.0** (A
 ---
 
 <p align="center">
-  <strong>Built with ❤️ using NestJS | Powering RustDesk Console</strong>
+  <strong>Built with ❤️ using NestJS | The RustDesk Console Backend</strong>
 </p>
