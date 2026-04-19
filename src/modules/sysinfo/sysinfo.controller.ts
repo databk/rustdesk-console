@@ -41,7 +41,7 @@ export class SysinfoController {
     return {
       message: '提交系统信息成功',
       success: true,
-      data: { uuid: result.uuid, submitTime: result.createdAt }
+      data: { uuid: result.uuid, submitTime: result.createdAt },
     };
   }
 }

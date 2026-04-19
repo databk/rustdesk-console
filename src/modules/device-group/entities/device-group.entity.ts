@@ -1,4 +1,12 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+  Index,
+} from 'typeorm';
 import { DeviceGroupUserPermission } from './device-group-user-permission.entity';
 
 /**
@@ -33,7 +41,11 @@ export class DeviceGroup {
    * 设备组的用户权限列表
    * 一对多关系，关联到 DeviceGroupUserPermission
    */
-  @OneToMany(() => DeviceGroupUserPermission, permission => permission.deviceGroup, { cascade: true })
+  @OneToMany(
+    () => DeviceGroupUserPermission,
+    (permission) => permission.deviceGroup,
+    { cascade: true },
+  )
   userPermissions: DeviceGroupUserPermission[];
 
   /**

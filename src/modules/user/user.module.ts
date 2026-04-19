@@ -24,7 +24,14 @@ import { DeviceGroupUserPermission } from '../device-group/entities/device-group
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserToken, Peer, Sysinfo, DeviceGroup, DeviceGroupUserPermission]),
+    TypeOrmModule.forFeature([
+      User,
+      UserToken,
+      Peer,
+      Sysinfo,
+      DeviceGroup,
+      DeviceGroupUserPermission,
+    ]),
     AuthModule,
   ],
   controllers: [UserController],

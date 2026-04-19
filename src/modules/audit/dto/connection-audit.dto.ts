@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsArray, IsInt, Min, Max, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsInt,
+  Min,
+  Max,
+  IsNumber,
+} from 'class-validator';
 
 /**
  * ConnectionAuditDto

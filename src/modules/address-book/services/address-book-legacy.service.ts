@@ -2,7 +2,12 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { AddressBook, AddressBookPeer, AddressBookTag, AddressBookPeerTag } from '../entities';
+import {
+  AddressBook,
+  AddressBookPeer,
+  AddressBookTag,
+  AddressBookPeerTag,
+} from '../entities';
 import { Sysinfo } from '../../../common/entities';
 
 @Injectable()
@@ -33,13 +38,13 @@ export class AddressBookLegacyService {
   /**
    * 获取旧版地址簿数据
    * 返回格式兼容旧版RustDesk客户端
-   * 
+   *
    * 数据格式说明：
    * - 如果地址簿为空，返回字符串 "null"
    * - 如果地址簿有数据，返回对象包含：
    *   - licensed_devices: 许可设备数量
    *   - data: JSON字符串，包含tags、peers、tag_colors
-   * 
+   *
    * @param userId 用户ID
    * @returns 旧版地址簿数据（字符串或对象）
    */
@@ -72,14 +77,15 @@ export class AddressBookLegacyService {
     });
 
     // 获取所有设备ID，用于从sysinfos表获取信息
-    const deviceIds = peers.map(p => p.deviceId);
-    const sysinfos = deviceIds.length > 0
-      ? await this.sysinfoRepository.find({
-          where: { uuid: In(deviceIds) },
-        })
-      : [];
+    const deviceIds = peers.map((p) => p.deviceId);
+    const sysinfos =
+      deviceIds.length > 0
+        ? await this.sysinfoRepository.find({
+            where: { uuid: In(deviceIds) },
+          })
+        : [];
 
-    const sysinfoMap = new Map(sysinfos.map(s => [s.uuid, s]));
+    const sysinfoMap = new Map(sysinfos.map((s) => [s.uuid, s]));
 
     // 如果地址簿为空，返回 "null"
     if (tags.length === 0 && peers.length === 0) {
@@ -93,7 +99,7 @@ export class AddressBookLegacyService {
     }
 
     // 构建设备列表
-    const peersData = peers.map(p => {
+    const peersData = peers.map((p) => {
       const sysinfo = sysinfoMap.get(p.deviceId);
       return {
         id: p.deviceId,
@@ -102,12 +108,12 @@ export class AddressBookLegacyService {
         hostname: sysinfo?.hostname || '',
         platform: sysinfo?.os || '',
         alias: p.alias || '',
-        tags: p.tags?.map(t => t.name) || [],
+        tags: p.tags?.map((t) => t.name) || [],
       };
     });
 
     // 构建标签列表
-    const tagsList = tags.map(t => t.name);
+    const tagsList = tags.map((t) => t.name);
 
     return {
       licensed_devices: 100,
@@ -122,19 +128,19 @@ export class AddressBookLegacyService {
   /**
    * 更新旧版地址簿数据
    * 接收双重JSON编码的数据，并更新到数据库
-   * 
+   *
    * 数据格式说明：
    * 输入数据包含：
    * - tags: 标签名称数组
    * - peers: 设备数组，每个设备包含id、hash、username、hostname、platform、alias、tags
    * - tag_colors: JSON字符串，包含标签颜色映射
-   * 
+   *
    * 处理逻辑：
    * 1. 解析双重JSON编码的数据
    * 2. 删除现有所有标签和设备
    * 3. 根据新数据创建标签和设备
    * 4. 建立设备与标签的关联关系
-   * 
+   *
    * @param userId 用户ID
    * @param data 双重JSON编码的地址簿数据
    * @returns 操作结果（字符串 "null"）
@@ -161,8 +167,8 @@ export class AddressBookLegacyService {
     };
 
     try {
-      parsedData = JSON.parse(data);
-    } catch (e) {
+      parsedData = JSON.parse(data) as typeof parsedData;
+    } catch {
       throw new BadRequestException('无效的 JSON 数据');
     }
 
@@ -188,8 +194,8 @@ export class AddressBookLegacyService {
     let tagColors: Record<string, number> = {};
     if (parsedData.tag_colors) {
       try {
-        tagColors = JSON.parse(parsedData.tag_colors);
-      } catch (e) {
+        tagColors = JSON.parse(parsedData.tag_colors) as Record<string, number>;
+      } catch {
         // 忽略解析错误
       }
     }

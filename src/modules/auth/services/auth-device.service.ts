@@ -25,7 +25,7 @@ export class AuthDeviceService {
   /**
    * 创建或更新设备记录
    * 将设备绑定到用户账户，用于追踪用户的登录设备
-   * 
+   *
    * @param userGuid 用户GUID
    * @param deviceId 设备ID（可选）
    * @param deviceUuid 设备UUID
@@ -35,7 +35,7 @@ export class AuthDeviceService {
     userGuid: string,
     deviceId?: string,
     deviceUuid?: string,
-    deviceInfo?: Record<string, any>,
+    _deviceInfo?: Record<string, unknown>,
   ): Promise<void> {
     if (!deviceUuid) return;
 
@@ -56,9 +56,9 @@ export class AuthDeviceService {
   /**
    * 解除设备与用户的绑定
    * 在用户登出时调用，解除设备与用户的关联
-   * 
+   *
    * 安全措施：防止退出登录后设备仍关联用户
-   * 
+   *
    * @param userGuid 用户GUID
    * @param deviceUuid 设备UUID
    */
@@ -68,9 +68,11 @@ export class AuthDeviceService {
     });
 
     if (peer) {
-      peer.userGuid = null as any;
+      peer.userGuid = null;
       await this.peerRepository.save(peer);
-      this.logger.log(`用户 ${userGuid} 退出登录，已解除设备 ${deviceUuid} 的绑定`);
+      this.logger.log(
+        `用户 ${userGuid} 退出登录，已解除设备 ${deviceUuid} 的绑定`,
+      );
     }
   }
 }

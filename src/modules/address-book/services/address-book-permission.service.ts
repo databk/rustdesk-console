@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { AddressBook, AddressBookRule, ShareRule } from '../entities';
@@ -6,7 +10,7 @@ import { AddressBook, AddressBookRule, ShareRule } from '../entities';
 /**
  * 地址簿权限检查服务
  * 负责检查用户对地址簿的访问权限
- * 
+ *
  * 这个服务被提取出来是为了避免循环依赖：
  * - AddressBookService 需要权限检查
  * - AddressBookRuleService 也需要权限检查
@@ -25,7 +29,7 @@ export class AddressBookPermissionService {
   /**
    * 检查用户是否有权限访问地址簿
    * 验证用户对地址簿的访问权限，包括所有权检查和规则权限检查
-   * 
+   *
    * @param addressBookGuid 地址簿 GUID
    * @param userId 用户 ID
    * @param requiredRule 需要的权限级别（默认为只读）
@@ -53,10 +57,10 @@ export class AddressBookPermissionService {
 
     // 检查规则权限（用户规则）
     const rule = await this.ruleRepository.findOne({
-      where: { 
-        addressBookGuid, 
+      where: {
+        addressBookGuid,
         targetUserId: userId,
-        targetGroupId: IsNull(),  // 确保是用户规则
+        targetGroupId: IsNull(), // 确保是用户规则
       },
     });
 
@@ -65,8 +69,9 @@ export class AddressBookPermissionService {
     }
 
     // 检查权限级别
-    if (rule.rule < requiredRule) {
-      const requiredPermission = requiredRule === ShareRule.READ_WRITE ? '读写' : '完全控制';
+    if (rule.rule < Number(requiredRule)) {
+      const requiredPermission =
+        requiredRule === ShareRule.READ_WRITE ? '读写' : '完全控制';
       throw new ForbiddenException(`需要${requiredPermission}权限`);
     }
 

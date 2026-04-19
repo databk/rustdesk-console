@@ -1,4 +1,11 @@
-import { Controller, Get, Post, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  BadRequestException,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { OidcService } from './oidc.service';
 import { OidcAuthRequestDto } from './dto/oidc.dto';
@@ -37,7 +44,7 @@ export class OidcController {
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('login-options')
-  async getLoginOptions() {
+  getLoginOptions() {
     // OIDC 功能正在开发中，暂时返回空列表
     return [];
   }
@@ -62,7 +69,7 @@ export class OidcController {
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('oidc/auth')
-  async requestAuth(@Body() authRequest: OidcAuthRequestDto) {
+  requestAuth(@Body() _authRequest: OidcAuthRequestDto) {
     throw new BadRequestException('OIDC 功能正在开发中，暂时不可用');
   }
 
@@ -87,10 +94,10 @@ export class OidcController {
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('oidc/auth-query')
-  async queryAuth(
-    @Query('code') code: string,
-    @Query('id') deviceId: string,
-    @Query('uuid') deviceUuid: string,
+  queryAuth(
+    @Query('code') _code: string,
+    @Query('id') _deviceId: string,
+    @Query('uuid') _deviceUuid: string,
   ) {
     throw new BadRequestException('OIDC 功能正在开发中，暂时不可用');
   }

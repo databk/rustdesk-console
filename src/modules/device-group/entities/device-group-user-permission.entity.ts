@@ -1,4 +1,11 @@
-import { Entity, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  Index,
+} from 'typeorm';
 import { DeviceGroup } from './device-group.entity';
 import { User } from '../../user/entities/user.entity';
 
@@ -29,7 +36,9 @@ export class DeviceGroupUserPermission {
    * 关联的设备组实体
    * 多对一关系，关联到 DeviceGroup
    */
-  @ManyToOne(() => DeviceGroup, permission => permission.userPermissions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => DeviceGroup, (permission) => permission.userPermissions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'deviceGroupGuid' })
   deviceGroup: DeviceGroup;
 

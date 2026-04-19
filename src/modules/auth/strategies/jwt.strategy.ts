@@ -25,12 +25,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly logger = new Logger(JwtStrategy.name);
 
   constructor(private authService: AuthService) {
-    const jwtSecret = process.env.JWT_SECRET || 'rustdesk-api-secret-key-change-in-production';
+    const jwtSecret =
+      process.env.JWT_SECRET || 'rustdesk-api-secret-key-change-in-production';
 
     // 检查是否使用默认 JWT 密钥
     if (!process.env.JWT_SECRET) {
       const logger = new Logger('JwtStrategy');
-      logger.warn('WARNING: Using default JWT secret key. Please set JWT_SECRET environment variable in production!');
+      logger.warn(
+        'WARNING: Using default JWT secret key. Please set JWT_SECRET environment variable in production!',
+      );
     }
 
     super({
@@ -56,7 +59,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * @returns 验证通过的用户信息
    * @throws UnauthorizedException 令牌无效、已过期或已被撤销
    */
-  async validate(req: Request, payload: JwtPayload): Promise<any> {
+  async validate(
+    req: Request,
+    payload: JwtPayload,
+  ): Promise<Record<string, unknown>> {
     const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
 
     // Token 不存在时直接拒绝
@@ -74,7 +80,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // 保持原有字段名 id，实际值是用户的 guid
     return {
-      id: sub,  // 保持原有字段名 id，值为用户的 guid
+      id: sub, // 保持原有字段名 id，值为用户的 guid
       username,
       email,
       isAdmin,

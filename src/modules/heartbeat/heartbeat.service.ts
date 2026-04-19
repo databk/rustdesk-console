@@ -7,7 +7,7 @@ import { Peer } from '../../common/entities';
 /**
  * 心跳服务
  * 负责处理设备的定期心跳信号，保持设备在线状态
- * 
+ *
  * 功能：
  * - 接收设备心跳数据
  * - 创建或更新设备记录
@@ -25,7 +25,7 @@ export class HeartbeatService {
   /**
    * 处理设备心跳
    * 接收设备发送的心跳数据，创建或更新设备记录
-   * 
+   *
    * @param data 心跳数据，包含设备ID、UUID、版本号等信息
    * @returns 心跳处理结果，包含响应码和设备信息
    */
@@ -33,7 +33,7 @@ export class HeartbeatService {
     this.logger.debug(`收到心跳数据: id=${data.id}, uuid=${data.uuid}`);
 
     const existingPeer = await this.peerRepository.findOne({
-      where: { uuid: data.uuid }
+      where: { uuid: data.uuid },
     });
 
     if (existingPeer) {
@@ -44,7 +44,7 @@ export class HeartbeatService {
           id: data.id,
           ver: data.ver,
           modifiedAt: data.modified_at,
-        }
+        },
       );
       this.logger.debug(`设备 ${data.uuid} 心跳已更新`);
     } else {

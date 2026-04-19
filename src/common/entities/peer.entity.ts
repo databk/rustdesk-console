@@ -1,4 +1,13 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 
 /**
  * 设备实体
@@ -26,7 +35,7 @@ export class Peer {
    */
   @Column({ nullable: true })
   @Index()
-  userGuid: string;
+  userGuid: string | null;
 
   /**
    * 所属设备组GUID
@@ -34,7 +43,7 @@ export class Peer {
    */
   @Column({ nullable: true })
   @Index()
-  deviceGroupGuid: string;
+  deviceGroupGuid: string | null;
 
   /**
    * 关联的设备组实体

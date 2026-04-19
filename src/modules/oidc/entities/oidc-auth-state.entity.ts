@@ -1,13 +1,20 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+} from 'typeorm';
 
 /**
  * OIDC 授权状态枚举
  */
 export enum OidcAuthStatus {
-  PENDING = 'pending',      // 等待用户授权
+  PENDING = 'pending', // 等待用户授权
   AUTHORIZED = 'authorized', // 已授权
-  EXPIRED = 'expired',      // 已过期
-  CANCELLED = 'cancelled',  // 已取消
+  EXPIRED = 'expired', // 已过期
+  CANCELLED = 'cancelled', // 已取消
 }
 
 /**

@@ -1,4 +1,11 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+} from 'typeorm';
 import { AddressBook } from './address-book.entity';
 
 /**
@@ -17,12 +24,12 @@ export enum ShareRule {
 /**
  * 地址簿规则实体
  * 管理地址簿的访问权限规则
- * 
+ *
  * 规则类型:
  * - user: 针对特定用户的规则
  * - group: 针对特定组的规则
  * - everyone: 针对所有用户的规则（user 和 group 都为空）
- * 
+ *
  * 权限级别:
  * - 1: Read (只读)
  * - 2: ReadWrite (读写)

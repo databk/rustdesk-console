@@ -1,4 +1,13 @@
-import { Entity, PrimaryColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, Index, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  JoinColumn,
+} from 'typeorm';
 import { User } from './user.entity';
 
 /**
@@ -63,7 +72,7 @@ export class UserToken {
    * 关联的用户实体
    * 多对一关系，关联到 User
    */
-  @ManyToOne(() => User, user => user.tokens, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.tokens, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userGuid' })
   user: User;
 

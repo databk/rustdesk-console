@@ -5,13 +5,13 @@ import { IsString, IsObject } from 'class-validator';
  */
 export class DeviceInfoDto {
   @IsString()
-  os: string;    // 操作系统：Linux, Windows, Android...
+  os: string; // 操作系统：Linux, Windows, Android...
 
   @IsString()
-  type: string;  // 类型：browser 或 client
+  type: string; // 类型：browser 或 client
 
   @IsString()
-  name: string;  // 设备名称或浏览器信息
+  name: string; // 设备名称或浏览器信息
 }
 
 /**
@@ -19,14 +19,14 @@ export class DeviceInfoDto {
  */
 export class OidcAuthRequestDto {
   @IsString()
-  op: string;  // OIDC 提供商标识，如 oidc/google
+  op: string; // OIDC 提供商标识，如 oidc/google
 
   @IsString()
-  id: string;  // 设备ID
+  id: string; // 设备ID
 
   @IsString()
-  uuid: string;  // 设备UUID
+  uuid: string; // 设备UUID
 
   @IsObject()
-  deviceInfo: DeviceInfoDto;  // 设备信息
+  deviceInfo: DeviceInfoDto; // 设备信息
 }

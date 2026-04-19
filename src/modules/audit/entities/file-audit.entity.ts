@@ -1,4 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+} from 'typeorm';
 
 // SQLite 不支持 ENUM，所以使用整数代替
 // 对于支持 ENUM 的数据库，可以在装饰器中使用 @Column({ type: 'enum', enum: FileAuditType })
@@ -8,7 +13,7 @@ export const FileAuditType = {
   RECEIVE: 1,
 } as const;
 
-export type FileAuditType = typeof FileAuditType[keyof typeof FileAuditType];
+export type FileAuditType = (typeof FileAuditType)[keyof typeof FileAuditType];
 
 @Entity('file_audits')
 export class FileAudit {
