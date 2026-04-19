@@ -114,12 +114,13 @@ jobs:
           skip-commit: 'true'
           skip-tag: 'true'
           skip-on-empty: 'true'
+          skip-version-resolution: 'true'
           output-file: 'false'
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: Release ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
           body: |
             ${{ steps.changelog.outputs.changelog }}
             
@@ -151,5 +152,6 @@ jobs:
             ```
           draft: false
           prerelease: false
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
