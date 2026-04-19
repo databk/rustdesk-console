@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, FindOptionsWhere } from 'typeorm';
 import { ConnectionAudit } from './entities/connection-audit.entity';
 import { FileAudit } from './entities/file-audit.entity';
 import { AlarmAudit } from './entities/alarm-audit.entity';
@@ -57,7 +57,7 @@ export class AuditService {
     }
 
     // 尝试查找现有连接（deviceId、deviceUuid、connId 均相同视为同一连接）
-    const whereCondition: Record<string, unknown> = {
+    const whereCondition: FindOptionsWhere<ConnectionAudit> = {
       deviceId: dto.id,
       deviceUuid: dto.uuid,
     };
@@ -66,7 +66,7 @@ export class AuditService {
     }
 
     const existingConnection = await this.connectionAuditRepository.findOne({
-      where: whereCondition as Partial<ConnectionAudit>,
+      where: whereCondition,
     });
 
     if (existingConnection) {

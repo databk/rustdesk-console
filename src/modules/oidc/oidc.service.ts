@@ -318,11 +318,11 @@ export class OidcService {
     // 实际项目中需要根据 provider 配置调用相应的 API
     this.logger.warn('OIDC code exchange not implemented, using mock data');
 
-    return {
+    return Promise.resolve({
       email: `oidc_user_${Date.now()}@example.com`,
       username: `oidc_user_${Date.now()}`,
       access_token: 'mock_oidc_access_token',
-    };
+    });
   }
 
   /**
