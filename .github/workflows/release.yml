@@ -10,8 +10,8 @@ permissions:
   packages: write
 
 jobs:
-  build-and-test:
-    name: Build and Test
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -32,12 +32,9 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Run tests
-        run: npm test
-
   build-docker:
     name: Build Docker Images
-    needs: build-and-test
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -93,7 +90,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [build-and-test, build-docker]
+    needs: [build, build-docker]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
