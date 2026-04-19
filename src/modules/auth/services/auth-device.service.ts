@@ -68,7 +68,7 @@ export class AuthDeviceService {
     });
 
     if (peer) {
-      peer.userGuid = null as unknown as string;
+      peer.userGuid = null;
       await this.peerRepository.save(peer);
       this.logger.log(
         `用户 ${userGuid} 退出登录，已解除设备 ${deviceUuid} 的绑定`,

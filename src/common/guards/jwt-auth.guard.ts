@@ -38,7 +38,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   handleRequest<TUser = unknown>(err: unknown, user: TUser): TUser {
-    if (err || !user) {
+    if (err) {
+      throw err instanceof Error ? err : new UnauthorizedException('请先登录');
+    }
+    if (!user) {
       throw new UnauthorizedException('请先登录');
     }
     return user;

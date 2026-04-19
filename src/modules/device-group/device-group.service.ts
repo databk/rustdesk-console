@@ -380,7 +380,7 @@ export class DeviceGroupService {
 
     // 移除设备的设备组
     for (const peer of peers) {
-      peer.deviceGroupGuid = '';
+      peer.deviceGroupGuid = null;
       await this.peerRepository.save(peer);
     }
 
@@ -527,7 +527,7 @@ export class DeviceGroupService {
       throw new NotFoundException('设备不存在');
     }
 
-    peer.userGuid = '';
+    peer.userGuid = null;
     await this.peerRepository.save(peer);
   }
 
