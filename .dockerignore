@@ -1,0 +1,16 @@
+node_modules
+dist
+*.log
+.env
+.env.*
+!.env.example
+rustdesk.db
+*.db
+coverage
+.git
+.github
+.vscode
+*.md
+!README.md
+Dockerfile
+.dockerignore

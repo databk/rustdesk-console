@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+  build-docker:
+    name: Build Docker Images
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "major=$(echo $VERSION | cut -d. -f1)" >> $GITHUB_OUTPUT
+          echo "minor=$(echo $VERSION | cut -d. -f2)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            databk/rustdesk-console:latest
+            databk/rustdesk-console:${{ steps.version.outputs.version }}
+            databk/rustdesk-console:v${{ steps.version.outputs.major }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push to GitHub Container Registry
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/databk/rustdesk-console:latest
+            ghcr.io/databk/rustdesk-console:${{ steps.version.outputs.version }}
+            ghcr.io/databk/rustdesk-console:v${{ steps.version.outputs.major }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-and-test, build-docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -n "$PREV_TAG" ]; then
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            echo "## Changes since $PREV_TAG" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "changelog=Initial release" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.version.outputs.version }}
+          body: |
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ## Docker Images
+            
+            This release is available on:
+            
+            ### Docker Hub
+            ```bash
+            docker pull databk/rustdesk-console:${{ steps.version.outputs.version }}
+            docker pull databk/rustdesk-console:latest
+            ```
+            
+            ### GitHub Container Registry
+            ```bash
+            docker pull ghcr.io/databk/rustdesk-console:${{ steps.version.outputs.version }}
+            docker pull ghcr.io/databk/rustdesk-console:latest
+            ```
+            
+            ## Quick Start
+            
+            ```bash
+            docker run -d \
+              --name rustdesk-console \
+              -p 3000:3000 \
+              -e JWT_SECRET=your-secret-key \
+              -e ADMIN_PASSWORD=your-password \
+              databk/rustdesk-console:${{ steps.version.outputs.version }}
+            ```
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
