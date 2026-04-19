@@ -29,9 +29,6 @@ RUN npm ci --only=production
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Create directory for SQLite database
-RUN mkdir -p /app/data
-
 # Expose the application port
 EXPOSE 3000
 
