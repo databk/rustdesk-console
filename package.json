@@ -1,10 +1,28 @@
 {
-  "name": "rustdesk-api",
-  "version": "0.0.1",
-  "description": "",
-  "author": "",
-  "private": true,
-  "license": "UNLICENSED",
+  "name": "rustdesk-console",
+  "version": "1.0.0",
+  "description": "Remote Desktop Management Console for RustDesk - A comprehensive management platform built with NestJS that provides device management, user authentication, address book management, security auditing, and real-time monitoring capabilities.",
+  "author": "databk",
+  "private": false,
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/databk/rustdesk-console.git"
+  },
+  "bugs": {
+    "url": "https://github.com/databk/rustdesk-console/issues"
+  },
+  "homepage": "https://github.com/databk/rustdesk-console#readme",
+  "keywords": [
+    "rustdesk",
+    "remote-desktop",
+    "management-console",
+    "nestjs",
+    "device-management",
+    "authentication",
+    "address-book",
+    "audit-logging"
+  ],
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
