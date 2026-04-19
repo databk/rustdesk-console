@@ -1,4 +1,11 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Req,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './services';
 import { LoginDto, CurrentUserDto, LogoutDto } from './dto/auth.dto';
@@ -64,7 +71,9 @@ export class AuthController {
   ) {
     // 从请求头获取 token
     const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : null;
 
     await this.authService.logout(userId, logoutDto, token);
     return { message: '登出成功' };
@@ -89,7 +98,7 @@ export class AuthController {
   async getCurrentUser(
     @CurrentUser('id') userId: string,
     @Body() currentUserDto: CurrentUserDto,
-  ) {
+  ): Promise<Record<string, unknown>> {
     return this.authService.getCurrentUser(userId, currentUserDto);
   }
 }

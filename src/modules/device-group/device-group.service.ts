@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as uuid from 'uuid';
@@ -36,7 +40,7 @@ export class DeviceGroupService {
   /**
    * 获取用户可访问的设备组列表（分页）
    * 管理员可以看到所有设备组，普通用户只能看到有权限的设备组
-   * 
+   *
    * @param userGuid 用户GUID
    * @param query 查询参数，包含分页信息
    * @param isAdmin 是否为管理员
@@ -46,7 +50,10 @@ export class DeviceGroupService {
     userGuid: string,
     query: { current: number; pageSize: number; name?: string },
     isAdmin: boolean = false,
-  ): Promise<{ data: { guid: string; name: string; note?: string }[]; total: number }> {
+  ): Promise<{
+    data: { guid: string; name: string; note?: string }[];
+    total: number;
+  }> {
     const { current, pageSize, name } = query;
     const skip = (current - 1) * pageSize;
 
@@ -66,7 +73,11 @@ export class DeviceGroupService {
       const [groups, total] = await queryBuilder.getManyAndCount();
 
       return {
-        data: groups.map(g => ({ guid: g.guid, name: g.name, note: g.note || '' })),
+        data: groups.map((g) => ({
+          guid: g.guid,
+          name: g.name,
+          note: g.note || '',
+        })),
         total,
       };
     }
@@ -74,7 +85,11 @@ export class DeviceGroupService {
     // 普通用户只能看到有权限的设备组
     let queryBuilder = this.deviceGroupRepository
       .createQueryBuilder('dg')
-      .innerJoin('device_group_user_permissions', 'udgp', 'udgp.deviceGroupGuid = dg.guid')
+      .innerJoin(
+        'device_group_user_permissions',
+        'udgp',
+        'udgp.deviceGroupGuid = dg.guid',
+      )
       .where('udgp.userGuid = :userGuid', { userGuid })
       .select(['dg.guid', 'dg.name', 'dg.note'])
       .orderBy('dg.name', 'ASC')
@@ -88,7 +103,11 @@ export class DeviceGroupService {
     const [groups, total] = await queryBuilder.getManyAndCount();
 
     return {
-      data: groups.map(g => ({ guid: g.guid, name: g.name, note: g.note || '' })),
+      data: groups.map((g) => ({
+        guid: g.guid,
+        name: g.name,
+        note: g.note || '',
+      })),
       total,
     };
   }
@@ -105,7 +124,13 @@ export class DeviceGroupService {
    */
   async getAccessibleUsers(
     userGuid: string,
-    query: { current: number; pageSize: number; status?: string; name?: string; group_name?: string },
+    query: {
+      current: number;
+      pageSize: number;
+      status?: string;
+      name?: string;
+      group_name?: string;
+    },
     isAdmin: boolean = false,
   ): Promise<{ data: any[]; total: number }> {
     const { current, pageSize, status, name, group_name } = query;
@@ -115,11 +140,15 @@ export class DeviceGroupService {
     if (isAdmin) {
       const queryBuilder = this.userRepository
         .createQueryBuilder('user')
-        .where('user.status = :status', { status: parseInt(status || '1') || UserStatus.ACTIVE });
+        .where('user.status = :status', {
+          status: parseInt(status || '1') || UserStatus.ACTIVE,
+        });
 
       // 按用户名过滤
       if (name) {
-        queryBuilder.andWhere('user.username LIKE :name', { name: `%${name}%` });
+        queryBuilder.andWhere('user.username LIKE :name', {
+          name: `%${name}%`,
+        });
       }
 
       // 按组名过滤（通过设备组）
@@ -130,7 +159,7 @@ export class DeviceGroupService {
             INNER JOIN device_groups dg ON udgp.deviceGroupGuid = dg.guid
             WHERE udgp.userGuid = user.guid AND dg.name LIKE :groupName
           )`,
-          { groupName: `%${group_name}%` }
+          { groupName: `%${group_name}%` },
         );
       }
 
@@ -141,7 +170,7 @@ export class DeviceGroupService {
         .getManyAndCount();
 
       return {
-        data: users.map(u => ({
+        data: users.map((u) => ({
           guid: u.guid,
           name: u.username,
           email: u.email || '',
@@ -156,7 +185,9 @@ export class DeviceGroupService {
     // 普通用户只能看到有权限访问的用户
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
-      .where('user.status = :status', { status: parseInt(status || '1') || UserStatus.ACTIVE })
+      .where('user.status = :status', {
+        status: parseInt(status || '1') || UserStatus.ACTIVE,
+      })
       .andWhere(
         `(user.guid = :userGuid
           OR EXISTS (
@@ -185,7 +216,7 @@ export class DeviceGroupService {
           INNER JOIN device_groups dg ON udgp.deviceGroupGuid = dg.guid
           WHERE udgp.userGuid = user.guid AND dg.name LIKE :groupName
         )`,
-        { groupName: `%${group_name}%` }
+        { groupName: `%${group_name}%` },
       );
     }
 
@@ -196,7 +227,7 @@ export class DeviceGroupService {
       .getManyAndCount();
 
     return {
-      data: users.map(u => ({
+      data: users.map((u) => ({
         guid: u.guid,
         name: u.username,
         email: u.email || '',
@@ -215,7 +246,11 @@ export class DeviceGroupService {
    * @param allowedIncomings 允许访问的规则
    * @returns 创建的设备组
    */
-  async createDeviceGroup(name: string, note?: string, allowedIncomings?: any[]) {
+  async createDeviceGroup(
+    name: string,
+    note?: string,
+    _allowedIncomings?: unknown[],
+  ) {
     // 检查设备组名称是否已存在
     const existingGroup = await this.deviceGroupRepository.findOne({
       where: { name },
@@ -242,7 +277,12 @@ export class DeviceGroupService {
    * @param allowedIncomings 允许访问的规则
    * @returns 更新结果
    */
-  async updateDeviceGroup(guid: string, name?: string, note?: string, allowedIncomings?: any[]) {
+  async updateDeviceGroup(
+    guid: string,
+    name?: string,
+    note?: string,
+    _allowedIncomings?: unknown[],
+  ) {
     const deviceGroup = await this.deviceGroupRepository.findOne({
       where: { guid },
     });
@@ -368,7 +408,16 @@ export class DeviceGroupService {
     },
     isAdmin: boolean = false,
   ): Promise<{ data: any[]; total: number }> {
-    const { current, pageSize, id, device_name, user_name, device_username, device_group_name, group_name } = query;
+    const {
+      current,
+      pageSize,
+      id,
+      device_name,
+      user_name,
+      device_username,
+      device_group_name,
+      group_name,
+    } = query;
     const skip = (current - 1) * pageSize;
 
     let queryBuilder = this.peerRepository
@@ -401,12 +450,16 @@ export class DeviceGroupService {
 
     // 按设备ID过滤
     if (id) {
-      queryBuilder = queryBuilder.andWhere('peer.id LIKE :id', { id: `%${id}%` });
+      queryBuilder = queryBuilder.andWhere('peer.id LIKE :id', {
+        id: `%${id}%`,
+      });
     }
 
     // 按设备名称过滤
     if (device_name) {
-      queryBuilder = queryBuilder.andWhere('peer.name LIKE :deviceName', { deviceName: `%${device_name}%` });
+      queryBuilder = queryBuilder.andWhere('peer.name LIKE :deviceName', {
+        deviceName: `%${device_name}%`,
+      });
     }
 
     // 按用户名过滤
@@ -416,23 +469,30 @@ export class DeviceGroupService {
           SELECT 1 FROM users u
           WHERE u.guid = peer.userGuid AND u.username LIKE :userName
         )`,
-        { userName: `%${user_name}%` }
+        { userName: `%${user_name}%` },
       );
     }
 
     // 按设备用户名过滤
     if (device_username) {
-      queryBuilder = queryBuilder.andWhere('peer.deviceUsername LIKE :deviceUsername', { deviceUsername: `%${device_username}%` });
+      queryBuilder = queryBuilder.andWhere(
+        'peer.deviceUsername LIKE :deviceUsername',
+        { deviceUsername: `%${device_username}%` },
+      );
     }
 
     // 按设备组名过滤（精确匹配）
     if (device_group_name) {
-      queryBuilder = queryBuilder.andWhere('dg.name = :deviceGroupName', { deviceGroupName: device_group_name });
+      queryBuilder = queryBuilder.andWhere('dg.name = :deviceGroupName', {
+        deviceGroupName: device_group_name,
+      });
     }
 
     // 按组名过滤（通过设备组）
     if (group_name) {
-      queryBuilder = queryBuilder.andWhere('dg.name LIKE :groupName', { groupName: `%${group_name}%` });
+      queryBuilder = queryBuilder.andWhere('dg.name LIKE :groupName', {
+        groupName: `%${group_name}%`,
+      });
     }
 
     const [peers, total] = await queryBuilder
@@ -442,12 +502,13 @@ export class DeviceGroupService {
       .getManyAndCount();
 
     return {
-      data: peers.map(p => ({
+      data: peers.map((p) => ({
         guid: p.uuid,
         id: p.id,
         userGuid: p.userGuid,
         deviceGroupGuid: p.deviceGroupGuid,
-        device_group_name: p.deviceGroup?.name || '',
+        device_group_name:
+          (p.deviceGroup as { name?: string } | null)?.name || '',
         last_online: p.updatedAt,
       })),
       total,
@@ -515,7 +576,7 @@ export class DeviceGroupService {
     }
 
     switch (type) {
-      case 'user_name':
+      case 'user_name': {
         const user = await this.userRepository.findOne({
           where: { username: value },
         });
@@ -524,7 +585,8 @@ export class DeviceGroupService {
         }
         peer.userGuid = user.guid;
         break;
-      case 'device_group_name':
+      }
+      case 'device_group_name': {
         const deviceGroup = await this.deviceGroupRepository.findOne({
           where: { name: value },
         });
@@ -533,6 +595,7 @@ export class DeviceGroupService {
         }
         peer.deviceGroupGuid = deviceGroup.guid;
         break;
+      }
       case 'note':
         // note字段不存在于Peer实体中，暂时忽略
         break;

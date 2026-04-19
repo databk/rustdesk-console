@@ -1,4 +1,11 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { AddressBookPeer } from './address-book-peer.entity';
 import { AddressBookTag } from './address-book-tag.entity';
 import { AddressBookRule } from './address-book-rule.entity';
@@ -56,21 +63,25 @@ export class AddressBook {
    * 地址簿中的设备列表
    * 一对多关系，关联到 AddressBookPeer
    */
-  @OneToMany(() => AddressBookPeer, peer => peer.addressBook, { cascade: true })
+  @OneToMany(() => AddressBookPeer, (peer) => peer.addressBook, {
+    cascade: true,
+  })
   peers: AddressBookPeer[];
 
   /**
    * 地址簿中的标签列表
    * 一对多关系，关联到 AddressBookTag
    */
-  @OneToMany(() => AddressBookTag, tag => tag.addressBook, { cascade: true })
+  @OneToMany(() => AddressBookTag, (tag) => tag.addressBook, { cascade: true })
   tags: AddressBookTag[];
 
   /**
    * 地址簿的规则列表
    * 一对多关系，关联到 AddressBookRule
    */
-  @OneToMany(() => AddressBookRule, rule => rule.addressBook, { cascade: true })
+  @OneToMany(() => AddressBookRule, (rule) => rule.addressBook, {
+    cascade: true,
+  })
   rules: AddressBookRule[];
 
   /**

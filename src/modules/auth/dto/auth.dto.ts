@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsBoolean, IsObject, IsEmail } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsObject,
+  IsEmail,
+} from 'class-validator';
 
 /**
  * LoginDto

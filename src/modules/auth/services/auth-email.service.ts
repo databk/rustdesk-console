@@ -1,8 +1,13 @@
-import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { User, UserInfo } from '../../user/entities/user.entity';
+import { User, UserStatus, UserInfo } from '../../user/entities/user.entity';
 import { EmailVerificationSession } from '../entities/email-verification-session.entity';
 import { LoginDto } from '../dto/auth.dto';
 import { EmailService } from '../../email/email.service';
@@ -66,14 +71,12 @@ export class AuthEmailService {
   /**
    * 发起邮箱验证
    * 生成6位验证码并发送邮件，用于登录的第二步验证
-   * 
+   *
    * @param user 用户对象
    * @returns 登录响应，包含验证密钥
    * @throws BadRequestException 当邮件发送失败时抛出
    */
-  async initiateEmailVerification(
-    user: User,
-  ): Promise<LoginResponse> {
+  async initiateEmailVerification(user: User): Promise<LoginResponse> {
     // 生成6位随机验证码
     const code = Math.random().toString().slice(-6);
 
@@ -82,10 +85,15 @@ export class AuthEmailService {
 
     // 计算过期时间
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + this.VERIFICATION_CODE_EXPIRY_MINUTES);
+    expiresAt.setMinutes(
+      expiresAt.getMinutes() + this.VERIFICATION_CODE_EXPIRY_MINUTES,
+    );
 
     // 删除该用户之前的验证会话
-    await this.verificationSessionRepository.delete({ userGuid: user.guid, used: false });
+    await this.verificationSessionRepository.delete({
+      userGuid: user.guid,
+      used: false,
+    });
 
     // 创建验证会话
     const session = this.verificationSessionRepository.create({
@@ -100,12 +108,14 @@ export class AuthEmailService {
     await this.verificationSessionRepository.save(session);
 
     // 发送验证码邮件
-    const sent = await this.emailService.sendVerificationCode(user.email!, code);
+    const sent = await this.emailService.sendVerificationCode(user.email, code);
     if (!sent) {
       throw new BadRequestException('发送验证码邮件失败，请稍后重试');
     }
 
-    this.logger.log(`用户 ${user.username} 登录需要邮箱验证，验证码已发送至 ${user.email}`);
+    this.logger.log(
+      `用户 ${user.username} 登录需要邮箱验证，验证码已发送至 ${user.email}`,
+    );
 
     return {
       type: 'email_check',
@@ -126,7 +136,7 @@ export class AuthEmailService {
   /**
    * 邮箱验证码登录（第二步验证）
    * 验证用户输入的验证码并完成登录流程
-   * 
+   *
    * @param loginDto 登录信息
    * @param generateToken Token生成函数
    * @param createOrUpdateDevice 设备创建/更新函数（可选）
@@ -136,10 +146,20 @@ export class AuthEmailService {
    */
   async handleEmailCodeLogin(
     loginDto: LoginDto,
-    generateToken: (user: User, deviceId?: string, deviceUuid?: string) => Promise<string>,
-    createOrUpdateDevice?: (userGuid: string, deviceId?: string, deviceUuid?: string, deviceInfo?: Record<string, any>) => Promise<void>,
+    generateToken: (
+      user: User,
+      deviceId?: string,
+      deviceUuid?: string,
+    ) => Promise<string>,
+    createOrUpdateDevice?: (
+      userGuid: string,
+      deviceId?: string,
+      deviceUuid?: string,
+      deviceInfo?: Record<string, any>,
+    ) => Promise<void>,
   ): Promise<LoginResponse> {
-    const { username, verificationCode, secret, id, uuid, deviceInfo } = loginDto;
+    const { username, verificationCode, secret, id, uuid, deviceInfo } =
+      loginDto;
 
     // 验证参数完整性
     if (!username || !verificationCode || !secret) {
@@ -167,7 +187,10 @@ export class AuthEmailService {
     // 查找用户
     const user = await this.userRepository
       .createQueryBuilder('user')
-      .where('user.username = :username OR user.email = :email', { username, email: username })
+      .where('user.username = :username OR user.email = :email', {
+        username,
+        email: username,
+      })
       .addSelect('user.info')
       .addSelect('user.thirdAuthType')
       .getOne();
@@ -177,7 +200,8 @@ export class AuthEmailService {
     }
 
     // 检查用户状态
-    if (user.status === 0) { // UserStatus.DISABLED
+    if (user.status === UserStatus.DISABLED) {
+      // UserStatus.DISABLED
       throw new UnauthorizedException('账户已被禁用');
     }
 

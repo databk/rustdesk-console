@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -6,7 +12,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus, UserInfo } from '../../user/entities/user.entity';
 import { UserToken } from '../../user/entities/user-token.entity';
 import { Peer } from '../../../common/entities';
-import { LoginDto, RegisterDto, CurrentUserDto, LogoutDto } from '../dto/auth.dto';
+import {
+  LoginDto,
+  RegisterDto,
+  CurrentUserDto,
+  LogoutDto,
+} from '../dto/auth.dto';
 import { EmailVerificationSession } from '../entities/email-verification-session.entity';
 import { EmailService } from '../../email/email.service';
 import { AuthTokenService, JwtPayload } from './auth-token.service';
@@ -49,7 +60,7 @@ export interface LoginResponse {
 /**
  * 认证服务
  * 负责处理用户注册、登录、登出等核心认证功能
- * 
+ *
  * 支持多种登录方式：
  * - 账号密码登录
  * - 邮箱验证码登录
@@ -78,7 +89,7 @@ export class AuthService {
   /**
    * 用户注册
    * 创建新用户账户，包括用户名、邮箱和密码验证
-   * 
+   *
    * @param registerDto 注册信息，包含用户名、邮箱、密码和备注
    * @returns 注册结果消息
    * @throws ConflictException 当用户名或邮箱已存在时抛出
@@ -121,26 +132,34 @@ export class AuthService {
   /**
    * 用户登录
    * 支持多种登录方式：账号密码、邮箱验证码、双因素认证
-   * 
+   *
    * 登录流程：
    * 1. 普通登录 -> 检查是否需要邮箱验证或TFA
    * 2. 邮箱验证码 -> 第二步验证
    * 3. TFA验证 -> 双因素认证
-   * 
+   *
    * @param loginDto 登录信息，包含用户名、密码、设备信息等
    * @returns 登录响应，可能包含token或需要进一步验证的提示
    * @throws BadRequestException 当参数不完整时抛出
    * @throws UnauthorizedException 当认证失败时抛出
    */
   async login(loginDto: LoginDto): Promise<LoginResponse> {
-    const { username, password, id, uuid, type, verificationCode, tfaCode, secret, deviceInfo } = loginDto;
+    const { username, password, id, uuid, type, tfaCode, deviceInfo } =
+      loginDto;
 
     // 处理邮箱验证码登录（第二步）
     if (type === 'email_code') {
       return this.emailAuthService.handleEmailCodeLogin(
         loginDto,
-        this.tokenService.generateToken.bind(this.tokenService),
-        this.deviceService.createOrUpdateDevice.bind(this.deviceService),
+        (user, deviceId, deviceUuid) =>
+          this.tokenService.generateToken(user, deviceId, deviceUuid),
+        (userGuid, deviceId, deviceUuid, deviceInfo) =>
+          this.deviceService.createOrUpdateDevice(
+            userGuid,
+            deviceId,
+            deviceUuid,
+            deviceInfo,
+          ),
       );
     }
 
@@ -153,8 +172,15 @@ export class AuthService {
     if (type === 'tfa_code') {
       return this.tfaService.handleTfaLogin(
         loginDto,
-        this.tokenService.generateToken.bind(this.tokenService),
-        this.deviceService.createOrUpdateDevice.bind(this.deviceService),
+        (user, deviceId, deviceUuid) =>
+          this.tokenService.generateToken(user, deviceId, deviceUuid),
+        (userGuid, deviceId, deviceUuid, deviceInfo) =>
+          this.deviceService.createOrUpdateDevice(
+            userGuid,
+            deviceId,
+            deviceUuid,
+            deviceInfo,
+          ),
       );
     }
 
@@ -166,7 +192,10 @@ export class AuthService {
     // 查找用户（支持用户名或邮箱登录）
     const user = await this.userRepository
       .createQueryBuilder('user')
-      .where('user.username = :username OR user.email = :email', { username, email: username })
+      .where('user.username = :username OR user.email = :email', {
+        username,
+        email: username,
+      })
       .addSelect('user.password')
       .addSelect('user.tfaSecret')
       .addSelect('user.info')
@@ -226,7 +255,12 @@ export class AuthService {
 
     // 创建或更新设备记录
     if (id || uuid) {
-      await this.deviceService.createOrUpdateDevice(user.guid, id, uuid, deviceInfo);
+      await this.deviceService.createOrUpdateDevice(
+        user.guid,
+        id,
+        uuid,
+        deviceInfo,
+      );
     }
 
     // 生成JWT Token
@@ -252,13 +286,16 @@ export class AuthService {
   /**
    * 获取当前用户信息
    * 根据用户GUID查询并返回用户详细信息
-   * 
+   *
    * @param userGuid 用户的GUID
    * @param currentUserDto 当前用户信息（可选）
    * @returns 用户详细信息
    * @throws UnauthorizedException 当用户不存在时抛出
    */
-  async getCurrentUser(userGuid: string, currentUserDto?: CurrentUserDto): Promise<any> {
+  async getCurrentUser(
+    userGuid: string,
+    _currentUserDto?: CurrentUserDto,
+  ): Promise<Record<string, unknown>> {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .where('user.guid = :guid', { guid: userGuid })
@@ -285,17 +322,21 @@ export class AuthService {
   /**
    * 用户登出
    * 撤销当前token，并可选择撤销设备的所有token
-   * 
+   *
    * 安全措施：
    * - 撤销当前使用的token
    * - 撤销设备的所有token
    * - 解除设备与用户的绑定
-   * 
+   *
    * @param userGuid 用户的GUID
    * @param logoutDto 登出信息，包含设备ID和UUID
    * @param token 当前使用的token（可选）
    */
-  async logout(userGuid: string, logoutDto: LogoutDto, token?: string | null): Promise<void> {
+  async logout(
+    userGuid: string,
+    logoutDto: LogoutDto,
+    token?: string | null,
+  ): Promise<void> {
     const { id, uuid } = logoutDto;
 
     // 优先撤销当前token
@@ -320,7 +361,7 @@ export class AuthService {
   /**
    * 验证JWT Token
    * 委托给AuthTokenService进行token验证
-   * 
+   *
    * @param token JWT令牌字符串
    * @returns 令牌负载，验证失败返回null
    */

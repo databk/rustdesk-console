@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, ValidationPipe, UsePipes, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { DeviceGroupService } from './device-group.service';
 import { PeerService } from './peer.service';
 import { DeviceGroupQueryDto } from './dto/device-group.dto';
@@ -47,7 +59,11 @@ export class DeviceGroupController {
     @CurrentUser('isAdmin') isAdmin: boolean,
     @Query() query: DeviceGroupQueryDto,
   ) {
-    return this.deviceGroupService.getAccessibleDeviceGroups(userId, query, isAdmin);
+    return this.deviceGroupService.getAccessibleDeviceGroups(
+      userId,
+      query,
+      isAdmin,
+    );
   }
 
   /**
@@ -118,7 +134,11 @@ export class DeviceGroupController {
     @CurrentUser('isAdmin') isAdmin: boolean,
     @Query() query: DeviceGroupQueryDto,
   ) {
-    return this.deviceGroupService.getAccessibleDeviceGroups(userId, query, isAdmin);
+    return this.deviceGroupService.getAccessibleDeviceGroups(
+      userId,
+      query,
+      isAdmin,
+    );
   }
 
   /**
@@ -132,13 +152,13 @@ export class DeviceGroupController {
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
   async createDeviceGroup(
-    @Body() body: {
-      name: string;
-      note?: string;
-      allowed_incomings?: any[];
-    }
+    @Body() body: { name: string; note?: string; allowed_incomings?: any[] },
   ) {
-    return this.deviceGroupService.createDeviceGroup(body.name, body.note, body.allowed_incomings);
+    return this.deviceGroupService.createDeviceGroup(
+      body.name,
+      body.note,
+      body.allowed_incomings,
+    );
   }
 
   /**
@@ -154,13 +174,19 @@ export class DeviceGroupController {
   @HttpCode(HttpStatus.OK)
   async updateDeviceGroup(
     @Param('guid') guid: string,
-    @Body() body: {
+    @Body()
+    body: {
       name?: string;
       note?: string;
       allowed_incomings?: any[];
-    }
+    },
   ) {
-    return this.deviceGroupService.updateDeviceGroup(guid, body.name, body.note, body.allowed_incomings);
+    return this.deviceGroupService.updateDeviceGroup(
+      guid,
+      body.name,
+      body.note,
+      body.allowed_incomings,
+    );
   }
 
   /**
@@ -189,10 +215,7 @@ export class DeviceGroupController {
   @Post('device-groups/:guid')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
-  async addDevicesToGroup(
-    @Param('guid') guid: string,
-    @Body() body: string[]
-  ) {
+  async addDevicesToGroup(@Param('guid') guid: string, @Body() body: string[]) {
     return this.deviceGroupService.addDevicesToGroup(guid, body);
   }
 
@@ -209,7 +232,7 @@ export class DeviceGroupController {
   @HttpCode(HttpStatus.OK)
   async removeDevicesFromGroup(
     @Param('guid') guid: string,
-    @Body() body: string[]
+    @Body() body: string[],
   ) {
     return this.deviceGroupService.removeDevicesFromGroup(guid, body);
   }
@@ -290,10 +313,11 @@ export class DeviceGroupController {
   @HttpCode(HttpStatus.OK)
   async assignDevice(
     @Param('guid') guid: string,
-    @Body() body: {
+    @Body()
+    body: {
       type: string;
       value: string;
-    }
+    },
   ) {
     await this.deviceGroupService.assignDevice(guid, body.type, body.value);
     return { message: '设备属性已分配' };

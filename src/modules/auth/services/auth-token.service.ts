@@ -47,13 +47,17 @@ export class AuthTokenService {
   /**
    * 生成JWT Token
    * 创建JWT令牌并将其保存到数据库，用于后续验证和撤销
-   * 
+   *
    * @param user 用户对象
    * @param deviceId 设备ID（可选）
    * @param deviceUuid 设备UUID（可选）
    * @returns 生成的JWT Token字符串
    */
-  async generateToken(user: User, deviceId?: string, deviceUuid?: string): Promise<string> {
+  async generateToken(
+    user: User,
+    deviceId?: string,
+    deviceUuid?: string,
+  ): Promise<string> {
     // 构建JWT负载
     const payload: JwtPayload = {
       sub: user.guid,
@@ -88,7 +92,7 @@ export class AuthTokenService {
   /**
    * 验证JWT Token
    * 验证Token的签名和有效期，并检查是否已被撤销
-   * 
+   *
    * @param token JWT令牌字符串
    * @returns Token负载，验证失败或Token已撤销返回null
    */
@@ -107,7 +111,7 @@ export class AuthTokenService {
       }
 
       return payload;
-    } catch (error) {
+    } catch {
       // Token无效或已过期
       return null;
     }
@@ -116,7 +120,7 @@ export class AuthTokenService {
   /**
    * 撤销指定的Token
    * 将Token标记为已撤销，使其无法再用于认证
-   * 
+   *
    * @param userGuid 用户GUID
    * @param token 要撤销的Token字符串
    */
@@ -130,12 +134,16 @@ export class AuthTokenService {
   /**
    * 撤销用户设备的所有Token
    * 撤销指定设备的所有Token，通常在用户登出或设备移除时调用
-   * 
+   *
    * @param userGuid 用户GUID
    * @param deviceId 设备ID（可选）
    * @param deviceUuid 设备UUID（可选）
    */
-  async revokeDeviceTokens(userGuid: string, deviceId?: string, deviceUuid?: string): Promise<void> {
+  async revokeDeviceTokens(
+    userGuid: string,
+    deviceId?: string,
+    deviceUuid?: string,
+  ): Promise<void> {
     if (!deviceId && !deviceUuid) return;
 
     await this.tokenRepository.update(

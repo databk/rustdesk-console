@@ -43,7 +43,9 @@ export class DatabaseInitService implements OnModuleInit {
 
     // 检查是否使用默认密码
     if (!process.env.ADMIN_PASSWORD) {
-      this.logger.warn('WARNING: Using default admin password "admin123". Please set ADMIN_PASSWORD environment variable in production!');
+      this.logger.warn(
+        'WARNING: Using default admin password "admin123". Please set ADMIN_PASSWORD environment variable in production!',
+      );
     }
 
     const existingAdmin = await this.userRepository.findOne({
@@ -63,7 +65,9 @@ export class DatabaseInitService implements OnModuleInit {
 
       await this.userRepository.save(admin);
       this.logger.log(`Default admin user created: ${adminUsername}`);
-      this.logger.warn(`Please change the default password for user: ${adminUsername}`);
+      this.logger.warn(
+        `Please change the default password for user: ${adminUsername}`,
+      );
     } else {
       this.logger.log('Admin user already exists, skipping creation');
     }

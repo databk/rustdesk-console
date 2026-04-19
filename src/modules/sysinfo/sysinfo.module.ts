@@ -4,7 +4,11 @@ import { APP_GUARD } from '@nestjs/core';
 import { SysinfoController } from './sysinfo.controller';
 import { SysinfoService } from './sysinfo.service';
 import { Sysinfo, Peer } from '../../common/entities';
-import { AddressBook, AddressBookPeer, AddressBookTag } from '../address-book/entities';
+import {
+  AddressBook,
+  AddressBookPeer,
+  AddressBookTag,
+} from '../address-book/entities';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard';
 
@@ -22,7 +26,16 @@ import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard
  * - SysinfoService
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Sysinfo, AddressBook, AddressBookPeer, AddressBookTag, DeviceGroup, Peer])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Sysinfo,
+      AddressBook,
+      AddressBookPeer,
+      AddressBookTag,
+      DeviceGroup,
+      Peer,
+    ]),
+  ],
   controllers: [SysinfoController],
   providers: [
     SysinfoService,

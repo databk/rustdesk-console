@@ -51,7 +51,7 @@ export class AuditController {
     return {
       message: '连接审计记录成功',
       status: 'success',
-      data: result
+      data: result,
     };
   }
 
@@ -81,7 +81,7 @@ export class AuditController {
     return {
       message: '文件审计记录成功',
       status: 'success',
-      data: result
+      data: result,
     };
   }
 
@@ -111,7 +111,7 @@ export class AuditController {
     return {
       message: '告警审计记录成功',
       status: 'success',
-      data: result
+      data: result,
     };
   }
 }
@@ -252,13 +252,13 @@ export class AuditsController {
    */
   @UseGuards(AdminGuard)
   @Get('console')
-  async queryConsoleAudits(
+  queryConsoleAudits(
     @Query('operator') operator?: string,
     @Query('pageSize') pageSize?: number,
     @Query('current') current?: number,
     @Query('created_at') created_at?: string,
   ) {
-    return await this.auditService.queryConsoleAudits({
+    return this.auditService.queryConsoleAudits({
       operator,
       pageSize,
       current,

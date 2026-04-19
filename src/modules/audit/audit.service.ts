@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, MoreThanOrEqual } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ConnectionAudit } from './entities/connection-audit.entity';
 import { FileAudit } from './entities/file-audit.entity';
 import { AlarmAudit } from './entities/alarm-audit.entity';
@@ -36,14 +36,15 @@ export class AuditService {
   /**
    * 记录连接审计
    * 记录远程桌面连接的详细信息，包括连接建立、断开等操作
-   * 
+   *
    * @param dto 连接审计数据
    * @returns 保存的连接审计记录
    */
   async auditConnection(dto: ConnectionAuditDto): Promise<ConnectionAudit> {
     // 支持前端发送的下划线格式字段
     const connId = dto.conn_id !== undefined ? String(dto.conn_id) : null;
-    const sessionId = dto.session_id !== undefined ? String(dto.session_id) : null;
+    const sessionId =
+      dto.session_id !== undefined ? String(dto.session_id) : null;
 
     // 转换 action 状态
     let action: string;
@@ -56,7 +57,7 @@ export class AuditService {
     }
 
     // 尝试查找现有连接（deviceId、deviceUuid、connId 均相同视为同一连接）
-    const whereCondition: any = {
+    const whereCondition: Record<string, unknown> = {
       deviceId: dto.id,
       deviceUuid: dto.uuid,
     };
@@ -65,7 +66,7 @@ export class AuditService {
     }
 
     const existingConnection = await this.connectionAuditRepository.findOne({
-      where: whereCondition,
+      where: whereCondition as Partial<ConnectionAudit>,
     });
 
     if (existingConnection) {
@@ -120,16 +121,21 @@ export class AuditService {
   /**
    * 记录文件审计
    * 记录文件传输操作的详细信息
-   * 
+   *
    * @param dto 文件审计数据
    * @returns 保存的文件审计记录
    */
   async auditFile(dto: FileAuditDto): Promise<FileAudit> {
     // 解析 info JSON 字符串
-    let info: { ip: string; name: string; num: number; files: Array<[string, number]> };
+    let info: {
+      ip: string;
+      name: string;
+      num: number;
+      files: Array<[string, number]>;
+    };
     try {
-      info = JSON.parse(dto.info);
-    } catch (e) {
+      info = JSON.parse(dto.info) as typeof info;
+    } catch {
       info = { ip: '', name: '', num: 0, files: [] };
     }
 
@@ -152,7 +158,7 @@ export class AuditService {
   /**
    * 记录告警审计
    * 记录安全告警的详细信息
-   * 
+   *
    * @param dto 告警审计数据
    * @returns 保存的告警审计记录
    */
@@ -160,8 +166,8 @@ export class AuditService {
     // 解析 info JSON 字符串
     let info: { id?: string; ip: string; name?: string };
     try {
-      info = JSON.parse(dto.info);
-    } catch (e) {
+      info = JSON.parse(dto.info) as typeof info;
+    } catch {
       info = { ip: '' };
     }
 
@@ -189,7 +195,13 @@ export class AuditService {
     current?: number;
     created_at?: string;
   }) {
-    const { remote, conn_type, pageSize = 10, current = 1, created_at } = filters;
+    const {
+      remote,
+      conn_type,
+      pageSize = 10,
+      current = 1,
+      created_at,
+    } = filters;
     const skip = (current - 1) * pageSize;
 
     const queryBuilder = this.connectionAuditRepository
@@ -212,7 +224,9 @@ export class AuditService {
 
     // 按远程设备ID过滤
     if (remote) {
-      queryBuilder.andWhere('ca.peerId LIKE :remote', { remote: `%${remote}%` });
+      queryBuilder.andWhere('ca.peerId LIKE :remote', {
+        remote: `%${remote}%`,
+      });
     }
 
     // 按连接类型过滤
@@ -226,10 +240,7 @@ export class AuditService {
       queryBuilder.andWhere('ca.createdAt >= :createdAt', { createdAt });
     }
 
-    queryBuilder
-      .orderBy('ca.createdAt', 'DESC')
-      .skip(skip)
-      .take(pageSize);
+    queryBuilder.orderBy('ca.createdAt', 'DESC').skip(skip).take(pageSize);
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -272,7 +283,9 @@ export class AuditService {
 
     // 按远程设备ID过滤
     if (remote) {
-      queryBuilder.andWhere('fa.peerId LIKE :remote', { remote: `%${remote}%` });
+      queryBuilder.andWhere('fa.peerId LIKE :remote', {
+        remote: `%${remote}%`,
+      });
     }
 
     // 按创建时间过滤
@@ -281,10 +294,7 @@ export class AuditService {
       queryBuilder.andWhere('fa.createdAt >= :createdAt', { createdAt });
     }
 
-    queryBuilder
-      .orderBy('fa.createdAt', 'DESC')
-      .skip(skip)
-      .take(pageSize);
+    queryBuilder.orderBy('fa.createdAt', 'DESC').skip(skip).take(pageSize);
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -323,7 +333,9 @@ export class AuditService {
 
     // 按设备ID过滤
     if (device) {
-      queryBuilder.andWhere('aa.deviceId LIKE :device', { device: `%${device}%` });
+      queryBuilder.andWhere('aa.deviceId LIKE :device', {
+        device: `%${device}%`,
+      });
     }
 
     // 按创建时间过滤
@@ -332,10 +344,7 @@ export class AuditService {
       queryBuilder.andWhere('aa.createdAt >= :createdAt', { createdAt });
     }
 
-    queryBuilder
-      .orderBy('aa.createdAt', 'DESC')
-      .skip(skip)
-      .take(pageSize);
+    queryBuilder.orderBy('aa.createdAt', 'DESC').skip(skip).take(pageSize);
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -350,15 +359,12 @@ export class AuditService {
    * @param filters 过滤条件
    * @returns 控制台审计列表
    */
-  async queryConsoleAudits(filters: {
+  queryConsoleAudits(_filters: {
     operator?: string;
     pageSize?: number;
     current?: number;
     created_at?: string;
   }) {
-    const { operator, pageSize = 10, current = 1, created_at } = filters;
-    const skip = (current - 1) * pageSize;
-
     // 控制台审计暂时没有实体，返回空列表
     return {
       data: [],

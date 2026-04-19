@@ -1,6 +1,29 @@
-import { Controller, Get, Post, Put, Delete, Patch, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Patch,
+  Param,
+  Body,
+  Query,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AddressBookService } from './services';
-import { AddPeerDto, UpdatePeerDto, AddTagDto, UpdateTagDto, RenameTagDto, PaginationDto, PeersQueryDto, RuleQueryDto, CreateRuleDto, UpdateRuleDto } from './dto';
+import {
+  AddPeerDto,
+  UpdatePeerDto,
+  AddTagDto,
+  UpdateTagDto,
+  RenameTagDto,
+  PaginationDto,
+  PeersQueryDto,
+  RuleQueryDto,
+  CreateRuleDto,
+  UpdateRuleDto,
+} from './dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AddressBookRuleService } from './services/address-book-rule.service';
 
@@ -75,9 +98,12 @@ export class AddressBookController {
     @CurrentUser('id') userId: number,
   ) {
     try {
-      return await this.addressBookService.updateLegacyAddressBook(String(userId), data);
-    } catch (e) {
-      return { error: e.message };
+      return await this.addressBookService.updateLegacyAddressBook(
+        String(userId),
+        data,
+      );
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -131,7 +157,10 @@ export class AddressBookController {
    */
   @Get('shared/profiles')
   @HttpCode(HttpStatus.OK)
-  getSharedAddressBooksGet(@Query() query: PaginationDto, @CurrentUser('id') userId: number) {
+  getSharedAddressBooksGet(
+    @Query() query: PaginationDto,
+    @CurrentUser('id') userId: number,
+  ) {
     return this.addressBookService.getSharedAddressBooks(String(userId), query);
   }
 
@@ -145,7 +174,10 @@ export class AddressBookController {
    */
   @Post('shared/profiles')
   @HttpCode(HttpStatus.OK)
-  getSharedAddressBooks(@Query() query: PaginationDto, @CurrentUser('id') userId: number) {
+  getSharedAddressBooks(
+    @Query() query: PaginationDto,
+    @CurrentUser('id') userId: number,
+  ) {
     return this.addressBookService.getSharedAddressBooks(String(userId), query);
   }
 
@@ -171,8 +203,8 @@ export class AddressBookController {
         dto.password,
       );
       return { guid };
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -187,7 +219,14 @@ export class AddressBookController {
   @Put('shared/update/profile')
   @HttpCode(HttpStatus.OK)
   async updateSharedAddressBook(
-    @Body() dto: { guid: string; name?: string; note?: string; owner?: string; password?: string },
+    @Body()
+    dto: {
+      guid: string;
+      name?: string;
+      note?: string;
+      owner?: string;
+      password?: string;
+    },
     @CurrentUser('id') userId: number,
   ) {
     try {
@@ -200,8 +239,8 @@ export class AddressBookController {
         String(userId),
       );
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -220,10 +259,13 @@ export class AddressBookController {
     @CurrentUser('id') userId: number,
   ) {
     try {
-      await this.addressBookService.deleteSharedAddressBooks(guids, String(userId));
+      await this.addressBookService.deleteSharedAddressBooks(
+        guids,
+        String(userId),
+      );
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -237,7 +279,10 @@ export class AddressBookController {
    */
   @Get('peers')
   @HttpCode(HttpStatus.OK)
-  getPeersGet(@Query() query: PeersQueryDto, @CurrentUser('id') userId: number) {
+  getPeersGet(
+    @Query() query: PeersQueryDto,
+    @CurrentUser('id') userId: number,
+  ) {
     return this.addressBookService.getPeers(query, String(userId));
   }
 
@@ -294,12 +339,16 @@ export class AddressBookController {
    */
   @Post('peer/add/:guid')
   @HttpCode(HttpStatus.OK)
-  async addPeer(@Param('guid') guid: string, @Body() dto: AddPeerDto, @CurrentUser('id') userId: number) {
+  async addPeer(
+    @Param('guid') guid: string,
+    @Body() dto: AddPeerDto,
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       await this.addressBookService.addPeer(guid, dto, String(userId));
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -314,12 +363,16 @@ export class AddressBookController {
    */
   @Put('peer/update/:guid')
   @HttpCode(HttpStatus.OK)
-  async updatePeer(@Param('guid') guid: string, @Body() dto: UpdatePeerDto, @CurrentUser('id') userId: number) {
+  async updatePeer(
+    @Param('guid') guid: string,
+    @Body() dto: UpdatePeerDto,
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       await this.addressBookService.updatePeer(guid, dto, String(userId));
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -334,12 +387,16 @@ export class AddressBookController {
    */
   @Delete('peer/:guid')
   @HttpCode(HttpStatus.OK)
-  async deletePeers(@Param('guid') guid: string, @Body() ids: string[], @CurrentUser('id') userId: number) {
+  async deletePeers(
+    @Param('guid') guid: string,
+    @Body() ids: string[],
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       await this.addressBookService.deletePeers(guid, ids, String(userId));
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -354,12 +411,16 @@ export class AddressBookController {
    */
   @Post('tag/add/:guid')
   @HttpCode(HttpStatus.OK)
-  async addTag(@Param('guid') guid: string, @Body() dto: AddTagDto, @CurrentUser('id') userId: number) {
+  async addTag(
+    @Param('guid') guid: string,
+    @Body() dto: AddTagDto,
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       await this.addressBookService.addTag(guid, dto, String(userId));
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -374,12 +435,16 @@ export class AddressBookController {
    */
   @Put('tag/rename/:guid')
   @HttpCode(HttpStatus.OK)
-  async renameTag(@Param('guid') guid: string, @Body() dto: RenameTagDto, @CurrentUser('id') userId: number) {
+  async renameTag(
+    @Param('guid') guid: string,
+    @Body() dto: RenameTagDto,
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       await this.addressBookService.renameTag(guid, dto, String(userId));
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -394,12 +459,16 @@ export class AddressBookController {
    */
   @Put('tag/update/:guid')
   @HttpCode(HttpStatus.OK)
-  async updateTag(@Param('guid') guid: string, @Body() dto: UpdateTagDto, @CurrentUser('id') userId: number) {
+  async updateTag(
+    @Param('guid') guid: string,
+    @Body() dto: UpdateTagDto,
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       await this.addressBookService.updateTag(guid, dto, String(userId));
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -414,12 +483,16 @@ export class AddressBookController {
    */
   @Delete('tag/:guid')
   @HttpCode(HttpStatus.OK)
-  async deleteTags(@Param('guid') guid: string, @Body() names: string[], @CurrentUser('id') userId: number) {
+  async deleteTags(
+    @Param('guid') guid: string,
+    @Body() names: string[],
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       await this.addressBookService.deleteTags(guid, names, String(userId));
       return '';
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -435,7 +508,10 @@ export class AddressBookController {
    */
   @Get('rules')
   @HttpCode(HttpStatus.OK)
-  async getRules(@Query() query: RuleQueryDto, @CurrentUser('id') userId: number) {
+  async getRules(
+    @Query() query: RuleQueryDto,
+    @CurrentUser('id') userId: number,
+  ) {
     return this.ruleService.getRules(query, String(userId));
   }
 
@@ -452,8 +528,8 @@ export class AddressBookController {
   async addRule(@Body() dto: CreateRuleDto, @CurrentUser('id') userId: number) {
     try {
       return await this.ruleService.createRule(dto, String(userId));
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -467,11 +543,14 @@ export class AddressBookController {
    */
   @Patch('rule')
   @HttpCode(HttpStatus.OK)
-  async updateRule(@Body() dto: UpdateRuleDto, @CurrentUser('id') userId: number) {
+  async updateRule(
+    @Body() dto: UpdateRuleDto,
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       return await this.ruleService.updateRule(dto, String(userId));
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -485,11 +564,14 @@ export class AddressBookController {
    */
   @Delete('rules')
   @HttpCode(HttpStatus.OK)
-  async deleteRules(@Body() ruleGuids: string[], @CurrentUser('id') userId: number) {
+  async deleteRules(
+    @Body() ruleGuids: string[],
+    @CurrentUser('id') userId: number,
+  ) {
     try {
       return await this.ruleService.deleteRules(ruleGuids, String(userId));
-    } catch (e) {
-      return { error: e.message };
+    } catch (e: unknown) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 }

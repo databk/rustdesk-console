@@ -1,14 +1,21 @@
-import { Injectable, Logger, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { JwtService } from '@nestjs/jwt';
 import { OidcProvider } from './entities/oidc-provider.entity';
-import { OidcAuthState, OidcAuthStatus } from './entities/oidc-auth-state.entity';
+import {
+  OidcAuthState,
+  OidcAuthStatus,
+} from './entities/oidc-auth-state.entity';
 import { User, UserInfo } from '../user/entities/user.entity';
 import { UserToken } from '../user/entities/user-token.entity';
 import { OidcAuthRequestDto } from './dto/oidc.dto';
-import * as bcrypt from 'bcryptjs';
 
 /**
  * OIDC配置接口
@@ -107,7 +114,7 @@ export class OidcService {
   /**
    * 获取所有启用的OIDC提供商
    * 返回可供用户选择的OIDC登录选项列表
-   * 
+   *
    * @returns OIDC配置选项列表，格式为 "common-oidc/{config_json}"
    */
   async getLoginOptions(): Promise<string[]> {
@@ -136,12 +143,14 @@ export class OidcService {
   /**
    * 请求OIDC授权
    * 发起OIDC认证流程，生成授权码和授权URL
-   * 
+   *
    * @param authRequest OIDC授权请求，包含提供商标识和设备信息
    * @returns 授权码和授权URL
    * @throws BadRequestException 当提供商不存在或未启用时抛出
    */
-  async requestAuth(authRequest: OidcAuthRequestDto): Promise<OidcAuthUrlResponse> {
+  async requestAuth(
+    authRequest: OidcAuthRequestDto,
+  ): Promise<OidcAuthUrlResponse> {
     const { op, id, uuid, deviceInfo } = authRequest;
 
     // 解析OIDC 提供商标识
@@ -152,7 +161,9 @@ export class OidcService {
     });
 
     if (!provider) {
-      throw new BadRequestException(`OIDC 提供商 "${providerName}" 不存在或未启用`);
+      throw new BadRequestException(
+        `OIDC 提供商 "${providerName}" 不存在或未启用`,
+      );
     }
 
     // 生成授权码
@@ -163,7 +174,9 @@ export class OidcService {
 
     // 计算过期时间
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + this.AUTH_CODE_EXPIRY_MINUTES);
+    expiresAt.setMinutes(
+      expiresAt.getMinutes() + this.AUTH_CODE_EXPIRY_MINUTES,
+    );
 
     // 构建回调URL
     const redirectUri = `${process.env.OIDC_REDIRECT_URI || 'http://localhost:3000'}/api/oidc/callback`;
@@ -185,7 +198,8 @@ export class OidcService {
     await this.authStateRepository.save(authState);
 
     // 构建授权URL
-    const authEndpoint = provider.authorizationEndpoint || `${provider.issuer}/authorize`;
+    const authEndpoint =
+      provider.authorizationEndpoint || `${provider.issuer}/authorize`;
     const scope = provider.scope || 'openid email profile';
 
     const params = new URLSearchParams({
@@ -206,14 +220,18 @@ export class OidcService {
   /**
    * 查询OIDC授权状态
    * 查询OIDC授权是否成功，如果成功则返回访问令牌
-   * 
+   *
    * @param code 授权码
    * @param deviceId 设备ID
    * @param deviceUuid 设备UUID
    * @returns 认证响应，包含访问令牌和用户信息
    * @throws UnauthorizedException 当授权失败、过期或取消时抛出
    */
-  async queryAuth(code: string, deviceId: string, deviceUuid: string): Promise<AuthBody> {
+  async queryAuth(
+    code: string,
+    deviceId: string,
+    deviceUuid: string,
+  ): Promise<AuthBody> {
     // 查找授权状态
     const authState = await this.authStateRepository.findOne({
       where: {
@@ -242,7 +260,10 @@ export class OidcService {
     }
 
     // 授权成功，返回token
-    if (authState.status === OidcAuthStatus.AUTHORIZED && authState.accessToken) {
+    if (
+      authState.status === OidcAuthStatus.AUTHORIZED &&
+      authState.accessToken
+    ) {
       // 获取用户信息
       const user = await this.userRepository.findOne({
         where: { guid: authState.userGuid },
@@ -276,7 +297,7 @@ export class OidcService {
   /**
    * 模拟OIDC code交换
    * 将授权码交换为用户信息和访问令牌
-   * 
+   *
    * @param provider OIDC提供商配置
    * @param code 授权码
    * @param redirectUri 回调URI
@@ -284,10 +305,10 @@ export class OidcService {
    * @private
    * @deprecated 此方法为模拟实现，生产环境需要实现真实的OIDC流程
    */
-  private async exchangeCodeForUserInfo(
-    provider: OidcProvider,
-    code: string,
-    redirectUri: string,
+  private exchangeCodeForUserInfo(
+    _provider: OidcProvider,
+    _code: string,
+    _redirectUri: string,
   ): Promise<{ email: string; username?: string; access_token: string }> {
     // TODO: 实现实际的 OIDC 流程
     // 1. POST to token endpoint with code
@@ -307,14 +328,18 @@ export class OidcService {
   /**
    * 为用户生成JWT token并保存到数据库
    * 创建JWT令牌并将其持久化，用于后续认证
-   * 
+   *
    * @param user 用户对象
    * @param deviceId 设备ID（可选）
    * @param deviceUuid 设备UUID（可选）
    * @returns 生成的JWT Token字符串
    * @private
    */
-  private async generateTokenForUser(user: User, deviceId?: string, deviceUuid?: string): Promise<string> {
+  private async generateTokenForUser(
+    user: User,
+    deviceId?: string,
+    deviceUuid?: string,
+  ): Promise<string> {
     const payload = {
       sub: user.guid,
       username: user.username,

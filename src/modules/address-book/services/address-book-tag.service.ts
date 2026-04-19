@@ -1,8 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { AddressBook, AddressBookTag, AddressBookPeerTag, ShareRule } from '../entities';
+import {
+  AddressBook,
+  AddressBookTag,
+  AddressBookPeerTag,
+  ShareRule,
+} from '../entities';
 import { AddTagDto, UpdateTagDto, RenameTagDto } from '../dto';
 
 @Injectable()
@@ -29,7 +38,7 @@ export class AddressBookTagService {
   /**
    * 获取地址簿标签列表
    * 查询指定地址簿中的所有标签
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param userId 用户ID（可选，用于权限验证）
    * @param checkAccess 权限检查函数（可选）
@@ -38,7 +47,11 @@ export class AddressBookTagService {
   async getTags(
     addressBookGuid: string,
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
   ) {
     // 如果提供了用户ID，验证访问权限
     if (userId && checkAccess) {
@@ -49,7 +62,7 @@ export class AddressBookTagService {
       where: { addressBookGuid },
     });
 
-    return tags.map(t => ({
+    return tags.map((t) => ({
       name: t.name,
       color: t.color,
     }));
@@ -59,12 +72,15 @@ export class AddressBookTagService {
    * 获取或创建标签
    * 查找指定名称的标签，如果不存在则创建
    * 主要用于设备添加/更新时的标签关联
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param tagName 标签名称
    * @returns 标签GUID
    */
-  async getOrCreateTag(addressBookGuid: string, tagName: string): Promise<string> {
+  async getOrCreateTag(
+    addressBookGuid: string,
+    tagName: string,
+  ): Promise<string> {
     let tag = await this.addressBookTagRepository.findOne({
       where: { name: tagName, addressBookGuid },
     });
@@ -86,7 +102,7 @@ export class AddressBookTagService {
   /**
    * 添加标签
    * 向指定地址簿添加新标签
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param dto 标签信息DTO，包含标签名称和颜色
    * @param userId 用户ID（可选，用于权限验证）
@@ -99,7 +115,11 @@ export class AddressBookTagService {
     addressBookGuid: string,
     dto: AddTagDto,
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
   ) {
     // 如果提供了用户ID，验证写权限
     if (userId && checkAccess) {
@@ -138,7 +158,7 @@ export class AddressBookTagService {
   /**
    * 重命名标签
    * 修改标签的名称，同时检查新名称是否冲突
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param dto 重命名信息DTO，包含旧标签名和新标签名
    * @param userId 用户ID（可选，用于权限验证）
@@ -151,7 +171,11 @@ export class AddressBookTagService {
     addressBookGuid: string,
     dto: RenameTagDto,
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
   ) {
     // 如果提供了用户ID，验证写权限
     if (userId && checkAccess) {
@@ -177,14 +201,17 @@ export class AddressBookTagService {
     }
 
     // 更新标签名称
-    await this.addressBookTagRepository.update({ guid: tag.guid }, { name: dto.new });
+    await this.addressBookTagRepository.update(
+      { guid: tag.guid },
+      { name: dto.new },
+    );
     return {};
   }
 
   /**
    * 更新标签颜色
    * 修改标签的颜色属性，用于UI显示
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param dto 标签更新信息DTO，包含标签名和新颜色
    * @param userId 用户ID（可选，用于权限验证）
@@ -196,7 +223,11 @@ export class AddressBookTagService {
     addressBookGuid: string,
     dto: UpdateTagDto,
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
   ) {
     // 如果提供了用户ID，验证写权限
     if (userId && checkAccess) {
@@ -213,14 +244,17 @@ export class AddressBookTagService {
     }
 
     // 更新标签颜色
-    await this.addressBookTagRepository.update({ guid: tag.guid }, { color: dto.color });
+    await this.addressBookTagRepository.update(
+      { guid: tag.guid },
+      { color: dto.color },
+    );
     return {};
   }
 
   /**
    * 删除标签
    * 批量删除指定地址簿中的标签，同时删除所有设备与这些标签的关联
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param names 要删除的标签名称列表
    * @param userId 用户ID（可选，用于权限验证）
@@ -232,7 +266,11 @@ export class AddressBookTagService {
     addressBookGuid: string,
     names: string[],
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
   ) {
     // 如果提供了用户ID，验证写权限
     if (userId && checkAccess) {
@@ -248,7 +286,7 @@ export class AddressBookTagService {
       where: { name: In(names), addressBookGuid },
     });
 
-    const tagGuids = tags.map(t => t.guid);
+    const tagGuids = tags.map((t) => t.guid);
 
     // 先删除标签与设备的关联关系
     if (tagGuids.length > 0) {

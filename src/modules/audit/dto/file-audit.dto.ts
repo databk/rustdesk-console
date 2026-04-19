@@ -1,4 +1,11 @@
-import { IsString, IsInt, IsBoolean, Min, Max, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsBoolean,
+  Min,
+  Max,
+  IsOptional,
+} from 'class-validator';
 import { FileAuditType } from '../entities/file-audit.entity';
 
 /**

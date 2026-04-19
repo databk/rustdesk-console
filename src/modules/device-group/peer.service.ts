@@ -11,7 +11,7 @@ import { PeerQueryDto } from './dto/peer.dto';
 /**
  * 设备服务
  * 负责设备相关的业务逻辑和权限管理
- * 
+ *
  * 功能：
  * - 获取用户可访问的设备列表
  * - 管理设备权限
@@ -37,14 +37,14 @@ export class PeerService {
   /**
    * 获取用户可访问的设备列表（分页）
    * 根据用户权限返回可访问的设备列表
-   * 
+   *
    * 权限逻辑：
    * 1. 管理员可以看到所有设备
    * 2. 普通用户：
    *    - 用户自己的设备
    *    - 用户有权访问的设备组中的设备
    *    - 用户有权访问的其他用户的设备
-   * 
+   *
    * @param userGuid 用户GUID
    * @param query 查询参数，包含分页和状态过滤
    * @param isAdmin 是否为管理员
@@ -93,34 +93,33 @@ export class PeerService {
     }
 
     // 分页查询
-    queryBuilder
-      .orderBy('peer.id', 'ASC')
-      .skip(skip)
-      .take(pageSize);
+    queryBuilder.orderBy('peer.id', 'ASC').skip(skip).take(pageSize);
 
     const [peers, total] = await queryBuilder.getManyAndCount();
 
     // 获取所有设备的 uuid 列表
-    const uuids = peers.map(p => p.uuid);
+    const uuids = peers.map((p) => p.uuid);
 
     // 批量查询系统信息
-    const sysinfos = uuids.length > 0
-      ? await this.sysinfoRepository.findByIds(uuids)
-      : [];
+    const sysinfos =
+      uuids.length > 0 ? await this.sysinfoRepository.findByIds(uuids) : [];
 
-    const sysinfoMap = new Map(sysinfos.map(s => [s.uuid, s]));
+    const sysinfoMap = new Map(sysinfos.map((s) => [s.uuid, s]));
 
     // 获取所有相关的用户GUID
-    const userGuids = [...new Set(peers.map(p => p.userGuid).filter(guid => guid != null))];
+    const userGuids = [
+      ...new Set(peers.map((p) => p.userGuid).filter((guid) => guid != null)),
+    ];
 
     // 批量查询用户信息
-    const users = userGuids.length > 0
-      ? await this.userRepository.find({ where: { guid: In(userGuids) } })
-      : [];
-    const userMap = new Map(users.map(u => [u.guid, u]));
+    const users =
+      userGuids.length > 0
+        ? await this.userRepository.find({ where: { guid: In(userGuids) } })
+        : [];
+    const userMap = new Map(users.map((u) => [u.guid, u]));
 
     // 转换响应格式
-    const data = peers.map(peer => {
+    const data = peers.map((peer) => {
       const sysinfo = sysinfoMap.get(peer.uuid);
       const isOnline = peer.updatedAt > oneMinuteAgo;
       const user = peer.userGuid ? userMap.get(peer.userGuid) : null;
@@ -135,7 +134,8 @@ export class PeerService {
         status: isOnline ? 1 : 0,
         user: user?.username || '',
         user_name: user?.username || '', // 用于前端过滤
-        device_group_name: peer.deviceGroup?.name || '',
+        device_group_name:
+          (peer.deviceGroup as { name?: string } | null)?.name || '',
         note: '',
       };
     });

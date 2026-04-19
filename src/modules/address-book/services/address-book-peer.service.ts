@@ -1,8 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { AddressBook, AddressBookPeer, AddressBookPeerTag, ShareRule } from '../entities';
+import {
+  AddressBook,
+  AddressBookPeer,
+  AddressBookPeerTag,
+  ShareRule,
+} from '../entities';
 import { AddPeerDto, UpdatePeerDto, PeersQueryDto } from '../dto';
 import { Sysinfo, Peer } from '../../../common/entities';
 
@@ -34,7 +43,7 @@ export class AddressBookPeerService {
   /**
    * 获取地址簿中的设备列表
    * 查询指定地址簿中的所有设备，并关联查询设备详细信息和系统信息
-   * 
+   *
    * @param query 查询参数，包含分页和地址簿GUID
    * @param userId 用户ID（可选，用于权限验证）
    * @param checkAccess 权限检查函数（可选）
@@ -44,7 +53,11 @@ export class AddressBookPeerService {
   async getPeers(
     query: PeersQueryDto,
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
   ) {
     const { current = 1, pageSize = 100, ab, id, alias } = query;
     const skip = (current - 1) * pageSize;
@@ -78,7 +91,7 @@ export class AddressBookPeerService {
         `abp.deviceId IN (
           SELECT uuid FROM peers WHERE id LIKE :id
         )`,
-        { id: `%${id}%` }
+        { id: `%${id}%` },
       );
     }
 
@@ -88,37 +101,39 @@ export class AddressBookPeerService {
       .getManyAndCount();
 
     // 获取所有设备ID (uuid)，用于从 peers 表和 sysinfos 表获取信息
-    const deviceIds = peers.map(p => p.deviceId);
-    
+    const deviceIds = peers.map((p) => p.deviceId);
+
     // 从 peers 表获取 RustDesk ID
-    const peerRecords = deviceIds.length > 0
-      ? await this.peerRepository.find({
-          where: { uuid: In(deviceIds) },
-        })
-      : [];
-    const peerMap = new Map(peerRecords.map(p => [p.uuid, p]));
+    const peerRecords =
+      deviceIds.length > 0
+        ? await this.peerRepository.find({
+            where: { uuid: In(deviceIds) },
+          })
+        : [];
+    const peerMap = new Map(peerRecords.map((p) => [p.uuid, p]));
 
     // 从 sysinfos 表获取设备信息
-    const sysinfos = deviceIds.length > 0
-      ? await this.sysinfoRepository.find({
-          where: { uuid: In(deviceIds) },
-        })
-      : [];
-    const sysinfoMap = new Map(sysinfos.map(s => [s.uuid, s]));
+    const sysinfos =
+      deviceIds.length > 0
+        ? await this.sysinfoRepository.find({
+            where: { uuid: In(deviceIds) },
+          })
+        : [];
+    const sysinfoMap = new Map(sysinfos.map((s) => [s.uuid, s]));
 
     // 组装返回数据
-    const data = peers.map(p => {
+    const data = peers.map((p) => {
       const peerRecord = peerMap.get(p.deviceId);
       const sysinfo = sysinfoMap.get(p.deviceId);
       return {
-        id: peerRecord?.id || '',  // 返回 RustDesk ID
+        id: peerRecord?.id || '', // 返回 RustDesk ID
         hash: p.hash,
         password: p.password,
         username: sysinfo?.username || '',
         hostname: sysinfo?.hostname || '',
         platform: sysinfo?.os || '',
         alias: p.alias,
-        tags: p.tags?.map(t => t.name) || [],
+        tags: p.tags?.map((t) => t.name) || [],
         note: p.note,
       };
     });
@@ -129,7 +144,7 @@ export class AddressBookPeerService {
   /**
    * 添加设备到地址簿
    * 将设备添加到指定地址簿，支持关联标签
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param dto 设备信息DTO，包含设备ID、密码、别名、标签等
    * @param userId 用户ID（可选，用于权限验证）
@@ -143,8 +158,15 @@ export class AddressBookPeerService {
     addressBookGuid: string,
     dto: AddPeerDto,
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
-    getOrCreateTag?: (addressBookGuid: string, tagName: string) => Promise<string>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
+    getOrCreateTag?: (
+      addressBookGuid: string,
+      tagName: string,
+    ) => Promise<string>,
   ) {
     // 如果提供了用户ID，验证写权限
     if (userId && checkAccess) {
@@ -211,7 +233,7 @@ export class AddressBookPeerService {
   /**
    * 更新地址簿中的设备信息
    * 更新设备的密码、别名、备注和标签关联
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param dto 设备更新信息DTO
    * @param userId 用户ID（可选，用于权限验证）
@@ -224,8 +246,15 @@ export class AddressBookPeerService {
     addressBookGuid: string,
     dto: UpdatePeerDto,
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
-    getOrCreateTag?: (addressBookGuid: string, tagName: string) => Promise<string>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
+    getOrCreateTag?: (
+      addressBookGuid: string,
+      tagName: string,
+    ) => Promise<string>,
   ) {
     // 如果提供了用户ID，验证写权限
     if (userId && checkAccess) {
@@ -260,7 +289,10 @@ export class AddressBookPeerService {
     if (dto.alias !== undefined) updateData.alias = dto.alias;
     if (dto.note !== undefined) updateData.note = dto.note;
 
-    await this.addressBookPeerRepository.update({ guid: peer.guid }, updateData);
+    await this.addressBookPeerRepository.update(
+      { guid: peer.guid },
+      updateData,
+    );
 
     // 更新标签关联 - dto.tags 是标签名称数组
     if (dto.tags !== undefined) {
@@ -286,7 +318,7 @@ export class AddressBookPeerService {
   /**
    * 从地址簿中删除设备
    * 批量删除指定地址簿中的设备，同时删除标签关联
-   * 
+   *
    * @param addressBookGuid 地址簿GUID
    * @param ids 要删除的设备ID列表（RustDesk ID）
    * @param userId 用户ID（可选，用于权限验证）
@@ -298,7 +330,11 @@ export class AddressBookPeerService {
     addressBookGuid: string,
     ids: string[],
     userId?: string,
-    checkAccess?: (ab: string, userId: string, rule: ShareRule) => Promise<AddressBook>,
+    checkAccess?: (
+      ab: string,
+      userId: string,
+      rule: ShareRule,
+    ) => Promise<AddressBook>,
   ) {
     // 如果提供了用户ID，验证写权限
     if (userId && checkAccess) {
@@ -314,7 +350,7 @@ export class AddressBookPeerService {
       where: { id: In(ids) },
     });
 
-    const deviceIds = peerRecords.map(p => p.uuid);
+    const deviceIds = peerRecords.map((p) => p.uuid);
 
     if (deviceIds.length > 0) {
       // 根据 deviceId 删除（会自动级联删除标签关联）

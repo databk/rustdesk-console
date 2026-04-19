@@ -1,4 +1,14 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, ManyToMany, JoinTable } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  ManyToMany,
+  JoinTable,
+} from 'typeorm';
 import { AddressBook } from './address-book.entity';
 import { AddressBookTag } from './address-book-tag.entity';
 
@@ -26,7 +36,9 @@ export class AddressBookPeer {
    * 关联的地址簿实体
    * 多对一关系，关联到 AddressBook
    */
-  @ManyToOne(() => AddressBook, addressBook => addressBook.peers, { onDelete: 'CASCADE' })
+  @ManyToOne(() => AddressBook, (addressBook) => addressBook.peers, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'addressBookGuid' })
   addressBook: AddressBook;
 
@@ -71,7 +83,7 @@ export class AddressBookPeer {
    * 多对多关系，通过 address_book_peer_tags 中间表关联
    * 一个设备可以有多个标签，一个标签也可以对应多个设备
    */
-  @ManyToMany(() => AddressBookTag, tag => tag.peers)
+  @ManyToMany(() => AddressBookTag, (tag) => tag.peers)
   @JoinTable({
     name: 'address_book_peer_tags',
     joinColumn: { name: 'peerGuid', referencedColumnName: 'guid' },

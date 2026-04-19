@@ -1,6 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { UserService } from './user.service';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
@@ -29,13 +38,16 @@ export class UserController {
    */
   @Post('users')
   @HttpCode(HttpStatus.OK)
-  async createUser(@Body() createUserDto: {
-    name: string;
-    password: string;
-    group_name?: string;
-    email?: string;
-    note?: string;
-  }) {
+  async createUser(
+    @Body()
+    createUserDto: {
+      name: string;
+      password: string;
+      group_name?: string;
+      email?: string;
+      note?: string;
+    },
+  ) {
     return this.userService.createUser(createUserDto);
   }
 
@@ -46,12 +58,15 @@ export class UserController {
    */
   @Post('users/invite')
   @HttpCode(HttpStatus.OK)
-  async inviteUser(@Body() inviteUserDto: {
-    email: string;
-    name: string;
-    group_name?: string;
-    note?: string;
-  }) {
+  async inviteUser(
+    @Body()
+    inviteUserDto: {
+      email: string;
+      name: string;
+      group_name?: string;
+      note?: string;
+    },
+  ) {
     return this.userService.inviteUser(inviteUserDto);
   }
 
@@ -94,12 +109,14 @@ export class UserController {
    */
   @Put('users/tfa/totp/enforce')
   @HttpCode(HttpStatus.OK)
-  async setTfaEnforce(@Body() body: {
-    user_guids: string[];
-    enforce: boolean;
-    url: string;
-  }) {
-    await this.userService.setTfaEnforce(body.user_guids, body.enforce, body.url);
+  async setTfaEnforce(
+    @Body() body: { user_guids: string[]; enforce: boolean; url: string },
+  ) {
+    await this.userService.setTfaEnforce(
+      body.user_guids,
+      body.enforce,
+      body.url,
+    );
     return { message: '2FA设置成功' };
   }
 
@@ -109,10 +126,9 @@ export class UserController {
    */
   @Put('users/disable_login_verification')
   @HttpCode(HttpStatus.OK)
-  async disableLoginVerification(@Body() body: {
-    user_guids: string[];
-    type: 'email' | '2fa';
-  }) {
+  async disableLoginVerification(
+    @Body() body: { user_guids: string[]; type: 'email' | '2fa' },
+  ) {
     await this.userService.disableLoginVerification(body.user_guids, body.type);
     return { message: '登录验证已禁用' };
   }
@@ -123,9 +139,7 @@ export class UserController {
    */
   @Post('users/force-logout')
   @HttpCode(HttpStatus.OK)
-  async forceLogout(@Body() body: {
-    user_guids: string[];
-  }) {
+  async forceLogout(@Body() body: { user_guids: string[] }) {
     return this.userService.forceLogout(body.user_guids);
   }
 }

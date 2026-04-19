@@ -42,7 +42,9 @@ import { EmailModule } from '../email/email.module';
     EmailModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'rustdesk-api-secret-key-change-in-production',
+      secret:
+        process.env.JWT_SECRET ||
+        'rustdesk-api-secret-key-change-in-production',
       signOptions: {
         expiresIn: '30d', // Token 有效期 30 天
       },

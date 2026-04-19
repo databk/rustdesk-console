@@ -53,15 +53,36 @@ import { EmailVerificationSession } from './modules/auth/entities/email-verifica
  */
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{
-      name: 'default',
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'rustdesk.db',
-      entities: [Sysinfo, Peer, ConnectionAudit, FileAudit, AlarmAudit, AddressBook, AddressBookPeer, AddressBookTag, AddressBookPeerTag, AddressBookRule, User, UserToken, OidcProvider, OidcAuthState, DeviceGroup, DeviceGroupUserPermission, UserUserPermission, EmailVerificationSession],
+      entities: [
+        Sysinfo,
+        Peer,
+        ConnectionAudit,
+        FileAudit,
+        AlarmAudit,
+        AddressBook,
+        AddressBookPeer,
+        AddressBookTag,
+        AddressBookPeerTag,
+        AddressBookRule,
+        User,
+        UserToken,
+        OidcProvider,
+        OidcAuthState,
+        DeviceGroup,
+        DeviceGroupUserPermission,
+        UserUserPermission,
+        EmailVerificationSession,
+      ],
       synchronize: true,
       logging: false,
     }),

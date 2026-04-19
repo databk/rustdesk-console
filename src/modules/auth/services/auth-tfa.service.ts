@@ -1,10 +1,14 @@
-import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { authenticator } from 'otplib';
-import { User, UserInfo } from '../../user/entities/user.entity';
+import { User, UserStatus, UserInfo } from '../../user/entities/user.entity';
 import { LoginDto } from '../dto/auth.dto';
-import { JwtPayload } from './auth-token.service';
 
 /**
  * TFA登录响应接口
@@ -60,7 +64,7 @@ export class AuthTfaService {
   /**
    * 验证TFA验证码
    * 使用TOTP算法验证用户输入的验证码是否正确
-   * 
+   *
    * @param secret TFA密钥
    * @param code 用户输入的验证码
    * @returns 验证是否成功
@@ -80,7 +84,7 @@ export class AuthTfaService {
   /**
    * 双因素认证登录
    * 验证TFA验证码并完成登录流程
-   * 
+   *
    * @param loginDto 登录信息
    * @param generateToken Token生成函数
    * @param createOrUpdateDevice 设备创建/更新函数（可选）
@@ -90,8 +94,17 @@ export class AuthTfaService {
    */
   async handleTfaLogin(
     loginDto: LoginDto,
-    generateToken: (user: User, deviceId?: string, deviceUuid?: string) => Promise<string>,
-    createOrUpdateDevice?: (userGuid: string, deviceId?: string, deviceUuid?: string, deviceInfo?: Record<string, any>) => Promise<void>,
+    generateToken: (
+      user: User,
+      deviceId?: string,
+      deviceUuid?: string,
+    ) => Promise<string>,
+    createOrUpdateDevice?: (
+      userGuid: string,
+      deviceId?: string,
+      deviceUuid?: string,
+      deviceInfo?: Record<string, any>,
+    ) => Promise<void>,
   ): Promise<LoginResponse> {
     const { username, tfaCode, secret, id, uuid, deviceInfo } = loginDto;
 
@@ -109,7 +122,10 @@ export class AuthTfaService {
     // 查找用户
     const user = await this.userRepository
       .createQueryBuilder('user')
-      .where('user.username = :username OR user.email = :email', { username, email: username })
+      .where('user.username = :username OR user.email = :email', {
+        username,
+        email: username,
+      })
       .addSelect('user.tfaSecret')
       .addSelect('user.info')
       .addSelect('user.thirdAuthType')
@@ -125,7 +141,8 @@ export class AuthTfaService {
     }
 
     // 检查用户状态
-    if (user.status === 0) { // UserStatus.DISABLED
+    if (user.status === UserStatus.DISABLED) {
+      // UserStatus.DISABLED
       throw new UnauthorizedException('账户已被禁用');
     }
 

@@ -1,4 +1,12 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+  Index,
+} from 'typeorm';
 import { UserToken } from './user-token.entity';
 
 /**
@@ -122,7 +130,7 @@ export class User {
    * 用户的令牌列表
    * 一对多关系，关联到 UserToken
    */
-  @OneToMany(() => UserToken, token => token.user, { cascade: true })
+  @OneToMany(() => UserToken, (token) => token.user, { cascade: true })
   tokens: UserToken[];
 
   /**
@@ -149,7 +157,7 @@ export class User {
       };
     }
     try {
-      return JSON.parse(this.info);
+      return JSON.parse(this.info) as UserInfo;
     } catch {
       return {
         email_verification: false,
