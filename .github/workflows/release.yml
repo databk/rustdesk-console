@@ -104,17 +104,18 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Generate conventional changelog
+      - name: Generate changelog
         id: changelog
         uses: TriPSs/conventional-changelog-action@v5
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ steps.version.outputs.version }}
+          version-file: package.json
+          version-path: version
           skip-git-pull: 'true'
           skip-commit: 'true'
           skip-tag: 'true'
           skip-on-empty: 'true'
-          skip-version-resolution: 'true'
+          skip-bump: 'true'
           output-file: 'false'
 
       - name: Create Release
