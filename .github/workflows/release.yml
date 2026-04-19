@@ -98,6 +98,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract version from tag
         id: version
@@ -105,22 +107,17 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Generate changelog
+      - name: Generate conventional changelog
         id: changelog
-        run: |
-          # Get previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          
-          if [ -n "$PREV_TAG" ]; then
-            echo "changelog<<EOF" >> $GITHUB_OUTPUT
-            echo "## Changes since $PREV_TAG" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "changelog=Initial release" >> $GITHUB_OUTPUT
-          fi
+        uses: TriPSs/conventional-changelog-action@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ steps.version.outputs.version }}
+          skip-git-pull: 'true'
+          skip-commit: 'true'
+          skip-tag: 'true'
+          skip-on-empty: 'true'
+          output-file: 'false'
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
