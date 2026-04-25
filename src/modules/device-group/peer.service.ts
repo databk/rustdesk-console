@@ -123,20 +123,30 @@ export class PeerService {
       const sysinfo = sysinfoMap.get(peer.uuid);
       const isOnline = peer.updatedAt > oneMinuteAgo;
       const user = peer.userGuid ? userMap.get(peer.userGuid) : null;
+      const deviceGroupName =
+        (peer.deviceGroup as { name?: string } | null)?.name || '';
 
       return {
+        guid: peer.uuid,
         id: peer.id,
+        status: peer.userGuid ? 1 : 2, // 1=正常, 2=禁用(无关联用户)
+        user: peer.userGuid || '',
+        user_name: user?.username || '',
+        note: sysinfo?.presetNote || '',
+        group_name: deviceGroupName,
+        device_group_name: deviceGroupName,
+        strategy_name: '', // 策略功能未实现，暂返回空
+        last_online: peer.updatedAt.toISOString(),
         info: {
           username: sysinfo?.username || '',
           os: sysinfo?.os || '',
           device_name: sysinfo?.hostname || '',
+          ip: '',
+          version: peer.ver ? String(peer.ver) : '',
+          cpu: sysinfo?.cpu || '',
+          memory: sysinfo?.memory || '',
         },
-        status: isOnline ? 1 : 0,
-        user: user?.username || '',
-        user_name: user?.username || '', // 用于前端过滤
-        device_group_name:
-          (peer.deviceGroup as { name?: string } | null)?.name || '',
-        note: '',
+        is_online: isOnline,
       };
     });
 
