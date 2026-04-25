@@ -72,7 +72,7 @@ jobs:
           tags: |
             databk/rustdesk-console:latest
             databk/rustdesk-console:${{ steps.version.outputs.version }}
-            databk/rustdesk-console:v${{ steps.version.outputs.major }}
+            databk/rustdesk-console:${{ steps.version.outputs.major }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -84,7 +84,7 @@ jobs:
           tags: |
             ghcr.io/databk/rustdesk-console:latest
             ghcr.io/databk/rustdesk-console:${{ steps.version.outputs.version }}
-            ghcr.io/databk/rustdesk-console:v${{ steps.version.outputs.major }}
+            ghcr.io/databk/rustdesk-console:${{ steps.version.outputs.major }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
