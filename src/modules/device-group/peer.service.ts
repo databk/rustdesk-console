@@ -149,7 +149,7 @@ export class PeerService {
         status: peer.status,
         is_online: isOnline,
         last_online: peer.updatedAt.toISOString(),
-        user: user?.username || '',
+        user: peer.userGuid || '',
         user_name: user?.username || '',
         note: sysinfo?.presetNote || '',
         device_group_name: deviceGroupName,
