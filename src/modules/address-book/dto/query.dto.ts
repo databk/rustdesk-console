@@ -96,7 +96,7 @@ export class PeersQueryDto extends PaginationDto {
    * 支持单个标签或多个标签（重复参数名）
    */
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: string | string[] }) => {
     if (!value) return undefined;
     return Array.isArray(value) ? value : [value];
   })
