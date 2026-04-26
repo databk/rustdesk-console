@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../modules/user/entities/user.entity';
 import { OidcProvider } from '../modules/oidc/entities/oidc-provider.entity';
 import { OidcAuthState } from '../modules/oidc/entities/oidc-auth-state.entity';
+import { SmtpConfig } from '../modules/settings/entities/smtp-config.entity';
 
 @Injectable()
 /**
@@ -25,11 +26,14 @@ export class DatabaseInitService implements OnModuleInit {
     private oidcProviderRepository: Repository<OidcProvider>,
     @InjectRepository(OidcAuthState)
     private oidcAuthStateRepository: Repository<OidcAuthState>,
+    @InjectRepository(SmtpConfig)
+    private smtpConfigRepository: Repository<SmtpConfig>,
   ) {}
 
   async onModuleInit() {
     await this.createDefaultAdmin();
     await this.createDefaultOidcProviders();
+    await this.createDefaultSmtpConfig();
     await this.cleanupExpiredAuthStates();
   }
 
@@ -116,6 +120,36 @@ export class DatabaseInitService implements OnModuleInit {
         await this.oidcProviderRepository.save(provider);
         this.logger.log(`Default OIDC provider created: ${providerData.name}`);
       }
+    }
+  }
+
+  /**
+   * 创建默认 SMTP 配置
+   * 从环境变量迁移配置到数据库，保持向后兼容
+   */
+  private async createDefaultSmtpConfig() {
+    const existing = await this.smtpConfigRepository.findOne({
+      where: { isDefault: true },
+    });
+
+    if (!existing) {
+      const smtpConfig = this.smtpConfigRepository.create({
+        guid: uuidv4(),
+        host: process.env.SMTP_HOST || 'smtp.example.com',
+        port: parseInt(process.env.SMTP_PORT || '587', 10),
+        secure: process.env.SMTP_SECURE === 'true',
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '',
+        from:
+          process.env.SMTP_FROM || '"No Reply" <noreply@example.com>',
+        enabled: true,
+        isDefault: true,
+      });
+
+      await this.smtpConfigRepository.save(smtpConfig);
+      this.logger.log('Default SMTP config created from environment variables');
+    } else {
+      this.logger.log('SMTP config already exists, skipping creation');
     }
   }
 
