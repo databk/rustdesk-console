@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Body,
@@ -283,6 +284,24 @@ export class DeviceGroupController {
   async enableDevice(@Param('guid') guid: string) {
     await this.deviceGroupService.enableDevice(guid);
     return { message: '设备已启用' };
+  }
+
+  /**
+   * 批量启用/禁用设备
+   * 管理员可以批量启用或禁用设备
+   *
+   * @param body 包含设备GUID列表和禁用标志
+   * @returns 操作结果
+   */
+  @Put('enable-peers')
+  @UseGuards(AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  async enablePeers(
+    @Body() body: { data: { rows: string[]; disable: boolean } },
+  ) {
+    const { rows, disable } = body.data;
+    await this.deviceGroupService.setPeersStatus(rows, !disable);
+    return { message: disable ? '设备已禁用' : '设备已启用' };
   }
 
   /**

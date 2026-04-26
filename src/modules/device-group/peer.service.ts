@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { Peer, Sysinfo } from '../../common/entities';
+import { Peer, PeerStatus, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
 import { DeviceGroup } from './entities/device-group.entity';
 import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
@@ -129,7 +129,7 @@ export class PeerService {
       return {
         guid: peer.uuid,
         id: peer.id,
-        status: peer.userGuid ? 1 : 2, // 1=正常, 2=禁用(无关联用户)
+        status: peer.status === PeerStatus.ACTIVE ? 1 : 0,
         user: peer.userGuid || '',
         user_name: user?.username || '',
         note: sysinfo?.presetNote || '',
