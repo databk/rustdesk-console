@@ -22,6 +22,10 @@ export class PeerQueryDto {
 
   @IsOptional()
   @IsString()
+  accessible?: string; // 兼容性字段，空字符串表示获取所有可访问设备
+
+  @IsOptional()
+  @IsString()
   id?: string; // 按设备ID筛选（模糊匹配）
 
   @IsOptional()
