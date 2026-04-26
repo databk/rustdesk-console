@@ -111,7 +111,9 @@ export class PeerService {
     if (is_online === '1') {
       queryBuilder.andWhere('peer.updatedAt > :oneMinuteAgo', { oneMinuteAgo });
     } else if (is_online === '0') {
-      queryBuilder.andWhere('peer.updatedAt <= :oneMinuteAgo', { oneMinuteAgo });
+      queryBuilder.andWhere('peer.updatedAt <= :oneMinuteAgo', {
+        oneMinuteAgo,
+      });
     }
 
     // 按用户名筛选（模糊匹配）
