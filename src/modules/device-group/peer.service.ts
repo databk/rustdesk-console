@@ -129,7 +129,7 @@ export class PeerService {
       return {
         guid: peer.uuid,
         id: peer.id,
-        status: peer.userGuid ? 1 : 2, // 1=正常, 2=禁用(无关联用户)
+        status: peer.status,
         user: peer.userGuid || '',
         user_name: user?.username || '',
         note: sysinfo?.presetNote || '',

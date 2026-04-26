@@ -8,7 +8,7 @@ import { Repository, In } from 'typeorm';
 import * as uuid from 'uuid';
 import { DeviceGroup } from './entities/device-group.entity';
 import { User, UserStatus } from '../user/entities/user.entity';
-import { Peer } from '../../common/entities/peer.entity';
+import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
 
 @Injectable()
@@ -527,7 +527,7 @@ export class DeviceGroupService {
       throw new NotFoundException('设备不存在');
     }
 
-    peer.userGuid = null;
+    peer.status = PeerStatus.DISABLED;
     await this.peerRepository.save(peer);
   }
 
@@ -543,7 +543,8 @@ export class DeviceGroupService {
       throw new NotFoundException('设备不存在');
     }
 
-    throw new BadRequestException('无法启用设备，需要重新分配用户');
+    peer.status = PeerStatus.ACTIVE;
+    await this.peerRepository.save(peer);
   }
 
   /**

@@ -10,6 +10,16 @@ import {
 } from 'typeorm';
 
 /**
+ * 设备状态枚举
+ * 1: 正常
+ * 0: 禁用
+ */
+export enum PeerStatus {
+  DISABLED = 0,
+  ACTIVE = 1,
+}
+
+/**
  * 设备实体
  * 管理所有注册设备的基本信息
  */
@@ -53,6 +63,16 @@ export class Peer {
   @ManyToOne('DeviceGroup', 'peers', { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'deviceGroupGuid' })
   deviceGroup: any;
+
+  /**
+   * 设备状态
+   * 1: 正常, 0: 禁用
+   */
+  @Column({
+    type: 'integer',
+    default: PeerStatus.ACTIVE,
+  })
+  status: PeerStatus;
 
   /**
    * 版本号
