@@ -118,15 +118,21 @@ export class PeerService {
         : [];
     const userMap = new Map(users.map((u) => [u.guid, u]));
 
-    // 版本号转换函数：将 1004040 格式转换为 1.4.4 格式
+    // 版本号转换函数：将 1001100 格式转换为 1.1.10 格式
+    // 格式说明：major*1000000 + minor*1000 + patch*10 + patch_version
+    // 例如：1.1.10 -> 1001100, 1.1.10-1 -> 1001101
     const formatVersion = (ver: number | null | undefined): string => {
       if (!ver) return '';
-      const verStr = String(ver);
-      // 假设格式为：主版本*1000000 + 次版本*1000 + 修订号
       const major = Math.floor(ver / 1000000);
       const minor = Math.floor((ver % 1000000) / 1000);
-      const patch = ver % 1000;
-      return `${major}.${minor}.${patch}`;
+      const patch = Math.floor((ver % 1000) / 10);
+      const patchVersion = ver % 10;
+
+      let version = `${major}.${minor}.${patch}`;
+      if (patchVersion > 0) {
+        version += `-${patchVersion}`;
+      }
+      return version;
     };
 
     // 转换响应格式
