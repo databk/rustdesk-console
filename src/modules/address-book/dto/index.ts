@@ -10,7 +10,7 @@ export { AddPeerDto, UpdatePeerDto } from './peer.dto';
 export { AddTagDto, UpdateTagDto, RenameTagDto } from './tag.dto';
 
 /** 查询相关 DTO - 分页查询、设备列表查询 */
-export { PaginationDto, PeersQueryDto } from './query.dto';
+export { PaginationDto, PeersQueryDto, TagMatchMode } from './query.dto';
 
 /** 规则相关 DTO - 规则查询、创建和更新 */
 export { RuleQueryDto, CreateRuleDto, UpdateRuleDto } from './rule.dto';

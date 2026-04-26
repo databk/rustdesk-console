@@ -12,7 +12,7 @@ import {
   AddressBookPeerTag,
   ShareRule,
 } from '../entities';
-import { AddPeerDto, UpdatePeerDto, PeersQueryDto } from '../dto';
+import { AddPeerDto, UpdatePeerDto, PeersQueryDto, TagMatchMode } from '../dto';
 import { Sysinfo, Peer } from '../../../common/entities';
 
 @Injectable()
@@ -59,7 +59,7 @@ export class AddressBookPeerService {
       rule: ShareRule,
     ) => Promise<AddressBook>,
   ) {
-    const { current = 1, pageSize = 100, ab, id, alias } = query;
+    const { current = 1, pageSize = 100, ab, id, alias, tags, tagMode = TagMatchMode.UNION } = query;
     const skip = (current - 1) * pageSize;
 
     const addressBook = await this.addressBookRepository.findOne({
@@ -93,6 +93,35 @@ export class AddressBookPeerService {
         )`,
         { id: `%${id}%` },
       );
+    }
+
+    // 按标签过滤（精确匹配）
+    if (tags && tags.length > 0) {
+      if (tagMode === TagMatchMode.INTERSECTION) {
+        // 交集模式：必须包含所有标签
+        queryBuilder.andWhere(
+          `abp.guid IN (
+            SELECT apt.peerGuid 
+            FROM address_book_peer_tags apt
+            JOIN address_book_tags t ON apt.tagGuid = t.guid
+            WHERE t.addressBookGuid = :addressBookGuid AND t.name IN (:...tagNames)
+            GROUP BY apt.peerGuid
+            HAVING COUNT(DISTINCT t.name) = :tagCount
+          )`,
+          { tagNames: tags, tagCount: tags.length },
+        );
+      } else {
+        // 并集模式（默认）：匹配任意一个标签即可
+        queryBuilder.andWhere(
+          `abp.guid IN (
+            SELECT DISTINCT apt.peerGuid 
+            FROM address_book_peer_tags apt
+            JOIN address_book_tags t ON apt.tagGuid = t.guid
+            WHERE t.addressBookGuid = :addressBookGuid AND t.name IN (:...tagNames)
+          )`,
+          { tagNames: tags },
+        );
+      }
     }
 
     const [peers, total] = await queryBuilder

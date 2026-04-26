@@ -4,6 +4,8 @@ import {
   IsOptional,
   Min,
   IsNotEmpty,
+  IsArray,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -44,6 +46,22 @@ export class PaginationDto {
 }
 
 /**
+ * 标签匹配模式枚举
+ */
+export enum TagMatchMode {
+  /**
+   * 并集模式（OR）
+   * 匹配任意一个标签即可
+   */
+  UNION = 'union',
+  /**
+   * 交集模式（AND）
+   * 必须匹配所有标签
+   */
+  INTERSECTION = 'intersection',
+}
+
+/**
  * 设备列表查询数据传输对象
  * 继承分页参数，增加地址簿标识参数
  */
@@ -58,7 +76,7 @@ export class PeersQueryDto extends PaginationDto {
 
   /**
    * 设备ID过滤
-   * 用于按设备ID筛选
+   * 用于按设备ID模糊匹配
    */
   @IsOptional()
   @IsString()
@@ -66,9 +84,28 @@ export class PeersQueryDto extends PaginationDto {
 
   /**
    * 别名过滤
-   * 用于按别名筛选
+   * 用于按别名模糊匹配
    */
   @IsOptional()
   @IsString()
   alias?: string;
+
+  /**
+   * 标签过滤
+   * 用于按标签精确匹配，支持多个标签
+   */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  /**
+   * 标签匹配模式
+   * union: 并集（匹配任意一个标签）
+   * intersection: 交集（必须匹配所有标签）
+   * 默认值: union
+   */
+  @IsOptional()
+  @IsEnum(TagMatchMode)
+  tagMode?: TagMatchMode = TagMatchMode.UNION;
 }
