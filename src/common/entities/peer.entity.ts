@@ -43,7 +43,7 @@ export class Peer {
    * 所属用户唯一标识符
    * 关联到 users 表的 guid 字段
    */
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @Index()
   userGuid: string | null;
 
@@ -51,7 +51,7 @@ export class Peer {
    * 所属设备组GUID
    * 关联到 device_groups 表的 guid 字段
    */
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   @Index()
   deviceGroupGuid: string | null;
 
