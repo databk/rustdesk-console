@@ -59,7 +59,15 @@ export class AddressBookPeerService {
       rule: ShareRule,
     ) => Promise<AddressBook>,
   ) {
-    const { current = 1, pageSize = 100, ab, id, alias, tags, tagMode = TagMatchMode.UNION } = query;
+    const {
+      current = 1,
+      pageSize = 100,
+      ab,
+      id,
+      alias,
+      tags,
+      tagMode = TagMatchMode.UNION,
+    } = query;
     const skip = (current - 1) * pageSize;
 
     const addressBook = await this.addressBookRepository.findOne({
