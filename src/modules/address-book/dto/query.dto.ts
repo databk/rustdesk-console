@@ -7,7 +7,7 @@ import {
   IsArray,
   IsEnum,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 /**
  * 分页查询数据传输对象
@@ -93,8 +93,13 @@ export class PeersQueryDto extends PaginationDto {
   /**
    * 标签过滤
    * 用于按标签精确匹配，支持多个标签
+   * 支持单个标签或多个标签（重复参数名）
    */
   @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    return Array.isArray(value) ? value : [value];
+  })
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
