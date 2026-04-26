@@ -118,50 +118,25 @@ export class PeerService {
         : [];
     const userMap = new Map(users.map((u) => [u.guid, u]));
 
-    // 版本号转换函数：将 1001100 格式转换为 1.1.10 格式
-    // 格式说明：major*1000000 + minor*1000 + patch*10 + patch_version
-    // 例如：1.1.10 -> 1001100, 1.1.10-1 -> 1001101
-    const formatVersion = (ver: number | null | undefined): string => {
-      if (!ver) return '';
-      const major = Math.floor(ver / 1000000);
-      const minor = Math.floor((ver % 1000000) / 1000);
-      const patch = Math.floor((ver % 1000) / 10);
-      const patchVersion = ver % 10;
-
-      let version = `${major}.${minor}.${patch}`;
-      if (patchVersion > 0) {
-        version += `-${patchVersion}`;
-      }
-      return version;
-    };
-
     // 转换响应格式
     const data = peers.map((peer) => {
       const sysinfo = sysinfoMap.get(peer.uuid);
       const isOnline = peer.updatedAt > oneMinuteAgo;
       const user = peer.userGuid ? userMap.get(peer.userGuid) : null;
-      const deviceGroupName =
-        (peer.deviceGroup as { name?: string } | null)?.name || '';
 
       return {
         id: peer.id,
-        guid: peer.uuid,
-        status: peer.status,
-        is_online: isOnline,
-        last_online: peer.updatedAt.toISOString(),
-        user_name: user?.username || '',
-        note: sysinfo?.presetNote || '',
-        device_group_name: deviceGroupName,
-        strategy_name: '', // 策略功能未实现，暂返回空
         info: {
-          hostname: sysinfo?.hostname || '',
           username: sysinfo?.username || '',
           os: sysinfo?.os || '',
-          version: formatVersion(peer.ver),
-          cpu: sysinfo?.cpu || '',
-          memory: sysinfo?.memory || '',
-          ip: '',
+          device_name: sysinfo?.hostname || '',
         },
+        status: isOnline ? 1 : 0,
+        user: user?.username || '',
+        user_name: user?.username || '', // 用于前端过滤
+        device_group_name:
+          (peer.deviceGroup as { name?: string } | null)?.name || '',
+        note: '',
       };
     });
 
