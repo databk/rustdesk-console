@@ -118,6 +118,17 @@ export class PeerService {
         : [];
     const userMap = new Map(users.map((u) => [u.guid, u]));
 
+    // 版本号转换函数：将 1004040 格式转换为 1.4.4 格式
+    const formatVersion = (ver: number | null | undefined): string => {
+      if (!ver) return '';
+      const verStr = String(ver);
+      // 假设格式为：主版本*1000000 + 次版本*1000 + 修订号
+      const major = Math.floor(ver / 1000000);
+      const minor = Math.floor((ver % 1000000) / 1000);
+      const patch = ver % 1000;
+      return `${major}.${minor}.${patch}`;
+    };
+
     // 转换响应格式
     const data = peers.map((peer) => {
       const sysinfo = sysinfoMap.get(peer.uuid);
@@ -127,26 +138,24 @@ export class PeerService {
         (peer.deviceGroup as { name?: string } | null)?.name || '';
 
       return {
-        guid: peer.uuid,
         id: peer.id,
+        guid: peer.uuid,
         status: peer.status,
-        user: peer.userGuid || '',
+        is_online: isOnline,
+        last_online: peer.updatedAt.toISOString(),
         user_name: user?.username || '',
         note: sysinfo?.presetNote || '',
-        group_name: deviceGroupName,
         device_group_name: deviceGroupName,
         strategy_name: '', // 策略功能未实现，暂返回空
-        last_online: peer.updatedAt.toISOString(),
         info: {
+          hostname: sysinfo?.hostname || '',
           username: sysinfo?.username || '',
           os: sysinfo?.os || '',
-          device_name: sysinfo?.hostname || '',
-          ip: '',
-          version: peer.ver ? String(peer.ver) : '',
+          version: formatVersion(peer.ver),
           cpu: sysinfo?.cpu || '',
           memory: sysinfo?.memory || '',
+          ip: '',
         },
-        is_online: isOnline,
       };
     });
 
