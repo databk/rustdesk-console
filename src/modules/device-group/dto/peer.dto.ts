@@ -1,26 +1,52 @@
-import { IsString, IsNumber, Min, IsInt } from 'class-validator';
+import { IsString, IsNumber, Min, IsInt, IsOptional, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
  * 设备查询DTO
- * 用于获取可访问设备列表
+ * 用于获取可访问设备列表，支持分页和多条件筛选
  */
 export class PeerQueryDto {
+  @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @IsInt()
-  @Type(() => Number)
-  current: number;
+  current?: number = 1;
 
+  @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @IsInt()
-  @Type(() => Number)
-  pageSize: number;
+  pageSize?: number = 100;
 
+  @IsOptional()
   @IsString()
-  accessible: string; // 空字符串表示获取所有可访问设备
+  accessible?: string; // 兼容性字段，空字符串表示获取所有可访问设备
 
+  @IsOptional()
   @IsString()
-  status: string; // '1' 表示只获取在线设备
+  id?: string; // 按设备ID筛选（模糊匹配）
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['0', '1'])
+  status?: string; // 按设备状态筛选：'0'=禁用, '1'=正常
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['0', '1'])
+  is_online?: string; // 按是否在线筛选：'0'=离线, '1'=在线
+
+  @IsOptional()
+  @IsString()
+  user_name?: string; // 按用户名筛选（模糊匹配）
+
+  @IsOptional()
+  @IsString()
+  device_group_name?: string; // 按设备组名称筛选（模糊匹配）
+
+  @IsOptional()
+  @IsString()
+  os?: string; // 按操作系统筛选（模糊匹配）
 }

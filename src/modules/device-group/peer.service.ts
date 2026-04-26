@@ -3,9 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
-import { DeviceGroup } from './entities/device-group.entity';
-import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
-import { UserUserPermission } from './entities/user-user-permission.entity';
 import { PeerQueryDto } from './dto/peer.dto';
 
 /**
@@ -26,12 +23,6 @@ export class PeerService {
     private sysinfoRepository: Repository<Sysinfo>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(DeviceGroup)
-    private deviceGroupRepository: Repository<DeviceGroup>,
-    @InjectRepository(DeviceGroupUserPermission)
-    private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
-    @InjectRepository(UserUserPermission)
-    private userUserPermissionRepository: Repository<UserUserPermission>,
   ) {}
 
   /**
@@ -45,8 +36,16 @@ export class PeerService {
    *    - 用户有权访问的设备组中的设备
    *    - 用户有权访问的其他用户的设备
    *
+   * 筛选条件：
+   * - id: 按设备ID筛选（模糊匹配）
+   * - status: 按设备状态筛选（'0'=禁用, '1'=正常）
+   * - is_online: 按是否在线筛选（'0'=离线, '1'=在线）
+   * - user_name: 按用户名筛选（模糊匹配）
+   * - device_group_name: 按设备组名称筛选（模糊匹配）
+   * - os: 按操作系统筛选（模糊匹配）
+   *
    * @param userGuid 用户GUID
-   * @param query 查询参数，包含分页和状态过滤
+   * @param query 查询参数，包含分页和筛选条件
    * @param isAdmin 是否为管理员
    * @returns 设备列表和总数
    */
@@ -55,7 +54,16 @@ export class PeerService {
     query: PeerQueryDto,
     isAdmin: boolean = false,
   ): Promise<{ data: any[]; total: number }> {
-    const { current, pageSize, status } = query;
+    const {
+      current = 1,
+      pageSize = 100,
+      id,
+      status,
+      is_online,
+      user_name,
+      device_group_name,
+      os,
+    } = query;
     const skip = (current - 1) * pageSize;
 
     // 计算一分钟前的时间（用于判断在线状态）
@@ -87,9 +95,52 @@ export class PeerService {
       );
     }
 
-    // 状态过滤：status='1' 表示只获取在线设备
-    if (status === '1') {
+    // 按设备ID筛选（模糊匹配）
+    if (id) {
+      queryBuilder.andWhere('peer.id LIKE :peerId', { peerId: `%${id}%` });
+    }
+
+    // 按设备状态筛选：status='0' 禁用, status='1' 正常
+    if (status !== undefined) {
+      queryBuilder.andWhere('peer.status = :peerStatus', {
+        peerStatus: parseInt(status),
+      });
+    }
+
+    // 按是否在线筛选
+    if (is_online === '1') {
       queryBuilder.andWhere('peer.updatedAt > :oneMinuteAgo', { oneMinuteAgo });
+    } else if (is_online === '0') {
+      queryBuilder.andWhere('peer.updatedAt <= :oneMinuteAgo', { oneMinuteAgo });
+    }
+
+    // 按用户名筛选（模糊匹配）
+    if (user_name) {
+      queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1 FROM users u
+          WHERE u.guid = peer.userGuid AND u.username LIKE :userName
+        )`,
+        { userName: `%${user_name}%` },
+      );
+    }
+
+    // 按设备组名称筛选（模糊匹配）
+    if (device_group_name) {
+      queryBuilder.andWhere('deviceGroup.name LIKE :deviceGroupName', {
+        deviceGroupName: `%${device_group_name}%`,
+      });
+    }
+
+    // 按操作系统筛选（模糊匹配，需要关联 sysinfo 表）
+    if (os) {
+      queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1 FROM sysinfos si
+          WHERE si.uuid = peer.uuid AND si.os LIKE :osName
+        )`,
+        { osName: `%${os}%` },
+      );
     }
 
     // 分页查询

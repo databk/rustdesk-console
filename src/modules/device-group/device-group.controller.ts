@@ -73,13 +73,17 @@ export class DeviceGroupController {
    * 功能说明：
    * - 普通用户只能看到自己有权限访问的设备
    * - 管理员可以看到所有设备
-   * - 支持分页查询
-   * - 支持按名称搜索
-   * - 支持按状态过滤
+   * - 支持分页查询（current, pageSize）
+   * - 支持按设备ID筛选（id，模糊匹配）
+   * - 支持按设备状态筛选（status: '0'=禁用, '1'=正常）
+   * - 支持按是否在线筛选（is_online: '0'=离线, '1'=在线）
+   * - 支持按用户名筛选（user_name，模糊匹配）
+   * - 支持按设备组名称筛选（device_group_name，模糊匹配）
+   * - 支持按操作系统筛选（os，模糊匹配）
    *
    * @param userId 当前用户ID（从JWT令牌中提取）
    * @param isAdmin 是否为管理员（从JWT令牌中提取）
-   * @param query 查询参数（分页、搜索、状态等）
+   * @param query 查询参数（分页、筛选条件）
    * @returns 可访问的设备列表（分页）
    */
   @Get('peers')
