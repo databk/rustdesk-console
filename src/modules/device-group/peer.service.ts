@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { Peer, PeerStatus, Sysinfo } from '../../common/entities';
+import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
-import { DeviceGroup } from './entities/device-group.entity';
-import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
-import { UserUserPermission } from './entities/user-user-permission.entity';
 import { PeerQueryDto } from './dto/peer.dto';
 
 /**
@@ -26,12 +23,6 @@ export class PeerService {
     private sysinfoRepository: Repository<Sysinfo>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(DeviceGroup)
-    private deviceGroupRepository: Repository<DeviceGroup>,
-    @InjectRepository(DeviceGroupUserPermission)
-    private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
-    @InjectRepository(UserUserPermission)
-    private userUserPermissionRepository: Repository<UserUserPermission>,
   ) {}
 
   /**
