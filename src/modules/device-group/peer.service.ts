@@ -149,12 +149,13 @@ export class PeerService {
         status: peer.status,
         is_online: isOnline,
         last_online: peer.updatedAt.toISOString(),
+        user: user?.username || '',
         user_name: user?.username || '',
         note: sysinfo?.presetNote || '',
         device_group_name: deviceGroupName,
         strategy_name: '', // 策略功能未实现，暂返回空
         info: {
-          hostname: sysinfo?.hostname || '',
+          device_name: sysinfo?.hostname || '',
           username: sysinfo?.username || '',
           os: sysinfo?.os || '',
           version: formatVersion(peer.ver),
