@@ -2,11 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version number (without v prefix, e.g., 1.0.0)'
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -43,20 +38,13 @@ jobs:
         id: changelog
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ inputs.version }}
-          git-message: 'chore(release): v{version}'
-          git-user-name: 'github-actions[bot]'
-          git-user-email: 'github-actions[bot]@users.noreply.github.com'
-          preset: 'conventionalcommits'
-          release-count: 1
-          skip-commit: false
-          skip-tag: false
-          skip-on-empty: true
+          git-message: 'chore(release): {version}'
+          tag-prefix: ''
 
       - name: Build and push Docker images
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         run: |
-          VERSION=${{ inputs.version }}
+          VERSION=${{ steps.changelog.outputs.version }}
           MAJOR=$(echo $VERSION | cut -d. -f1)
           
           docker buildx create --use
@@ -89,8 +77,8 @@ jobs:
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         uses: softprops/action-gh-release@v1
         with:
-          tag: v${{ inputs.version }}
-          name: v${{ inputs.version }}
+          tag: ${{ steps.changelog.outputs.version }}
+          name: ${{ steps.changelog.outputs.version }}
           body: |
             ${{ steps.changelog.outputs.changelog }}
             
@@ -100,13 +88,13 @@ jobs:
             
             ### Docker Hub
             ```bash
-            docker pull databk/rustdesk-console:${{ inputs.version }}
+            docker pull databk/rustdesk-console:${{ steps.changelog.outputs.version }}
             docker pull databk/rustdesk-console:latest
             ```
             
             ### GitHub Container Registry
             ```bash
-            docker pull ghcr.io/databk/rustdesk-console:${{ inputs.version }}
+            docker pull ghcr.io/databk/rustdesk-console:${{ steps.changelog.outputs.version }}
             docker pull ghcr.io/databk/rustdesk-console:latest
             ```
             
@@ -118,7 +106,7 @@ jobs:
               -p 3000:3000 \
               -e JWT_SECRET=your-secret-key \
               -e ADMIN_PASSWORD=your-password \
-              databk/rustdesk-console:${{ inputs.version }}
+              databk/rustdesk-console:${{ steps.changelog.outputs.version }}
             ```
           draft: false
           prerelease: false
