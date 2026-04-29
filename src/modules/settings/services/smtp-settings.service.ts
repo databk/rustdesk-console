@@ -1,9 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
 import * as nodemailer from 'nodemailer';
-import { SmtpConfig } from '../entities/smtp-config.entity';
+import { SystemSetting } from '../entities/system-setting.entity';
 import {
   CreateSmtpConfigDto,
   UpdateSmtpConfigDto,
@@ -12,62 +11,120 @@ import {
 
 /**
  * SMTP 配置服务
- * 管理 SMTP 配置的 CRUD 操作和连接测试
+ * 使用通用 SystemSetting 表管理 SMTP 配置
  */
 @Injectable()
 export class SmtpSettingsService {
   private readonly logger = new Logger(SmtpSettingsService.name);
 
+  /** 设置分类 */
+  private readonly CATEGORY = 'smtp';
+
   /** 密码脱敏占位符 */
   private readonly PASS_MASK = '******';
 
+  /** SMTP 设置键名 */
+  private readonly SMTP_KEYS = {
+    HOST: 'smtp.host',
+    PORT: 'smtp.port',
+    SECURE: 'smtp.secure',
+    USER: 'smtp.user',
+    PASS: 'smtp.pass',
+    FROM: 'smtp.from',
+    ENABLED: 'smtp.enabled',
+  } as const;
+
   constructor(
-    @InjectRepository(SmtpConfig)
-    private smtpConfigRepository: Repository<SmtpConfig>,
+    @InjectRepository(SystemSetting)
+    private settingRepository: Repository<SystemSetting>,
   ) {}
 
   /**
-   * 获取当前生效的 SMTP 配置（含密码，供内部服务使用）
+   * 获取 SMTP 配置（含密码，供内部服务使用）
    */
-  async getActiveConfig(): Promise<SmtpConfig | null> {
-    const config = await this.smtpConfigRepository
-      .createQueryBuilder('smtp')
-      .where('smtp.isDefault = :isDefault', { isDefault: true })
-      .andWhere('smtp.enabled = :enabled', { enabled: true })
-      .addSelect('smtp.pass')
-      .getOne();
+  async getActiveConfig(): Promise<{
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    pass: string;
+    from: string;
+    enabled: boolean;
+  } | null> {
+    const settings = await this.getSmtpSettings();
 
-    return config || null;
+    if (!settings.get(this.SMTP_KEYS.HOST)) {
+      return null;
+    }
+
+    return {
+      host: settings.get(this.SMTP_KEYS.HOST) || '',
+      port: parseInt(settings.get(this.SMTP_KEYS.PORT) || '587', 10),
+      secure: settings.get(this.SMTP_KEYS.SECURE) === 'true',
+      user: settings.get(this.SMTP_KEYS.USER) || '',
+      pass: settings.get(this.SMTP_KEYS.PASS) || '',
+      from: settings.get(this.SMTP_KEYS.FROM) || '',
+      enabled: settings.get(this.SMTP_KEYS.ENABLED) !== 'false',
+    };
   }
 
   /**
    * 获取 SMTP 配置（密码脱敏，供 API 返回）
    */
-  async getSmtpConfig(): Promise<Partial<SmtpConfig>> {
-    const config = await this.smtpConfigRepository
-      .createQueryBuilder('smtp')
-      .where('smtp.isDefault = :isDefault', { isDefault: true })
-      .addSelect('smtp.pass')
-      .getOne();
+  async getSmtpConfig(): Promise<{
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    pass: string;
+    from: string;
+    enabled: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }> {
+    const settings = await this.getSmtpSettings();
 
-    if (!config) {
+    if (!settings.get(this.SMTP_KEYS.HOST)) {
       throw new NotFoundException('SMTP 配置不存在');
     }
 
-    return this.maskPassword(config);
+    // 获取任意一个设置的时间戳作为整体时间
+    const anySetting = await this.settingRepository.findOne({
+      where: { key: this.SMTP_KEYS.HOST },
+    });
+
+    return {
+      host: settings.get(this.SMTP_KEYS.HOST) || '',
+      port: parseInt(settings.get(this.SMTP_KEYS.PORT) || '587', 10),
+      secure: settings.get(this.SMTP_KEYS.SECURE) === 'true',
+      user: settings.get(this.SMTP_KEYS.USER) || '',
+      pass: this.PASS_MASK,
+      from: settings.get(this.SMTP_KEYS.FROM) || '',
+      enabled: settings.get(this.SMTP_KEYS.ENABLED) !== 'false',
+      createdAt: anySetting?.createdAt || new Date(),
+      updatedAt: anySetting?.updatedAt || new Date(),
+    };
   }
 
   /**
    * 创建 SMTP 配置
    */
-  async createSmtpConfig(dto: CreateSmtpConfigDto): Promise<Partial<SmtpConfig>> {
-    // 检查是否已存在默认配置
-    const existing = await this.smtpConfigRepository.findOne({
-      where: { isDefault: true },
+  async createSmtpConfig(dto: CreateSmtpConfigDto): Promise<{
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    pass: string;
+    from: string;
+    enabled: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }> {
+    const existing = await this.settingRepository.findOne({
+      where: { key: this.SMTP_KEYS.HOST },
     });
 
     if (existing) {
-      // 已存在默认配置，执行更新
       return this.updateSmtpConfig({
         host: dto.host,
         port: dto.port,
@@ -78,58 +135,65 @@ export class SmtpSettingsService {
       });
     }
 
-    const config = this.smtpConfigRepository.create({
-      guid: uuidv4(),
-      host: dto.host,
-      port: dto.port,
-      secure: dto.secure ?? false,
-      user: dto.user,
-      pass: dto.pass,
-      from: dto.from,
-      enabled: true,
-      isDefault: true,
+    await this.setMultipleSettings({
+      [this.SMTP_KEYS.HOST]: dto.host,
+      [this.SMTP_KEYS.PORT]: String(dto.port),
+      [this.SMTP_KEYS.SECURE]: String(dto.secure ?? false),
+      [this.SMTP_KEYS.USER]: dto.user,
+      [this.SMTP_KEYS.PASS]: dto.pass,
+      [this.SMTP_KEYS.FROM]: dto.from,
+      [this.SMTP_KEYS.ENABLED]: 'true',
     });
 
-    const saved = await this.smtpConfigRepository.save(config);
     this.logger.log('SMTP 配置已创建');
-    return this.maskPassword(saved);
+    return this.getSmtpConfig();
   }
 
   /**
    * 更新 SMTP 配置
    * 如果 pass 字段为脱敏占位符，则不更新密码
    */
-  async updateSmtpConfig(dto: UpdateSmtpConfigDto): Promise<Partial<SmtpConfig>> {
-    const config = await this.smtpConfigRepository
-      .createQueryBuilder('smtp')
-      .where('smtp.isDefault = :isDefault', { isDefault: true })
-      .addSelect('smtp.pass')
-      .getOne();
+  async updateSmtpConfig(dto: UpdateSmtpConfigDto): Promise<{
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    pass: string;
+    from: string;
+    enabled: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }> {
+    const existing = await this.settingRepository.findOne({
+      where: { key: this.SMTP_KEYS.HOST },
+    });
 
-    if (!config) {
+    if (!existing) {
       throw new NotFoundException('SMTP 配置不存在，请先创建');
     }
 
-    // 更新字段
-    if (dto.host !== undefined) config.host = dto.host;
-    if (dto.port !== undefined) config.port = dto.port;
-    if (dto.secure !== undefined) config.secure = dto.secure;
-    if (dto.user !== undefined) config.user = dto.user;
-    if (dto.from !== undefined) config.from = dto.from;
-    if (dto.enabled !== undefined) config.enabled = dto.enabled;
-    // 仅在传入非占位符密码时更新
+    const updates: Record<string, string> = {};
+
+    if (dto.host !== undefined) updates[this.SMTP_KEYS.HOST] = dto.host;
+    if (dto.port !== undefined) updates[this.SMTP_KEYS.PORT] = String(dto.port);
+    if (dto.secure !== undefined) updates[this.SMTP_KEYS.SECURE] = String(dto.secure);
+    if (dto.user !== undefined) updates[this.SMTP_KEYS.USER] = dto.user;
+    if (dto.from !== undefined) updates[this.SMTP_KEYS.FROM] = dto.from;
+    if (dto.enabled !== undefined) updates[this.SMTP_KEYS.ENABLED] = String(dto.enabled);
     if (dto.pass !== undefined && dto.pass !== this.PASS_MASK) {
-      config.pass = dto.pass;
+      updates[this.SMTP_KEYS.PASS] = dto.pass;
     }
 
-    const saved = await this.smtpConfigRepository.save(config);
+    if (Object.keys(updates).length > 0) {
+      await this.setMultipleSettings(updates);
+    }
+
     this.logger.log('SMTP 配置已更新');
-    return this.maskPassword(saved);
+    return this.getSmtpConfig();
   }
 
   /**
    * 测试 SMTP 连接
-   * 如果传入配置则测试该配置，否则测试当前生效配置
    */
   async testSmtpConnection(
     dto?: TestSmtpConfigDto,
@@ -141,14 +205,12 @@ export class SmtpSettingsService {
     let pass: string;
 
     if (dto && dto.host) {
-      // 使用传入的配置进行测试
       host = dto.host;
       port = dto.port ?? 587;
       secure = dto.secure ?? false;
       user = dto.user ?? '';
       pass = dto.pass ?? '';
     } else {
-      // 使用当前生效配置进行测试
       const config = await this.getActiveConfig();
       if (!config) {
         return { success: false, message: 'SMTP 配置不存在，请先配置' };
@@ -164,10 +226,7 @@ export class SmtpSettingsService {
       host,
       port,
       secure,
-      auth: {
-        user,
-        pass,
-      },
+      auth: { user, pass },
     });
 
     try {
@@ -175,8 +234,7 @@ export class SmtpSettingsService {
       this.logger.log('SMTP 连接测试成功');
       return { success: true, message: 'SMTP 连接测试成功' };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : '未知错误';
+      const message = error instanceof Error ? error.message : '未知错误';
       this.logger.error(`SMTP 连接测试失败: ${message}`);
       return { success: false, message: `SMTP 连接测试失败: ${message}` };
     } finally {
@@ -185,14 +243,39 @@ export class SmtpSettingsService {
   }
 
   /**
-   * 密码脱敏处理
+   * 获取所有 SMTP 设置
    */
-  private maskPassword(
-    config: SmtpConfig,
-  ): Partial<SmtpConfig> & { pass: string } {
-    return {
-      ...config,
-      pass: this.PASS_MASK,
-    };
+  private async getSmtpSettings(): Promise<Map<string, string>> {
+    const settings = await this.settingRepository.find({
+      where: { category: this.CATEGORY },
+    });
+
+    const map = new Map<string, string>();
+    for (const setting of settings) {
+      map.set(setting.key, setting.value);
+    }
+    return map;
+  }
+
+  /**
+   * 批量设置多个配置项
+   */
+  private async setMultipleSettings(data: Record<string, string>): Promise<void> {
+    for (const [key, value] of Object.entries(data)) {
+      let setting = await this.settingRepository.findOne({ where: { key } });
+
+      if (setting) {
+        setting.value = value;
+      } else {
+        setting = this.settingRepository.create({
+          key,
+          value,
+          category: this.CATEGORY,
+          isSensitive: key === this.SMTP_KEYS.PASS,
+        });
+      }
+
+      await this.settingRepository.save(setting);
+    }
   }
 }
