@@ -117,18 +117,11 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        uses: TriPSs/conventional-changelog-action@v5
+        uses: metcalfc/changelog-generator@v4
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          from-tag: ${{ steps.prev-tag.outputs.tag }}
-          version-file: package.json
-          version-path: version
-          skip-git-pull: 'true'
-          skip-commit: 'true'
-          skip-tag: 'true'
-          skip-on-empty: 'true'
-          skip-bump: 'true'
-          output-file: 'false'
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+          headRef: ${{ github.ref_name }}
+          baseRef: ${{ steps.prev-tag.outputs.tag }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
