@@ -104,11 +104,23 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Get previous tag
+        id: prev-tag
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${GITHUB_REF#refs/tags/}$" | head -n1)
+          if [ -z "$PREV_TAG" ]; then
+            echo "has-previous=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-previous=true" >> $GITHUB_OUTPUT
+            echo "tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate changelog
         id: changelog
         uses: TriPSs/conventional-changelog-action@v5
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          from-tag: ${{ steps.prev-tag.outputs.tag }}
           version-file: package.json
           version-path: version
           skip-git-pull: 'true'
