@@ -196,29 +196,23 @@ export class SysinfoService {
       return;
     }
 
-    // 处理预设标签
-    let tags: string[] = [];
+    // 处理预设标签（仅验证，不自动创建）
     if (tag) {
-      tags = tag
+      const tags = tag
         .split(',')
         .map((t) => t.trim())
         .filter((t) => t);
 
-      // 确保标签存在
+      // 验证标签是否存在，记录不存在的标签
       for (const tagName of tags) {
         const existingTag = await this.addressBookTagRepository.findOne({
           where: { name: tagName, addressBookGuid: addressBook.guid },
         });
 
         if (!existingTag) {
-          const newTag = this.addressBookTagRepository.create({
-            guid: uuidv4(),
-            addressBookGuid: addressBook.guid,
-            name: tagName,
-            color: 0,
-          });
-          await this.addressBookTagRepository.save(newTag);
-          this.logger.log(`创建标签: ${tagName}`);
+          this.logger.warn(
+            `标签 "${tagName}" 在地址簿 ${addressBook.name} 中不存在，跳过`,
+          );
         }
       }
     }
