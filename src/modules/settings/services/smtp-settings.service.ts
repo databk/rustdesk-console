@@ -1,10 +1,9 @@
-import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as nodemailer from 'nodemailer';
 import { SystemSetting } from '../entities/system-setting.entity';
 import {
-  CreateSmtpConfigDto,
   UpdateSmtpConfigDto,
   TestSmtpConfigDto,
 } from '../dto/smtp-config.dto';
@@ -70,54 +69,9 @@ export class SmtpSettingsService {
 
   /**
    * 获取 SMTP 配置（密码脱敏，供 API 返回）
-   * 返回配置是否存在及配置详情
+   * 如果配置不存在，抛出 NotFoundException
    */
   async getSmtpConfig(): Promise<{
-    exists: boolean;
-    config?: {
-      host: string;
-      port: number;
-      secure: boolean;
-      user: string;
-      pass: string;
-      from: string;
-      enabled: boolean;
-      createdAt: Date;
-      updatedAt: Date;
-    };
-  }> {
-    const settings = await this.getSmtpSettings();
-
-    if (!settings.get(this.SMTP_KEYS.HOST)) {
-      return { exists: false };
-    }
-
-    // 获取任意一个设置的时间戳作为整体时间
-    const anySetting = await this.settingRepository.findOne({
-      where: { key: this.SMTP_KEYS.HOST },
-    });
-
-    return {
-      exists: true,
-      config: {
-        host: settings.get(this.SMTP_KEYS.HOST) || '',
-        port: parseInt(settings.get(this.SMTP_KEYS.PORT) || '587', 10),
-        secure: settings.get(this.SMTP_KEYS.SECURE) === 'true',
-        user: settings.get(this.SMTP_KEYS.USER) || '',
-        pass: this.PASS_MASK,
-        from: settings.get(this.SMTP_KEYS.FROM) || '',
-        enabled: settings.get(this.SMTP_KEYS.ENABLED) !== 'false',
-        createdAt: anySetting?.createdAt || new Date(),
-        updatedAt: anySetting?.updatedAt || new Date(),
-      },
-    };
-  }
-
-  /**
-   * 创建 SMTP 配置
-   * 如果配置已存在，抛出 ConflictException
-   */
-  async createSmtpConfig(dto: CreateSmtpConfigDto): Promise<{
     host: string;
     port: number;
     secure: boolean;
@@ -128,32 +82,33 @@ export class SmtpSettingsService {
     createdAt: Date;
     updatedAt: Date;
   }> {
-    const existing = await this.settingRepository.findOne({
+    const settings = await this.getSmtpSettings();
+
+    if (!settings.get(this.SMTP_KEYS.HOST)) {
+      throw new NotFoundException('SMTP 配置不存在');
+    }
+
+    // 获取任意一个设置的时间戳作为整体时间
+    const anySetting = await this.settingRepository.findOne({
       where: { key: this.SMTP_KEYS.HOST },
     });
 
-    if (existing) {
-      throw new ConflictException('SMTP 配置已存在，请使用 PUT 方法更新');
-    }
-
-    await this.setMultipleSettings({
-      [this.SMTP_KEYS.HOST]: dto.host,
-      [this.SMTP_KEYS.PORT]: String(dto.port),
-      [this.SMTP_KEYS.SECURE]: String(dto.secure ?? false),
-      [this.SMTP_KEYS.USER]: dto.user,
-      [this.SMTP_KEYS.PASS]: dto.pass,
-      [this.SMTP_KEYS.FROM]: dto.from,
-      [this.SMTP_KEYS.ENABLED]: String(dto.enabled ?? true),
-    });
-
-    this.logger.log('SMTP 配置已创建');
-    const result = await this.getSmtpConfig();
-    return result.config!;
+    return {
+      host: settings.get(this.SMTP_KEYS.HOST) || '',
+      port: parseInt(settings.get(this.SMTP_KEYS.PORT) || '587', 10),
+      secure: settings.get(this.SMTP_KEYS.SECURE) === 'true',
+      user: settings.get(this.SMTP_KEYS.USER) || '',
+      pass: this.PASS_MASK,
+      from: settings.get(this.SMTP_KEYS.FROM) || '',
+      enabled: settings.get(this.SMTP_KEYS.ENABLED) !== 'false',
+      createdAt: anySetting?.createdAt || new Date(),
+      updatedAt: anySetting?.updatedAt || new Date(),
+    };
   }
 
   /**
-   * 更新 SMTP 配置
-   * 如果配置不存在，抛出 NotFoundException
+   * 更新 SMTP 配置（Upsert语义）
+   * 如果配置不存在则创建，存在则更新
    * 如果 pass 字段为脱敏占位符，则不更新密码
    */
   async updateSmtpConfig(dto: UpdateSmtpConfigDto): Promise<{
@@ -172,28 +127,38 @@ export class SmtpSettingsService {
     });
 
     if (!existing) {
-      throw new NotFoundException('SMTP 配置不存在，请使用 POST 方法创建');
+      // 配置不存在，创建新配置
+      await this.setMultipleSettings({
+        [this.SMTP_KEYS.HOST]: dto.host || '',
+        [this.SMTP_KEYS.PORT]: String(dto.port ?? 587),
+        [this.SMTP_KEYS.SECURE]: String(dto.secure ?? false),
+        [this.SMTP_KEYS.USER]: dto.user || '',
+        [this.SMTP_KEYS.PASS]: dto.pass || '',
+        [this.SMTP_KEYS.FROM]: dto.from || '',
+        [this.SMTP_KEYS.ENABLED]: String(dto.enabled ?? true),
+      });
+      this.logger.log('SMTP 配置已创建');
+    } else {
+      // 配置已存在，更新配置
+      const updates: Record<string, string> = {};
+
+      if (dto.host !== undefined) updates[this.SMTP_KEYS.HOST] = dto.host;
+      if (dto.port !== undefined) updates[this.SMTP_KEYS.PORT] = String(dto.port);
+      if (dto.secure !== undefined) updates[this.SMTP_KEYS.SECURE] = String(dto.secure);
+      if (dto.user !== undefined) updates[this.SMTP_KEYS.USER] = dto.user;
+      if (dto.from !== undefined) updates[this.SMTP_KEYS.FROM] = dto.from;
+      if (dto.enabled !== undefined) updates[this.SMTP_KEYS.ENABLED] = String(dto.enabled);
+      if (dto.pass !== undefined && dto.pass !== this.PASS_MASK) {
+        updates[this.SMTP_KEYS.PASS] = dto.pass;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await this.setMultipleSettings(updates);
+      }
+      this.logger.log('SMTP 配置已更新');
     }
 
-    const updates: Record<string, string> = {};
-
-    if (dto.host !== undefined) updates[this.SMTP_KEYS.HOST] = dto.host;
-    if (dto.port !== undefined) updates[this.SMTP_KEYS.PORT] = String(dto.port);
-    if (dto.secure !== undefined) updates[this.SMTP_KEYS.SECURE] = String(dto.secure);
-    if (dto.user !== undefined) updates[this.SMTP_KEYS.USER] = dto.user;
-    if (dto.from !== undefined) updates[this.SMTP_KEYS.FROM] = dto.from;
-    if (dto.enabled !== undefined) updates[this.SMTP_KEYS.ENABLED] = String(dto.enabled);
-    if (dto.pass !== undefined && dto.pass !== this.PASS_MASK) {
-      updates[this.SMTP_KEYS.PASS] = dto.pass;
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await this.setMultipleSettings(updates);
-    }
-
-    this.logger.log('SMTP 配置已更新');
-    const result = await this.getSmtpConfig();
-    return result.config!;
+    return this.getSmtpConfig();
   }
 
   /**
