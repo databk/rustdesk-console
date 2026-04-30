@@ -196,20 +196,23 @@ export class SysinfoService {
       return;
     }
 
-    // 处理预设标签（仅验证，不自动创建）
+    // 处理预设标签（收集已存在的标签，不自动创建）
+    const existingTags: AddressBookTag[] = [];
     if (tag) {
-      const tags = tag
+      const tagNames = tag
         .split(',')
         .map((t) => t.trim())
         .filter((t) => t);
 
-      // 验证标签是否存在，记录不存在的标签
-      for (const tagName of tags) {
+      // 查找已存在的标签
+      for (const tagName of tagNames) {
         const existingTag = await this.addressBookTagRepository.findOne({
           where: { name: tagName, addressBookGuid: addressBook.guid },
         });
 
-        if (!existingTag) {
+        if (existingTag) {
+          existingTags.push(existingTag);
+        } else {
           this.logger.warn(
             `标签 "${tagName}" 在地址簿 ${addressBook.name} 中不存在，跳过`,
           );
@@ -217,7 +220,7 @@ export class SysinfoService {
       }
     }
 
-    // 创建设备记录
+    // 创建设备记录并绑定标签
     const peerGuid = uuidv4();
     const peer = this.addressBookPeerRepository.create({
       guid: peerGuid,
@@ -226,10 +229,13 @@ export class SysinfoService {
       alias: alias || hostname,
       password: password,
       note: note,
+      tags: existingTags,
     });
 
     await this.addressBookPeerRepository.save(peer);
-    this.logger.log(`设备 ${deviceId} 已添加到地址簿 ${addressBook.name}`);
+    this.logger.log(
+      `设备 ${deviceId} 已添加到地址簿 ${addressBook.name}${existingTags.length > 0 ? `，绑定标签: ${existingTags.map((t) => t.name).join(', ')}` : ''}`,
+    );
   }
 
   /**
