@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as nodemailer from 'nodemailer';
@@ -70,22 +70,26 @@ export class SmtpSettingsService {
 
   /**
    * 获取 SMTP 配置（密码脱敏，供 API 返回）
+   * 返回配置是否存在及配置详情
    */
   async getSmtpConfig(): Promise<{
-    host: string;
-    port: number;
-    secure: boolean;
-    user: string;
-    pass: string;
-    from: string;
-    enabled: boolean;
-    createdAt: Date;
-    updatedAt: Date;
+    exists: boolean;
+    config?: {
+      host: string;
+      port: number;
+      secure: boolean;
+      user: string;
+      pass: string;
+      from: string;
+      enabled: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    };
   }> {
     const settings = await this.getSmtpSettings();
 
     if (!settings.get(this.SMTP_KEYS.HOST)) {
-      throw new NotFoundException('SMTP 配置不存在');
+      return { exists: false };
     }
 
     // 获取任意一个设置的时间戳作为整体时间
@@ -94,20 +98,24 @@ export class SmtpSettingsService {
     });
 
     return {
-      host: settings.get(this.SMTP_KEYS.HOST) || '',
-      port: parseInt(settings.get(this.SMTP_KEYS.PORT) || '587', 10),
-      secure: settings.get(this.SMTP_KEYS.SECURE) === 'true',
-      user: settings.get(this.SMTP_KEYS.USER) || '',
-      pass: this.PASS_MASK,
-      from: settings.get(this.SMTP_KEYS.FROM) || '',
-      enabled: settings.get(this.SMTP_KEYS.ENABLED) !== 'false',
-      createdAt: anySetting?.createdAt || new Date(),
-      updatedAt: anySetting?.updatedAt || new Date(),
+      exists: true,
+      config: {
+        host: settings.get(this.SMTP_KEYS.HOST) || '',
+        port: parseInt(settings.get(this.SMTP_KEYS.PORT) || '587', 10),
+        secure: settings.get(this.SMTP_KEYS.SECURE) === 'true',
+        user: settings.get(this.SMTP_KEYS.USER) || '',
+        pass: this.PASS_MASK,
+        from: settings.get(this.SMTP_KEYS.FROM) || '',
+        enabled: settings.get(this.SMTP_KEYS.ENABLED) !== 'false',
+        createdAt: anySetting?.createdAt || new Date(),
+        updatedAt: anySetting?.updatedAt || new Date(),
+      },
     };
   }
 
   /**
    * 创建 SMTP 配置
+   * 如果配置已存在，抛出 ConflictException
    */
   async createSmtpConfig(dto: CreateSmtpConfigDto): Promise<{
     host: string;
@@ -125,14 +133,7 @@ export class SmtpSettingsService {
     });
 
     if (existing) {
-      return this.updateSmtpConfig({
-        host: dto.host,
-        port: dto.port,
-        secure: dto.secure,
-        user: dto.user,
-        pass: dto.pass,
-        from: dto.from,
-      });
+      throw new ConflictException('SMTP 配置已存在，请使用 PUT 方法更新');
     }
 
     await this.setMultipleSettings({
@@ -142,15 +143,17 @@ export class SmtpSettingsService {
       [this.SMTP_KEYS.USER]: dto.user,
       [this.SMTP_KEYS.PASS]: dto.pass,
       [this.SMTP_KEYS.FROM]: dto.from,
-      [this.SMTP_KEYS.ENABLED]: 'true',
+      [this.SMTP_KEYS.ENABLED]: String(dto.enabled ?? true),
     });
 
     this.logger.log('SMTP 配置已创建');
-    return this.getSmtpConfig();
+    const result = await this.getSmtpConfig();
+    return result.config!;
   }
 
   /**
    * 更新 SMTP 配置
+   * 如果配置不存在，抛出 NotFoundException
    * 如果 pass 字段为脱敏占位符，则不更新密码
    */
   async updateSmtpConfig(dto: UpdateSmtpConfigDto): Promise<{
@@ -169,7 +172,7 @@ export class SmtpSettingsService {
     });
 
     if (!existing) {
-      throw new NotFoundException('SMTP 配置不存在，请先创建');
+      throw new NotFoundException('SMTP 配置不存在，请使用 POST 方法创建');
     }
 
     const updates: Record<string, string> = {};
@@ -189,7 +192,8 @@ export class SmtpSettingsService {
     }
 
     this.logger.log('SMTP 配置已更新');
-    return this.getSmtpConfig();
+    const result = await this.getSmtpConfig();
+    return result.config!;
   }
 
   /**

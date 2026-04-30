@@ -6,7 +6,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../modules/user/entities/user.entity';
 import { OidcProvider } from '../modules/oidc/entities/oidc-provider.entity';
 import { OidcAuthState } from '../modules/oidc/entities/oidc-auth-state.entity';
-import { SystemSetting } from '../modules/settings/entities/system-setting.entity';
 
 @Injectable()
 /**
@@ -26,14 +25,11 @@ export class DatabaseInitService implements OnModuleInit {
     private oidcProviderRepository: Repository<OidcProvider>,
     @InjectRepository(OidcAuthState)
     private oidcAuthStateRepository: Repository<OidcAuthState>,
-    @InjectRepository(SystemSetting)
-    private systemSettingRepository: Repository<SystemSetting>,
   ) {}
 
   async onModuleInit() {
     await this.createDefaultAdmin();
     await this.createDefaultOidcProviders();
-    await this.createDefaultSmtpConfig();
     await this.cleanupExpiredAuthStates();
   }
 
@@ -120,37 +116,6 @@ export class DatabaseInitService implements OnModuleInit {
         await this.oidcProviderRepository.save(provider);
         this.logger.log(`Default OIDC provider created: ${providerData.name}`);
       }
-    }
-  }
-
-  /**
-   * 创建默认 SMTP 配置
-   * 使用通用 SystemSetting 表存储，从环境变量迁移配置
-   */
-  private async createDefaultSmtpConfig() {
-    const existing = await this.systemSettingRepository.findOne({
-      where: { key: 'smtp.host' },
-    });
-
-    if (!existing) {
-      const smtpSettings = [
-        { key: 'smtp.host', value: process.env.SMTP_HOST || 'smtp.example.com', category: 'smtp', description: 'SMTP server host' },
-        { key: 'smtp.port', value: process.env.SMTP_PORT || '587', category: 'smtp', description: 'SMTP server port' },
-        { key: 'smtp.secure', value: process.env.SMTP_SECURE || 'false', category: 'smtp', description: 'Use SSL/TLS' },
-        { key: 'smtp.user', value: process.env.SMTP_USER || '', category: 'smtp', description: 'SMTP auth username' },
-        { key: 'smtp.pass', value: process.env.SMTP_PASS || '', category: 'smtp', description: 'SMTP auth password', isSensitive: true },
-        { key: 'smtp.from', value: process.env.SMTP_FROM || '"No Reply" <noreply@example.com>', category: 'smtp', description: 'Sender email address' },
-        { key: 'smtp.enabled', value: 'true', category: 'smtp', description: 'SMTP enabled' },
-      ];
-
-      for (const setting of smtpSettings) {
-        const entity = this.systemSettingRepository.create(setting);
-        await this.systemSettingRepository.save(entity);
-      }
-
-      this.logger.log('Default SMTP config created from environment variables');
-    } else {
-      this.logger.log('SMTP config already exists, skipping creation');
     }
   }
 

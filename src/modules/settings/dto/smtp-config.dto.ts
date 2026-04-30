@@ -36,6 +36,10 @@ export class CreateSmtpConfigDto {
   @IsString()
   @IsNotEmpty()
   from: string;
+
+  @IsBoolean()
+  @IsOptional()
+  enabled?: boolean;
 }
 
 /**
