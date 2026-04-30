@@ -70,26 +70,6 @@ export class SysinfoService {
         existingSysinfo.memory = sysinfoDto.memory;
 
       // 更新预设字段（如果提供了新值）
-      if (sysinfoDto['preset-address-book-name']) {
-        existingSysinfo.presetAddressBookName =
-          sysinfoDto['preset-address-book-name'];
-      }
-      if (sysinfoDto['preset-address-book-tag']) {
-        existingSysinfo.presetAddressBookTag =
-          sysinfoDto['preset-address-book-tag'];
-      }
-      if (sysinfoDto['preset-address-book-alias']) {
-        existingSysinfo.presetAddressBookAlias =
-          sysinfoDto['preset-address-book-alias'];
-      }
-      if (sysinfoDto['preset-address-book-password']) {
-        existingSysinfo.presetAddressBookPassword =
-          sysinfoDto['preset-address-book-password'];
-      }
-      if (sysinfoDto['preset-address-book-note']) {
-        existingSysinfo.presetAddressBookNote =
-          sysinfoDto['preset-address-book-note'];
-      }
       if (sysinfoDto['preset-username']) {
         existingSysinfo.presetUsername = sysinfoDto['preset-username'];
       }
@@ -115,11 +95,6 @@ export class SysinfoService {
         os: sysinfoDto.os,
         cpu: sysinfoDto.cpu,
         memory: sysinfoDto.memory,
-        presetAddressBookName: sysinfoDto['preset-address-book-name'],
-        presetAddressBookTag: sysinfoDto['preset-address-book-tag'],
-        presetAddressBookAlias: sysinfoDto['preset-address-book-alias'],
-        presetAddressBookPassword: sysinfoDto['preset-address-book-password'],
-        presetAddressBookNote: sysinfoDto['preset-address-book-note'],
         presetUsername: sysinfoDto['preset-username'],
         presetStrategyName: sysinfoDto['preset-strategy-name'],
         presetDeviceGroupName: sysinfoDto['preset-device-group-name'],
@@ -130,7 +105,7 @@ export class SysinfoService {
     const savedSysinfo = await this.sysinfoRepository.save(sysinfo);
 
     // 处理预设功能
-    await this.processPresetSettings(savedSysinfo);
+    await this.processPresetSettings(savedSysinfo, sysinfoDto);
 
     return savedSysinfo;
   }
@@ -140,13 +115,25 @@ export class SysinfoService {
    * 根据预设配置自动添加设备到地址簿和设备组
    *
    * @param sysinfo 系统信息对象
+   * @param dto 系统信息DTO
    * @private
    */
-  private async processPresetSettings(sysinfo: Sysinfo): Promise<void> {
+  private async processPresetSettings(
+    sysinfo: Sysinfo,
+    dto: SysinfoDto,
+  ): Promise<void> {
     try {
       // 处理预设地址簿
-      if (sysinfo.presetAddressBookName) {
-        await this.addToAddressBook(sysinfo);
+      if (dto['preset-address-book-name']) {
+        await this.addToAddressBook(
+          sysinfo.uuid,
+          sysinfo.hostname,
+          dto['preset-address-book-name'],
+          dto['preset-address-book-tag'],
+          dto['preset-address-book-alias'],
+          dto['preset-address-book-password'],
+          dto['preset-address-book-note'],
+        );
       }
 
       // 处理预设设备组
@@ -166,39 +153,53 @@ export class SysinfoService {
    * 将设备添加到预设地址簿
    * 根据预设配置自动将设备添加到指定的地址簿
    *
-   * @param sysinfo 系统信息对象
+   * @param deviceId 设备ID
+   * @param hostname 主机名
+   * @param addressBookName 地址簿名称
+   * @param tag 标签（可选）
+   * @param alias 别名（可选）
+   * @param password 密码（可选）
+   * @param note 备注（可选）
    * @private
    */
-  private async addToAddressBook(sysinfo: Sysinfo): Promise<void> {
+  private async addToAddressBook(
+    deviceId: string,
+    hostname: string,
+    addressBookName: string,
+    tag?: string,
+    alias?: string,
+    password?: string,
+    note?: string,
+  ): Promise<void> {
     // 查找或创建地址簿
     const addressBook = await this.addressBookRepository.findOne({
-      where: { name: sysinfo.presetAddressBookName },
+      where: { name: addressBookName },
     });
 
     if (!addressBook) {
       // 如果地址簿不存在，跳过添加
       this.logger.warn(
-        `预设地址簿 "${sysinfo.presetAddressBookName}" 不存在，跳过添加设备`,
+        `预设地址簿 "${addressBookName}" 不存在，跳过添加设备`,
       );
       return;
     }
 
     // 检查设备是否已存在于地址簿
     const existingPeer = await this.addressBookPeerRepository.findOne({
-      where: { deviceId: sysinfo.uuid, addressBookGuid: addressBook.guid },
+      where: { deviceId: deviceId, addressBookGuid: addressBook.guid },
     });
 
     if (existingPeer) {
       this.logger.debug(
-        `设备 ${sysinfo.uuid} 已存在于地址簿 ${addressBook.name}`,
+        `设备 ${deviceId} 已存在于地址簿 ${addressBook.name}`,
       );
       return;
     }
 
     // 处理预设标签
     let tags: string[] = [];
-    if (sysinfo.presetAddressBookTag) {
-      tags = sysinfo.presetAddressBookTag
+    if (tag) {
+      tags = tag
         .split(',')
         .map((t) => t.trim())
         .filter((t) => t);
@@ -227,14 +228,14 @@ export class SysinfoService {
     const peer = this.addressBookPeerRepository.create({
       guid: peerGuid,
       addressBookGuid: addressBook.guid,
-      deviceId: sysinfo.uuid,
-      alias: sysinfo.presetAddressBookAlias || sysinfo.hostname,
-      password: sysinfo.presetAddressBookPassword,
-      note: sysinfo.presetAddressBookNote || sysinfo.presetNote,
+      deviceId: deviceId,
+      alias: alias || hostname,
+      password: password,
+      note: note,
     });
 
     await this.addressBookPeerRepository.save(peer);
-    this.logger.log(`设备 ${sysinfo.uuid} 已添加到地址簿 ${addressBook.name}`);
+    this.logger.log(`设备 ${deviceId} 已添加到地址簿 ${addressBook.name}`);
   }
 
   /**
