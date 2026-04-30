@@ -29,6 +29,8 @@ import { DeviceGroupUserPermission } from './modules/device-group/entities/devic
 import { UserUserPermission } from './modules/device-group/entities/user-user-permission.entity';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { EmailVerificationSession } from './modules/auth/entities/email-verification-session.entity';
+import { SystemSetting } from './modules/settings/entities/system-setting.entity';
+import { SettingsModule } from './modules/settings/settings.module';
 
 /**
  * 应用根模块
@@ -82,6 +84,7 @@ import { EmailVerificationSession } from './modules/auth/entities/email-verifica
         DeviceGroupUserPermission,
         UserUserPermission,
         EmailVerificationSession,
+        SystemSetting,
       ],
       synchronize: true,
       logging: false,
@@ -95,6 +98,7 @@ import { EmailVerificationSession } from './modules/auth/entities/email-verifica
     AuthModule,
     OidcModule,
     SysinfoModule,
+    SettingsModule,
   ],
   providers: [
     {
