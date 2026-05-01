@@ -123,10 +123,25 @@ export class DashboardService {
     let totalFileSize = 0;
     fileRecords.forEach((file) => {
       // 计算文件总大小
-      if (file.files && Array.isArray(file.files)) {
-        file.files.forEach(([, size]) => {
-          totalFileSize += size || 0;
-        });
+      try {
+        if (file.files) {
+          // 处理可能的字符串格式(JSON字符串)
+          let filesArray = file.files;
+          if (typeof file.files === 'string') {
+            filesArray = JSON.parse(file.files);
+          }
+
+          if (Array.isArray(filesArray)) {
+            filesArray.forEach((item) => {
+              if (Array.isArray(item) && item.length >= 2) {
+                const size = item[1];
+                totalFileSize += typeof size === 'number' ? size : 0;
+              }
+            });
+          }
+        }
+      } catch (error) {
+        // 解析失败,跳过此文件
       }
     });
 
@@ -241,11 +256,27 @@ export class DashboardService {
 
     allFileTransfers.forEach((file) => {
       // 计算文件总大小
-      if (file.files && Array.isArray(file.files)) {
-        file.files.forEach(([, size]) => {
-          totalFilesSize += size || 0;
-        });
+      try {
+        if (file.files) {
+          // 处理可能的字符串格式(JSON字符串)
+          let filesArray = file.files;
+          if (typeof file.files === 'string') {
+            filesArray = JSON.parse(file.files);
+          }
+
+          if (Array.isArray(filesArray)) {
+            filesArray.forEach((item) => {
+              if (Array.isArray(item) && item.length >= 2) {
+                const size = item[1];
+                totalFilesSize += typeof size === 'number' ? size : 0;
+              }
+            });
+          }
+        }
+      } catch (error) {
+        // 解析失败,跳过此文件
       }
+
       // 根据类型统计上传/下载
       if (file.type === 0) {
         uploadCount++;
