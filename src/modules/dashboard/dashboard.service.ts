@@ -531,6 +531,11 @@ export class DashboardService {
   /**
    * 获取系统状态
    * 使用 systeminformation 库获取真实的系统监控数据
+   *
+   * 注意: 在 Docker 容器中运行时:
+   * - 默认只能获取容器内的资源使用情况
+   * - 如需获取宿主机信息,需要挂载 /proc 和 /sys 文件系统
+   * - Docker 运行示例: docker run -v /proc:/host/proc:ro -v /sys:/host/sys:ro
    */
   private async getSystemStatus() {
     try {
