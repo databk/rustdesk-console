@@ -363,18 +363,6 @@ export class DashboardService {
       take: 10,
     });
 
-    const activeConnections = recentConnections.map((conn) => ({
-      id: conn.id.toString(),
-      userId: conn.peerId || 'unknown',
-      userName: conn.peerName || 'unknown',
-      deviceId: conn.deviceId,
-      deviceName: conn.deviceUuid,
-      startTime: conn.establishedAt || conn.createdAt,
-      duration: conn.closedAt && conn.establishedAt
-        ? Math.round((conn.closedAt.getTime() - conn.establishedAt.getTime()) / 1000 / 60)
-        : 0,
-    }));
-
     // 获取最近事件
     const recentConnectionEvents = await this.connectionAuditRepository.find({
       order: { createdAt: 'DESC' },
@@ -391,12 +379,39 @@ export class DashboardService {
       take: 5,
     });
 
+    // 收集所有涉及的 deviceUuid，批量查询 peers 表获取 uuid -> id 映射
+    const allDeviceUuids = new Set<string>();
+    recentConnections.forEach((conn) => allDeviceUuids.add(conn.deviceUuid));
+    recentConnectionEvents.forEach((e) => allDeviceUuids.add(e.deviceUuid));
+    recentAlarmEvents.forEach((e) => allDeviceUuids.add(e.deviceUuid));
+
+    const uuidToIdMap = new Map<string, string>();
+    if (allDeviceUuids.size > 0) {
+      const peers = await this.peerRepository
+        .createQueryBuilder('peer')
+        .where('peer.uuid IN (:...uuids)', { uuids: Array.from(allDeviceUuids) })
+        .getMany();
+      peers.forEach((peer) => uuidToIdMap.set(peer.uuid, peer.id));
+    }
+
+    const activeConnections = recentConnections.map((conn) => ({
+      id: conn.id.toString(),
+      userId: conn.peerId || 'unknown',
+      userName: conn.peerName || 'unknown',
+      deviceId: uuidToIdMap.get(conn.deviceUuid) || conn.deviceId,
+      deviceName: conn.deviceUuid,
+      startTime: conn.establishedAt || conn.createdAt,
+      duration: conn.closedAt && conn.establishedAt
+        ? Math.round((conn.closedAt.getTime() - conn.establishedAt.getTime()) / 1000 / 60)
+        : 0,
+    }));
+
     const recentEvents = [
       ...recentConnectionEvents.map((e) => ({
         type: 'connection' as const,
         action: e.action,
         user: e.peerName || 'unknown',
-        target: e.deviceId,
+        target: uuidToIdMap.get(e.deviceUuid) || e.deviceId,
         timestamp: e.createdAt,
         status: 'success' as const,
       })),
@@ -411,7 +426,7 @@ export class DashboardService {
       ...recentAlarmEvents.map((e) => ({
         type: 'alarm' as const,
         action: 'alarm',
-        user: e.deviceId || 'system',
+        user: uuidToIdMap.get(e.deviceUuid) || e.deviceId || 'system',
         target: e.infoName || 'alarm',
         timestamp: e.createdAt,
         status: 'warning' as const,
