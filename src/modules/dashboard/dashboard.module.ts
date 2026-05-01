@@ -9,6 +9,7 @@ import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
 import { FileAudit } from '../audit/entities/file-audit.entity';
 import { AlarmAudit } from '../audit/entities/alarm-audit.entity';
+import { Sysinfo } from '../../common/entities/sysinfo.entity';
 import { AuthModule } from '../auth/auth.module';
 
 /**
@@ -32,6 +33,7 @@ import { AuthModule } from '../auth/auth.module';
       ConnectionAudit,
       FileAudit,
       AlarmAudit,
+      Sysinfo,
     ]),
     AuthModule,
   ],
