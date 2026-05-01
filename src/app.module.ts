@@ -10,6 +10,7 @@ import { DeviceGroupModule } from './modules/device-group/device-group.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { OidcModule } from './modules/oidc/oidc.module';
 import { SysinfoModule } from './modules/sysinfo/sysinfo.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
 import { Sysinfo, Peer } from './common/entities';
 import { ConnectionAudit } from './modules/audit/entities/connection-audit.entity';
@@ -48,6 +49,7 @@ import { SettingsModule } from './modules/settings/settings.module';
  * - AuthModule - 认证模块
  * - OidcModule - OIDC认证模块
  * - SysinfoModule - 系统信息模块
+ * - DashboardModule - Dashboard统计模块
  *
  * 提供服务：
  * - ThrottlerGuard - 全局限流守卫
@@ -98,6 +100,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     AuthModule,
     OidcModule,
     SysinfoModule,
+    DashboardModule,
     SettingsModule,
   ],
   providers: [
