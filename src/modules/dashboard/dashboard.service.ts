@@ -60,8 +60,15 @@ export class DashboardService {
     const deviceActive = await this.peerRepository.count({
       where: { status: PeerStatus.ACTIVE },
     });
-    // TODO: 实现在线设备统计（需要心跳机制）
-    const deviceOnline = 0;
+
+    // 在线设备统计：最近5分钟内有心跳的设备
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const deviceOnline = await this.peerRepository
+      .createQueryBuilder('peer')
+      .where('peer.modifiedAt >= :threshold', { threshold: fiveMinutesAgo })
+      .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
+      .getCount();
+
     const deviceGroups = await this.deviceGroupRepository.count();
 
     // 连接统计
@@ -184,9 +191,14 @@ export class DashboardService {
       count: group.peers ? group.peers.length : 0,
     }));
 
-    const onlineDevices = await this.peerRepository.count({
-      where: { status: PeerStatus.ACTIVE },
-    });
+    // 在线设备统计：最近5分钟内有心跳的设备
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const onlineDevices = await this.peerRepository
+      .createQueryBuilder('peer')
+      .where('peer.modifiedAt >= :threshold', { threshold: fiveMinutesAgo })
+      .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
+      .getCount();
+
     const totalDevices = await this.peerRepository.count();
 
     // 连接分析
