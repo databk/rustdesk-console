@@ -8,6 +8,7 @@ import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
 import { FileAudit } from '../audit/entities/file-audit.entity';
 import { AlarmAudit } from '../audit/entities/alarm-audit.entity';
+import { Sysinfo } from '../../common/entities/sysinfo.entity';
 import {
   DashboardOverviewDto,
   DashboardStatisticsDto,
@@ -34,6 +35,8 @@ export class DashboardService {
     private readonly fileAuditRepository: Repository<FileAudit>,
     @InjectRepository(AlarmAudit)
     private readonly alarmAuditRepository: Repository<AlarmAudit>,
+    @InjectRepository(Sysinfo)
+    private readonly sysinfoRepository: Repository<Sysinfo>,
   ) {}
 
   /**
@@ -386,12 +389,21 @@ export class DashboardService {
     recentAlarmEvents.forEach((e) => allDeviceUuids.add(e.deviceUuid));
 
     const uuidToIdMap = new Map<string, string>();
+    const uuidToHostnameMap = new Map<string, string>();
     if (allDeviceUuids.size > 0) {
       const peers = await this.peerRepository
         .createQueryBuilder('peer')
         .where('peer.uuid IN (:...uuids)', { uuids: Array.from(allDeviceUuids) })
         .getMany();
       peers.forEach((peer) => uuidToIdMap.set(peer.uuid, peer.id));
+
+      const sysinfos = await this.sysinfoRepository
+        .createQueryBuilder('sysinfo')
+        .where('sysinfo.uuid IN (:...uuids)', { uuids: Array.from(allDeviceUuids) })
+        .getMany();
+      sysinfos.forEach((s) => {
+        if (s.hostname) uuidToHostnameMap.set(s.uuid, s.hostname);
+      });
     }
 
     const activeConnections = recentConnections.map((conn) => ({
@@ -399,7 +411,7 @@ export class DashboardService {
       userId: conn.peerId || 'unknown',
       userName: conn.peerName || 'unknown',
       deviceId: uuidToIdMap.get(conn.deviceUuid) || conn.deviceId,
-      deviceName: conn.deviceUuid,
+      deviceName: uuidToHostnameMap.get(conn.deviceUuid) || conn.deviceUuid,
       startTime: conn.establishedAt || conn.createdAt,
       duration: conn.closedAt && conn.establishedAt
         ? Math.round((conn.closedAt.getTime() - conn.establishedAt.getTime()) / 1000 / 60)
