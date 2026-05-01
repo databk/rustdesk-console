@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
+import * as si from 'systeminformation';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
@@ -386,13 +387,8 @@ export class DashboardService {
       })),
     ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 10);
 
-    // 系统状态（模拟数据，实际应从系统监控获取）
-    const systemStatus = {
-      cpu: Math.random() * 100,
-      memory: Math.random() * 100,
-      disk: Math.random() * 100,
-      uptime: process.uptime(),
-    };
+    // 系统状态（真实数据）
+    const systemStatus = await this.getSystemStatus();
 
     return {
       activeConnections,
@@ -530,5 +526,46 @@ export class DashboardService {
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  /**
+   * 获取系统状态
+   * 使用 systeminformation 库获取真实的系统监控数据
+   */
+  private async getSystemStatus() {
+    try {
+      // 获取 CPU 当前使用率
+      const cpuData = await si.currentLoad();
+      const cpu = Math.round(cpuData.currentLoad * 10) / 10;
+
+      // 获取内存使用情况
+      const memData = await si.mem();
+      const memory = Math.round((memData.used / memData.total) * 1000) / 10;
+
+      // 获取磁盘使用情况（第一个磁盘）
+      const fsData = await si.fsSize();
+      let disk = 0;
+      if (fsData && fsData.length > 0) {
+        disk = Math.round(fsData[0].use * 10) / 10;
+      }
+
+      // 系统运行时间（秒）
+      const uptime = process.uptime();
+
+      return {
+        cpu,
+        memory,
+        disk,
+        uptime,
+      };
+    } catch (error) {
+      // 如果获取失败，返回默认值
+      return {
+        cpu: 0,
+        memory: 0,
+        disk: 0,
+        uptime: process.uptime(),
+      };
+    }
   }
 }
