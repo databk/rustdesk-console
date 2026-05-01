@@ -62,10 +62,10 @@ export class DashboardService {
     });
 
     // 在线设备统计：最近5分钟内有心跳的设备
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const deviceOnline = await this.peerRepository
       .createQueryBuilder('peer')
-      .where('peer.modifiedAt >= :threshold', { threshold: fiveMinutesAgo })
+      .where('peer.updatedAt >= :threshold', { threshold: fiveMinutesAgo })
       .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
       .getCount();
 
@@ -192,10 +192,10 @@ export class DashboardService {
     }));
 
     // 在线设备统计：最近5分钟内有心跳的设备
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const onlineDevices = await this.peerRepository
       .createQueryBuilder('peer')
-      .where('peer.modifiedAt >= :threshold', { threshold: fiveMinutesAgo })
+      .where('peer.updatedAt >= :threshold', { threshold: fiveMinutesAgo })
       .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
       .getCount();
 
