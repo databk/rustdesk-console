@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { APP_GUARD } from '@nestjs/core';
 import { SysinfoController } from './sysinfo.controller';
 import { SysinfoService } from './sysinfo.service';
 import { Sysinfo, Peer } from '../../common/entities';
@@ -39,10 +38,6 @@ import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard
   controllers: [SysinfoController],
   providers: [
     SysinfoService,
-    {
-      provide: APP_GUARD,
-      useClass: DeviceThrottlerGuard,
-    },
   ],
   exports: [SysinfoService],
 })
