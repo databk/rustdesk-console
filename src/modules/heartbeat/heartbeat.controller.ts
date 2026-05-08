@@ -1,8 +1,9 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { HeartbeatService } from './heartbeat.service';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 import { Public } from '../auth/decorators/public.decorator';
+import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard';
 
 /**
  * 心跳控制器
@@ -12,6 +13,7 @@ import { Public } from '../auth/decorators/public.decorator';
  * - POST /api/heartbeat - 接收设备心跳
  */
 @Controller('heartbeat')
+@UseGuards(DeviceThrottlerGuard)
 export class HeartbeatController {
   constructor(private readonly HeartbeatService: HeartbeatService) {}
 
