@@ -340,7 +340,10 @@ export class OidcService {
     deviceId?: string,
     deviceUuid?: string,
   ): Promise<string> {
+    // 生成JTI（JWT唯一标识符），用于令牌撤销验证
+    // 与auth-token.service.ts保持一致的JTI机制
     const jti = uuidv4();
+    // 构建JWT负载，包含用户信息和JTI标识符
     const payload = {
       sub: user.guid,
       username: user.username,
@@ -350,11 +353,15 @@ export class OidcService {
       jti,
     };
 
+    // 签发包含JTI的JWT Token
     const token = this.jwtService.sign(payload);
 
+    // 计算Token过期时间（30天后）
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.TOKEN_EXPIRY_DAYS);
 
+    // 在数据库中创建Token记录，存储JTI而非完整Token
+    // guid使用jti值，与auth模块保持一致的数据结构
     const userToken = this.userTokenRepository.create({
       guid: jti,
       userGuid: user.guid,
@@ -364,6 +371,7 @@ export class OidcService {
       expiresAt,
     });
 
+    // 持久化Token记录，后续验证时通过JTI查询撤销状态
     await this.userTokenRepository.save(userToken);
 
     return token;
