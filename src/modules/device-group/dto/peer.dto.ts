@@ -51,6 +51,10 @@ export class PeerQueryDto {
 
   @IsOptional()
   @IsString()
+  device_group_guid?: string; // 按设备组GUID筛选（精确匹配）
+
+  @IsOptional()
+  @IsString()
   device_group_name?: string; // 按设备组名称筛选（模糊匹配）
 
   @IsOptional()

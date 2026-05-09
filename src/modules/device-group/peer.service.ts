@@ -61,6 +61,7 @@ export class PeerService {
       status,
       is_online,
       user_name,
+      device_group_guid,
       device_group_name,
       os,
     } = query;
@@ -127,8 +128,15 @@ export class PeerService {
       );
     }
 
+    // 按设备组GUID筛选（精确匹配，优先级更高）
+    if (device_group_guid) {
+      queryBuilder.andWhere('peer.deviceGroupGuid = :deviceGroupGuid', {
+        deviceGroupGuid: device_group_guid,
+      });
+    }
+
     // 按设备组名称筛选（模糊匹配）
-    if (device_group_name) {
+    if (device_group_name && !device_group_guid) {
       queryBuilder.andWhere('deviceGroup.name LIKE :deviceGroupName', {
         deviceGroupName: `%${device_group_name}%`,
       });
