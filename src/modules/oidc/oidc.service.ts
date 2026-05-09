@@ -340,24 +340,25 @@ export class OidcService {
     deviceId?: string,
     deviceUuid?: string,
   ): Promise<string> {
+    const jti = uuidv4();
     const payload = {
       sub: user.guid,
       username: user.username,
       email: user.email,
       isAdmin: user.isAdmin,
       deviceId,
+      jti,
     };
 
     const token = this.jwtService.sign(payload);
 
-    // 保存Token到数据库
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.TOKEN_EXPIRY_DAYS);
 
     const userToken = this.userTokenRepository.create({
-      guid: uuidv4(),
+      guid: jti,
       userGuid: user.guid,
-      token,
+      jti,
       deviceId,
       deviceUuid,
       expiresAt,

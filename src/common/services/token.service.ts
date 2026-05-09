@@ -7,4 +7,5 @@ export interface JwtPayload {
   email?: string;
   isAdmin: boolean;
   deviceId?: string;
+  jti: string;
 }

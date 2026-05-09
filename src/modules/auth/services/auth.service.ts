@@ -20,7 +20,8 @@ import {
 } from '../dto/auth.dto';
 import { EmailVerificationSession } from '../entities/email-verification-session.entity';
 import { EmailService } from '../../email/email.service';
-import { AuthTokenService, JwtPayload } from './auth-token.service';
+import { AuthTokenService } from './auth-token.service';
+import { JwtPayload } from '../../../common/services/token.service';
 import { AuthTfaService } from './auth-tfa.service';
 import { AuthEmailService } from './auth-email.service';
 import { AuthDeviceService } from './auth-device.service';
