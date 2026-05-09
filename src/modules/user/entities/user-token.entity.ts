@@ -32,12 +32,12 @@ export class UserToken {
   userGuid: string;
 
   /**
-   * JWT 令牌
-   * 用于身份验证的令牌字符串
+   * JWT ID (JTI)
+   * 唯一标识符，用于令牌撤销验证，不存储完整JWT令牌
    */
-  @Column()
+  @Column({ length: 36 })
   @Index()
-  token: string;
+  jti: string;
 
   /**
    * 设备ID

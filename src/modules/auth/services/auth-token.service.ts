@@ -21,6 +21,8 @@ export interface JwtPayload {
   isAdmin: boolean;
   /** 设备ID */
   deviceId?: string;
+  /** JWT唯一标识符，用于令牌撤销验证 */
+  jti: string;
 }
 
 @Injectable()
@@ -58,27 +60,26 @@ export class AuthTokenService {
     deviceId?: string,
     deviceUuid?: string,
   ): Promise<string> {
-    // 构建JWT负载
+    const jti = uuidv4();
+
     const payload: JwtPayload = {
       sub: user.guid,
       username: user.username,
       email: user.email,
       isAdmin: user.isAdmin,
       deviceId,
+      jti,
     };
 
-    // 签名生成JWT Token
     const token = this.jwtService.sign(payload);
 
-    // 计算Token过期时间
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.TOKEN_EXPIRY_DAYS);
 
-    // 保存Token记录到数据库
     const userToken = this.tokenRepository.create({
-      guid: uuidv4(),
+      guid: jti,
       userGuid: user.guid,
-      token,
+      jti,
       deviceId,
       deviceUuid,
       expiresAt,
@@ -98,12 +99,10 @@ export class AuthTokenService {
    */
   async validateToken(token: string): Promise<JwtPayload | null> {
     try {
-      // 验证Token签名和有效期
       const payload = this.jwtService.verify<JwtPayload>(token);
 
-      // 检查Token是否被撤销
       const tokenRecord = await this.tokenRepository.findOne({
-        where: { token, isRevoked: false },
+        where: { jti: payload.jti, isRevoked: false },
       });
 
       if (!tokenRecord) {
@@ -112,7 +111,6 @@ export class AuthTokenService {
 
       return payload;
     } catch {
-      // Token无效或已过期
       return null;
     }
   }
@@ -125,10 +123,15 @@ export class AuthTokenService {
    * @param token 要撤销的Token字符串
    */
   async revokeToken(userGuid: string, token: string): Promise<void> {
-    await this.tokenRepository.update(
-      { userGuid, token, isRevoked: false },
-      { isRevoked: true },
-    );
+    try {
+      const payload = this.jwtService.verify<JwtPayload>(token);
+      await this.tokenRepository.update(
+        { userGuid, jti: payload.jti, isRevoked: false },
+        { isRevoked: true },
+      );
+    } catch {
+      throw new Error('Invalid token');
+    }
   }
 
   /**

@@ -9,6 +9,7 @@ import {
   AuthTfaService,
   AuthEmailService,
   AuthDeviceService,
+  TokenCleanupService,
 } from './services';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../user/entities/user.entity';
@@ -57,6 +58,7 @@ import { EmailModule } from '../email/email.module';
     AuthTfaService,
     AuthEmailService,
     AuthDeviceService,
+    TokenCleanupService,
     JwtStrategy,
   ],
   exports: [AuthService, JwtModule],
