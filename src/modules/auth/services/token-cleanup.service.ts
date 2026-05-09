@@ -19,13 +19,10 @@ export class TokenCleanupService {
       const now = new Date();
       const result = await this.tokenRepository.delete({
         expiresAt: LessThan(now),
-        isRevoked: true,
       });
 
       if (result.affected && result.affected > 0) {
-        this.logger.log(
-          `Cleaned up ${result.affected} expired/revoked tokens`,
-        );
+        this.logger.log(`Cleaned up ${result.affected} expired tokens`);
       }
     } catch (error) {
       this.logger.error('Failed to cleanup expired tokens', error.stack);
