@@ -256,12 +256,21 @@ export class AuditService {
    * @returns 文件审计列表
    */
   async queryFileAudits(filters: {
-    remote?: string;
+    peerId?: string;
+    type?: number;
+    startTime?: string;
+    endTime?: string;
     pageSize?: number;
     current?: number;
-    created_at?: string;
   }) {
-    const { remote, pageSize = 10, current = 1, created_at } = filters;
+    const {
+      peerId,
+      type,
+      startTime,
+      endTime,
+      pageSize = 10,
+      current = 1,
+    } = filters;
     const skip = (current - 1) * pageSize;
 
     const queryBuilder = this.fileAuditRepository
@@ -281,17 +290,26 @@ export class AuditService {
         'fa.createdAt',
       ]);
 
-    // 按远程设备ID过滤
-    if (remote) {
-      queryBuilder.andWhere('fa.peerId LIKE :remote', {
-        remote: `%${remote}%`,
+    // 按对端设备ID过滤（模糊匹配）
+    if (peerId) {
+      queryBuilder.andWhere('fa.peerId LIKE :peerId', {
+        peerId: `%${peerId}%`,
       });
     }
 
-    // 按创建时间过滤
-    if (created_at) {
-      const createdAt = new Date(created_at);
-      queryBuilder.andWhere('fa.createdAt >= :createdAt', { createdAt });
+    // 按文件传输类型过滤
+    if (type !== undefined) {
+      queryBuilder.andWhere('fa.type = :type', { type });
+    }
+
+    // 按时间段过滤
+    if (startTime) {
+      const start = new Date(startTime);
+      queryBuilder.andWhere('fa.createdAt >= :startTime', { startTime: start });
+    }
+    if (endTime) {
+      const end = new Date(endTime);
+      queryBuilder.andWhere('fa.createdAt <= :endTime', { endTime: end });
     }
 
     queryBuilder.orderBy('fa.createdAt', 'DESC').skip(skip).take(pageSize);
