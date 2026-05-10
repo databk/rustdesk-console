@@ -167,20 +167,18 @@ export class AuditsController {
    *
    * 功能说明：
    * - 支持分页查询
-   * - 支持按对端设备ID过滤（peerId精确匹配，remote模糊匹配）
-   * - 支持按时间段过滤（startTime/endTime范围查询，created_at单点查询）
+   * - 支持按对端设备ID过滤（peerId模糊匹配）
+   * - 支持按时间段过滤（startTime/endTime范围查询）
    * - 支持按文件传输类型过滤（type: 0-发送, 1-接收）
    *
    * 安全措施：
    * - 使用AdminGuard进行认证
    * - 只有管理员可以查询审计记录
    *
-   * @param peerId 对端设备ID（精确匹配）
-   * @param remote 对端设备ID（模糊匹配，向后兼容）
+   * @param peerId 对端设备ID（模糊匹配）
    * @param type 文件传输类型（0: SEND, 1: RECEIVE）
    * @param startTime 开始时间（ISO 8601格式）
    * @param endTime 结束时间（ISO 8601格式）
-   * @param created_at 创建时间（UTC时间字符串，向后兼容）
    * @param pageSize 每页记录数
    * @param current 当前页码
    * @returns 文件审计列表
@@ -189,21 +187,17 @@ export class AuditsController {
   @Get('file')
   async queryFileAudits(
     @Query('peerId') peerId?: string,
-    @Query('remote') remote?: string,
     @Query('type') type?: number,
     @Query('startTime') startTime?: string,
     @Query('endTime') endTime?: string,
-    @Query('created_at') created_at?: string,
     @Query('pageSize') pageSize?: number,
     @Query('current') current?: number,
   ) {
     return await this.auditService.queryFileAudits({
       peerId,
-      remote,
       type,
       startTime,
       endTime,
-      created_at,
       pageSize,
       current,
     });

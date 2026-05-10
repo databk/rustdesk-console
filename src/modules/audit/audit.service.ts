@@ -257,21 +257,17 @@ export class AuditService {
    */
   async queryFileAudits(filters: {
     peerId?: string;
-    remote?: string;
     type?: number;
     startTime?: string;
     endTime?: string;
-    created_at?: string;
     pageSize?: number;
     current?: number;
   }) {
     const {
       peerId,
-      remote,
       type,
       startTime,
       endTime,
-      created_at,
       pageSize = 10,
       current = 1,
     } = filters;
@@ -294,13 +290,10 @@ export class AuditService {
         'fa.createdAt',
       ]);
 
-    // 按对端设备ID过滤（优先使用peerId精确匹配）
+    // 按对端设备ID过滤（模糊匹配）
     if (peerId) {
-      queryBuilder.andWhere('fa.peerId = :peerId', { peerId });
-    } else if (remote) {
-      // 向后兼容：使用remote模糊匹配
-      queryBuilder.andWhere('fa.peerId LIKE :remote', {
-        remote: `%${remote}%`,
+      queryBuilder.andWhere('fa.peerId LIKE :peerId', {
+        peerId: `%${peerId}%`,
       });
     }
 
@@ -309,20 +302,14 @@ export class AuditService {
       queryBuilder.andWhere('fa.type = :type', { type });
     }
 
-    // 按时间段过滤（优先使用startTime/endTime范围查询）
-    if (startTime || endTime) {
-      if (startTime) {
-        const start = new Date(startTime);
-        queryBuilder.andWhere('fa.createdAt >= :startTime', { startTime: start });
-      }
-      if (endTime) {
-        const end = new Date(endTime);
-        queryBuilder.andWhere('fa.createdAt <= :endTime', { endTime: end });
-      }
-    } else if (created_at) {
-      // 向后兼容：使用created_at单点查询
-      const createdAt = new Date(created_at);
-      queryBuilder.andWhere('fa.createdAt >= :createdAt', { createdAt });
+    // 按时间段过滤
+    if (startTime) {
+      const start = new Date(startTime);
+      queryBuilder.andWhere('fa.createdAt >= :startTime', { startTime: start });
+    }
+    if (endTime) {
+      const end = new Date(endTime);
+      queryBuilder.andWhere('fa.createdAt <= :endTime', { endTime: end });
     }
 
     queryBuilder.orderBy('fa.createdAt', 'DESC').skip(skip).take(pageSize);
