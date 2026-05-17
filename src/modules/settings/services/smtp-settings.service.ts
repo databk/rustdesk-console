@@ -3,10 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as nodemailer from 'nodemailer';
 import { SystemSetting } from '../entities/system-setting.entity';
-import {
-  UpdateSmtpConfigDto,
-  TestSmtpConfigDto,
-} from '../dto/smtp-config.dto';
+import { UpdateSmtpConfigDto, TestSmtpConfigDto } from '../dto/smtp-config.dto';
 
 /**
  * SMTP 配置服务
@@ -143,11 +140,14 @@ export class SmtpSettingsService {
       const updates: Record<string, string> = {};
 
       if (dto.host !== undefined) updates[this.SMTP_KEYS.HOST] = dto.host;
-      if (dto.port !== undefined) updates[this.SMTP_KEYS.PORT] = String(dto.port);
-      if (dto.secure !== undefined) updates[this.SMTP_KEYS.SECURE] = String(dto.secure);
+      if (dto.port !== undefined)
+        updates[this.SMTP_KEYS.PORT] = String(dto.port);
+      if (dto.secure !== undefined)
+        updates[this.SMTP_KEYS.SECURE] = String(dto.secure);
       if (dto.user !== undefined) updates[this.SMTP_KEYS.USER] = dto.user;
       if (dto.from !== undefined) updates[this.SMTP_KEYS.FROM] = dto.from;
-      if (dto.enabled !== undefined) updates[this.SMTP_KEYS.ENABLED] = String(dto.enabled);
+      if (dto.enabled !== undefined)
+        updates[this.SMTP_KEYS.ENABLED] = String(dto.enabled);
       if (dto.pass !== undefined && dto.pass !== this.PASS_MASK) {
         updates[this.SMTP_KEYS.PASS] = dto.pass;
       }
@@ -229,7 +229,9 @@ export class SmtpSettingsService {
   /**
    * 批量设置多个配置项
    */
-  private async setMultipleSettings(data: Record<string, string>): Promise<void> {
+  private async setMultipleSettings(
+    data: Record<string, string>,
+  ): Promise<void> {
     for (const [key, value] of Object.entries(data)) {
       let setting = await this.settingRepository.findOne({ where: { key } });
 

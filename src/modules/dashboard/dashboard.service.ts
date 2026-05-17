@@ -61,7 +61,7 @@ export class DashboardService {
 
     // 设备统计
     const deviceTotal = await this.peerRepository.count();
-    const deviceActive = await this.peerRepository.count({
+    const _deviceActive = await this.peerRepository.count({
       where: { status: PeerStatus.ACTIVE },
     });
 
@@ -100,7 +100,8 @@ export class DashboardService {
         connectionCount++;
       }
     });
-    const avgDuration = connectionCount > 0 ? totalDuration / connectionCount : 0;
+    const avgDuration =
+      connectionCount > 0 ? totalDuration / connectionCount : 0;
 
     // TODO: 实现活跃连接统计（需要实时连接管理）
     const activeConnections = 0;
@@ -129,21 +130,21 @@ export class DashboardService {
       try {
         if (file.files) {
           // 处理可能的字符串格式(JSON字符串)
-          let filesArray = file.files;
+          let filesArray: unknown = file.files;
           if (typeof file.files === 'string') {
-            filesArray = JSON.parse(file.files);
+            filesArray = JSON.parse(file.files) as unknown[];
           }
 
           if (Array.isArray(filesArray)) {
-            filesArray.forEach((item) => {
+            filesArray.forEach((item: unknown) => {
               if (Array.isArray(item) && item.length >= 2) {
-                const size = item[1];
+                const size: unknown = item[1];
                 totalFileSize += typeof size === 'number' ? size : 0;
               }
             });
           }
         }
-      } catch (error) {
+      } catch {
         // 解析失败,跳过此文件
       }
     });
@@ -262,21 +263,21 @@ export class DashboardService {
       try {
         if (file.files) {
           // 处理可能的字符串格式(JSON字符串)
-          let filesArray = file.files;
+          let filesArray: unknown = file.files;
           if (typeof file.files === 'string') {
-            filesArray = JSON.parse(file.files);
+            filesArray = JSON.parse(file.files) as unknown[];
           }
 
           if (Array.isArray(filesArray)) {
-            filesArray.forEach((item) => {
+            filesArray.forEach((item: unknown) => {
               if (Array.isArray(item) && item.length >= 2) {
-                const size = item[1];
+                const size: unknown = item[1];
                 totalFilesSize += typeof size === 'number' ? size : 0;
               }
             });
           }
         }
-      } catch (error) {
+      } catch {
         // 解析失败,跳过此文件
       }
 
@@ -310,7 +311,9 @@ export class DashboardService {
       },
       connectionAnalysis: {
         avgDuration:
-          successCount > 0 ? Math.round((totalDuration / successCount) * 10) / 10 : 0,
+          successCount > 0
+            ? Math.round((totalDuration / successCount) * 10) / 10
+            : 0,
         totalDuration: Math.round(totalDuration),
         successRate: Math.round(successRate * 10) / 10,
         failureCount,
@@ -393,13 +396,17 @@ export class DashboardService {
     if (allDeviceUuids.size > 0) {
       const peers = await this.peerRepository
         .createQueryBuilder('peer')
-        .where('peer.uuid IN (:...uuids)', { uuids: Array.from(allDeviceUuids) })
+        .where('peer.uuid IN (:...uuids)', {
+          uuids: Array.from(allDeviceUuids),
+        })
         .getMany();
       peers.forEach((peer) => uuidToIdMap.set(peer.uuid, peer.id));
 
       const sysinfos = await this.sysinfoRepository
         .createQueryBuilder('sysinfo')
-        .where('sysinfo.uuid IN (:...uuids)', { uuids: Array.from(allDeviceUuids) })
+        .where('sysinfo.uuid IN (:...uuids)', {
+          uuids: Array.from(allDeviceUuids),
+        })
         .getMany();
       sysinfos.forEach((s) => {
         if (s.hostname) uuidToHostnameMap.set(s.uuid, s.hostname);
@@ -413,9 +420,14 @@ export class DashboardService {
       deviceId: uuidToIdMap.get(conn.deviceUuid) || conn.deviceId,
       deviceName: uuidToHostnameMap.get(conn.deviceUuid) || conn.deviceUuid,
       startTime: conn.establishedAt || conn.createdAt,
-      duration: conn.closedAt && conn.establishedAt
-        ? Math.round((conn.closedAt.getTime() - conn.establishedAt.getTime()) / 1000 / 60)
-        : 0,
+      duration:
+        conn.closedAt && conn.establishedAt
+          ? Math.round(
+              (conn.closedAt.getTime() - conn.establishedAt.getTime()) /
+                1000 /
+                60,
+            )
+          : 0,
     }));
 
     const recentEvents = [
@@ -443,7 +455,9 @@ export class DashboardService {
         timestamp: e.createdAt,
         status: 'warning' as const,
       })),
-    ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 10);
+    ]
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, 10);
 
     // 系统状态（真实数据）
     const systemStatus = await this.getSystemStatus();
@@ -459,7 +473,8 @@ export class DashboardService {
    * 获取连接趋势
    */
   private async getConnectionTrend(startDate: Date, days: number) {
-    const trend: Array<{ date: string; count: number; avgDuration: number }> = [];
+    const trend: Array<{ date: string; count: number; avgDuration: number }> =
+      [];
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -484,7 +499,9 @@ export class DashboardService {
       connections.forEach((conn) => {
         if (conn.closedAt && conn.establishedAt) {
           totalDuration +=
-            (conn.closedAt.getTime() - conn.establishedAt.getTime()) / 1000 / 60;
+            (conn.closedAt.getTime() - conn.establishedAt.getTime()) /
+            1000 /
+            60;
         }
       });
 
@@ -504,7 +521,11 @@ export class DashboardService {
    * 获取用户活跃趋势
    */
   private async getUserActiveTrend(startDate: Date, days: number) {
-    const trend: Array<{ date: string; newUsers: number; activeUsers: number }> = [];
+    const trend: Array<{
+      date: string;
+      newUsers: number;
+      activeUsers: number;
+    }> = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -535,7 +556,12 @@ export class DashboardService {
    * 获取告警趋势
    */
   private async getAlarmTrend(startDate: Date, days: number) {
-    const trend: Array<{ date: string; critical: number; warning: number; info: number }> = [];
+    const trend: Array<{
+      date: string;
+      critical: number;
+      warning: number;
+      info: number;
+    }> = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -621,7 +647,7 @@ export class DashboardService {
         disk,
         uptime,
       };
-    } catch (error) {
+    } catch {
       // 如果获取失败，返回默认值
       return {
         cpu: 0,
