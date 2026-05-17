@@ -11,10 +11,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { SmtpSettingsService } from './services/smtp-settings.service';
-import {
-  UpdateSmtpConfigDto,
-  TestSmtpConfigDto,
-} from './dto/smtp-config.dto';
+import { UpdateSmtpConfigDto, TestSmtpConfigDto } from './dto/smtp-config.dto';
 
 /**
  * 系统设置控制器

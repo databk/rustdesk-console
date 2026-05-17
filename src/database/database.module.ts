@@ -17,7 +17,13 @@ import { DatabaseInitService } from './database-init.service';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserToken, OidcProvider, OidcAuthState, SystemSetting]),
+    TypeOrmModule.forFeature([
+      User,
+      UserToken,
+      OidcProvider,
+      OidcAuthState,
+      SystemSetting,
+    ]),
   ],
   providers: [DatabaseInitService],
   exports: [DatabaseInitService],

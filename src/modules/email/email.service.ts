@@ -46,7 +46,7 @@ export class EmailService {
       });
 
       // 渲染模板
-      const html = await this.renderTemplate('verification-code', {
+      const html = this.renderTemplate('verification-code', {
         code,
         expiresIn: '5分钟',
       });
@@ -70,7 +70,7 @@ export class EmailService {
   /**
    * 渲染 Handlebars 邮件模板
    */
-  private async renderTemplate(
+  private renderTemplate(
     templateName: string,
     context: Record<string, unknown>,
   ): Promise<string> {
