@@ -75,7 +75,7 @@ jobs:
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         uses: softprops/action-gh-release@v1
         with:
-          tag: ${{ steps.changelog.outputs.version }}
+          tag_name: ${{ steps.changelog.outputs.version }}
           name: ${{ steps.changelog.outputs.version }}
           body: |
             ${{ steps.changelog.outputs.changelog }}
