@@ -10,6 +10,11 @@ import { DeviceGroup } from './entities/device-group.entity';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
+import {
+  DeviceStatus,
+  DeviceOperationResult,
+  DeviceOperationFailure,
+} from './dto/device-status.dto';
 
 @Injectable()
 /**
@@ -545,6 +550,61 @@ export class DeviceGroupService {
 
     peer.status = PeerStatus.ACTIVE;
     await this.peerRepository.save(peer);
+  }
+
+  /**
+   * 批量更新设备状态
+   * 支持批量启用或禁用多个设备，返回详细的成功/失败信息
+   *
+   * @param guids 设备GUID列表
+   * @param status 目标状态
+   * @returns 操作结果，包含成功和失败的设备信息
+   */
+  async updateDeviceStatus(
+    guids: string[],
+    status: DeviceStatus,
+  ): Promise<DeviceOperationResult> {
+    const succeeded: string[] = [];
+    const failed: DeviceOperationFailure[] = [];
+
+    const existingPeers = await this.peerRepository.find({
+      where: { uuid: In(guids) },
+      select: ['uuid'],
+    });
+
+    const existingUuids = new Set(existingPeers.map((p) => p.uuid));
+
+    for (const guid of guids) {
+      if (!existingUuids.has(guid)) {
+        failed.push({ guid, reason: 'Device not found' });
+      }
+    }
+
+    const guidsToUpdate = guids.filter((guid) => existingUuids.has(guid));
+
+    if (guidsToUpdate.length > 0) {
+      const statusValue =
+        status === DeviceStatus.ENABLED
+          ? PeerStatus.ACTIVE
+          : PeerStatus.DISABLED;
+
+      await this.peerRepository
+        .createQueryBuilder()
+        .update(Peer)
+        .set({ status: statusValue })
+        .where('uuid IN (:...uuids)', { uuids: guidsToUpdate })
+        .execute();
+
+      succeeded.push(...guidsToUpdate);
+    }
+
+    return {
+      succeeded,
+      failed,
+      total: guids.length,
+      succeededCount: succeeded.length,
+      failedCount: failed.length,
+    };
   }
 
   /**
