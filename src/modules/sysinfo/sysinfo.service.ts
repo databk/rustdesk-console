@@ -178,9 +178,7 @@ export class SysinfoService {
 
     if (!addressBook) {
       // 如果地址簿不存在，跳过添加
-      this.logger.warn(
-        `预设地址簿 "${addressBookName}" 不存在，跳过添加设备`,
-      );
+      this.logger.warn(`预设地址簿 "${addressBookName}" 不存在，跳过添加设备`);
       return;
     }
 
@@ -190,9 +188,7 @@ export class SysinfoService {
     });
 
     if (existingPeer) {
-      this.logger.debug(
-        `设备 ${deviceId} 已存在于地址簿 ${addressBook.name}`,
-      );
+      this.logger.debug(`设备 ${deviceId} 已存在于地址簿 ${addressBook.name}`);
       return;
     }
 

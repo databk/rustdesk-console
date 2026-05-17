@@ -24,8 +24,11 @@ export class TokenCleanupService {
       if (result.affected && result.affected > 0) {
         this.logger.log(`Cleaned up ${result.affected} expired tokens`);
       }
-    } catch (error) {
-      this.logger.error('Failed to cleanup expired tokens', error.stack);
+    } catch (error: unknown) {
+      this.logger.error(
+        'Failed to cleanup expired tokens',
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 }

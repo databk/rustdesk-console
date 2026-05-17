@@ -70,7 +70,7 @@ export class EmailService {
   /**
    * 渲染 Handlebars 邮件模板
    */
-  private async renderTemplate(
+  private renderTemplate(
     templateName: string,
     context: Record<string, unknown>,
   ): Promise<string> {

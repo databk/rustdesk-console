@@ -9,7 +9,6 @@ import {
   AddressBookTag,
 } from '../address-book/entities';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
-import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard';
 
 /**
  * 系统信息模块
@@ -36,9 +35,7 @@ import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard
     ]),
   ],
   controllers: [SysinfoController],
-  providers: [
-    SysinfoService,
-  ],
+  providers: [SysinfoService],
   exports: [SysinfoService],
 })
 export class SysinfoModule {}
