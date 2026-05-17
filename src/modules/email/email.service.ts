@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import * as Handlebars from 'handlebars';
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 import * as path from 'path';
 import { SmtpSettingsService } from '../settings/services/smtp-settings.service';
 
@@ -46,7 +46,7 @@ export class EmailService {
       });
 
       // 渲染模板
-      const html = this.renderTemplate('verification-code', {
+      const html = await this.renderTemplate('verification-code', {
         code,
         expiresIn: '5分钟',
       });
@@ -70,11 +70,10 @@ export class EmailService {
   /**
    * 渲染 Handlebars 邮件模板
    */
-  private renderTemplate(
+  private async renderTemplate(
     templateName: string,
     context: Record<string, unknown>,
   ): Promise<string> {
-    // 检查缓存
     let template = this.templateCache.get(templateName);
     if (!template) {
       const templatePath = path.join(
@@ -82,7 +81,7 @@ export class EmailService {
         'templates',
         `${templateName}.hbs`,
       );
-      const templateContent = fs.readFileSync(templatePath, 'utf-8');
+      const templateContent = await fs.readFile(templatePath, 'utf-8');
       template = Handlebars.compile(templateContent);
       this.templateCache.set(templateName, template);
     }
