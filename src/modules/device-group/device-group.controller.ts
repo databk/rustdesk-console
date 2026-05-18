@@ -17,6 +17,10 @@ import { DeviceGroupQueryDto } from './dto/device-group.dto';
 import { PeerQueryDto } from './dto/peer.dto';
 import { UserQueryDto } from './dto/user.dto';
 import { DeviceQueryDto } from './dto/device.dto';
+import {
+  UpdateDeviceStatusDto,
+  DeviceOperationResult,
+} from './dto/device-status.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
@@ -287,6 +291,28 @@ export class DeviceGroupController {
   async enableDevice(@Param('guid') guid: string) {
     await this.deviceGroupService.enableDevice(guid);
     return { message: '设备已启用' };
+  }
+
+  /**
+   * 批量更新设备状态
+   * 管理员可以批量启用或禁用设备
+   *
+   * @param dto 更新状态请求
+   * @returns 操作结果
+   */
+  @Patch('devices/status')
+  @UseGuards(AdminGuard)
+  async updateDeviceStatus(
+    @Body() dto: UpdateDeviceStatusDto,
+  ): Promise<{ success: boolean; data: DeviceOperationResult }> {
+    const result = await this.deviceGroupService.updateDeviceStatus(
+      dto.guids,
+      dto.status,
+    );
+    return {
+      success: result.failedCount === 0,
+      data: result,
+    };
   }
 
   /**
