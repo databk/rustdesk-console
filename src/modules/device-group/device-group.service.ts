@@ -564,23 +564,24 @@ export class DeviceGroupService {
     guids: string[],
     status: DeviceStatus,
   ): Promise<DeviceOperationResult> {
+    const uniqueGuids = [...new Set(guids)];
     const succeeded: string[] = [];
     const failed: DeviceOperationFailure[] = [];
 
     const existingPeers = await this.peerRepository.find({
-      where: { uuid: In(guids) },
+      where: { uuid: In(uniqueGuids) },
       select: ['uuid'],
     });
 
     const existingUuids = new Set(existingPeers.map((p) => p.uuid));
 
-    for (const guid of guids) {
+    for (const guid of uniqueGuids) {
       if (!existingUuids.has(guid)) {
         failed.push({ guid, reason: 'Device not found' });
       }
     }
 
-    const guidsToUpdate = guids.filter((guid) => existingUuids.has(guid));
+    const guidsToUpdate = uniqueGuids.filter((guid) => existingUuids.has(guid));
 
     if (guidsToUpdate.length > 0) {
       const statusValue =
@@ -601,7 +602,7 @@ export class DeviceGroupService {
     return {
       succeeded,
       failed,
-      total: guids.length,
+      total: uniqueGuids.length,
       succeededCount: succeeded.length,
       failedCount: failed.length,
     };
