@@ -233,7 +233,7 @@ export class AuthService {
       if (!tfaCode) {
         // 返回TFA验证提示
         return {
-          type: 'email_check',
+          type: 'tfa_check',
           tfa_type: 'tfa_check',
           secret: user.tfaSecret,
           user: {
