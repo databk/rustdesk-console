@@ -44,6 +44,7 @@ export class HeartbeatService {
           id: data.id,
           ver: data.ver,
           modifiedAt: data.modified_at,
+          lastHeartbeat: new Date(),
         },
       );
       this.logger.debug(`设备 ${data.uuid} 心跳已更新`);
@@ -54,6 +55,7 @@ export class HeartbeatService {
         uuid: data.uuid,
         ver: data.ver,
         modifiedAt: data.modified_at,
+        lastHeartbeat: new Date(),
       });
       await this.peerRepository.save(peer);
       this.logger.log(`新设备 ${data.uuid} 已注册`);

@@ -110,11 +110,14 @@ export class PeerService {
 
     // 按是否在线筛选
     if (is_online === '1') {
-      queryBuilder.andWhere('peer.updatedAt > :oneMinuteAgo', { oneMinuteAgo });
-    } else if (is_online === '0') {
-      queryBuilder.andWhere('peer.updatedAt <= :oneMinuteAgo', {
+      queryBuilder.andWhere('peer.lastHeartbeat > :oneMinuteAgo', {
         oneMinuteAgo,
       });
+    } else if (is_online === '0') {
+      queryBuilder.andWhere(
+        '(peer.lastHeartbeat IS NULL OR peer.lastHeartbeat <= :oneMinuteAgo)',
+        { oneMinuteAgo },
+      );
     }
 
     // 按用户名筛选（模糊匹配）
@@ -199,7 +202,9 @@ export class PeerService {
     // 转换响应格式
     const data = peers.map((peer) => {
       const sysinfo = sysinfoMap.get(peer.uuid);
-      const isOnline = peer.updatedAt > oneMinuteAgo;
+      const isOnline = peer.lastHeartbeat
+        ? peer.lastHeartbeat > oneMinuteAgo
+        : false;
       const user = peer.userGuid ? userMap.get(peer.userGuid) : null;
       const deviceGroupName =
         (peer.deviceGroup as { name?: string } | null)?.name || '';
@@ -209,7 +214,9 @@ export class PeerService {
         guid: peer.uuid,
         status: peer.status,
         is_online: isOnline,
-        last_online: peer.updatedAt.toISOString(),
+        last_online: peer.lastHeartbeat
+          ? peer.lastHeartbeat.toISOString()
+          : null,
         user: peer.userGuid || '',
         user_name: user?.username || '',
         note: sysinfo?.presetNote || '',

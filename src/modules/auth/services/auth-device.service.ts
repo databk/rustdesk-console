@@ -46,8 +46,10 @@ export class AuthDeviceService {
 
     if (peer) {
       // 更新peer的userGuid，绑定设备到用户
-      peer.userGuid = userGuid;
-      await this.peerRepository.save(peer);
+      await this.peerRepository.update(
+        { uuid: deviceUuid },
+        { userGuid: userGuid },
+      );
       this.logger.log(`设备 ${deviceUuid} 已绑定到用户 ${userGuid}`);
     }
     // 如果peer不存在，设备会在心跳时自动创建
@@ -68,8 +70,10 @@ export class AuthDeviceService {
     });
 
     if (peer) {
-      peer.userGuid = null;
-      await this.peerRepository.save(peer);
+      await this.peerRepository.update(
+        { uuid: deviceUuid },
+        { userGuid: null },
+      );
       this.logger.log(
         `用户 ${userGuid} 退出登录，已解除设备 ${deviceUuid} 的绑定`,
       );

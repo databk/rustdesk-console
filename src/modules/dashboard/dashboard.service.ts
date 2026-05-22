@@ -65,11 +65,11 @@ export class DashboardService {
       where: { status: PeerStatus.ACTIVE },
     });
 
-    // 在线设备统计：最近5分钟内有心跳的设备
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    // 在线设备统计：最近1分钟内有心跳的设备
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
     const deviceOnline = await this.peerRepository
       .createQueryBuilder('peer')
-      .where('peer.updatedAt >= :threshold', { threshold: fiveMinutesAgo })
+      .where('peer.lastHeartbeat >= :threshold', { threshold: oneMinuteAgo })
       .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
       .getCount();
 

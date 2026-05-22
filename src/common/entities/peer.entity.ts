@@ -95,6 +95,13 @@ export class Peer {
   createdAt: Date;
 
   /**
+   * 最后心跳时间
+   * 设备最后一次发送心跳的时间，用于判断设备在线状态
+   */
+  @Column({ type: 'datetime', nullable: true })
+  lastHeartbeat: Date | null;
+
+  /**
    * 更新时间
    */
   @UpdateDateColumn()

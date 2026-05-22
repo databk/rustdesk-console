@@ -261,8 +261,10 @@ export class SysinfoService {
 
     if (peer) {
       // 更新设备的设备组
-      peer.deviceGroupGuid = deviceGroup.guid;
-      await this.peerRepository.save(peer);
+      await this.peerRepository.update(
+        { uuid: sysinfo.uuid },
+        { deviceGroupGuid: deviceGroup.guid },
+      );
       this.logger.log(
         `设备 ${sysinfo.uuid} 已关联到设备组 ${deviceGroup.name}`,
       );

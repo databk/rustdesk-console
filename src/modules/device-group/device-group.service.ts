@@ -354,8 +354,10 @@ export class DeviceGroupService {
 
     // 更新设备的设备组
     for (const peer of peers) {
-      peer.deviceGroupGuid = guid;
-      await this.peerRepository.save(peer);
+      await this.peerRepository.update(
+        { uuid: peer.uuid },
+        { deviceGroupGuid: guid },
+      );
     }
 
     return { message: '设备添加成功' };
@@ -385,8 +387,10 @@ export class DeviceGroupService {
 
     // 移除设备的设备组
     for (const peer of peers) {
-      peer.deviceGroupGuid = null;
-      await this.peerRepository.save(peer);
+      await this.peerRepository.update(
+        { uuid: peer.uuid },
+        { deviceGroupGuid: null },
+      );
     }
 
     return { message: '设备移除成功' };
@@ -532,8 +536,10 @@ export class DeviceGroupService {
       throw new NotFoundException('设备不存在');
     }
 
-    peer.status = PeerStatus.DISABLED;
-    await this.peerRepository.save(peer);
+    await this.peerRepository.update(
+      { uuid: guid },
+      { status: PeerStatus.DISABLED },
+    );
   }
 
   /**
@@ -548,8 +554,10 @@ export class DeviceGroupService {
       throw new NotFoundException('设备不存在');
     }
 
-    peer.status = PeerStatus.ACTIVE;
-    await this.peerRepository.save(peer);
+    await this.peerRepository.update(
+      { uuid: guid },
+      { status: PeerStatus.ACTIVE },
+    );
   }
 
   /**
@@ -637,6 +645,8 @@ export class DeviceGroupService {
       throw new NotFoundException('设备不存在');
     }
 
+    const updateData: Partial<Peer> = {};
+
     switch (type) {
       case 'user_name': {
         const user = await this.userRepository.findOne({
@@ -645,7 +655,7 @@ export class DeviceGroupService {
         if (!user) {
           throw new NotFoundException('用户不存在');
         }
-        peer.userGuid = user.guid;
+        updateData.userGuid = user.guid;
         break;
       }
       case 'device_group_name': {
@@ -655,7 +665,7 @@ export class DeviceGroupService {
         if (!deviceGroup) {
           throw new NotFoundException('设备组不存在');
         }
-        peer.deviceGroupGuid = deviceGroup.guid;
+        updateData.deviceGroupGuid = deviceGroup.guid;
         break;
       }
       case 'note':
@@ -671,6 +681,8 @@ export class DeviceGroupService {
         throw new BadRequestException(`不支持的属性类型: ${type}`);
     }
 
-    await this.peerRepository.save(peer);
+    if (Object.keys(updateData).length > 0) {
+      await this.peerRepository.update({ uuid: guid }, updateData);
+    }
   }
 }
