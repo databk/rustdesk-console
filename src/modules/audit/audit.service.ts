@@ -290,7 +290,7 @@ export class AuditService {
         'fa.createdAt',
       ]);
 
-    // 按远程设备ID过滤（模糊匹配）
+    // 按被控端设备ID过滤（模糊匹配）
     if (deviceId) {
       queryBuilder.andWhere('fa.deviceId LIKE :deviceId', {
         deviceId: `%${deviceId}%`,

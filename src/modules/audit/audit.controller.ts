@@ -167,7 +167,7 @@ export class AuditsController {
    *
    * 功能说明：
    * - 支持分页查询
-   * - 支持按远程设备ID过滤（deviceId模糊匹配）
+   * - 支持按被控端设备ID过滤（deviceId模糊匹配）
    * - 支持按时间段过滤（startTime/endTime范围查询）
    * - 支持按文件传输类型过滤（type: 0-发送, 1-接收）
    *
@@ -175,7 +175,7 @@ export class AuditsController {
    * - 使用AdminGuard进行认证
    * - 只有管理员可以查询审计记录
    *
-   * @param deviceId 远程设备ID（模糊匹配）
+   * @param deviceId 被控端设备ID（模糊匹配）
    * @param type 文件传输类型（0: SEND, 1: RECEIVE）
    * @param startTime 开始时间（ISO 8601格式）
    * @param endTime 结束时间（ISO 8601格式）
