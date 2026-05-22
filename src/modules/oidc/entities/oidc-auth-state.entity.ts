@@ -123,6 +123,20 @@ export class OidcAuthState {
   oidcRefreshToken: string;
 
   /**
+   * PKCE code verifier
+   * 用于 Authorization Code Flow + PKCE 安全增强
+   */
+  @Column({ type: 'text', nullable: true })
+  codeVerifier: string;
+
+  /**
+   * OIDC nonce
+   * 用于防止重放攻击，验证 ID Token 的合法性
+   */
+  @Column({ type: 'text', nullable: true })
+  nonce: string;
+
+  /**
    * 过期时间
    * 授权码的过期时间（默认3分钟）
    */
