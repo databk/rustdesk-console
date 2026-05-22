@@ -256,7 +256,7 @@ export class AuditService {
    * @returns 文件审计列表
    */
   async queryFileAudits(filters: {
-    peerId?: string;
+    deviceId?: string;
     type?: number;
     startTime?: string;
     endTime?: string;
@@ -264,7 +264,7 @@ export class AuditService {
     current?: number;
   }) {
     const {
-      peerId,
+      deviceId,
       type,
       startTime,
       endTime,
@@ -290,10 +290,10 @@ export class AuditService {
         'fa.createdAt',
       ]);
 
-    // 按对端设备ID过滤（模糊匹配）
-    if (peerId) {
-      queryBuilder.andWhere('fa.peerId LIKE :peerId', {
-        peerId: `%${peerId}%`,
+    // 按远程设备ID过滤（模糊匹配）
+    if (deviceId) {
+      queryBuilder.andWhere('fa.deviceId LIKE :deviceId', {
+        deviceId: `%${deviceId}%`,
       });
     }
 
