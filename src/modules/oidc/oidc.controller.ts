@@ -10,9 +10,23 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { OidcService } from './oidc.service';
 import { OidcAuthRequestDto } from './dto/oidc.dto';
 import { Public } from '../auth/decorators/public.decorator';
+
+/**
+ * HTML特殊字符转义，防止XSS攻击
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 /**
  * OIDC控制器
@@ -27,8 +41,19 @@ import { Public } from '../auth/decorators/public.decorator';
 @Controller()
 export class OidcController {
   private readonly logger = new Logger(OidcController.name);
+  private readonly successHtml: string;
+  private readonly errorHtml: string;
 
-  constructor(private readonly oidcService: OidcService) {}
+  constructor(private readonly oidcService: OidcService) {
+    this.successHtml = fs.readFileSync(
+      path.join(__dirname, 'templates', 'callback-success.html'),
+      'utf-8',
+    );
+    this.errorHtml = fs.readFileSync(
+      path.join(__dirname, 'templates', 'callback-error.html'),
+      'utf-8',
+    );
+  }
 
   /**
    * 获取登录选项
@@ -86,7 +111,6 @@ export class OidcController {
   @Get('oidc/callback')
   async handleCallback(@Req() req: Request, @Res() res: Response) {
     try {
-      // 构建完整的回调URL（包含查询参数）
       const protocol = req.protocol;
       const host = req.get('host');
       const originalUrl = req.originalUrl;
@@ -94,58 +118,8 @@ export class OidcController {
 
       await this.oidcService.handleCallback(callbackUrl);
 
-      // 返回成功页面
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(`
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>认证成功</title>
-  <style>
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f5f5f5;
-    }
-    .container {
-      text-align: center;
-      padding: 40px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
-      max-width: 400px;
-    }
-    .icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-    }
-    h1 {
-      color: #333;
-      margin: 0 0 12px;
-      font-size: 24px;
-    }
-    p {
-      color: #666;
-      margin: 0;
-      font-size: 14px;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="icon">&#10003;</div>
-    <h1>认证成功</h1>
-    <p>您已成功登录，可以关闭此窗口返回应用。</p>
-  </div>
-</body>
-</html>
-      `);
+      res.send(this.successHtml);
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -154,57 +128,9 @@ export class OidcController {
       this.logger.error(`OIDC callback error: ${message}`);
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(400).send(`
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>认证失败</title>
-  <style>
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f5f5f5;
-    }
-    .container {
-      text-align: center;
-      padding: 40px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
-      max-width: 400px;
-    }
-    .icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-      color: #e74c3c;
-    }
-    h1 {
-      color: #333;
-      margin: 0 0 12px;
-      font-size: 24px;
-    }
-    p {
-      color: #666;
-      margin: 0;
-      font-size: 14px;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="icon">&#10007;</div>
-    <h1>认证失败</h1>
-    <p>${message}</p>
-  </div>
-</body>
-</html>
-      `);
+      res
+        .status(400)
+        .send(this.errorHtml.replace('{{message}}', escapeHtml(message)));
     }
   }
 }

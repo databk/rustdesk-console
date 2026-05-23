@@ -4,10 +4,12 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, QueryFailedError } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { JwtService } from '@nestjs/jwt';
+import * as crypto from 'crypto';
 import * as client from 'openid-client';
 import { OidcProvider } from './entities/oidc-provider.entity';
 import {
@@ -119,6 +121,8 @@ export class OidcService {
   private readonly CONFIG_CACHE_TTL = 24 * 60 * 60 * 1000;
   /** 配置缓存时间戳 */
   private configCacheTimestamp = new Map<string, number>();
+  /** 令牌加密密钥 */
+  private readonly encryptionKey: Buffer;
 
   constructor(
     @InjectRepository(OidcProvider)
@@ -130,7 +134,55 @@ export class OidcService {
     @InjectRepository(UserToken)
     private userTokenRepository: Repository<UserToken>,
     private jwtService: JwtService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    const secret = this.configService.get<string>(
+      'JWT_SECRET',
+      'default-secret',
+    );
+    // 派生32字节密钥用于AES-256-GCM加密
+    this.encryptionKey = crypto.createHash('sha256').update(secret).digest();
+  }
+
+  /**
+   * 加密文本
+   * 使用AES-256-GCM算法加密敏感令牌
+   */
+  private encrypt(plaintext: string): string {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    const encrypted = Buffer.concat([
+      cipher.update(plaintext, 'utf8'),
+      cipher.final(),
+    ]);
+    const authTag = cipher.getAuthTag();
+    // 格式: iv:authTag:ciphertext (均为hex编码)
+    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
+  }
+
+  /**
+   * 解密文本
+   * 使用AES-256-GCM算法解密敏感令牌
+   */
+  private decrypt(ciphertext: string): string {
+    const parts = ciphertext.split(':');
+    if (parts.length !== 3) {
+      throw new Error('Invalid encrypted token format');
+    }
+    const iv = Buffer.from(parts[0], 'hex');
+    const authTag = Buffer.from(parts[1], 'hex');
+    const encrypted = Buffer.from(parts[2], 'hex');
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      this.encryptionKey,
+      iv,
+    );
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final(),
+    ]).toString('utf8');
+  }
 
   /**
    * 获取所有启用的OIDC提供商
@@ -175,9 +227,9 @@ export class OidcService {
 
     const providerName = op.replace('oidc/', '');
 
-    const provider = await this.providerRepository.findOne({
-      where: { name: providerName, enabled: true },
-    });
+    // 使用getProviderWithSecret获取包含clientSecret的完整配置
+    // 确保缓存的OIDC配置包含clientSecret，避免handleCallback获取到不完整的缓存
+    const provider = await this.getProviderWithSecret(providerName);
 
     if (!provider) {
       throw new BadRequestException(
@@ -203,7 +255,7 @@ export class OidcService {
     );
 
     // 构建回调URL
-    const redirectUri = `${process.env.OIDC_REDIRECT_URI || 'http://localhost:3000'}/api/oidc/callback`;
+    const redirectUri = `${this.configService.get<string>('OIDC_REDIRECT_URI', 'http://localhost:3000')}/api/oidc/callback`;
 
     // 保存授权状态
     const authState = this.authStateRepository.create({
@@ -263,7 +315,7 @@ export class OidcService {
       this.logger.error(
         `OIDC provider returned error: ${error} - ${errorDescription}`,
       );
-      throw new BadRequestException(`OIDC 认证失败: ${errorDescription}`);
+      throw new BadRequestException('OIDC 认证失败，请重试');
     }
 
     if (!state) {
@@ -355,12 +407,14 @@ export class OidcService {
         authState.deviceUuid,
       );
 
-      // 更新授权状态为已授权
+      // 更新授权状态为已授权（加密存储OIDC令牌）
       authState.status = OidcAuthStatus.AUTHORIZED;
       authState.userGuid = user.guid;
       authState.accessToken = accessToken;
-      authState.oidcAccessToken = tokens.access_token;
-      authState.oidcRefreshToken = tokens.refresh_token as string;
+      authState.oidcAccessToken = this.encrypt(tokens.access_token);
+      authState.oidcRefreshToken = tokens.refresh_token
+        ? this.encrypt(tokens.refresh_token)
+        : null;
       await this.authStateRepository.save(authState);
 
       this.logger.log(
@@ -373,7 +427,8 @@ export class OidcService {
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
       this.logger.error(`OIDC callback error: ${message}`, stack);
-      throw new UnauthorizedException(`OIDC 认证失败: ${message}`);
+      // 不向客户端暴露内部错误详情
+      throw new UnauthorizedException('OIDC 认证失败，请重试');
     }
   }
 
@@ -454,7 +509,7 @@ export class OidcService {
    * 获取OIDC客户端配置
    * 优先使用OIDC Discovery获取配置，失败时使用数据库中存储的端点
    *
-   * @param provider OIDC提供商实体
+   * @param provider OIDC提供商实体（需包含clientSecret）
    * @returns openid-client Configuration对象
    */
   private async getOidcConfig(
@@ -537,7 +592,7 @@ export class OidcService {
    * 1. 优先通过邮箱匹配现有用户
    * 2. 邮箱无匹配时创建新用户
    * 3. 新用户设置thirdAuthType为'oidc'
-   * 4. 用户名冲突时追加随机后缀
+   * 4. 用户名冲突时追加随机后缀，处理并发竞态
    *
    * @param oidcUserInfo OIDC用户信息
    * @param providerName 提供商名称
@@ -569,32 +624,60 @@ export class OidcService {
       oidcUserInfo.email?.split('@')[0] ||
       `oidc_${oidcUserInfo.sub.substring(0, 8)}`;
 
-    // 确保用户名唯一
+    // 确保用户名唯一，最多重试3次以处理并发竞态
     let finalUsername = username;
     let suffix = 1;
-    while (
-      await this.userRepository.findOne({ where: { username: finalUsername } })
-    ) {
-      finalUsername = `${username}_${suffix}`;
-      suffix++;
+    const maxRetries = 3;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // 检查用户名是否已存在
+      while (
+        await this.userRepository.findOne({
+          where: { username: finalUsername },
+        })
+      ) {
+        finalUsername = `${username}_${suffix}`;
+        suffix++;
+      }
+
+      try {
+        // 创建新用户
+        const userGuid = uuidv4();
+        const user = new User();
+        user.guid = userGuid;
+        user.username = finalUsername;
+        user.email = (oidcUserInfo.email || null) as string;
+        user.password = null as unknown as string;
+        user.status = UserStatus.ACTIVE;
+        user.isAdmin = false;
+        user.note = `OIDC用户 (${providerName})`;
+        user.thirdAuthType = 'oidc';
+
+        await this.userRepository.save(user);
+        this.logger.log(
+          `OIDC user created: ${finalUsername} via ${providerName}`,
+        );
+        return user;
+      } catch (err: unknown) {
+        // 处理并发场景下的唯一约束冲突
+        if (
+          err instanceof QueryFailedError &&
+          String(err.message).includes('UNIQUE')
+        ) {
+          this.logger.warn(
+            `Username conflict on concurrent creation, retrying: ${finalUsername}`,
+          );
+          suffix++;
+          finalUsername = `${username}_${suffix}`;
+          continue;
+        }
+        throw err;
+      }
     }
 
-    // 创建新用户
-    const userGuid = uuidv4();
-    const user = new User();
-    user.guid = userGuid;
-    user.username = finalUsername;
-    user.email = (oidcUserInfo.email || null) as string;
-    user.password = null as unknown as string;
-    user.status = UserStatus.ACTIVE;
-    user.isAdmin = false;
-    user.note = `OIDC用户 (${providerName})`;
-    user.thirdAuthType = 'oidc';
-
-    await this.userRepository.save(user);
-    this.logger.log(`OIDC user created: ${finalUsername} via ${providerName}`);
-
-    return user;
+    throw new Error(
+      `Failed to create OIDC user after ${maxRetries} attempts due to username conflicts`,
+    );
   }
 
   /**
