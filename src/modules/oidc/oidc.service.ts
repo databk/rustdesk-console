@@ -9,7 +9,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, QueryFailedError } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { JwtService } from '@nestjs/jwt';
-import * as crypto from 'crypto';
 import * as client from 'openid-client';
 import { OidcProvider } from './entities/oidc-provider.entity';
 import {
@@ -87,6 +86,7 @@ export interface AuthBody {
 interface OidcUserInfo {
   sub: string;
   email?: string;
+  email_verified?: boolean;
   name?: string;
   preferred_username?: string;
   [key: string]: any;
@@ -121,8 +121,6 @@ export class OidcService {
   private readonly CONFIG_CACHE_TTL = 24 * 60 * 60 * 1000;
   /** 配置缓存时间戳 */
   private configCacheTimestamp = new Map<string, number>();
-  /** 令牌加密密钥 */
-  private readonly encryptionKey: Buffer;
 
   constructor(
     @InjectRepository(OidcProvider)
@@ -135,54 +133,7 @@ export class OidcService {
     private userTokenRepository: Repository<UserToken>,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {
-    const secret = this.configService.get<string>(
-      'JWT_SECRET',
-      'default-secret',
-    );
-    // 派生32字节密钥用于AES-256-GCM加密
-    this.encryptionKey = crypto.createHash('sha256').update(secret).digest();
-  }
-
-  /**
-   * 加密文本
-   * 使用AES-256-GCM算法加密敏感令牌
-   */
-  private encrypt(plaintext: string): string {
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    const encrypted = Buffer.concat([
-      cipher.update(plaintext, 'utf8'),
-      cipher.final(),
-    ]);
-    const authTag = cipher.getAuthTag();
-    // 格式: iv:authTag:ciphertext (均为hex编码)
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
-  }
-
-  /**
-   * 解密文本
-   * 使用AES-256-GCM算法解密敏感令牌
-   */
-  private decrypt(ciphertext: string): string {
-    const parts = ciphertext.split(':');
-    if (parts.length !== 3) {
-      throw new Error('Invalid encrypted token format');
-    }
-    const iv = Buffer.from(parts[0], 'hex');
-    const authTag = Buffer.from(parts[1], 'hex');
-    const encrypted = Buffer.from(parts[2], 'hex');
-    const decipher = crypto.createDecipheriv(
-      'aes-256-gcm',
-      this.encryptionKey,
-      iv,
-    );
-    decipher.setAuthTag(authTag);
-    return Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final(),
-    ]).toString('utf8');
-  }
+  ) {}
 
   /**
    * 获取所有启用的OIDC提供商
@@ -372,6 +323,7 @@ export class OidcService {
       let userInfo: OidcUserInfo = {
         sub: claims?.sub ?? '',
         email: claims?.email as string | undefined,
+        email_verified: claims?.email_verified as boolean | undefined,
         name: claims?.name as string | undefined,
         preferred_username: claims?.preferred_username as string | undefined,
       };
@@ -387,6 +339,7 @@ export class OidcService {
           userInfo = {
             ...userInfo,
             email: fetchedUserInfo.email,
+            email_verified: fetchedUserInfo.email_verified,
             name: fetchedUserInfo.name,
             preferred_username: fetchedUserInfo.preferred_username,
           };
@@ -407,14 +360,10 @@ export class OidcService {
         authState.deviceUuid,
       );
 
-      // 更新授权状态为已授权（加密存储OIDC令牌）
+      // 更新授权状态为已授权
       authState.status = OidcAuthStatus.AUTHORIZED;
       authState.userGuid = user.guid;
       authState.accessToken = accessToken;
-      authState.oidcAccessToken = this.encrypt(tokens.access_token);
-      authState.oidcRefreshToken = tokens.refresh_token
-        ? this.encrypt(tokens.refresh_token)
-        : null;
       await this.authStateRepository.save(authState);
 
       this.logger.log(
@@ -602,8 +551,8 @@ export class OidcService {
     oidcUserInfo: OidcUserInfo,
     providerName: string,
   ): Promise<User> {
-    // 优先通过邮箱查找现有用户
-    if (oidcUserInfo.email) {
+    // 优先通过邮箱查找现有用户（仅当邮箱已验证时）
+    if (oidcUserInfo.email && oidcUserInfo.email_verified) {
       const existingUser = await this.userRepository.findOne({
         where: { email: oidcUserInfo.email },
       });

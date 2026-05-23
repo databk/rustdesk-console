@@ -109,20 +109,6 @@ export class OidcAuthState {
   accessToken: string;
 
   /**
-   * OIDC 访问令牌
-   * OIDC 提供商返回的 access_token
-   */
-  @Column({ type: 'text', nullable: true })
-  oidcAccessToken: string;
-
-  /**
-   * OIDC 刷新令牌
-   * OIDC 提供商返回的 refresh_token
-   */
-  @Column({ type: 'text', nullable: true })
-  oidcRefreshToken: string | null;
-
-  /**
    * PKCE code verifier
    * 用于 Authorization Code Flow + PKCE 安全增强
    */
