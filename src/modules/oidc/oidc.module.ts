@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule } from '@nestjs/config';
 import { OidcController } from './oidc.controller';
 import { OidcService } from './oidc.service';
 import { OidcProvider } from './entities/oidc-provider.entity';
@@ -15,7 +14,6 @@ import { AuthModule } from '../auth/auth.module';
  *
  * 导入模块：
  * - TypeOrmModule
- * - ConfigModule
  *
  * 导出服务：
  * - OidcService
@@ -27,7 +25,6 @@ import { AuthModule } from '../auth/auth.module';
   imports: [
     TypeOrmModule.forFeature([OidcProvider, OidcAuthState, User, UserToken]),
     AuthModule,
-    ConfigModule,
   ],
   controllers: [OidcController],
   providers: [OidcService],

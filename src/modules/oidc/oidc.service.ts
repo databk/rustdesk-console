@@ -87,6 +87,7 @@ export interface AuthBody {
 interface OidcUserInfo {
   sub: string;
   email?: string;
+  email_verified?: boolean;
   name?: string;
   preferred_username?: string;
   [key: string]: any;
@@ -372,6 +373,7 @@ export class OidcService {
       let userInfo: OidcUserInfo = {
         sub: claims?.sub ?? '',
         email: claims?.email as string | undefined,
+        email_verified: claims?.email_verified as boolean | undefined,
         name: claims?.name as string | undefined,
         preferred_username: claims?.preferred_username as string | undefined,
       };
@@ -387,6 +389,7 @@ export class OidcService {
           userInfo = {
             ...userInfo,
             email: fetchedUserInfo.email,
+            email_verified: fetchedUserInfo.email_verified,
             name: fetchedUserInfo.name,
             preferred_username: fetchedUserInfo.preferred_username,
           };
@@ -602,8 +605,8 @@ export class OidcService {
     oidcUserInfo: OidcUserInfo,
     providerName: string,
   ): Promise<User> {
-    // 优先通过邮箱查找现有用户
-    if (oidcUserInfo.email) {
+    // 优先通过邮箱查找现有用户（仅当邮箱已验证时）
+    if (oidcUserInfo.email && oidcUserInfo.email_verified) {
       const existingUser = await this.userRepository.findOne({
         where: { email: oidcUserInfo.email },
       });
