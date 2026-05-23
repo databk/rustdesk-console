@@ -120,7 +120,7 @@ export class OidcAuthState {
    * OIDC 提供商返回的 refresh_token
    */
   @Column({ type: 'text', nullable: true })
-  oidcRefreshToken: string;
+  oidcRefreshToken: string | null;
 
   /**
    * PKCE code verifier
