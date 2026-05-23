@@ -8,7 +8,6 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, QueryFailedError } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { JwtService } from '@nestjs/jwt';
 import * as client from 'openid-client';
 import { OidcProvider } from './entities/oidc-provider.entity';
 import {
@@ -16,8 +15,9 @@ import {
   OidcAuthStatus,
 } from './entities/oidc-auth-state.entity';
 import { User, UserStatus } from '../user/entities/user.entity';
-import { UserToken } from '../user/entities/user-token.entity';
 import { OidcAuthRequestDto } from './dto/oidc.dto';
+import { LoginResponse } from '../../common/interfaces';
+import { AuthTokenService } from '../auth/services/auth-token.service';
 
 /**
  * OIDC配置接口
@@ -45,38 +45,6 @@ export interface OidcAuthUrlResponse {
   code: string;
   /** 授权URL */
   url: string;
-}
-
-/**
- * 认证响应体接口
- * 定义认证成功后返回的用户信息和令牌
- */
-export interface AuthBody {
-  /** 访问令牌 */
-  access_token: string;
-  /** 响应类型 */
-  type: string;
-  /** TFA类型 */
-  tfa_type?: string;
-  /** 密钥 */
-  secret?: string;
-  /** 用户信息 */
-  user: {
-    /** 用户名 */
-    name: string;
-    /** 邮箱 */
-    email?: string;
-    /** 备注 */
-    note?: string;
-    /** 状态 */
-    status: number;
-    /** 用户信息 */
-    info?: Record<string, any>;
-    /** 是否管理员 */
-    is_admin: boolean;
-    /** 第三方认证类型 */
-    third_auth_type?: string;
-  };
 }
 
 /**
@@ -113,8 +81,6 @@ export class OidcService {
   private readonly logger = new Logger(OidcService.name);
   /** 授权码有效期（分钟） */
   private readonly AUTH_CODE_EXPIRY_MINUTES = 3;
-  /** Token有效期（天） */
-  private readonly TOKEN_EXPIRY_DAYS = 30;
   /** OIDC配置缓存 */
   private configCache = new Map<string, client.Configuration>();
   /** 配置缓存有效期（毫秒） */
@@ -129,9 +95,7 @@ export class OidcService {
     private authStateRepository: Repository<OidcAuthState>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(UserToken)
-    private userTokenRepository: Repository<UserToken>,
-    private jwtService: JwtService,
+    private authTokenService: AuthTokenService,
     private configService: ConfigService,
   ) {}
 
@@ -395,7 +359,7 @@ export class OidcService {
     code: string,
     deviceId: string,
     deviceUuid: string,
-  ): Promise<AuthBody> {
+  ): Promise<LoginResponse> {
     const authState = await this.authStateRepository.findOne({
       where: {
         code,
@@ -595,7 +559,10 @@ export class OidcService {
         const user = new User();
         user.guid = userGuid;
         user.username = finalUsername;
-        user.email = (oidcUserInfo.email || null) as string;
+        // 仅当邮箱已验证时才存储，避免未验证邮箱被用于身份关联
+        user.email = (
+          oidcUserInfo.email_verified ? oidcUserInfo.email : null
+        ) as string;
         user.password = null as unknown as string;
         user.status = UserStatus.ACTIVE;
         user.isAdmin = false;
@@ -630,7 +597,8 @@ export class OidcService {
   }
 
   /**
-   * 为用户生成JWT token并保存到数据库
+   * 为用户生成JWT token
+   * 委托给AuthTokenService处理，确保与密码登录的token生成逻辑一致
    *
    * @param user 用户对象
    * @param deviceId 设备ID（可选）
@@ -642,32 +610,6 @@ export class OidcService {
     deviceId?: string,
     deviceUuid?: string,
   ): Promise<string> {
-    const jti = uuidv4();
-    const payload = {
-      sub: user.guid,
-      username: user.username,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      deviceId,
-      jti,
-    };
-
-    const token = this.jwtService.sign(payload);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + this.TOKEN_EXPIRY_DAYS);
-
-    const userToken = this.userTokenRepository.create({
-      guid: jti,
-      userGuid: user.guid,
-      jti,
-      deviceId,
-      deviceUuid,
-      expiresAt,
-    });
-
-    await this.userTokenRepository.save(userToken);
-
-    return token;
+    return this.authTokenService.generateToken(user, deviceId, deviceUuid);
   }
 }

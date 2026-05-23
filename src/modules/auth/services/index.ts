@@ -1,5 +1,4 @@
 export { AuthService } from './auth.service';
-export type { LoginResponse } from './auth.service';
 export { AuthTokenService } from './auth-token.service';
 export { AuthTfaService } from './auth-tfa.service';
 export { AuthEmailService } from './auth-email.service';

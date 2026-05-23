@@ -7,40 +7,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { authenticator } from 'otplib';
-import { User, UserStatus, UserInfo } from '../../user/entities/user.entity';
+import { User, UserStatus } from '../../user/entities/user.entity';
 import { LoginDto } from '../dto/auth.dto';
-
-/**
- * TFA登录响应接口
- * 定义双因素认证登录成功后返回的数据结构
- */
-export interface LoginResponse {
-  /** 访问令牌 */
-  access_token?: string;
-  /** 响应类型 */
-  type: string;
-  /** TFA类型 */
-  tfa_type?: string;
-  /** TFA密钥 */
-  secret?: string;
-  /** 用户信息 */
-  user?: {
-    /** 用户名 */
-    name: string;
-    /** 邮箱 */
-    email?: string;
-    /** 备注 */
-    note?: string;
-    /** 状态 */
-    status: number;
-    /** 用户信息 */
-    info?: UserInfo;
-    /** 是否管理员 */
-    is_admin: boolean;
-    /** 第三方认证类型 */
-    third_auth_type?: string;
-  };
-}
+import { LoginResponse } from '../../../common/interfaces';
 
 @Injectable()
 /**

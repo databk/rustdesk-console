@@ -9,5 +9,8 @@ export * from './entities';
 // 装饰器
 export * from './decorators';
 
+// 接口
+export * from './interfaces';
+
 // 守卫
 export * from './guards';

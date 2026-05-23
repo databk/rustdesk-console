@@ -9,6 +9,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -44,7 +45,10 @@ export class OidcController {
   private readonly successHtml: string;
   private readonly errorHtml: string;
 
-  constructor(private readonly oidcService: OidcService) {
+  constructor(
+    private readonly oidcService: OidcService,
+    private readonly configService: ConfigService,
+  ) {
     this.successHtml = fs.readFileSync(
       path.join(__dirname, 'templates', 'callback-success.html'),
       'utf-8',
@@ -73,7 +77,7 @@ export class OidcController {
    * @param authRequest OIDC授权请求数据传输对象
    */
   @Public()
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('oidc/auth')
   async requestAuth(@Body() authRequest: OidcAuthRequestDto) {
     return this.oidcService.requestAuth(authRequest);
@@ -88,7 +92,7 @@ export class OidcController {
    * @param deviceUuid 设备UUID
    */
   @Public()
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Get('oidc/auth-query')
   async queryAuth(
     @Query('code') code: string,
@@ -111,10 +115,12 @@ export class OidcController {
   @Get('oidc/callback')
   async handleCallback(@Req() req: Request, @Res() res: Response) {
     try {
-      const protocol = req.protocol;
-      const host = req.get('host');
-      const originalUrl = req.originalUrl;
-      const callbackUrl = `${protocol}://${host}${originalUrl}`;
+      // 使用配置的OIDC_REDIRECT_URI构建回调URL，避免依赖可被伪造的Host头
+      const baseUrl = this.configService.get<string>(
+        'OIDC_REDIRECT_URI',
+        'http://localhost:3000',
+      );
+      const callbackUrl = `${baseUrl}${req.originalUrl}`;
 
       await this.oidcService.handleCallback(callbackUrl);
 
