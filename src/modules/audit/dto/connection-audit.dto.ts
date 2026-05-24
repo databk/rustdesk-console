@@ -26,8 +26,7 @@ export class ConnectionAuditDto {
   conn_id?: number;
 
   @IsNumber()
-  @IsOptional()
-  session_id?: number;
+  session_id: number;
 
   // ip 字段在 action 为 close 时可能不发送
   @IsString()
