@@ -5,6 +5,18 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 
+/**
+ * 连接类型枚举
+ */
+export enum ConnType {
+  NOT_ESTABLISHED = -1,
+  REMOTE_CONTROL = 0,
+  FILE_TRANSFER = 1,
+  PORT_FORWARD = 2,
+  CAMERA = 3,
+  TERMINAL = 4,
+}
+
 @Entity('connection_audits')
 export class ConnectionAudit {
   @PrimaryGeneratedColumn()
@@ -34,8 +46,8 @@ export class ConnectionAudit {
   @Column({ type: 'varchar', length: 255, nullable: true })
   peerName: string | null;
 
-  @Column({ type: 'int', nullable: true })
-  type: number | null;
+  @Column({ type: 'int', default: ConnType.NOT_ESTABLISHED })
+  type: number;
 
   @CreateDateColumn()
   createdAt: Date;

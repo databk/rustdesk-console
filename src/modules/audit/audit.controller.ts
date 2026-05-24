@@ -130,14 +130,14 @@ export class AuditsController {
    * - 支持分页查询
    * - 支持按被控端设备ID过滤（deviceId模糊匹配）
    * - 支持按时间段过滤（startTime/endTime范围查询）
-   * - 支持按连接类型过滤（type）
+   * - 支持按连接类型过滤（type，-1表示未建立连接）
    *
    * 安全措施：
    * - 使用AdminGuard进行认证
    * - 只有管理员可以查询审计记录
    *
    * @param deviceId 被控端设备ID（模糊匹配）
-   * @param type 连接类型
+   * @param type 连接类型（-1表示未建立连接）
    * @param startTime 开始时间（ISO 8601格式）
    * @param endTime 结束时间（ISO 8601格式）
    * @param pageSize 每页记录数

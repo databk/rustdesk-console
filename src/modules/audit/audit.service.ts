@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere } from 'typeorm';
-import { ConnectionAudit } from './entities/connection-audit.entity';
+import { ConnectionAudit, ConnType } from './entities/connection-audit.entity';
 import { FileAudit } from './entities/file-audit.entity';
 import { AlarmAudit } from './entities/alarm-audit.entity';
 import { ConnectionAuditDto } from './dto/connection-audit.dto';
@@ -109,7 +109,7 @@ export class AuditService {
       action,
       peerId: dto.peer ? dto.peer[0] : null,
       peerName: dto.peer ? dto.peer[1] : null,
-      type: dto.type !== undefined ? dto.type : null,
+      type: dto.type !== undefined ? dto.type : ConnType.NOT_ESTABLISHED,
       requestedAt: action === 'open' ? new Date() : null,
       establishedAt: action === 'established' ? new Date() : null,
       closedAt: action === 'close' ? new Date() : null,
@@ -231,7 +231,7 @@ export class AuditService {
       });
     }
 
-    // 按连接类型过滤
+    // 按连接类型过滤（-1 表示未建立连接）
     if (type !== undefined) {
       queryBuilder.andWhere('ca.type = :type', { type });
     }
