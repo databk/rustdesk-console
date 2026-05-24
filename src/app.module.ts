@@ -32,6 +32,7 @@ import { UserUserPermission } from './modules/device-group/entities/user-user-pe
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { EmailVerificationSession } from './modules/auth/entities/email-verification-session.entity';
 import { SystemSetting } from './modules/settings/entities/system-setting.entity';
+import { ActiveConnection } from './modules/heartbeat/entities/active-connection.entity';
 import { SettingsModule } from './modules/settings/settings.module';
 
 /**
@@ -89,6 +90,7 @@ import { SettingsModule } from './modules/settings/settings.module';
         UserUserPermission,
         EmailVerificationSession,
         SystemSetting,
+        ActiveConnection,
       ],
       synchronize: true,
       logging: false,

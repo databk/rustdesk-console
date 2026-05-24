@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import { DeviceGroupService } from './device-group.service';
 import { PeerService } from './peer.service';
@@ -21,6 +22,8 @@ import {
   UpdateDeviceStatusDto,
   DeviceOperationResult,
 } from './dto/device-status.dto';
+import { DisconnectDto } from './dto/disconnect.dto';
+import { DisconnectStoreService } from '../heartbeat/services/disconnect-store.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
@@ -38,6 +41,7 @@ export class DeviceGroupController {
   constructor(
     private readonly deviceGroupService: DeviceGroupService,
     private readonly peerService: PeerService,
+    private readonly disconnectStoreService: DisconnectStoreService,
   ) {}
 
   // ============ 客户端 API 接口 ============
@@ -351,5 +355,36 @@ export class DeviceGroupController {
   ) {
     await this.deviceGroupService.assignDevice(guid, body.type, body.value);
     return { message: '设备属性已分配' };
+  }
+
+  /**
+   * 强制断开设备连接
+   * 管理员可以强制断开指定设备的活跃连接
+   * 断开指令将在设备下次心跳时下发给客户端执行
+   *
+   * @param uuid 设备UUID
+   * @param dto 断开连接请求，包含需要断开的连接ID列表
+   * @returns 操作结果
+   */
+  @Post('devices/:uuid/disconnect')
+  @UseGuards(AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  async disconnectDevice(
+    @Param('uuid') uuid: string,
+    @Body() dto: DisconnectDto,
+  ) {
+    const peer = await this.peerService.findByUuid(uuid);
+    if (!peer) {
+      throw new NotFoundException('设备不存在');
+    }
+
+    this.disconnectStoreService.addPendingDisconnects(uuid, dto.connIds);
+    return {
+      message: '断开指令已提交，将在设备下次心跳时下发',
+      data: {
+        uuid,
+        pending_disconnect_count: dto.connIds.length,
+      },
+    };
   }
 }

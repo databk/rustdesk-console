@@ -236,4 +236,13 @@ export class PeerService {
 
     return { data, total };
   }
+
+  /**
+   * 根据UUID查找设备
+   * @param uuid 设备UUID
+   * @returns 设备实体或null
+   */
+  async findByUuid(uuid: string): Promise<Peer | null> {
+    return this.peerRepository.findOne({ where: { uuid } });
+  }
 }

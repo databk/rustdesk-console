@@ -9,6 +9,7 @@ import { UserUserPermission } from './entities/user-user-permission.entity';
 import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
+import { HeartbeatModule } from '../heartbeat/heartbeat.module';
 
 /**
  * 设备组模块
@@ -16,6 +17,8 @@ import { AuthModule } from '../auth/auth.module';
  *
  * 导入模块：
  * - TypeOrmModule
+ * - AuthModule
+ * - HeartbeatModule
  *
  * 导出服务：
  * - DeviceGroupService
@@ -36,6 +39,7 @@ import { AuthModule } from '../auth/auth.module';
       User,
     ]),
     AuthModule,
+    HeartbeatModule,
   ],
   controllers: [DeviceGroupController],
   providers: [DeviceGroupService, PeerService],
