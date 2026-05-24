@@ -6,24 +6,28 @@ import {
   Min,
   Max,
   IsNumber,
+  MaxLength,
 } from 'class-validator';
 
 /**
  * ConnectionAuditDto
- * 用于记录连接审计信息
+ * 用于记录连接审计信息，支持连接状态上报和备注添加
  */
 export class ConnectionAuditDto {
   @IsString()
   id: string;
 
   @IsString()
-  uuid: string;
+  @IsOptional()
+  uuid?: string;
 
   @IsNumber()
-  conn_id: number;
+  @IsOptional()
+  conn_id?: number;
 
   @IsNumber()
-  session_id: number;
+  @IsOptional()
+  session_id?: number;
 
   // ip 字段在 action 为 close 时可能不发送
   @IsString()
@@ -44,4 +48,9 @@ export class ConnectionAuditDto {
   @Max(4)
   @IsOptional()
   type?: number;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(256)
+  note?: string;
 }

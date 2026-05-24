@@ -48,4 +48,7 @@ export class ConnectionAudit {
 
   @Column({ type: 'datetime', nullable: true })
   closedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  note: string | null;
 }
