@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 import { Peer } from '../../common/entities';
 import { ActiveConnection } from './entities/active-connection.entity';
@@ -75,8 +75,9 @@ export class HeartbeatService {
     }
 
     // 获取待断开连接列表（持续下发直到客户端确认断开）
-    const disconnect =
-      this.disconnectStoreService.getPendingDisconnects(data.uuid);
+    const disconnect = this.disconnectStoreService.getPendingDisconnects(
+      data.uuid,
+    );
 
     return {
       code: 200,
@@ -127,8 +128,6 @@ export class HeartbeatService {
       await this.activeConnectionRepository.save(entities);
     }
 
-    this.logger.debug(
-      `设备 ${deviceUuid} 活跃连接已同步: ${conns.length} 个`,
-    );
+    this.logger.debug(`设备 ${deviceUuid} 活跃连接已同步: ${conns.length} 个`);
   }
 }
