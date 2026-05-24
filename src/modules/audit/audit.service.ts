@@ -5,6 +5,7 @@ import { ConnectionAudit, ConnType } from './entities/connection-audit.entity';
 import { FileAudit } from './entities/file-audit.entity';
 import { AlarmAudit } from './entities/alarm-audit.entity';
 import { ConnectionAuditDto } from './dto/connection-audit.dto';
+import { UpdateConnectionAuditDto } from './dto/connection-audit.dto';
 import { FileAuditDto } from './dto/file-audit.dto';
 import { AlarmAuditDto } from './dto/alarm-audit.dto';
 
@@ -70,6 +71,26 @@ export class AuditService {
       throw new NotFoundException(
         `Connection audit not found for deviceId=${dto.id}, sessionId=${sessionId}`,
       );
+    }
+
+    existingConnection.note = dto.note || null;
+    return await this.connectionAuditRepository.save(existingConnection);
+  }
+
+  /**
+   * 管理端更新连接审计记录
+   * 按主键查找记录并更新 note 字段
+   */
+  async updateConnectionAudit(
+    id: number,
+    dto: UpdateConnectionAuditDto,
+  ): Promise<ConnectionAudit> {
+    const existingConnection = await this.connectionAuditRepository.findOne({
+      where: { id },
+    });
+
+    if (!existingConnection) {
+      throw new NotFoundException(`Connection audit not found for id=${id}`);
     }
 
     existingConnection.note = dto.note || null;

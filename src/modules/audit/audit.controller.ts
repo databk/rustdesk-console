@@ -1,7 +1,20 @@
-import { Controller, Post, Body, UseGuards, Get, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Query,
+  Patch,
+  Param,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuditService } from './audit.service';
-import { ConnectionAuditDto } from './dto/connection-audit.dto';
+import {
+  ConnectionAuditDto,
+  UpdateConnectionAuditDto,
+} from './dto/connection-audit.dto';
 import { FileAuditDto } from './dto/file-audit.dto';
 import { AlarmAuditDto } from './dto/alarm-audit.dto';
 import { Public } from '../auth/decorators/public.decorator';
@@ -162,6 +175,27 @@ export class AuditsController {
       pageSize,
       current,
     });
+  }
+
+  /**
+   * 更新连接审计记录
+   * 管理端对连接审计记录进行部分更新（如添加/修改/清空备注）
+   *
+   * @param id 连接审计记录主键
+   * @param dto 更新数据
+   */
+  @UseGuards(AdminGuard)
+  @Patch('conn/:id')
+  async updateConnectionAudit(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateConnectionAuditDto,
+  ) {
+    const result = await this.auditService.updateConnectionAudit(id, dto);
+    return {
+      message: '连接审计更新成功',
+      status: 'success',
+      data: result,
+    };
   }
 
   /**

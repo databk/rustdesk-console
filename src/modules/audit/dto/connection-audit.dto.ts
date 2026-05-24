@@ -53,3 +53,13 @@ export class ConnectionAuditDto {
   @MaxLength(256)
   note?: string;
 }
+
+/**
+ * UpdateConnectionAuditDto
+ * 管理端更新连接审计记录
+ */
+export class UpdateConnectionAuditDto {
+  @IsString()
+  @MaxLength(256)
+  note: string;
+}
