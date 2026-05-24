@@ -155,10 +155,6 @@ export class AuditService {
     if (dto.type !== undefined && dto.type !== existingConnection.type) {
       existingConnection.type = dto.type;
     }
-    // 有值则覆盖，无值保留原值
-    if (dto.note !== undefined && dto.note !== '') {
-      existingConnection.note = dto.note;
-    }
     existingConnection.action = action;
     return await this.connectionAuditRepository.save(existingConnection);
   }
@@ -182,7 +178,6 @@ export class AuditService {
       peerId: dto.peer ? dto.peer[0] : null,
       peerName: dto.peer ? dto.peer[1] : null,
       type: dto.type !== undefined ? dto.type : null,
-      note: dto.note || null,
       requestedAt: action === 'open' ? new Date() : null,
       establishedAt: action === 'established' ? new Date() : null,
       closedAt: action === 'close' ? new Date() : null,
