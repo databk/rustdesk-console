@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { DeviceGroupService } from './device-group.service';
 import { PeerService } from './peer.service';
@@ -24,6 +25,7 @@ import {
 } from './dto/device-status.dto';
 import { DisconnectDto } from './dto/disconnect.dto';
 import { DisconnectStoreService } from '../heartbeat/services/disconnect-store.service';
+import { HeartbeatService } from '../heartbeat/heartbeat.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
@@ -42,6 +44,7 @@ export class DeviceGroupController {
     private readonly deviceGroupService: DeviceGroupService,
     private readonly peerService: PeerService,
     private readonly disconnectStoreService: DisconnectStoreService,
+    private readonly heartbeatService: HeartbeatService,
   ) {}
 
   // ============ 客户端 API 接口 ============
@@ -376,6 +379,16 @@ export class DeviceGroupController {
     const peer = await this.peerService.findByUuid(uuid);
     if (!peer) {
       throw new NotFoundException('设备不存在');
+    }
+
+    // 验证请求断开的连接ID是否为该设备的活跃连接
+    const activeConnIds = await this.heartbeatService.getActiveConnectionIds(uuid);
+    const activeConnIdSet = new Set(activeConnIds);
+    const invalidConnIds = dto.connIds.filter((id) => !activeConnIdSet.has(id));
+    if (invalidConnIds.length > 0) {
+      throw new BadRequestException(
+        `以下连接ID不存在或不属于该设备: ${invalidConnIds.join(', ')}`,
+      );
     }
 
     this.disconnectStoreService.addPendingDisconnects(uuid, dto.connIds);

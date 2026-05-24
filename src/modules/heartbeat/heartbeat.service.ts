@@ -70,21 +70,36 @@ export class HeartbeatService {
     // 同步活跃连接
     if (data.conns !== undefined) {
       await this.syncActiveConnections(data.uuid, data.conns);
+      // 客户端不再上报的连接说明已断开，从待断开列表中移除
+      this.disconnectStoreService.removeDisconnected(data.uuid, data.conns);
     }
 
-    // 获取待断开连接列表（取走后清空）
+    // 获取待断开连接列表（持续下发直到客户端确认断开）
     const disconnect =
-      this.disconnectStoreService.consumePendingDisconnects(data.uuid);
+      this.disconnectStoreService.getPendingDisconnects(data.uuid);
 
     return {
       code: 200,
       message: '心跳接收成功',
+      ...(disconnect.length > 0 ? { disconnect } : {}),
       data: {
         timestamp: Date.now(),
         device_id: data.id,
-        ...(disconnect.length > 0 ? { disconnect } : {}),
       },
     };
+  }
+
+  /**
+   * 获取设备的活跃连接ID列表
+   * @param deviceUuid 设备UUID
+   * @returns 活跃连接ID列表
+   */
+  async getActiveConnectionIds(deviceUuid: string): Promise<number[]> {
+    const connections = await this.activeConnectionRepository.find({
+      where: { deviceUuid },
+      select: ['connId'],
+    });
+    return connections.map((c) => c.connId);
   }
 
   /**
