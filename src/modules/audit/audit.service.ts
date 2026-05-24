@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere } from 'typeorm';
 import { ConnectionAudit, ConnType } from './entities/connection-audit.entity';
@@ -36,12 +36,53 @@ export class AuditService {
   /**
    * 记录连接审计
    * 记录远程桌面连接的详细信息，包括连接建立、断开等操作
+   * 也支持仅添加备注（note-only）的请求
    *
    * @param dto 连接审计数据
    * @returns 保存的连接审计记录
    */
   async auditConnection(dto: ConnectionAuditDto): Promise<ConnectionAudit> {
-    // 支持前端发送的下划线格式字段
+    // 判断是否为仅添加备注的请求（无 uuid 和 conn_id，有 session_id 和 note）
+    if (!dto.uuid && dto.session_id !== undefined && dto.note !== undefined) {
+      return this.addConnectionNote(dto);
+    }
+
+    return this.upsertConnectionAudit(dto);
+  }
+
+  /**
+   * 仅添加备注
+   * 通过 deviceId + sessionId 查找已有连接记录并更新备注
+   */
+  private async addConnectionNote(
+    dto: ConnectionAuditDto,
+  ): Promise<ConnectionAudit> {
+    const sessionId = String(dto.session_id);
+
+    const existingConnection = await this.connectionAuditRepository.findOne({
+      where: {
+        deviceId: dto.id,
+        sessionId,
+      },
+    });
+
+    if (!existingConnection) {
+      throw new NotFoundException(
+        `Connection audit not found for deviceId=${dto.id}, sessionId=${sessionId}`,
+      );
+    }
+
+    existingConnection.note = dto.note || null;
+    return await this.connectionAuditRepository.save(existingConnection);
+  }
+
+  /**
+   * 创建或更新连接审计记录
+   * 处理完整的连接状态上报（含 uuid）
+   */
+  private async upsertConnectionAudit(
+    dto: ConnectionAuditDto,
+  ): Promise<ConnectionAudit> {
     const connId = dto.conn_id !== undefined ? String(dto.conn_id) : null;
     const sessionId =
       dto.session_id !== undefined ? String(dto.session_id) : null;
@@ -70,36 +111,67 @@ export class AuditService {
     });
 
     if (existingConnection) {
-      // 更新现有连接记录
-      if (action === 'open' && !existingConnection.requestedAt) {
-        existingConnection.requestedAt = new Date();
-      }
-      if (action === 'established' && !existingConnection.establishedAt) {
-        existingConnection.establishedAt = new Date();
-      }
-      if (action === 'close' && !existingConnection.closedAt) {
-        existingConnection.closedAt = new Date();
-      }
-      if (sessionId !== null && sessionId !== existingConnection.sessionId) {
-        existingConnection.sessionId = sessionId;
-      }
-      if (dto.ip && dto.ip !== existingConnection.ip) {
-        existingConnection.ip = dto.ip;
-      }
-      if (dto.peer && dto.peer[0] !== existingConnection.peerId) {
-        existingConnection.peerId = dto.peer[0];
-      }
-      if (dto.peer && dto.peer[1] !== existingConnection.peerName) {
-        existingConnection.peerName = dto.peer[1];
-      }
-      if (dto.type !== undefined && dto.type !== existingConnection.type) {
-        existingConnection.type = dto.type;
-      }
-      existingConnection.action = action;
-      return await this.connectionAuditRepository.save(existingConnection);
+      return this.updateExistingConnection(
+        existingConnection,
+        dto,
+        action,
+        sessionId,
+      );
     }
 
-    // 创建新连接
+    return this.createNewConnection(dto, action, connId, sessionId);
+  }
+
+  /**
+   * 更新已有连接审计记录
+   */
+  private async updateExistingConnection(
+    existingConnection: ConnectionAudit,
+    dto: ConnectionAuditDto,
+    action: string,
+    sessionId: string | null,
+  ): Promise<ConnectionAudit> {
+    if (action === 'open' && !existingConnection.requestedAt) {
+      existingConnection.requestedAt = new Date();
+    }
+    if (action === 'established' && !existingConnection.establishedAt) {
+      existingConnection.establishedAt = new Date();
+    }
+    if (action === 'close' && !existingConnection.closedAt) {
+      existingConnection.closedAt = new Date();
+    }
+    if (sessionId !== null && sessionId !== existingConnection.sessionId) {
+      existingConnection.sessionId = sessionId;
+    }
+    if (dto.ip && dto.ip !== existingConnection.ip) {
+      existingConnection.ip = dto.ip;
+    }
+    if (dto.peer && dto.peer[0] !== existingConnection.peerId) {
+      existingConnection.peerId = dto.peer[0];
+    }
+    if (dto.peer && dto.peer[1] !== existingConnection.peerName) {
+      existingConnection.peerName = dto.peer[1];
+    }
+    if (dto.type !== undefined && dto.type !== existingConnection.type) {
+      existingConnection.type = dto.type;
+    }
+    // 有值则覆盖，无值保留原值
+    if (dto.note !== undefined && dto.note !== '') {
+      existingConnection.note = dto.note;
+    }
+    existingConnection.action = action;
+    return await this.connectionAuditRepository.save(existingConnection);
+  }
+
+  /**
+   * 创建新连接审计记录
+   */
+  private async createNewConnection(
+    dto: ConnectionAuditDto,
+    action: string,
+    connId: string | null,
+    sessionId: string | null,
+  ): Promise<ConnectionAudit> {
     const connectionAudit = this.connectionAuditRepository.create({
       deviceId: dto.id,
       deviceUuid: dto.uuid,
@@ -110,6 +182,7 @@ export class AuditService {
       peerId: dto.peer ? dto.peer[0] : null,
       peerName: dto.peer ? dto.peer[1] : null,
       type: dto.type !== undefined ? dto.type : ConnType.NOT_ESTABLISHED,
+      note: dto.note || null,
       requestedAt: action === 'open' ? new Date() : null,
       establishedAt: action === 'established' ? new Date() : null,
       closedAt: action === 'close' ? new Date() : null,
@@ -218,6 +291,7 @@ export class AuditService {
         'ca.peerId',
         'ca.peerName',
         'ca.type',
+        'ca.note',
         'ca.requestedAt',
         'ca.establishedAt',
         'ca.closedAt',
