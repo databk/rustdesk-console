@@ -127,6 +127,15 @@ export class User {
   thirdAuthType: string;
 
   /**
+   * OIDC 主体标识
+   * 格式: oidc:{providerName}:{sub}
+   * 用于关联OIDC提供商中的用户身份，防止账户接管
+   */
+  @Column({ unique: true, nullable: true })
+  @Index()
+  oidcSubject: string;
+
+  /**
    * 用户的令牌列表
    * 一对多关系，关联到 UserToken
    */
