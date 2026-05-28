@@ -32,11 +32,20 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Generate App Token
+        uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Generate changelog
         uses: TriPSs/conventional-changelog-action@v6
         id: changelog
         with:
-          github-token: ${{ secrets.RELEASE_TOKEN }}
+          github-token: ${{ steps.app-token.outputs.token }}
+          git-user-name: 'DataBK Auto Release'
+          git-user-email: 'databk.auto.release@github.com'
           tag-prefix: ''
 
       - name: Build and push Docker images
