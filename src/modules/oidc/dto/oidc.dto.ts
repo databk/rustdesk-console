@@ -1,4 +1,5 @@
-import { IsString, IsObject } from 'class-validator';
+import { IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /**
  * 设备信息
@@ -27,6 +28,7 @@ export class OidcAuthRequestDto {
   @IsString()
   uuid: string; // 设备UUID
 
-  @IsObject()
+  @ValidateNested()
+  @Type(() => DeviceInfoDto)
   deviceInfo: DeviceInfoDto; // 设备信息
 }

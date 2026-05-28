@@ -13,6 +13,7 @@ import {
 export enum OidcAuthStatus {
   PENDING = 'pending', // 等待用户授权
   AUTHORIZED = 'authorized', // 已授权
+  CONSUMED = 'consumed', // 已消费（Token已被客户端取走）
   EXPIRED = 'expired', // 已过期
   CANCELLED = 'cancelled', // 已取消
 }

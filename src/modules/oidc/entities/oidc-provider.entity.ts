@@ -78,6 +78,13 @@ export class OidcProvider {
   userinfoEndpoint: string;
 
   /**
+   * JWKS 端点
+   * OIDC 提供商的 JSON Web Key Set 端点 URL，用于验证 ID Token 签名
+   */
+  @Column({ nullable: true })
+  jwksUri: string;
+
+  /**
    * 是否启用
    * true - 提供商可用
    * false - 提供商禁用

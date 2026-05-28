@@ -29,13 +29,14 @@ export class OidcAuthStateCleanupService {
     try {
       const now = new Date();
 
-      // 清理已过期的PENDING/EXPIRED/CANCELLED状态记录
+      // 清理已过期的PENDING/EXPIRED/CANCELLED/CONSUMED状态记录
       const expiredResult = await this.authStateRepository.delete({
         expiresAt: LessThan(now),
         status: In([
           OidcAuthStatus.PENDING,
           OidcAuthStatus.EXPIRED,
           OidcAuthStatus.CANCELLED,
+          OidcAuthStatus.CONSUMED,
         ]),
       });
 

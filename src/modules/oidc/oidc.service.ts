@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, QueryFailedError } from 'typeorm';
+import { Repository, QueryFailedError } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import * as client from 'openid-client';
 import { OidcProvider } from './entities/oidc-provider.entity';
@@ -360,62 +360,81 @@ export class OidcService {
     deviceId: string,
     deviceUuid: string,
   ): Promise<LoginResponse> {
-    const authState = await this.authStateRepository.findOne({
-      where: {
-        code,
-        deviceId,
-        deviceUuid,
-        expiresAt: MoreThan(new Date()),
-      },
-    });
+    // 原子操作：将AUTHORIZED状态标记为CONSUMED，防止并发重复获取Token
+    const updateResult = await this.authStateRepository
+      .createQueryBuilder()
+      .update(OidcAuthState)
+      .set({ status: OidcAuthStatus.CONSUMED })
+      .where(
+        'code = :code AND deviceId = :deviceId AND deviceUuid = :deviceUuid',
+        {
+          code,
+          deviceId,
+          deviceUuid,
+        },
+      )
+      .andWhere('status = :status', { status: OidcAuthStatus.AUTHORIZED })
+      .andWhere('expiresAt > :now', { now: new Date() })
+      .execute();
 
-    if (!authState) {
-      throw new UnauthorizedException('No authed oidc is found');
-    }
-
-    if (authState.status === OidcAuthStatus.PENDING) {
-      throw new UnauthorizedException('No authed oidc is found');
-    }
-
-    if (authState.status === OidcAuthStatus.EXPIRED) {
-      throw new UnauthorizedException('Authorization expired');
-    }
-
-    if (authState.status === OidcAuthStatus.CANCELLED) {
-      throw new UnauthorizedException('Authorization cancelled');
-    }
-
-    if (
-      authState.status === OidcAuthStatus.AUTHORIZED &&
-      authState.accessToken
-    ) {
-      const user = await this.userRepository.findOne({
-        where: { guid: authState.userGuid },
+    if (!updateResult.affected) {
+      // 没有匹配到AUTHORIZED状态，检查其他状态以返回适当的错误信息
+      const authState = await this.authStateRepository.findOne({
+        where: { code, deviceId, deviceUuid },
       });
 
-      if (!user) {
-        throw new UnauthorizedException('User not found');
+      if (!authState || authState.status === OidcAuthStatus.PENDING) {
+        throw new UnauthorizedException('No authed oidc is found');
       }
 
-      // 清理授权状态
-      await this.authStateRepository.remove(authState);
+      if (authState.status === OidcAuthStatus.EXPIRED) {
+        throw new UnauthorizedException('Authorization expired');
+      }
 
-      return {
-        access_token: authState.accessToken,
-        type: 'access_token',
-        user: {
-          name: user.username,
-          email: user.email || undefined,
-          note: user.note || undefined,
-          status: user.status,
-          info: user.getUserInfo(),
-          is_admin: user.isAdmin,
-          third_auth_type: user.thirdAuthType || undefined,
-        },
-      };
+      if (authState.status === OidcAuthStatus.CANCELLED) {
+        throw new UnauthorizedException('Authorization cancelled');
+      }
+
+      if (authState.status === OidcAuthStatus.CONSUMED) {
+        throw new UnauthorizedException('Authorization already consumed');
+      }
+
+      throw new UnauthorizedException('No authed oidc is found');
     }
 
-    throw new UnauthorizedException('No authed oidc is found');
+    // 查询已标记为CONSUMED的记录
+    const authState = await this.authStateRepository.findOne({
+      where: { code, deviceId, deviceUuid, status: OidcAuthStatus.CONSUMED },
+    });
+
+    if (!authState || !authState.accessToken) {
+      throw new UnauthorizedException('No authed oidc is found');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { guid: authState.userGuid },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // 清理授权状态
+    await this.authStateRepository.remove(authState);
+
+    return {
+      access_token: authState.accessToken,
+      type: 'access_token',
+      user: {
+        name: user.username,
+        email: user.email || undefined,
+        note: user.note || undefined,
+        status: user.status,
+        info: user.getUserInfo(),
+        is_admin: user.isAdmin,
+        third_auth_type: user.thirdAuthType || undefined,
+      },
+    };
   }
 
   /**
@@ -463,6 +482,7 @@ export class OidcService {
         authorization_endpoint: provider.authorizationEndpoint,
         token_endpoint: provider.tokenEndpoint,
         userinfo_endpoint: provider.userinfoEndpoint,
+        jwks_uri: provider.jwksUri,
       };
 
       const config = new client.Configuration(
@@ -502,8 +522,8 @@ export class OidcService {
    * 根据OIDC用户信息匹配现有用户，不存在则自动创建
    *
    * 策略：
-   * 1. 优先通过邮箱匹配现有用户
-   * 2. 邮箱无匹配时创建新用户
+   * 1. 仅通过OIDC sub + provider匹配已关联的OIDC用户
+   * 2. 不通过邮箱自动关联已有账户（防止账户接管）
    * 3. 新用户设置thirdAuthType为'oidc'
    * 4. 用户名冲突时追加随机后缀，处理并发竞态
    *
@@ -515,19 +535,13 @@ export class OidcService {
     oidcUserInfo: OidcUserInfo,
     providerName: string,
   ): Promise<User> {
-    // 优先通过邮箱查找现有用户（仅当邮箱已验证时）
-    if (oidcUserInfo.email && oidcUserInfo.email_verified) {
-      const existingUser = await this.userRepository.findOne({
-        where: { email: oidcUserInfo.email },
-      });
-      if (existingUser) {
-        // 更新第三方认证类型
-        if (!existingUser.thirdAuthType) {
-          existingUser.thirdAuthType = 'oidc';
-          await this.userRepository.save(existingUser);
-        }
-        return existingUser;
-      }
+    // 通过OIDC sub查找已关联的用户（不通过邮箱关联，防止账户接管）
+    const oidcSubject = `oidc:${providerName}:${oidcUserInfo.sub}`;
+    const existingUser = await this.userRepository.findOne({
+      where: { oidcSubject },
+    });
+    if (existingUser) {
+      return existingUser;
     }
 
     // 生成用户名
@@ -568,6 +582,7 @@ export class OidcService {
         user.isAdmin = false;
         user.note = `OIDC用户 (${providerName})`;
         user.thirdAuthType = 'oidc';
+        user.oidcSubject = oidcSubject;
 
         await this.userRepository.save(user);
         this.logger.log(
