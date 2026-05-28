@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsObject,
   IsEmail,
+  IsIn,
 } from 'class-validator';
 
 /**
@@ -32,8 +33,8 @@ export class LoginDto {
   autoLogin?: boolean;
 
   @IsOptional()
-  @IsString()
-  type?: string; // account, mobile, sms_code, email_code, tfa_code
+  @IsIn(['account', 'mobile', 'sms_code', 'email_code', 'tfa_code'])
+  type?: string;
 
   @IsOptional()
   @IsString()
