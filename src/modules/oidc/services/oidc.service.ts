@@ -117,9 +117,7 @@ export class OidcService {
     const options: string[] = [];
 
     for (const provider of providers) {
-      const prefix =
-        provider.type === OidcProviderType.OAUTH2 ? 'oauth2' : 'oidc';
-      options.push(`${prefix}/${provider.name}`);
+      options.push(`oidc/${provider.name}`);
     }
 
     return options;
