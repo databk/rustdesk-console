@@ -260,38 +260,48 @@ export class OidcService {
     }
 
     try {
-      // 获取OIDC配置
       const oidcConfig = await this.getOidcConfig(provider);
 
-      // 使用openid-client交换授权码获取令牌
-      // 该方法会自动验证ID Token的签名、nonce、audience等
       const tokens = await client.authorizationCodeGrant(
         oidcConfig,
         new URL(callbackUrl),
         {
           pkceCodeVerifier: authState.codeVerifier,
           expectedState: authState.state,
-          expectedNonce: authState.nonce,
         },
       );
 
-      // 从ID Token中获取用户声明
       const claims = tokens.claims();
-      let userInfo: OidcUserInfo = {
-        sub: claims?.sub ?? '',
-        email: claims?.email as string | undefined,
-        email_verified: claims?.email_verified as boolean | undefined,
-        name: claims?.name as string | undefined,
-        preferred_username: claims?.preferred_username as string | undefined,
-      };
+      let userInfo: OidcUserInfo;
 
-      // 如果ID Token中没有足够的用户信息，尝试从userinfo端点获取
-      if (!userInfo.email && oidcConfig.serverMetadata().userinfo_endpoint) {
+      if (claims) {
+        if (authState.nonce && claims.nonce !== authState.nonce) {
+          throw new UnauthorizedException('OIDC nonce 验证失败');
+        }
+        userInfo = {
+          sub: claims.sub ?? '',
+          email: claims.email as string | undefined,
+          email_verified: claims.email_verified as boolean | undefined,
+          name: claims.name as string | undefined,
+          preferred_username: claims.preferred_username as string | undefined,
+        };
+      } else {
+        userInfo = await this.fetchOAuth2UserInfo(
+          provider,
+          tokens.access_token,
+        );
+      }
+
+      if (
+        !userInfo.email &&
+        claims &&
+        oidcConfig.serverMetadata().userinfo_endpoint
+      ) {
         try {
           const fetchedUserInfo = await client.fetchUserInfo(
             oidcConfig,
             tokens.access_token,
-            claims?.sub ?? '',
+            claims.sub ?? '',
           );
           userInfo = {
             ...userInfo,
@@ -302,7 +312,7 @@ export class OidcService {
           };
         } catch (err: unknown) {
           this.logger.warn(
-            `Failed to fetch userinfo: ${err instanceof Error ? err.message : String(err)}`,
+            `Failed to fetch OIDC userinfo: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
       }
@@ -602,6 +612,57 @@ export class OidcService {
     throw new Error(
       `Failed to create OIDC user after ${maxRetries} attempts due to username conflicts`,
     );
+  }
+
+  private async fetchOAuth2UserInfo(
+    provider: OidcProvider,
+    accessToken: string,
+  ): Promise<OidcUserInfo> {
+    const userinfoEndpoint = provider.userinfoEndpoint;
+    if (!userinfoEndpoint) {
+      throw new BadRequestException(
+        'OAuth2 提供商未配置用户信息端点，无法获取用户信息',
+      );
+    }
+
+    try {
+      const response = await fetch(userinfoEndpoint, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+          'User-Agent': 'rustdesk-console',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `UserInfo request failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const data = (await response.json()) as Record<string, unknown>;
+
+      return {
+        sub: String(
+          (data.id as string | number) ??
+            (data.sub as string) ??
+            (data.login as string) ??
+            '',
+        ),
+        email: data.email as string | undefined,
+        email_verified:
+          (data.email_verified as boolean | undefined) ?? !!data.email,
+        name: (data.name as string) ?? data.login,
+        preferred_username:
+          (data.login as string) ??
+          (data.username as string) ??
+          (data.name as string),
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`OAuth2 userinfo fetch error: ${message}`);
+      throw new UnauthorizedException('获取用户信息失败');
+    }
   }
 
   /**
