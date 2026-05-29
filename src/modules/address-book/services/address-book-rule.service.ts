@@ -141,7 +141,7 @@ export class AddressBookRuleService {
     }
 
     const existingRule = await this.ruleRepository.findOne({
-      where: whereClause as Partial<AddressBookRule>,
+      where: whereClause,
     });
 
     if (existingRule) {

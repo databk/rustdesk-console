@@ -1,4 +1,10 @@
-import { IsString, IsNumber, IsNotEmpty, IsOptional, IsArray } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsNotEmpty,
+  IsOptional,
+  IsArray,
+} from 'class-validator';
 
 /**
  * HeartbeatDto

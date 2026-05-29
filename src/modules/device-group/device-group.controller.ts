@@ -382,7 +382,8 @@ export class DeviceGroupController {
     }
 
     // 验证请求断开的连接ID是否为该设备的活跃连接
-    const activeConnIds = await this.heartbeatService.getActiveConnectionIds(uuid);
+    const activeConnIds =
+      await this.heartbeatService.getActiveConnectionIds(uuid);
     const activeConnIdSet = new Set(activeConnIds);
     const invalidConnIds = dto.connIds.filter((id) => !activeConnIdSet.has(id));
     if (invalidConnIds.length > 0) {

@@ -208,13 +208,13 @@ export class AddressBookLegacyService {
     // 创建新标签
     const tagNameToGuid: Record<string, string> = {};
     const dangerousProperties = ['__proto__', 'constructor', 'prototype'];
-    
+
     if (parsedData.tags && parsedData.tags.length > 0) {
       for (const tagName of parsedData.tags) {
         if (dangerousProperties.includes(tagName)) {
           continue;
         }
-        
+
         const tagGuid = uuidv4();
         const tag = this.addressBookTagRepository.create({
           guid: tagGuid,
