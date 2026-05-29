@@ -13,9 +13,9 @@ import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
-import { OidcService } from './oidc.service';
-import { OidcAuthRequestDto } from './dto/oidc.dto';
-import { Public } from '../auth/decorators/public.decorator';
+import { OidcService } from '../services/oidc.service';
+import { OidcAuthRequestDto } from '../dto/oidc.dto';
+import { Public } from '../../auth/decorators/public.decorator';
 
 /**
  * HTML特殊字符转义，防止XSS攻击

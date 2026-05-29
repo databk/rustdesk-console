@@ -5,7 +5,7 @@ import { Repository, LessThan, In } from 'typeorm';
 import {
   OidcAuthState,
   OidcAuthStatus,
-} from './entities/oidc-auth-state.entity';
+} from '../entities/oidc-auth-state.entity';
 
 @Injectable()
 /**

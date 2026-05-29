@@ -9,15 +9,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import * as client from 'openid-client';
-import { OidcProvider } from './entities/oidc-provider.entity';
+import { OidcProvider } from '../entities/oidc-provider.entity';
 import {
   OidcAuthState,
   OidcAuthStatus,
-} from './entities/oidc-auth-state.entity';
-import { User, UserStatus } from '../user/entities/user.entity';
-import { OidcAuthRequestDto } from './dto/oidc.dto';
-import { LoginResponse } from '../../common/interfaces';
-import { AuthTokenService } from '../auth/services/auth-token.service';
+} from '../entities/oidc-auth-state.entity';
+import { User, UserStatus } from '../../user/entities/user.entity';
+import { OidcAuthRequestDto } from '../dto/oidc.dto';
+import { LoginResponse } from '../../../common/interfaces';
+import { AuthTokenService } from '../../auth/services/auth-token.service';
 
 /**
  * OIDC配置接口
@@ -428,6 +428,20 @@ export class OidcService {
         third_auth_type: user.thirdAuthType || undefined,
       },
     };
+  }
+
+  /**
+   * 清除指定issuer的OIDC配置缓存
+   * 当管理员修改提供商配置时调用
+   */
+  clearConfigCache(issuer?: string): void {
+    if (issuer) {
+      this.configCache.delete(issuer);
+      this.configCacheTimestamp.delete(issuer);
+    } else {
+      this.configCache.clear();
+      this.configCacheTimestamp.clear();
+    }
   }
 
   /**
