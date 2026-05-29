@@ -50,11 +50,11 @@ export class OidcController {
     private readonly configService: ConfigService,
   ) {
     this.successHtml = fs.readFileSync(
-      path.join(__dirname, 'templates', 'callback-success.html'),
+      path.join(__dirname, '..', 'templates', 'callback-success.html'),
       'utf-8',
     );
     this.errorHtml = fs.readFileSync(
-      path.join(__dirname, 'templates', 'callback-error.html'),
+      path.join(__dirname, '..', 'templates', 'callback-error.html'),
       'utf-8',
     );
   }
