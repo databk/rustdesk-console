@@ -493,22 +493,22 @@ export class OidcService {
       });
 
       if (!authState || authState.status === OidcAuthStatus.PENDING) {
-        throw new UnauthorizedException('No authed oidc is found');
+        throw new UnauthorizedException({ error: 'No authed oidc is found' });
       }
 
       if (authState.status === OidcAuthStatus.EXPIRED) {
-        throw new UnauthorizedException('Authorization expired');
+        throw new UnauthorizedException({ error: 'Authorization expired' });
       }
 
       if (authState.status === OidcAuthStatus.CANCELLED) {
-        throw new UnauthorizedException('Authorization cancelled');
+        throw new UnauthorizedException({ error: 'Authorization cancelled' });
       }
 
       if (authState.status === OidcAuthStatus.CONSUMED) {
-        throw new UnauthorizedException('Authorization already consumed');
+        throw new UnauthorizedException({ error: 'Authorization already consumed' });
       }
 
-      throw new UnauthorizedException('No authed oidc is found');
+      throw new UnauthorizedException({ error: 'No authed oidc is found' });
     }
 
     // 查询已标记为CONSUMED的记录
@@ -517,7 +517,7 @@ export class OidcService {
     });
 
     if (!authState || !authState.accessToken) {
-      throw new UnauthorizedException('No authed oidc is found');
+      throw new UnauthorizedException({ error: 'No authed oidc is found' });
     }
 
     const user = await this.userRepository.findOne({
