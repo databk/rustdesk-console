@@ -63,6 +63,25 @@ interface OidcUserInfo {
   [key: string]: any;
 }
 
+/**
+ * OIDC回调结果接口
+ * 认证成功后返回的信息
+ */
+export interface OidcCallbackResult {
+  /** 是否为Web前端登录 */
+  isWebLogin: boolean;
+  /** 前端重定向URL（仅Web前端登录时有值） */
+  frontendRedirectUrl?: string;
+  /** 访问令牌 */
+  accessToken?: string;
+  /** 用户信息 */
+  user?: {
+    username: string;
+    email?: string;
+    isAdmin: boolean;
+  };
+}
+
 @Injectable()
 /**
  * OidcService
@@ -103,6 +122,45 @@ export class OidcService {
   ) {}
 
   /**
+   * 验证前端回调URL是否在白名单中
+   * 通过环境变量 WEB_FRONTEND_URLS 配置白名单（逗号分隔）
+   *
+   * @param callbackUrl 前端回调URL
+   * @returns 是否在白名单中
+   */
+  private isCallbackUrlAllowed(callbackUrl: string): boolean {
+    const allowedUrls = this.configService
+      .get<string>('WEB_FRONTEND_URLS', '')
+      .split(',')
+      .map((url) => url.trim())
+      .filter((url) => url.length > 0);
+
+    if (allowedUrls.length === 0) {
+      this.logger.warn(
+        'WEB_FRONTEND_URLS environment variable is not configured or empty',
+      );
+      return false;
+    }
+
+    try {
+      const callbackUrlObj = new URL(callbackUrl);
+      return allowedUrls.some((allowedUrl) => {
+        try {
+          const allowedUrlObj = new URL(allowedUrl);
+          return (
+            callbackUrlObj.origin === allowedUrlObj.origin &&
+            callbackUrlObj.pathname.startsWith(allowedUrlObj.pathname)
+          );
+        } catch {
+          return false;
+        }
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * 获取所有启用的OIDC提供商
    * 返回可供用户选择的OIDC登录选项列表
    *
@@ -134,7 +192,7 @@ export class OidcService {
   async requestAuth(
     authRequest: OidcAuthRequestDto,
   ): Promise<OidcAuthUrlResponse> {
-    const { op, id, uuid, deviceInfo } = authRequest;
+    const { op, id, uuid, deviceInfo, callbackUrl } = authRequest;
 
     const providerName = op.replace(/^(oidc|oauth2)\//, '');
 
@@ -146,6 +204,17 @@ export class OidcService {
       throw new BadRequestException(
         `OIDC 提供商 "${providerName}" 不存在或未启用`,
       );
+    }
+
+    // 验证并保存前端回调URL
+    let frontendRedirectUrl: string | null = null;
+    if (callbackUrl) {
+      if (!this.isCallbackUrlAllowed(callbackUrl)) {
+        throw new BadRequestException(
+          'callbackUrl 不在允许的白名单中，请检查 WEB_FRONTEND_URLS 环境变量配置',
+        );
+      }
+      frontendRedirectUrl = callbackUrl;
     }
 
     // 生成授权码（用于客户端轮询）
@@ -182,6 +251,7 @@ export class OidcService {
       state,
       nonce: nonce ?? null,
       codeVerifier,
+      frontendRedirectUrl,
       status: OidcAuthStatus.PENDING,
       expiresAt,
     });
@@ -216,10 +286,11 @@ export class OidcService {
    * OIDC提供商授权后回调，交换授权码获取令牌和用户信息
    *
    * @param callbackUrl 回调完整URL（包含code和state参数）
+   * @returns 认证结果，包含是否为Web登录、重定向URL、访问令牌和用户信息
    * @throws BadRequestException 当state无效或授权已过期时抛出
    * @throws UnauthorizedException 当令牌交换失败时抛出
    */
-  async handleCallback(callbackUrl: string): Promise<void> {
+  async handleCallback(callbackUrl: string): Promise<OidcCallbackResult> {
     // 从回调URL中提取state参数
     const urlObj = new URL(callbackUrl);
     const state = urlObj.searchParams.get('state');
@@ -307,6 +378,28 @@ export class OidcService {
       this.logger.log(
         `OIDC auth successful: user=${user.username}, provider=${providerName}`,
       );
+
+      // 判断是否为Web前端登录
+      const isWebLogin = !!authState.frontendRedirectUrl;
+
+      if (isWebLogin) {
+        // Web前端登录：返回完整信息供controller设置Cookie
+        return {
+          isWebLogin: true,
+          frontendRedirectUrl: authState.frontendRedirectUrl!,
+          accessToken,
+          user: {
+            username: user.username,
+            email: user.email || undefined,
+            isAdmin: user.isAdmin,
+          },
+        };
+      } else {
+        // 客户端登录：返回简单信息
+        return {
+          isWebLogin: false,
+        };
+      }
     } catch (err: unknown) {
       if (err instanceof BadRequestException) {
         throw err;
