@@ -525,7 +525,7 @@ export class OidcService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException({ error: 'User not found' });
     }
 
     // 清理授权状态
