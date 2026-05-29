@@ -92,7 +92,7 @@ export class OidcController {
    * @param deviceUuid 设备UUID
    */
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Get('oidc/auth-query')
   async queryAuth(
     @Query('code') code: string,
