@@ -11,6 +11,11 @@ import {
  * OIDC 提供商实体
  * 管理 OpenID Connect 身份提供商配置
  */
+export enum OidcProviderType {
+  OIDC = 'oidc',
+  OAUTH2 = 'oauth2',
+}
+
 @Entity('oidc_providers')
 export class OidcProvider {
   /**
@@ -27,6 +32,12 @@ export class OidcProvider {
   @Column()
   @Index()
   name: string;
+
+  @Column({
+    type: 'text',
+    default: OidcProviderType.OIDC,
+  })
+  type: OidcProviderType;
 
   /**
    * 发行者 URL

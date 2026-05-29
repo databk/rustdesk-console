@@ -8,7 +8,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import * as client from 'openid-client';
-import { OidcProvider } from '../entities/oidc-provider.entity';
+import {
+  OidcProvider,
+  OidcProviderType,
+} from '../entities/oidc-provider.entity';
 import { OidcService } from './oidc.service';
 import {
   CreateOidcProviderDto,
@@ -72,11 +75,16 @@ export class OidcAdminService {
 
     const provider = new OidcProvider();
     provider.guid = uuidv4();
+    provider.type = dto.type || OidcProviderType.OIDC;
     provider.name = dto.name;
     provider.issuer = dto.issuer;
     provider.clientId = dto.clientId;
     provider.clientSecret = (dto.clientSecret || null) as string;
-    provider.scope = dto.scope || 'openid email profile';
+    provider.scope =
+      dto.scope ||
+      (provider.type === OidcProviderType.OAUTH2
+        ? 'read:user user:email'
+        : 'openid email profile');
     provider.authorizationEndpoint = (dto.authorizationEndpoint ||
       null) as string;
     provider.tokenEndpoint = (dto.tokenEndpoint || null) as string;
@@ -114,6 +122,7 @@ export class OidcAdminService {
     const oldIssuer = provider.issuer;
 
     Object.assign(provider, {
+      ...(dto.type !== undefined && { type: dto.type }),
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.issuer !== undefined && { issuer: dto.issuer }),
       ...(dto.clientId !== undefined && { clientId: dto.clientId }),

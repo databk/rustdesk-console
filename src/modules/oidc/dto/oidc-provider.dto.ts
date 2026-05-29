@@ -7,10 +7,16 @@ import {
   IsInt,
   Min,
   IsUrl,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { OidcProviderType } from '../entities/oidc-provider.entity';
 
 export class CreateOidcProviderDto {
+  @IsEnum(OidcProviderType)
+  @IsOptional()
+  type?: OidcProviderType;
+
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -62,6 +68,10 @@ export class CreateOidcProviderDto {
 }
 
 export class UpdateOidcProviderDto {
+  @IsEnum(OidcProviderType)
+  @IsOptional()
+  type?: OidcProviderType;
+
   @IsString()
   @IsNotEmpty()
   @IsOptional()

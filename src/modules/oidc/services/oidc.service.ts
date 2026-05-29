@@ -9,7 +9,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import * as client from 'openid-client';
-import { OidcProvider } from '../entities/oidc-provider.entity';
+import {
+  OidcProvider,
+  OidcProviderType,
+} from '../entities/oidc-provider.entity';
 import {
   OidcAuthState,
   OidcAuthStatus,
@@ -114,7 +117,9 @@ export class OidcService {
     const options: string[] = [];
 
     for (const provider of providers) {
-      options.push(`oidc/${provider.name}`);
+      const prefix =
+        provider.type === OidcProviderType.OAUTH2 ? 'oauth2' : 'oidc';
+      options.push(`${prefix}/${provider.name}`);
     }
 
     return options;
@@ -133,7 +138,7 @@ export class OidcService {
   ): Promise<OidcAuthUrlResponse> {
     const { op, id, uuid, deviceInfo } = authRequest;
 
-    const providerName = op.replace('oidc/', '');
+    const providerName = op.replace(/^(oidc|oauth2)\//, '');
 
     // 使用getProviderWithSecret获取包含clientSecret的完整配置
     // 确保缓存的OIDC配置包含clientSecret，避免handleCallback获取到不完整的缓存
@@ -154,7 +159,8 @@ export class OidcService {
 
     // 生成OIDC state和nonce参数
     const state = client.randomState();
-    const nonce = client.randomNonce();
+    const isOidc = provider.type === OidcProviderType.OIDC;
+    const nonce = isOidc ? client.randomNonce() : undefined;
 
     // 计算过期时间
     const expiresAt = new Date();
@@ -170,12 +176,13 @@ export class OidcService {
       guid: uuidv4(),
       code,
       op,
+      providerType: provider.type,
       deviceId: id,
       deviceUuid: uuid,
       deviceInfo: JSON.stringify(deviceInfo),
       redirectUri,
       state,
-      nonce,
+      nonce: nonce ?? null,
       codeVerifier,
       status: OidcAuthStatus.PENDING,
       expiresAt,
@@ -185,7 +192,11 @@ export class OidcService {
 
     // 获取OIDC配置并构建授权URL
     const oidcConfig = await this.getOidcConfig(provider);
-    const scope = provider.scope || 'openid email profile';
+    const defaultScope =
+      provider.type === OidcProviderType.OAUTH2
+        ? 'read:user user:email'
+        : 'openid email profile';
+    const scope = provider.scope || defaultScope;
 
     const url = client.buildAuthorizationUrl(oidcConfig, {
       redirect_uri: redirectUri,
@@ -194,7 +205,7 @@ export class OidcService {
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
       state,
-      nonce,
+      ...(nonce && { nonce }),
     });
 
     this.logger.log(`OIDC auth requested: code=${code}, op=${op}`);
@@ -252,7 +263,7 @@ export class OidcService {
     }
 
     // 获取OIDC提供商配置（包含clientSecret）
-    const providerName = authState.op.replace('oidc/', '');
+    const providerName = authState.op.replace(/^(oidc|oauth2)\//, '');
     const provider = await this.getProviderWithSecret(providerName);
 
     if (!provider) {
@@ -260,51 +271,23 @@ export class OidcService {
     }
 
     try {
-      // 获取OIDC配置
       const oidcConfig = await this.getOidcConfig(provider);
+      const isOidc = authState.providerType === OidcProviderType.OIDC;
 
-      // 使用openid-client交换授权码获取令牌
-      // 该方法会自动验证ID Token的签名、nonce、audience等
-      const tokens = await client.authorizationCodeGrant(
-        oidcConfig,
-        new URL(callbackUrl),
-        {
-          pkceCodeVerifier: authState.codeVerifier,
-          expectedState: authState.state,
-          expectedNonce: authState.nonce,
-        },
-      );
+      let userInfo: OidcUserInfo;
 
-      // 从ID Token中获取用户声明
-      const claims = tokens.claims();
-      let userInfo: OidcUserInfo = {
-        sub: claims?.sub ?? '',
-        email: claims?.email as string | undefined,
-        email_verified: claims?.email_verified as boolean | undefined,
-        name: claims?.name as string | undefined,
-        preferred_username: claims?.preferred_username as string | undefined,
-      };
-
-      // 如果ID Token中没有足够的用户信息，尝试从userinfo端点获取
-      if (!userInfo.email && oidcConfig.serverMetadata().userinfo_endpoint) {
-        try {
-          const fetchedUserInfo = await client.fetchUserInfo(
-            oidcConfig,
-            tokens.access_token,
-            claims?.sub ?? '',
-          );
-          userInfo = {
-            ...userInfo,
-            email: fetchedUserInfo.email,
-            email_verified: fetchedUserInfo.email_verified,
-            name: fetchedUserInfo.name,
-            preferred_username: fetchedUserInfo.preferred_username,
-          };
-        } catch (err: unknown) {
-          this.logger.warn(
-            `Failed to fetch userinfo: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
+      if (isOidc) {
+        userInfo = await this.handleOidcCallback(
+          oidcConfig,
+          callbackUrl,
+          authState,
+        );
+      } else {
+        userInfo = await this.handleOAuth2Callback(
+          oidcConfig,
+          callbackUrl,
+          authState,
+        );
       }
 
       // 查找或创建本地用户
@@ -335,6 +318,141 @@ export class OidcService {
       this.logger.error(`OIDC callback error: ${message}`, stack);
       // 不向客户端暴露内部错误详情
       throw new UnauthorizedException('OIDC 认证失败，请重试');
+    }
+  }
+
+  private async handleOidcCallback(
+    oidcConfig: client.Configuration,
+    callbackUrl: string,
+    authState: OidcAuthState,
+  ): Promise<OidcUserInfo> {
+    const tokens = await client.authorizationCodeGrant(
+      oidcConfig,
+      new URL(callbackUrl),
+      {
+        pkceCodeVerifier: authState.codeVerifier,
+        expectedState: authState.state,
+        expectedNonce: authState.nonce ?? undefined,
+      },
+    );
+
+    const claims = tokens.claims();
+    let userInfo: OidcUserInfo = {
+      sub: claims?.sub ?? '',
+      email: claims?.email as string | undefined,
+      email_verified: claims?.email_verified as boolean | undefined,
+      name: claims?.name as string | undefined,
+      preferred_username: claims?.preferred_username as string | undefined,
+    };
+
+    if (!userInfo.email && oidcConfig.serverMetadata().userinfo_endpoint) {
+      try {
+        const fetchedUserInfo = await client.fetchUserInfo(
+          oidcConfig,
+          tokens.access_token,
+          claims?.sub ?? '',
+        );
+        userInfo = {
+          ...userInfo,
+          email: fetchedUserInfo.email,
+          email_verified: fetchedUserInfo.email_verified,
+          name: fetchedUserInfo.name,
+          preferred_username: fetchedUserInfo.preferred_username,
+        };
+      } catch (err: unknown) {
+        this.logger.warn(
+          `Failed to fetch OIDC userinfo: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    return userInfo;
+  }
+
+  private async handleOAuth2Callback(
+    oidcConfig: client.Configuration,
+    callbackUrl: string,
+    authState: OidcAuthState,
+  ): Promise<OidcUserInfo> {
+    const tokens = await client.authorizationCodeGrant(
+      oidcConfig,
+      new URL(callbackUrl),
+      {
+        pkceCodeVerifier: authState.codeVerifier,
+        expectedState: authState.state,
+        idTokenExpected: false,
+      },
+    );
+
+    const accessToken = tokens.access_token;
+
+    if (!accessToken) {
+      throw new UnauthorizedException(
+        'OAuth2 令牌交换失败：未获取到 access_token',
+      );
+    }
+
+    const providerName = authState.op.replace(/^(oidc|oauth2)\//, '');
+    const provider = await this.getProviderWithSecret(providerName);
+
+    if (!provider) {
+      throw new BadRequestException(`OAuth2 提供商 "${providerName}" 不存在`);
+    }
+
+    return this.fetchOAuth2UserInfo(accessToken, provider);
+  }
+
+  private async fetchOAuth2UserInfo(
+    accessToken: string,
+    provider: OidcProvider,
+  ): Promise<OidcUserInfo> {
+    const userinfoEndpoint = provider.userinfoEndpoint;
+
+    if (!userinfoEndpoint) {
+      throw new BadRequestException(
+        'OAuth2 提供商未配置用户信息端点，无法获取用户信息',
+      );
+    }
+
+    try {
+      const response = await fetch(userinfoEndpoint, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+          'User-Agent': 'rustdesk-console',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `UserInfo request failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const data = (await response.json()) as Record<string, unknown>;
+
+      return {
+        sub: String(
+          (data.id as string | number | undefined) ??
+            (data.sub as string | undefined) ??
+            (data.login as string | undefined) ??
+            '',
+        ),
+        email: data.email as string | undefined,
+        email_verified:
+          (data.email_verified as boolean | undefined) ?? !!data.email,
+        name:
+          (data.name as string | undefined) ??
+          (data.login as string | undefined),
+        preferred_username:
+          (data.login as string | undefined) ??
+          (data.username as string | undefined) ??
+          (data.name as string | undefined),
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`OAuth2 userinfo fetch error: ${message}`);
+      throw new UnauthorizedException('获取用户信息失败');
     }
   }
 
@@ -468,7 +586,10 @@ export class OidcService {
     }
 
     try {
-      // 尝试OIDC Discovery
+      if (provider.type === OidcProviderType.OAUTH2) {
+        throw new Error('OAuth2 provider, skipping OIDC discovery');
+      }
+
       const config = await client.discovery(
         new URL(provider.issuer),
         provider.clientId,

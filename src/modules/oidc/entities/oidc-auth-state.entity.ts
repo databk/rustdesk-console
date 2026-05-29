@@ -22,6 +22,8 @@ export enum OidcAuthStatus {
  * OIDC 授权状态实体
  * 管理 OIDC 授权流程的临时状态
  */
+import { OidcProviderType } from './oidc-provider.entity';
+
 @Entity('oidc_auth_states')
 export class OidcAuthState {
   /**
@@ -46,6 +48,12 @@ export class OidcAuthState {
   @Column()
   @Index()
   op: string;
+
+  @Column({
+    type: 'text',
+    default: OidcProviderType.OIDC,
+  })
+  providerType: OidcProviderType;
 
   /**
    * 设备ID
@@ -121,7 +129,7 @@ export class OidcAuthState {
    * 用于防止重放攻击，验证 ID Token 的合法性
    */
   @Column({ type: 'text', nullable: true })
-  nonce: string;
+  nonce: string | null;
 
   /**
    * 过期时间
