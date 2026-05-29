@@ -103,7 +103,7 @@ export class OidcService {
    * 获取所有启用的OIDC提供商
    * 返回可供用户选择的OIDC登录选项列表
    *
-   * @returns OIDC配置选项列表，格式为 "common-oidc/{config_json}"
+   * @returns OIDC配置选项列表，格式为 "oidc/{provider_name}"
    */
   async getLoginOptions(): Promise<string[]> {
     const providers = await this.providerRepository.find({
@@ -114,14 +114,7 @@ export class OidcService {
     const options: string[] = [];
 
     for (const provider of providers) {
-      const config: OidcConfig = {
-        name: provider.name,
-        issuer: provider.issuer,
-        client_id: provider.clientId,
-        scope: provider.scope || 'openid email profile',
-      };
-
-      options.push(`common-oidc/${JSON.stringify(config)}`);
+      options.push(`oidc/${provider.name}`);
     }
 
     return options;
