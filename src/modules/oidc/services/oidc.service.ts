@@ -270,7 +270,7 @@ export class OidcService {
 
     try {
       const oidcConfig = await this.getOidcConfig(provider);
-      const isOidc = authState.providerType === OidcProviderType.OIDC;
+      const isOidc = provider.type === OidcProviderType.OIDC;
 
       let userInfo: OidcUserInfo;
 
