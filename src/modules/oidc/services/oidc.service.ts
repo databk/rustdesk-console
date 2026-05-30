@@ -215,6 +215,11 @@ export class OidcService {
         );
       }
       frontendRedirectUrl = callbackUrl;
+    } else {
+      // 客户端登录必须提供 id 和 uuid
+      if (!id || !uuid) {
+        throw new BadRequestException('客户端登录必须提供 id 和 uuid 参数');
+      }
     }
 
     // 生成授权码（用于客户端轮询）
@@ -244,9 +249,9 @@ export class OidcService {
       code,
       op,
       providerType: provider.type,
-      deviceId: id,
-      deviceUuid: uuid,
-      deviceInfo: JSON.stringify(deviceInfo),
+      deviceId: id || 'web',
+      deviceUuid: uuid || 'web',
+      deviceInfo: deviceInfo ? JSON.stringify(deviceInfo) : undefined,
       redirectUri,
       state,
       nonce: nonce ?? null,
