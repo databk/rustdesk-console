@@ -22,8 +22,9 @@ function extractToken(req: Request): string | null {
   }
 
   // 如果 header 中没有，从 Cookie 中提取
-  if (req.cookies && req.cookies.access_token) {
-    return req.cookies.access_token;
+  if (req.cookies && 'access_token' in req.cookies) {
+    const token = req.cookies.access_token as string;
+    return token;
   }
 
   return null;

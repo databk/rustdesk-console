@@ -598,7 +598,9 @@ export class OidcService {
       }
 
       if (authState.status === OidcAuthStatus.CONSUMED) {
-        throw new UnauthorizedException({ error: 'Authorization already consumed' });
+        throw new UnauthorizedException({
+          error: 'Authorization already consumed',
+        });
       }
 
       throw new UnauthorizedException({ error: 'No authed oidc is found' });
