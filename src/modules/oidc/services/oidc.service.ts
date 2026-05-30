@@ -75,6 +75,8 @@ export interface OidcCallbackResult {
   frontendRedirectUrl?: string;
   /** 访问令牌 */
   accessToken?: string;
+  /** 是否记住登录（仅Web前端登录时有值） */
+  rememberMe?: boolean;
   /** 用户信息 */
   user?: {
     username: string;
@@ -194,7 +196,7 @@ export class OidcService {
   async requestAuth(
     authRequest: OidcAuthRequestDto,
   ): Promise<OidcAuthUrlResponse> {
-    const { op, id, uuid, deviceInfo, callbackUrl } = authRequest;
+    const { op, id, uuid, deviceInfo, callbackUrl, rememberMe } = authRequest;
 
     const providerName = op.replace(/^(oidc|oauth2)\//, '');
 
@@ -208,8 +210,9 @@ export class OidcService {
       );
     }
 
-    // 验证并保存前端回调URL
+    // 验证并保存前端回调URL和rememberMe
     let frontendRedirectUrl: string | null = null;
+    let rememberMeValue: boolean | null = null;
     if (callbackUrl) {
       if (!this.isCallbackUrlAllowed(callbackUrl)) {
         throw new BadRequestException(
@@ -217,6 +220,7 @@ export class OidcService {
         );
       }
       frontendRedirectUrl = callbackUrl;
+      rememberMeValue = rememberMe ?? false;
     }
 
     // 生成授权码（用于客户端轮询）
@@ -254,6 +258,7 @@ export class OidcService {
       nonce: nonce ?? undefined,
       codeVerifier,
       frontendRedirectUrl,
+      rememberMe: rememberMeValue,
       status: OidcAuthStatus.PENDING,
       expiresAt,
     });
@@ -402,6 +407,7 @@ export class OidcService {
           isWebLogin: true,
           frontendRedirectUrl: authState.frontendRedirectUrl!,
           accessToken,
+          rememberMe: authState.rememberMe ?? false,
           user: {
             username: user.username,
             email: user.email || undefined,

@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsUrl, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsUrl,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -40,4 +46,8 @@ export class OidcAuthRequestDto {
     require_protocol: true,
   })
   callbackUrl?: string; // Web前端回调URL（可选）
+
+  @IsOptional()
+  @IsBoolean()
+  rememberMe?: boolean; // 是否记住登录（可选，Web前端登录时使用）
 }

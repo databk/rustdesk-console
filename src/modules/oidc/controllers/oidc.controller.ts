@@ -107,7 +107,7 @@ export class OidcController {
    * OIDC提供商授权完成后重定向到此端点
    * 交换授权码获取令牌，更新授权状态
    * - 客户端登录：返回成功页面
-   * - Web前端登录：设置HttpOnly Cookie并重定向到前端
+   * - Web前端登录：重定向到callback-success页面，前端存储后跳转
    *
    * @param req Express请求对象
    * @param res Express响应对象
@@ -127,19 +127,15 @@ export class OidcController {
       const result = await this.oidcService.handleCallback(callbackUrl);
 
       if (result.isWebLogin) {
-        // Web前端登录：设置HttpOnly Cookie并重定向
-        const cookieOptions = {
-          httpOnly: true,
-          secure: this.configService.get<string>('NODE_ENV') === 'production',
-          sameSite: 'lax' as const,
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7天
-          path: '/',
-        };
+        // Web前端登录：重定向到callback-success页面
+        // 前端JavaScript会存储token到localStorage/sessionStorage，然后跳转
+        const redirectUrl = encodeURIComponent(result.frontendRedirectUrl!);
+        const token = encodeURIComponent(result.accessToken!);
+        const rememberMe = result.rememberMe ? 'true' : 'false';
 
-        res.cookie('access_token', result.accessToken!, cookieOptions);
+        const callbackSuccessUrl = `/api/oidc/callback-success?token=${token}&remember_me=${rememberMe}&redirect_url=${redirectUrl}`;
 
-        // 重定向到前端
-        res.redirect(result.frontendRedirectUrl!);
+        res.redirect(callbackSuccessUrl);
       } else {
         // 客户端登录：返回成功页面
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -157,5 +153,20 @@ export class OidcController {
         .status(400)
         .send(this.errorHtml.replace('{{message}}', escapeHtml(message)));
     }
+  }
+
+  /**
+   * OIDC登录成功页面
+   * Web前端登录成功后显示此页面
+   * 前端JavaScript会从URL参数读取token，存储到localStorage/sessionStorage，然后跳转
+   *
+   * @param req Express请求对象
+   * @param res Express响应对象
+   */
+  @Public()
+  @Get('oidc/callback-success')
+  handleCallbackSuccess(@Req() req: Request, @Res() res: Response) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(this.successHtml);
   }
 }

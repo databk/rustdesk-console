@@ -36,13 +36,65 @@
       margin: 0;
       font-size: 14px;
     }
+    .loading {
+      color: #999;
+      margin-top: 16px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="icon">&#10003;</div>
     <h1>认证成功</h1>
-    <p>您已成功登录，可以关闭此窗口返回应用。</p>
+    <p>正在跳转...</p>
+    <p class="loading" id="loading-text">正在处理登录信息</p>
   </div>
+  <script>
+    (function() {
+      const TOKEN_KEY = 'rustdesk_access_token';
+      const REMEMBER_ME_KEY = 'rememberMe';
+      
+      function setToken(token, rememberMe) {
+        if (rememberMe) {
+          localStorage.setItem(TOKEN_KEY, token);
+          localStorage.setItem(REMEMBER_ME_KEY, '1');
+          sessionStorage.removeItem(TOKEN_KEY);
+        } else {
+          sessionStorage.setItem(TOKEN_KEY, token);
+          localStorage.setItem(REMEMBER_ME_KEY, '0');
+          localStorage.removeItem(TOKEN_KEY);
+        }
+      }
+      
+      function getRedirectUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('redirect_url') || '/';
+      }
+      
+      function getParamsFromUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return {
+          token: urlParams.get('token'),
+          rememberMe: urlParams.get('remember_me') === 'true'
+        };
+      }
+      
+      function main() {
+        const params = getParamsFromUrl();
+        const redirectUrl = getRedirectUrl();
+        
+        if (params.token) {
+          setToken(params.token, params.rememberMe);
+          document.getElementById('loading-text').textContent = '登录信息已保存';
+        }
+        
+        setTimeout(function() {
+          window.location.href = redirectUrl;
+        }, 500);
+      }
+      
+      main();
+    })();
+  </script>
 </body>
 </html>

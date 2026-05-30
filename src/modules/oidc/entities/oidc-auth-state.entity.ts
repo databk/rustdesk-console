@@ -139,6 +139,14 @@ export class OidcAuthState {
   frontendRedirectUrl: string | null;
 
   /**
+   * 是否记住登录
+   * Web前端登录时，用于决定 token 存储位置
+   * true: localStorage, false: sessionStorage
+   */
+  @Column({ type: 'boolean', nullable: true })
+  rememberMe: boolean | null;
+
+  /**
    * 过期时间
    * 授权码的过期时间（默认3分钟）
    */
