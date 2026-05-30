@@ -6,11 +6,36 @@ import { AuthService } from '../services/auth.service';
 import { JwtPayload } from '../../../common/services/token.service';
 
 /**
+ * 从请求中提取 JWT Token
+ * 支持两种认证方式：
+ * 1. Authorization header Bearer token（客户端使用）
+ * 2. Cookie access_token（Web 前端使用）
+ *
+ * @param req Express 请求对象
+ * @returns JWT token 字符串或 null
+ */
+function extractToken(req: Request): string | null {
+  // 优先从 Authorization header 提取 Bearer token
+  const authHeaderToken = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+  if (authHeaderToken) {
+    return authHeaderToken;
+  }
+
+  // 如果 header 中没有，从 Cookie 中提取
+  if (req.cookies && 'access_token' in req.cookies) {
+    const token = req.cookies.access_token as string;
+    return token;
+  }
+
+  return null;
+}
+
+/**
  * JWT认证策略
  * 使用Passport的JWT策略进行令牌验证和用户认证
  *
  * 验证逻辑：
- * 1. 从请求头的Authorization字段提取Bearer令牌
+ * 1. 从请求头的Authorization字段或Cookie中提取令牌
  * 2. 使用JWT密钥验证令牌签名和有效期
  * 3. 检查令牌是否已被撤销
  * 4. 提取用户信息并返回
@@ -19,6 +44,7 @@ import { JwtPayload } from '../../../common/services/token.service';
  * - 不忽略令牌过期时间
  * - 支持令牌撤销机制
  * - 使用环境变量配置JWT密钥
+ * - 支持双模式认证（Header + Cookie）
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -37,7 +63,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: extractToken,
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
       passReqToCallback: true,
@@ -49,12 +75,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * 验证令牌的有效性并提取用户信息
    *
    * 验证流程：
-   * 1. 从请求头提取Bearer令牌
+   * 1. 从请求头或Cookie提取令牌
    * 2. 检查令牌是否存在
    * 3. 验证令牌是否被撤销
    * 4. 提取用户信息（ID、用户名、邮箱、管理员标志）
    *
-   * @param req Express请求对象，用于访问请求头
+   * @param req Express请求对象，用于访问请求头和Cookie
    * @param payload JWT载荷，包含用户基本信息
    * @returns 验证通过的用户信息
    * @throws UnauthorizedException 令牌无效、已过期或已被撤销
@@ -63,7 +89,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     req: Request,
     payload: JwtPayload,
   ): Promise<Record<string, unknown>> {
-    const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+    const token = extractToken(req);
 
     // Token 不存在时直接拒绝
     if (!token) {

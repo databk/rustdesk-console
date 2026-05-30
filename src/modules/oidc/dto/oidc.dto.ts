@@ -1,4 +1,4 @@
-import { IsString, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsUrl, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -31,4 +31,11 @@ export class OidcAuthRequestDto {
   @ValidateNested()
   @Type(() => DeviceInfoDto)
   deviceInfo: DeviceInfoDto; // 设备信息
+
+  @IsOptional()
+  @IsUrl({
+    protocols: ['http', 'https'],
+    require_protocol: true,
+  })
+  callbackUrl?: string; // Web前端回调URL（可选）
 }

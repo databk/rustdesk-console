@@ -105,7 +105,9 @@ export class OidcController {
   /**
    * OIDC提供商回调端点
    * OIDC提供商授权完成后重定向到此端点
-   * 交换授权码获取令牌，更新授权状态，返回成功页面
+   * 交换授权码获取令牌，更新授权状态
+   * - 客户端登录：返回成功页面
+   * - Web前端登录：设置HttpOnly Cookie并重定向到前端
    *
    * @param req Express请求对象
    * @param res Express响应对象
@@ -122,10 +124,27 @@ export class OidcController {
       );
       const callbackUrl = `${baseUrl}${req.originalUrl}`;
 
-      await this.oidcService.handleCallback(callbackUrl);
+      const result = await this.oidcService.handleCallback(callbackUrl);
 
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(this.successHtml);
+      if (result.isWebLogin) {
+        // Web前端登录：设置HttpOnly Cookie并重定向
+        const cookieOptions = {
+          httpOnly: true,
+          secure: this.configService.get<string>('NODE_ENV') === 'production',
+          sameSite: 'lax' as const,
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7天
+          path: '/',
+        };
+
+        res.cookie('access_token', result.accessToken!, cookieOptions);
+
+        // 重定向到前端
+        res.redirect(result.frontendRedirectUrl!);
+      } else {
+        // 客户端登录：返回成功页面
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(this.successHtml);
+      }
     } catch (err: unknown) {
       const message =
         err instanceof Error

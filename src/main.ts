@@ -2,10 +2,14 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+
+  // 配置 Cookie 解析中间件
+  app.use(cookieParser());
 
   // 设置全局路由前缀
   app.setGlobalPrefix('api');

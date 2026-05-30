@@ -132,6 +132,13 @@ export class OidcAuthState {
   nonce: string | null;
 
   /**
+   * 前端重定向URL
+   * Web前端登录时，认证成功后重定向到的前端地址
+   */
+  @Column({ type: 'text', nullable: true })
+  frontendRedirectUrl: string | null;
+
+  /**
    * 过期时间
    * 授权码的过期时间（默认3分钟）
    */
