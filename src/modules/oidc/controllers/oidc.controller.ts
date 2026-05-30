@@ -43,7 +43,6 @@ function escapeHtml(text: string): string {
 export class OidcController {
   private readonly logger = new Logger(OidcController.name);
   private readonly successHtml: string;
-  private readonly webSuccessHtml: string;
   private readonly errorHtml: string;
 
   constructor(
@@ -52,10 +51,6 @@ export class OidcController {
   ) {
     this.successHtml = fs.readFileSync(
       path.join(__dirname, '..', 'templates', 'callback-success.html'),
-      'utf-8',
-    );
-    this.webSuccessHtml = fs.readFileSync(
-      path.join(__dirname, '..', 'templates', 'callback-web-success.html'),
       'utf-8',
     );
     this.errorHtml = fs.readFileSync(
@@ -133,7 +128,7 @@ export class OidcController {
 
       if (result.isWebLogin) {
         // Web前端登录：返回包含脚本的页面，存储token后跳转
-        const html = this.webSuccessHtml
+        const html = this.successHtml
           .replace('{{title}}', '认证成功')
           .replace('{{message}}', '您已成功登录，正在跳转...')
           .replace(/{{token}}/g, escapeHtml(result.accessToken!))
@@ -143,8 +138,14 @@ export class OidcController {
         res.send(html);
       } else {
         // 客户端登录：返回成功页面
+        const html = this.successHtml
+          .replace('{{title}}', '认证成功')
+          .replace('{{message}}', '您已成功登录，可以关闭此窗口返回应用。')
+          .replace(/{{token}}/g, '')
+          .replace(/{{callbackUrl}}/g, '');
+
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.send(this.successHtml);
+        res.send(html);
       }
     } catch (err: unknown) {
       const message =

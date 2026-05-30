@@ -41,8 +41,29 @@
 <body>
   <div class="container">
     <div class="icon">&#10003;</div>
-    <h1>认证成功</h1>
-    <p>您已成功登录，可以关闭此窗口返回应用。</p>
+    <h1>{{title}}</h1>
+    <p>{{message}}</p>
   </div>
+  <script>
+    (function() {
+      var token = '{{token}}';
+      var callbackUrl = '{{callbackUrl}}';
+      
+      if (token && callbackUrl) {
+        var TOKEN_KEY = 'rustdesk_access_token';
+        var rememberMe = localStorage.getItem('rememberMe') === '1';
+        
+        if (rememberMe) {
+          localStorage.setItem(TOKEN_KEY, token);
+          sessionStorage.removeItem(TOKEN_KEY);
+        } else {
+          sessionStorage.setItem(TOKEN_KEY, token);
+          localStorage.removeItem(TOKEN_KEY);
+        }
+        
+        window.location.href = callbackUrl;
+      }
+    })();
+  </script>
 </body>
 </html>
