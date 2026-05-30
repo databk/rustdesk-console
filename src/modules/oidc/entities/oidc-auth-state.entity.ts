@@ -57,16 +57,16 @@ export class OidcAuthState {
 
   /**
    * 设备ID
-   * RustDesk 客户端的设备标识
+   * RustDesk 客户端的设备标识（客户端特有字段）
    */
-  @Column()
+  @Column({ nullable: true })
   deviceId: string;
 
   /**
    * 设备UUID
-   * 设备的唯一标识符
+   * 设备的唯一标识符（客户端特有字段）
    */
-  @Column()
+  @Column({ nullable: true })
   deviceUuid: string;
 
   /**

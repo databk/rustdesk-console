@@ -24,16 +24,15 @@ export class OidcAuthRequestDto {
 
   @IsOptional()
   @IsString()
-  id?: string; // 设备ID（客户端登录必填，Web前端登录可选）
+  id?: string; // 设备ID（客户端特有字段）
 
   @IsOptional()
   @IsString()
-  uuid?: string; // 设备UUID（客户端登录必填，Web前端登录可选）
+  uuid?: string; // 设备UUID（客户端特有字段）
 
-  @IsOptional()
   @ValidateNested()
   @Type(() => DeviceInfoDto)
-  deviceInfo?: DeviceInfoDto; // 设备信息（可选）
+  deviceInfo: DeviceInfoDto; // 设备信息（必填）
 
   @IsOptional()
   @IsUrl({
