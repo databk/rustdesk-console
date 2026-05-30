@@ -61,6 +61,6 @@ import { EmailModule } from '../email/email.module';
     TokenCleanupService,
     JwtStrategy,
   ],
-  exports: [AuthService, AuthTokenService, JwtModule],
+  exports: [AuthService, AuthTokenService, AuthDeviceService, JwtModule],
 })
 export class AuthModule {}
