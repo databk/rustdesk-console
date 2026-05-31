@@ -135,7 +135,7 @@ export class AuthService {
 
     // 短信验证码登录功能暂未实现
     if (type === 'sms_code') {
-      throw new BadRequestException('短信验证码登录功能正在开发中，暂时不可用');
+      throw new BadRequestException({ error: '短信验证码登录功能正在开发中，暂时不可用' });
     }
 
     // 处理双因素认证登录
@@ -156,7 +156,7 @@ export class AuthService {
 
     // 标准账号密码登录
     if (!username || !password) {
-      throw new BadRequestException('用户名和密码不能为空');
+      throw new BadRequestException({ error: '用户名和密码不能为空' });
     }
 
     // 查找用户（支持用户名或邮箱登录）
@@ -173,22 +173,22 @@ export class AuthService {
       .getOne();
 
     if (!user) {
-      throw new UnauthorizedException('用户名或密码错误');
+      throw new UnauthorizedException({ error: '用户名或密码错误' });
     }
 
     // 验证密码
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('用户名或密码错误');
+      throw new UnauthorizedException({ error: '用户名或密码错误' });
     }
 
     // 检查用户状态
     if (user.status === UserStatus.DISABLED) {
-      throw new UnauthorizedException('账户已被禁用');
+      throw new UnauthorizedException({ error: '账户已被禁用' });
     }
 
     if (user.status === UserStatus.UNVERIFIED) {
-      throw new UnauthorizedException('请先验证邮箱');
+      throw new UnauthorizedException({ error: '请先验证邮箱' });
     }
 
     // 检查是否需要邮箱验证（用户设置中开启了email_verification）
@@ -219,7 +219,7 @@ export class AuthService {
       // 验证TFA代码
       const isValidTfa = this.tfaService.verifyTfaCode(user.tfaSecret, tfaCode);
       if (!isValidTfa) {
-        throw new UnauthorizedException('双因素认证验证码错误');
+        throw new UnauthorizedException({ error: '双因素认证验证码错误' });
       }
     }
 

@@ -79,7 +79,7 @@ export class AuthEmailService {
     // 发送验证码邮件
     const sent = await this.emailService.sendVerificationCode(user.email, code);
     if (!sent) {
-      throw new BadRequestException('发送验证码邮件失败，请稍后重试');
+      throw new BadRequestException({ error: '发送验证码邮件失败，请稍后重试' });
     }
 
     this.logger.log(
@@ -132,7 +132,7 @@ export class AuthEmailService {
 
     // 验证参数完整性
     if (!username || !verificationCode || !secret) {
-      throw new BadRequestException('验证参数不完整');
+      throw new BadRequestException({ error: '验证参数不完整' });
     }
 
     // 查找验证会话
@@ -145,12 +145,12 @@ export class AuthEmailService {
     });
 
     if (!session) {
-      throw new UnauthorizedException('验证码已过期或无效，请重新登录');
+      throw new UnauthorizedException({ error: '验证码已过期或无效，请重新登录' });
     }
 
     // 验证验证码
     if (session.code !== verificationCode) {
-      throw new UnauthorizedException('验证码错误');
+      throw new UnauthorizedException({ error: '验证码错误' });
     }
 
     // 查找用户
@@ -165,13 +165,13 @@ export class AuthEmailService {
       .getOne();
 
     if (!user || user.guid !== session.userGuid) {
-      throw new UnauthorizedException('用户信息不匹配');
+      throw new UnauthorizedException({ error: '用户信息不匹配' });
     }
 
     // 检查用户状态
     if (user.status === UserStatus.DISABLED) {
       // UserStatus.DISABLED
-      throw new UnauthorizedException('账户已被禁用');
+      throw new UnauthorizedException({ error: '账户已被禁用' });
     }
 
     // 标记验证会话为已使用
