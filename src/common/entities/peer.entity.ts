@@ -8,6 +8,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
+import { Strategy } from '../../modules/strategy/entities/strategy.entity';
 
 /**
  * 设备状态枚举
@@ -55,11 +56,14 @@ export class Peer {
   @Index()
   deviceGroupGuid: string | null;
 
-  /**
-   * 关联的设备组实体
-   * 多对一关系，关联到 DeviceGroup
-   * 使用字符串引用避免循环依赖
-   */
+  @Column({ type: 'varchar', nullable: true })
+  @Index()
+  strategyGuid: string | null;
+
+  @ManyToOne('Strategy', () => Strategy, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'strategyGuid' })
+  strategy: any;
+
   @ManyToOne('DeviceGroup', 'peers', { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'deviceGroupGuid' })
   deviceGroup: any;

@@ -5,24 +5,10 @@ import { HeartbeatService } from './heartbeat.service';
 import { DisconnectStoreService } from './services/disconnect-store.service';
 import { Peer } from '../../common/entities';
 import { ActiveConnection } from './entities/active-connection.entity';
+import { StrategyModule } from '../strategy/strategy.module';
 
-/**
- * 心跳模块
- * 负责设备心跳处理、在线状态维护和连接管理
- *
- * 导入模块：
- * - TypeOrmModule
- *
- * 导出服务：
- * - HeartbeatService
- * - DisconnectStoreService
- *
- * 提供服务：
- * - HeartbeatService
- * - DisconnectStoreService
- */
 @Module({
-  imports: [TypeOrmModule.forFeature([Peer, ActiveConnection])],
+  imports: [TypeOrmModule.forFeature([Peer, ActiveConnection]), StrategyModule],
   controllers: [HeartbeatController],
   providers: [HeartbeatService, DisconnectStoreService],
   exports: [HeartbeatService, DisconnectStoreService],

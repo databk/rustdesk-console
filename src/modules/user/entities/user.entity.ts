@@ -5,9 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
   Index,
 } from 'typeorm';
 import { UserToken } from './user-token.entity';
+import { Strategy } from '../../strategy/entities/strategy.entity';
 
 /**
  * 用户状态枚举
@@ -135,10 +138,14 @@ export class User {
   @Index()
   oidcSubject: string;
 
-  /**
-   * 用户的令牌列表
-   * 一对多关系，关联到 UserToken
-   */
+  @Column({ type: 'varchar', nullable: true })
+  @Index()
+  strategyGuid: string | null;
+
+  @ManyToOne('Strategy', () => Strategy, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'strategyGuid' })
+  strategy: any;
+
   @OneToMany(() => UserToken, (token) => token.user, { cascade: true })
   tokens: UserToken[];
 

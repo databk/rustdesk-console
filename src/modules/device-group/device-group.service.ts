@@ -9,6 +9,7 @@ import * as uuid from 'uuid';
 import { DeviceGroup } from './entities/device-group.entity';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
+import { Strategy } from '../strategy/entities/strategy.entity';
 import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
 import {
   DeviceStatus,
@@ -40,6 +41,8 @@ export class DeviceGroupService {
     private peerRepository: Repository<Peer>,
     @InjectRepository(DeviceGroupUserPermission)
     private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
+    @InjectRepository(Strategy)
+    private strategyRepository: Repository<Strategy>,
   ) {}
 
   /**
@@ -674,9 +677,16 @@ export class DeviceGroupService {
       case 'device_username':
       case 'device_name':
       case 'ab':
-      case 'strategy_name':
-        // 这些字段需要从Sysinfo中获取和更新
+      case 'strategy_name': {
+        const strategy = await this.strategyRepository.findOne({
+          where: { name: value },
+        });
+        if (!strategy) {
+          throw new NotFoundException('策略不存在');
+        }
+        updateData.strategyGuid = strategy.guid;
         break;
+      }
       default:
         throw new BadRequestException(`不支持的属性类型: ${type}`);
     }

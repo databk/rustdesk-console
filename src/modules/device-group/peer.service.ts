@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
+import { Strategy } from '../strategy/entities/strategy.entity';
 import { PeerQueryDto } from './dto/peer.dto';
 
 /**
@@ -23,6 +24,8 @@ export class PeerService {
     private sysinfoRepository: Repository<Sysinfo>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Strategy)
+    private strategyRepository: Repository<Strategy>,
   ) {}
 
   /**
@@ -182,9 +185,21 @@ export class PeerService {
         : [];
     const userMap = new Map(users.map((u) => [u.guid, u]));
 
-    // 版本号转换函数：将 1001100 格式转换为 1.1.10 格式
-    // 格式说明：major*1000000 + minor*1000 + patch*10 + patch_version
-    // 例如：1.1.10 -> 1001100, 1.1.10-1 -> 1001101
+    const strategyGuids = [
+      ...new Set(
+        peers
+          .map((p) => p.strategyGuid)
+          .filter((guid): guid is string => guid != null),
+      ),
+    ];
+    const strategies =
+      strategyGuids.length > 0
+        ? await this.strategyRepository.find({
+            where: { guid: In(strategyGuids) },
+          })
+        : [];
+    const strategyMap = new Map(strategies.map((s) => [s.guid, s]));
+
     const formatVersion = (ver: number | null | undefined): string => {
       if (!ver) return '';
       const major = Math.floor(ver / 1000000);
@@ -221,7 +236,9 @@ export class PeerService {
         user_name: user?.username || '',
         note: sysinfo?.presetNote || '',
         device_group_name: deviceGroupName,
-        strategy_name: '', // 策略功能未实现，暂返回空
+        strategy_name: peer.strategyGuid
+          ? strategyMap.get(peer.strategyGuid)?.name || ''
+          : '',
         info: {
           device_name: sysinfo?.hostname || '',
           username: sysinfo?.username || '',

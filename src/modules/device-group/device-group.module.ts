@@ -8,6 +8,7 @@ import { DeviceGroupUserPermission } from './entities/device-group-user-permissi
 import { UserUserPermission } from './entities/user-user-permission.entity';
 import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
+import { Strategy } from '../strategy/entities/strategy.entity';
 import { AuthModule } from '../auth/auth.module';
 import { HeartbeatModule } from '../heartbeat/heartbeat.module';
 
@@ -37,6 +38,7 @@ import { HeartbeatModule } from '../heartbeat/heartbeat.module';
       Peer,
       Sysinfo,
       User,
+      Strategy,
     ]),
     AuthModule,
     HeartbeatModule,

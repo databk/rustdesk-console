@@ -5,9 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
   Index,
 } from 'typeorm';
 import { DeviceGroupUserPermission } from './device-group-user-permission.entity';
+import { Strategy } from '../../strategy/entities/strategy.entity';
 
 /**
  * 设备组实体
@@ -37,10 +40,14 @@ export class DeviceGroup {
   @Column({ type: 'text', nullable: true })
   note: string;
 
-  /**
-   * 设备组的用户权限列表
-   * 一对多关系，关联到 DeviceGroupUserPermission
-   */
+  @Column({ type: 'varchar', nullable: true })
+  @Index()
+  strategyGuid: string | null;
+
+  @ManyToOne('Strategy', () => Strategy, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'strategyGuid' })
+  strategy: any;
+
   @OneToMany(
     () => DeviceGroupUserPermission,
     (permission) => permission.deviceGroup,

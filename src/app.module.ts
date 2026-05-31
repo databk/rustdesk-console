@@ -35,6 +35,8 @@ import { EmailVerificationSession } from './modules/auth/entities/email-verifica
 import { SystemSetting } from './modules/settings/entities/system-setting.entity';
 import { ActiveConnection } from './modules/heartbeat/entities/active-connection.entity';
 import { SettingsModule } from './modules/settings/settings.module';
+import { StrategyModule } from './modules/strategy/strategy.module';
+import { Strategy } from './modules/strategy/entities/strategy.entity';
 
 /**
  * 应用根模块
@@ -93,6 +95,7 @@ import { SettingsModule } from './modules/settings/settings.module';
         EmailVerificationSession,
         SystemSetting,
         ActiveConnection,
+        Strategy,
       ],
       synchronize: true,
       logging: false,
@@ -108,6 +111,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     SysinfoModule,
     DashboardModule,
     SettingsModule,
+    StrategyModule,
   ],
   providers: [
     {
