@@ -79,13 +79,13 @@ export class AuthTfaService {
 
     // 验证参数完整性
     if (!tfaCode || !secret) {
-      throw new BadRequestException('双因素认证参数不完整');
+      throw new BadRequestException({ error: '双因素认证参数不完整' });
     }
 
     // 验证TFA代码
     const isValidTfa = this.verifyTfaCode(secret, tfaCode);
     if (!isValidTfa) {
-      throw new UnauthorizedException('双因素认证验证码错误');
+      throw new UnauthorizedException({ error: '双因素认证验证码错误' });
     }
 
     // 查找用户
@@ -101,18 +101,18 @@ export class AuthTfaService {
       .getOne();
 
     if (!user) {
-      throw new UnauthorizedException('用户不存在');
+      throw new UnauthorizedException({ error: '用户不存在' });
     }
 
     // 验证secret是否与用户的tfaSecret匹配
     if (user.tfaSecret !== secret) {
-      throw new UnauthorizedException('双因素认证参数无效');
+      throw new UnauthorizedException({ error: '双因素认证参数无效' });
     }
 
     // 检查用户状态
     if (user.status === UserStatus.DISABLED) {
       // UserStatus.DISABLED
-      throw new UnauthorizedException('账户已被禁用');
+      throw new UnauthorizedException({ error: '账户已被禁用' });
     }
 
     // 创建设备记录
