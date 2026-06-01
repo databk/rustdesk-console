@@ -17,7 +17,11 @@ export class AvatarController {
       throw new NotFoundException();
     }
 
-    const filePath = path.join(AVATAR_DIR, filename);
+    const avatarRoot = path.resolve(AVATAR_DIR) + path.sep;
+    const filePath = path.resolve(AVATAR_DIR, filename);
+    if (!filePath.startsWith(avatarRoot)) {
+      throw new NotFoundException();
+    }
 
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException();
