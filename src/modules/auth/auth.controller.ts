@@ -14,6 +14,7 @@ import {
   LoginDto,
   CurrentUserDto,
   LogoutDto,
+  SetupTfaDto,
   VerifyTfaDto,
   DisableTfaDto,
 } from './dto/auth.dto';
@@ -63,8 +64,8 @@ export class AuthController {
 
   @Post('2fa/setup')
   @HttpCode(HttpStatus.OK)
-  async setupTfa(@CurrentUser('id') userId: string) {
-    return this.tfaService.setupTfa(userId);
+  async setupTfa(@CurrentUser('id') userId: string, @Body() dto: SetupTfaDto) {
+    return this.tfaService.setupTfa(userId, dto.current_code);
   }
 
   @Post('2fa/verify')

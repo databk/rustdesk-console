@@ -100,6 +100,12 @@ export class LogoutDto {
   uuid?: string;
 }
 
+export class SetupTfaDto {
+  @IsOptional()
+  @IsString()
+  current_code?: string;
+}
+
 export class VerifyTfaDto {
   @IsString()
   code: string;

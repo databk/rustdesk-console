@@ -35,6 +35,7 @@ export class AuthTfaService {
 
   async setupTfa(
     userGuid: string,
+    currentCode?: string,
   ): Promise<{ secret: string; otpauth_url: string }> {
     const user = await this.userRepository
       .createQueryBuilder('user')
@@ -47,14 +48,29 @@ export class AuthTfaService {
       throw new NotFoundException('用户不存在');
     }
 
+    const userInfo = user.getUserInfo();
+    const isEnforced = !!userInfo?.other?.tfa_enforce;
+
     if (user.tfaSecret) {
-      throw new BadRequestException('2FA已启用，如需重新设置请先禁用');
+      if (!isEnforced) {
+        throw new BadRequestException('2FA已启用，如需重新设置请先禁用');
+      }
+
+      if (!currentCode) {
+        throw new BadRequestException(
+          '2FA已启用且为强制模式，重设需提供当前验证码',
+        );
+      }
+
+      const isValid = this.verifyTfaCode(user.tfaSecret, currentCode);
+      if (!isValid) {
+        throw new UnauthorizedException('当前验证码错误');
+      }
     }
 
     const secret = authenticator.generateSecret();
     const otpauthUrl = authenticator.keyuri(user.username, 'RustDesk', secret);
 
-    const userInfo = user.getUserInfo();
     userInfo.other = userInfo.other || {};
     userInfo.other.tfa_pending_secret = secret;
     user.setUserInfo(userInfo);
@@ -82,11 +98,13 @@ export class AuthTfaService {
       throw new NotFoundException('用户不存在');
     }
 
-    if (user.tfaSecret) {
+    const userInfo = user.getUserInfo();
+    const isEnforced = !!userInfo?.other?.tfa_enforce;
+
+    if (user.tfaSecret && !isEnforced) {
       throw new BadRequestException('2FA已启用');
     }
 
-    const userInfo = user.getUserInfo();
     const other = userInfo.other || {};
     const pendingSecret = other.tfa_pending_secret as string | undefined;
 
