@@ -8,20 +8,8 @@ import { Peer, Sysinfo } from '../../common/entities';
 import { AuthModule } from '../auth/auth.module';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { DeviceGroupUserPermission } from '../device-group/entities/device-group-user-permission.entity';
+import { UserUserPermission } from '../device-group/entities/user-user-permission.entity';
 
-/**
- * 用户模块
- * 负责用户管理和用户令牌管理
- *
- * 导入模块：
- * - TypeOrmModule
- *
- * 导出服务：
- * - UserService
- *
- * 提供服务：
- * - UserService
- */
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -31,6 +19,7 @@ import { DeviceGroupUserPermission } from '../device-group/entities/device-group
       Sysinfo,
       DeviceGroup,
       DeviceGroupUserPermission,
+      UserUserPermission,
     ]),
     AuthModule,
   ],

@@ -17,7 +17,6 @@ import { DeviceGroupService } from './device-group.service';
 import { PeerService } from './peer.service';
 import { DeviceGroupQueryDto } from './dto/device-group.dto';
 import { PeerQueryDto } from './dto/peer.dto';
-import { UserQueryDto } from './dto/user.dto';
 import { DeviceQueryDto } from './dto/device.dto';
 import {
   UpdateDeviceStatusDto,
@@ -104,31 +103,6 @@ export class DeviceGroupController {
     @Query() query: PeerQueryDto,
   ) {
     return this.peerService.getAccessiblePeers(userId, query, isAdmin);
-  }
-
-  /**
-   * 获取当前用户可访问的用户列表
-   * 根据用户权限获取可访问的用户列表，管理员可以看到所有用户
-   *
-   * 功能说明：
-   * - 普通用户只能看到自己有权限访问的用户
-   * - 管理员可以看到所有用户
-   * - 支持分页查询
-   * - 支持按名称搜索
-   * - 支持按状态过滤
-   *
-   * @param userId 当前用户ID（从JWT令牌中提取）
-   * @param isAdmin 是否为管理员（从JWT令牌中提取）
-   * @param query 查询参数（分页、搜索、状态等）
-   * @returns 可访问的用户列表（分页）
-   */
-  @Get('users')
-  async getAccessibleUsers(
-    @CurrentUser('id') userId: string,
-    @CurrentUser('isAdmin') isAdmin: boolean,
-    @Query() query: UserQueryDto,
-  ) {
-    return this.deviceGroupService.getAccessibleUsers(userId, query, isAdmin);
   }
 
   // ============ 管理员 API 接口 ============

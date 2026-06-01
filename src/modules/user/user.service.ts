@@ -7,46 +7,147 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { User, UserStatus } from './entities/user.entity';
+import { User, UserStatus, UserInfo } from './entities/user.entity';
 import { UserToken } from './entities/user-token.entity';
+import { DeviceGroupUserPermission } from '../device-group/entities/device-group-user-permission.entity';
+import { UserUserPermission } from '../device-group/entities/user-user-permission.entity';
+import {
+  CreateUserDto,
+  InviteUserDto,
+  UpdateUserDto,
+  UpdateUserSecurityDto,
+  UpdateCurrentUserDto,
+  BatchStatusDto,
+  BatchSecurityDto,
+} from './dto/user.dto';
 
 @Injectable()
-/**
- * UserService
- * 负责用户管理的核心服务
- *
- * 功能：
- * - 用户注册
- * - 用户信息查询
- * - 用户信息更新
- * - 用户状态管理
- * - 用户权限管理
- *
- * 架构说明：
- * 直接操作用户实体，提供完整的用户管理功能
- */
 export class UserService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(UserToken)
     private userTokenRepository: Repository<UserToken>,
+    @InjectRepository(DeviceGroupUserPermission)
+    private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
+    @InjectRepository(UserUserPermission)
+    private userUserPermissionRepository: Repository<UserUserPermission>,
   ) {}
 
-  /**
-   * 创建新用户
-   * @param createUserDto 用户创建数据
-   * @returns 创建的用户
-   */
-  async createUser(createUserDto: {
-    name: string;
-    password: string;
-    email?: string;
-    note?: string;
-  }) {
-    const { name, password, email, note } = createUserDto;
+  async getAccessibleUsers(
+    userGuid: string,
+    query: {
+      current: number;
+      pageSize: number;
+      status?: string;
+      name?: string;
+      group_name?: string;
+    },
+    isAdmin: boolean = false,
+  ): Promise<{ data: any[]; total: number }> {
+    const { current, pageSize, status, name, group_name } = query;
+    const skip = (current - 1) * pageSize;
 
-    // 检查用户名是否已存在
+    if (isAdmin) {
+      const queryBuilder = this.userRepository
+        .createQueryBuilder('user')
+        .where('user.status = :status', {
+          status: parseInt(status || '1') || UserStatus.ACTIVE,
+        });
+
+      if (name) {
+        queryBuilder.andWhere('user.username LIKE :name', {
+          name: `%${name}%`,
+        });
+      }
+
+      if (group_name) {
+        queryBuilder.andWhere(
+          `EXISTS (
+            SELECT 1 FROM device_group_user_permissions udgp
+            INNER JOIN device_groups dg ON udgp.deviceGroupGuid = dg.guid
+            WHERE udgp.userGuid = user.guid AND dg.name LIKE :groupName
+          )`,
+          { groupName: `%${group_name}%` },
+        );
+      }
+
+      const [users, total] = await queryBuilder
+        .orderBy('user.username', 'ASC')
+        .skip(skip)
+        .take(pageSize)
+        .getManyAndCount();
+
+      return {
+        data: users.map((u) => ({
+          guid: u.guid,
+          name: u.username,
+          email: u.email || '',
+          note: u.note || '',
+          status: u.status,
+          is_admin: u.isAdmin,
+        })),
+        total,
+      };
+    }
+
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .where('user.status = :status', {
+        status: parseInt(status || '1') || UserStatus.ACTIVE,
+      })
+      .andWhere(
+        `(user.guid = :userGuid
+          OR EXISTS (
+            SELECT 1 FROM user_user_permissions uup
+            WHERE uup.userGuid = :userGuid AND uup.targetUserGuid = user.guid
+          )
+          OR EXISTS (
+            SELECT 1 FROM peers p
+            INNER JOIN device_group_user_permissions udgp ON p.deviceGroupGuid = udgp.deviceGroupGuid
+            WHERE udgp.userGuid = :userGuid AND p.userGuid = user.guid
+          )
+        )`,
+        { userGuid },
+      );
+
+    if (name) {
+      queryBuilder.andWhere('user.username LIKE :name', { name: `%${name}%` });
+    }
+
+    if (group_name) {
+      queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1 FROM device_group_user_permissions udgp
+          INNER JOIN device_groups dg ON udgp.deviceGroupGuid = dg.guid
+          WHERE udgp.userGuid = user.guid AND dg.name LIKE :groupName
+        )`,
+        { groupName: `%${group_name}%` },
+      );
+    }
+
+    const [users, total] = await queryBuilder
+      .orderBy('user.username', 'ASC')
+      .skip(skip)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      data: users.map((u) => ({
+        guid: u.guid,
+        name: u.username,
+        email: u.email || '',
+        note: u.note || '',
+        status: u.status,
+        is_admin: u.isAdmin,
+      })),
+      total,
+    };
+  }
+
+  async createUser(dto: CreateUserDto) {
+    const { name, password, email, note } = dto;
+
     const existingUser = await this.userRepository.findOne({
       where: { username: name },
     });
@@ -54,7 +155,6 @@ export class UserService {
       throw new BadRequestException('用户名已存在');
     }
 
-    // 检查邮箱是否已存在
     if (email) {
       const existingEmail = await this.userRepository.findOne({
         where: { email },
@@ -64,7 +164,6 @@ export class UserService {
       }
     }
 
-    // 创建用户
     const user = new User();
     user.guid = uuidv4();
     user.username = name;
@@ -79,19 +178,9 @@ export class UserService {
     return { message: '用户创建成功' };
   }
 
-  /**
-   * 邀请用户
-   * @param inviteUserDto 用户邀请数据
-   * @returns 邀请结果
-   */
-  async inviteUser(inviteUserDto: {
-    email: string;
-    name: string;
-    note?: string;
-  }) {
-    const { email, name, note } = inviteUserDto;
+  async inviteUser(dto: InviteUserDto) {
+    const { email, name, note } = dto;
 
-    // 检查邮箱是否已存在
     const existingUser = await this.userRepository.findOne({
       where: { email },
     });
@@ -99,7 +188,6 @@ export class UserService {
       throw new BadRequestException('邮箱已存在');
     }
 
-    // 创建未验证的用户
     const user = new User();
     user.guid = uuidv4();
     user.username = name;
@@ -114,11 +202,7 @@ export class UserService {
     return { message: '邀请发送成功' };
   }
 
-  /**
-   * 禁用用户
-   * @param guid 用户GUID
-   */
-  async disableUser(guid: string) {
+  async getUser(guid: string) {
     const user = await this.userRepository.findOne({
       where: { guid },
     });
@@ -126,15 +210,21 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    user.status = UserStatus.DISABLED;
-    await this.userRepository.save(user);
+    return {
+      guid: user.guid,
+      name: user.username,
+      email: user.email || '',
+      note: user.note || '',
+      status: user.status,
+      is_admin: user.isAdmin,
+      third_auth_type: user.thirdAuthType || '',
+      strategy_guid: user.strategyGuid || '',
+      created_at: user.createdAt,
+      updated_at: user.updatedAt,
+    };
   }
 
-  /**
-   * 启用用户
-   * @param guid 用户GUID
-   */
-  async enableUser(guid: string) {
+  async updateUser(guid: string, dto: UpdateUserDto) {
     const user = await this.userRepository.findOne({
       where: { guid },
     });
@@ -142,14 +232,111 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    user.status = UserStatus.ACTIVE;
+    if (dto.name !== undefined) {
+      const existingUser = await this.userRepository.findOne({
+        where: { username: dto.name },
+      });
+      if (existingUser && existingUser.guid !== guid) {
+        throw new BadRequestException('用户名已存在');
+      }
+      user.username = dto.name;
+    }
+
+    if (dto.email !== undefined) {
+      if (dto.email) {
+        const existingEmail = await this.userRepository.findOne({
+          where: { email: dto.email },
+        });
+        if (existingEmail && existingEmail.guid !== guid) {
+          throw new BadRequestException('邮箱已存在');
+        }
+      }
+      user.email = dto.email;
+    }
+
+    if (dto.note !== undefined) {
+      user.note = dto.note;
+    }
+
+    if (dto.status !== undefined) {
+      user.status = dto.status;
+    }
+
+    if (dto.is_admin !== undefined) {
+      user.isAdmin = dto.is_admin;
+    }
+
+    await this.userRepository.save(user);
+
+    return { message: '用户已更新' };
+  }
+
+  async updateCurrentUser(userId: string, dto: UpdateCurrentUserDto) {
+    const user = await this.userRepository.findOne({
+      where: { guid: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (dto.name !== undefined) {
+      const existingUser = await this.userRepository.findOne({
+        where: { username: dto.name },
+      });
+      if (existingUser && existingUser.guid !== userId) {
+        throw new BadRequestException('用户名已存在');
+      }
+      user.username = dto.name;
+    }
+
+    if (dto.email !== undefined) {
+      if (dto.email) {
+        const existingEmail = await this.userRepository.findOne({
+          where: { email: dto.email },
+        });
+        if (existingEmail && existingEmail.guid !== userId) {
+          throw new BadRequestException('邮箱已存在');
+        }
+      }
+      user.email = dto.email;
+    }
+
+    if (dto.note !== undefined) {
+      user.note = dto.note;
+    }
+
+    await this.userRepository.save(user);
+
+    return { message: '用户信息已更新' };
+  }
+
+  async updateUserSecurity(guid: string, dto: UpdateUserSecurityDto) {
+    const user = await this.userRepository.findOne({
+      where: { guid },
+    });
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    const userInfo: UserInfo = user.getUserInfo();
+    userInfo.other = userInfo.other || {};
+
+    if (dto.tfa_enforce !== undefined) {
+      userInfo.other.tfa_enforce = dto.tfa_enforce;
+    }
+
+    if (dto.tfa_url !== undefined) {
+      userInfo.other.tfa_url = dto.tfa_url;
+    }
+
+    if (dto.email_verification !== undefined) {
+      userInfo.email_verification = dto.email_verification;
+    }
+
+    user.setUserInfo(userInfo);
     await this.userRepository.save(user);
   }
 
-  /**
-   * 删除用户
-   * @param guid 用户GUID
-   */
   async deleteUser(guid: string) {
     const user = await this.userRepository.findOne({
       where: { guid },
@@ -161,65 +348,6 @@ export class UserService {
     await this.userRepository.remove(user);
   }
 
-  /**
-   * 设置2FA强制
-   * @param userGuids 用户GUID列表
-   * @param enforce 是否强制
-   * @param url 基础URL
-   */
-  async setTfaEnforce(userGuids: string[], enforce: boolean, url: string) {
-    const users = await this.userRepository.find({
-      where: { guid: In(userGuids) },
-    });
-
-    if (users.length === 0) {
-      throw new NotFoundException('用户不存在');
-    }
-
-    for (const user of users) {
-      const userInfo = user.getUserInfo();
-      userInfo.other = userInfo.other || {};
-      userInfo.other.tfa_enforce = enforce;
-      userInfo.other.tfa_url = url;
-      user.setUserInfo(userInfo);
-      await this.userRepository.save(user);
-    }
-  }
-
-  /**
-   * 禁用登录验证
-   * @param userGuids 用户GUID列表
-   * @param type 验证类型（email或2fa）
-   */
-  async disableLoginVerification(userGuids: string[], type: 'email' | '2fa') {
-    const users = await this.userRepository.find({
-      where: { guid: In(userGuids) },
-    });
-
-    if (users.length === 0) {
-      throw new NotFoundException('用户不存在');
-    }
-
-    for (const user of users) {
-      const userInfo = user.getUserInfo();
-      userInfo.other = userInfo.other || {};
-
-      if (type === 'email') {
-        userInfo.email_verification = false;
-      } else if (type === '2fa') {
-        // user.tfaSecret = undefined;
-        // user.verifier = undefined;
-      }
-
-      user.setUserInfo(userInfo);
-      await this.userRepository.save(user);
-    }
-  }
-
-  /**
-   * 强制登出用户
-   * @param userGuids 用户GUID列表
-   */
   async forceLogout(userGuids: string[]) {
     const users = await this.userRepository.find({
       where: { guid: In(userGuids) },
@@ -229,12 +357,86 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    // 撤销用户的所有令牌
     await this.userTokenRepository.update(
       { userGuid: In(userGuids), isRevoked: false },
       { isRevoked: true },
     );
 
     return { message: '强制登出成功' };
+  }
+
+  async batchUpdateStatus(dto: BatchStatusDto) {
+    const { user_guids, status } = dto;
+    const users = await this.userRepository.find({
+      where: { guid: In(user_guids) },
+    });
+
+    if (users.length === 0) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    const foundGuids = new Set(users.map((u) => u.guid));
+    const succeeded: string[] = [];
+    const failed: { guid: string; reason: string }[] = [];
+
+    for (const guid of user_guids) {
+      if (!foundGuids.has(guid)) {
+        failed.push({ guid, reason: 'User not found' });
+      }
+    }
+
+    const guidsToUpdate = user_guids.filter((guid) => foundGuids.has(guid));
+
+    if (guidsToUpdate.length > 0) {
+      await this.userRepository
+        .createQueryBuilder()
+        .update(User)
+        .set({ status })
+        .where('guid IN (:...guids)', { guids: guidsToUpdate })
+        .execute();
+
+      succeeded.push(...guidsToUpdate);
+    }
+
+    return {
+      succeeded,
+      failed,
+      total: user_guids.length,
+      succeededCount: succeeded.length,
+      failedCount: failed.length,
+    };
+  }
+
+  async batchUpdateSecurity(dto: BatchSecurityDto) {
+    const { user_guids, tfa_enforce, tfa_url, email_verification } = dto;
+    const users = await this.userRepository.find({
+      where: { guid: In(user_guids) },
+    });
+
+    if (users.length === 0) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    for (const user of users) {
+      const userInfo: UserInfo = user.getUserInfo();
+      userInfo.other = userInfo.other || {};
+
+      if (tfa_enforce !== undefined) {
+        userInfo.other.tfa_enforce = tfa_enforce;
+      }
+
+      if (tfa_url !== undefined) {
+        userInfo.other.tfa_url = tfa_url;
+      }
+
+      if (email_verification !== undefined) {
+        userInfo.email_verification = email_verification;
+      }
+
+      user.setUserInfo(userInfo);
+      await this.userRepository.save(user);
+    }
+
+    return { message: '批量安全设置已更新' };
   }
 }
