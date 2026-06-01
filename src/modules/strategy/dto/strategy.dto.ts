@@ -1,4 +1,13 @@
-import { IsString, IsNotEmpty, IsOptional, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsObject,
+  IsNumber,
+  Min,
+  IsInt,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateStrategyDto {
   @IsString()
@@ -39,7 +48,19 @@ export class AssignStrategyDto {
 }
 
 export class StrategyQueryDto {
-  current: number = 1;
-  pageSize: number = 100;
+  @IsNumber()
+  @Min(1)
+  @IsInt()
+  @Type(() => Number)
+  current: number;
+
+  @IsNumber()
+  @Min(1)
+  @IsInt()
+  @Type(() => Number)
+  pageSize: number;
+
+  @IsString()
+  @IsOptional()
   name?: string;
 }
