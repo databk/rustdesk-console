@@ -135,7 +135,9 @@ export class AuthService {
 
     // 短信验证码登录功能暂未实现
     if (type === 'sms_code') {
-      throw new BadRequestException({ error: '短信验证码登录功能正在开发中，暂时不可用' });
+      throw new BadRequestException({
+        error: '短信验证码登录功能正在开发中，暂时不可用',
+      });
     }
 
     // 处理双因素认证登录
@@ -170,6 +172,7 @@ export class AuthService {
       .addSelect('user.tfaSecret')
       .addSelect('user.info')
       .addSelect('user.thirdAuthType')
+      .addSelect('user.avatar')
       .getOne();
 
     if (!user) {
@@ -212,6 +215,7 @@ export class AuthService {
             info: user.getUserInfo(),
             is_admin: user.isAdmin,
             third_auth_type: user.thirdAuthType || undefined,
+            ...(user.avatar ? { avatar: user.avatar } : {}),
           },
         };
       }
@@ -230,6 +234,7 @@ export class AuthService {
           info: user.getUserInfo(),
           is_admin: user.isAdmin,
           third_auth_type: user.thirdAuthType || undefined,
+          ...(user.avatar ? { avatar: user.avatar } : {}),
         },
       };
     }
@@ -260,6 +265,7 @@ export class AuthService {
         info: user.getUserInfo(),
         is_admin: user.isAdmin,
         third_auth_type: user.thirdAuthType || undefined,
+        ...(user.avatar ? { avatar: user.avatar } : {}),
       },
     };
   }
@@ -282,6 +288,7 @@ export class AuthService {
       .where('user.guid = :guid', { guid: userGuid })
       .addSelect('user.info')
       .addSelect('user.thirdAuthType')
+      .addSelect('user.avatar')
       .getOne();
 
     if (!user) {
@@ -297,6 +304,7 @@ export class AuthService {
       info: user.getUserInfo(),
       is_admin: user.isAdmin,
       third_auth_type: user.thirdAuthType || undefined,
+      ...(user.avatar ? { avatar: user.avatar } : {}),
     };
   }
 

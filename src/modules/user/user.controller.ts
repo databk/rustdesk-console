@@ -10,7 +10,12 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { UserService } from './user.service';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -53,6 +58,29 @@ export class UserController {
     @Body() dto: UpdateCurrentUserDto,
   ) {
     return this.userService.updateCurrentUser(userId, dto);
+  }
+
+  @Post('users/me/avatar')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseInterceptors(
+    FileInterceptor('avatar', { limits: { fileSize: 2 * 1024 * 1024 } }),
+  )
+  @HttpCode(HttpStatus.OK)
+  async uploadAvatar(
+    @CurrentUser('id') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('请上传头像文件');
+    }
+    return this.userService.uploadAvatar(userId, file);
+  }
+
+  @Delete('users/me/avatar')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async deleteAvatar(@CurrentUser('id') userId: string) {
+    return this.userService.deleteAvatar(userId);
   }
 
   @Post('users/invite')

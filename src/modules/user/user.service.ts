@@ -7,6 +7,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import sharp from 'sharp';
+import * as fs from 'fs';
+import * as path from 'path';
 import { User, UserStatus, UserInfo } from './entities/user.entity';
 import { UserToken } from './entities/user-token.entity';
 import { DeviceGroupUserPermission } from '../device-group/entities/device-group-user-permission.entity';
@@ -20,6 +23,11 @@ import {
   BatchStatusDto,
   BatchSecurityDto,
 } from './dto/user.dto';
+
+const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
+const AVATAR_SIZE = 256;
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
 @Injectable()
 export class UserService {
@@ -79,14 +87,20 @@ export class UserService {
         .getManyAndCount();
 
       return {
-        data: users.map((u) => ({
-          guid: u.guid,
-          name: u.username,
-          email: u.email || '',
-          note: u.note || '',
-          status: u.status,
-          is_admin: u.isAdmin,
-        })),
+        data: users.map((u) => {
+          const item: Record<string, unknown> = {
+            guid: u.guid,
+            name: u.username,
+            email: u.email || '',
+            note: u.note || '',
+            status: u.status,
+            is_admin: u.isAdmin,
+          };
+          if (u.avatar) {
+            item.avatar = u.avatar;
+          }
+          return item;
+        }),
         total,
       };
     }
@@ -133,14 +147,20 @@ export class UserService {
       .getManyAndCount();
 
     return {
-      data: users.map((u) => ({
-        guid: u.guid,
-        name: u.username,
-        email: u.email || '',
-        note: u.note || '',
-        status: u.status,
-        is_admin: u.isAdmin,
-      })),
+      data: users.map((u) => {
+        const item: Record<string, unknown> = {
+          guid: u.guid,
+          name: u.username,
+          email: u.email || '',
+          note: u.note || '',
+          status: u.status,
+          is_admin: u.isAdmin,
+        };
+        if (u.avatar) {
+          item.avatar = u.avatar;
+        }
+        return item;
+      }),
       total,
     };
   }
@@ -221,6 +241,7 @@ export class UserService {
       strategy_guid: user.strategyGuid || '',
       created_at: user.createdAt,
       updated_at: user.updatedAt,
+      ...(user.avatar ? { avatar: user.avatar } : {}),
     };
   }
 
@@ -430,5 +451,90 @@ export class UserService {
     }
 
     return { message: '批量安全设置已更新' };
+  }
+
+  private ensureAvatarDir() {
+    if (!fs.existsSync(AVATAR_DIR)) {
+      fs.mkdirSync(AVATAR_DIR, { recursive: true });
+    }
+  }
+
+  private removeAvatarFile(avatarPath: string) {
+    const fullPath = path.join(process.cwd(), avatarPath);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  }
+
+  private buildUserResponse(user: User) {
+    const response: Record<string, unknown> = {
+      guid: user.guid,
+      name: user.username,
+      email: user.email || '',
+      note: user.note || '',
+      status: user.status,
+      is_admin: user.isAdmin,
+    };
+    if (user.avatar) {
+      response.avatar = user.avatar;
+    }
+    return response;
+  }
+
+  async uploadAvatar(userGuid: string, file: Express.Multer.File) {
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException('不支持的图片格式，仅支持 JPG、PNG、WebP');
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException('图片大小不能超过 2MB');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { guid: userGuid },
+    });
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (user.avatar) {
+      this.removeAvatarFile(user.avatar);
+    }
+
+    this.ensureAvatarDir();
+
+    const filename = `${userGuid}.webp`;
+    const relativePath = `avatars/${filename}`;
+    const fullPath = path.join(AVATAR_DIR, filename);
+
+    await sharp(file.buffer)
+      .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover', position: 'center' })
+      .webp({ quality: 85 })
+      .toFile(fullPath);
+
+    user.avatar = relativePath;
+    await this.userRepository.save(user);
+
+    return this.buildUserResponse(user);
+  }
+
+  async deleteAvatar(userGuid: string) {
+    const user = await this.userRepository.findOne({
+      where: { guid: userGuid },
+    });
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (!user.avatar) {
+      throw new NotFoundException('用户未设置头像');
+    }
+
+    this.removeAvatarFile(user.avatar);
+
+    user.avatar = null;
+    await this.userRepository.save(user);
+
+    return this.buildUserResponse(user);
   }
 }

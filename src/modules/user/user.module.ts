@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserController } from './user.controller';
+import { AvatarController } from './avatar.controller';
 import { UserService } from './user.service';
 import { User } from './entities/user.entity';
 import { UserToken } from './entities/user-token.entity';
@@ -23,7 +24,7 @@ import { UserUserPermission } from '../device-group/entities/user-user-permissio
     ]),
     AuthModule,
   ],
-  controllers: [UserController],
+  controllers: [UserController, AvatarController],
   providers: [UserService],
   exports: [UserService],
 })
