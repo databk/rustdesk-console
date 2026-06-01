@@ -138,6 +138,9 @@ export class User {
   @Index()
   oidcSubject: string;
 
+  @Column({ nullable: true })
+  avatar: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   @Index()
   strategyGuid: string | null;
