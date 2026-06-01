@@ -200,7 +200,6 @@ export class AuthService {
     // 检查是否需要双因素认证
     if (user.tfaSecret) {
       if (!tfaCode) {
-        // 返回TFA验证提示
         return {
           type: 'tfa_check',
           tfa_type: 'tfa_check',
@@ -216,11 +215,23 @@ export class AuthService {
           },
         };
       }
-      // 验证TFA代码
       const isValidTfa = this.tfaService.verifyTfaCode(user.tfaSecret, tfaCode);
       if (!isValidTfa) {
         throw new UnauthorizedException({ error: '双因素认证验证码错误' });
       }
+    } else if (userInfo?.other?.tfa_enforce) {
+      return {
+        type: 'enforce_tfa',
+        user: {
+          name: user.username,
+          email: user.email || undefined,
+          note: user.note || undefined,
+          status: user.status,
+          info: user.getUserInfo(),
+          is_admin: user.isAdmin,
+          third_auth_type: user.thirdAuthType || undefined,
+        },
+      };
     }
 
     // 创建或更新设备记录

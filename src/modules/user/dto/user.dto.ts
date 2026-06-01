@@ -74,10 +74,6 @@ export class UpdateUserSecurityDto {
   @IsOptional()
   tfa_enforce?: boolean;
 
-  @IsString()
-  @IsOptional()
-  tfa_url?: string;
-
   @IsBoolean()
   @IsOptional()
   email_verification?: boolean;
@@ -140,10 +136,6 @@ export class BatchSecurityDto {
   @IsBoolean()
   @IsOptional()
   tfa_enforce?: boolean;
-
-  @IsString()
-  @IsOptional()
-  tfa_url?: string;
 
   @IsBoolean()
   @IsOptional()

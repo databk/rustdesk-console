@@ -99,3 +99,13 @@ export class LogoutDto {
   @IsString()
   uuid?: string;
 }
+
+export class VerifyTfaDto {
+  @IsString()
+  code: string;
+}
+
+export class DisableTfaDto {
+  @IsString()
+  code: string;
+}

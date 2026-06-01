@@ -325,10 +325,6 @@ export class UserService {
       userInfo.other.tfa_enforce = dto.tfa_enforce;
     }
 
-    if (dto.tfa_url !== undefined) {
-      userInfo.other.tfa_url = dto.tfa_url;
-    }
-
     if (dto.email_verification !== undefined) {
       userInfo.email_verification = dto.email_verification;
     }
@@ -408,7 +404,7 @@ export class UserService {
   }
 
   async batchUpdateSecurity(dto: BatchSecurityDto) {
-    const { user_guids, tfa_enforce, tfa_url, email_verification } = dto;
+    const { user_guids, tfa_enforce, email_verification } = dto;
     const users = await this.userRepository.find({
       where: { guid: In(user_guids) },
     });
@@ -423,10 +419,6 @@ export class UserService {
 
       if (tfa_enforce !== undefined) {
         userInfo.other.tfa_enforce = tfa_enforce;
-      }
-
-      if (tfa_url !== undefined) {
-        userInfo.other.tfa_url = tfa_url;
       }
 
       if (email_verification !== undefined) {

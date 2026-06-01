@@ -3,6 +3,7 @@ import {
   Logger,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,16 +13,6 @@ import { LoginDto } from '../dto/auth.dto';
 import { LoginResponse } from '../../../common/interfaces';
 
 @Injectable()
-/**
- * AuthTfaService
- * 负责双因素认证的子服务
- *
- * 与主服务关系：
- * 被AuthService委托处理TFA相关操作
- *
- * 调用上下文：
- * 包括TFA密钥生成、验证和启用/禁用
- */
 export class AuthTfaService {
   private readonly logger = new Logger(AuthTfaService.name);
 
@@ -30,14 +21,6 @@ export class AuthTfaService {
     private userRepository: Repository<User>,
   ) {}
 
-  /**
-   * 验证TFA验证码
-   * 使用TOTP算法验证用户输入的验证码是否正确
-   *
-   * @param secret TFA密钥
-   * @param code 用户输入的验证码
-   * @returns 验证是否成功
-   */
   verifyTfaCode(secret: string, code: string): boolean {
     try {
       return authenticator.verify({
@@ -50,17 +33,118 @@ export class AuthTfaService {
     }
   }
 
-  /**
-   * 双因素认证登录
-   * 验证TFA验证码并完成登录流程
-   *
-   * @param loginDto 登录信息
-   * @param generateToken Token生成函数
-   * @param createOrUpdateDevice 设备创建/更新函数（可选）
-   * @returns 登录响应
-   * @throws BadRequestException 当TFA参数不完整时抛出
-   * @throws UnauthorizedException 当验证失败或用户状态异常时抛出
-   */
+  async setupTfa(
+    userGuid: string,
+  ): Promise<{ secret: string; otpauth_url: string }> {
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .where('user.guid = :guid', { guid: userGuid })
+      .addSelect('user.tfaSecret')
+      .addSelect('user.info')
+      .getOne();
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (user.tfaSecret) {
+      throw new BadRequestException('2FA已启用，如需重新设置请先禁用');
+    }
+
+    const secret = authenticator.generateSecret();
+    const otpauthUrl = authenticator.keyuri(user.username, 'RustDesk', secret);
+
+    const userInfo = user.getUserInfo();
+    userInfo.other = userInfo.other || {};
+    userInfo.other.tfa_pending_secret = secret;
+    user.setUserInfo(userInfo);
+
+    await this.userRepository.save(user);
+
+    return {
+      secret,
+      otpauth_url: otpauthUrl,
+    };
+  }
+
+  async verifyAndBindTfa(
+    userGuid: string,
+    code: string,
+  ): Promise<{ message: string }> {
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .where('user.guid = :guid', { guid: userGuid })
+      .addSelect('user.tfaSecret')
+      .addSelect('user.info')
+      .getOne();
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (user.tfaSecret) {
+      throw new BadRequestException('2FA已启用');
+    }
+
+    const userInfo = user.getUserInfo();
+    const other = userInfo.other || {};
+    const pendingSecret = other.tfa_pending_secret as string | undefined;
+
+    if (!pendingSecret) {
+      throw new BadRequestException('请先调用setup接口生成2FA密钥');
+    }
+
+    const isValid = this.verifyTfaCode(pendingSecret, code);
+    if (!isValid) {
+      throw new UnauthorizedException('验证码错误，请重试');
+    }
+
+    user.tfaSecret = pendingSecret;
+
+    delete other.tfa_pending_secret;
+    userInfo.other = other;
+    user.setUserInfo(userInfo);
+
+    await this.userRepository.save(user);
+
+    return { message: '2FA绑定成功' };
+  }
+
+  async disableTfa(
+    userGuid: string,
+    code: string,
+  ): Promise<{ message: string }> {
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .where('user.guid = :guid', { guid: userGuid })
+      .addSelect('user.tfaSecret')
+      .addSelect('user.info')
+      .getOne();
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (!user.tfaSecret) {
+      throw new BadRequestException('2FA未启用');
+    }
+
+    const userInfo = user.getUserInfo();
+    if (userInfo?.other?.tfa_enforce) {
+      throw new BadRequestException('管理员已强制要求开启2FA，无法禁用');
+    }
+
+    const isValid = this.verifyTfaCode(user.tfaSecret, code);
+    if (!isValid) {
+      throw new UnauthorizedException('验证码错误');
+    }
+
+    user.tfaSecret = '';
+    await this.userRepository.save(user);
+
+    return { message: '2FA已禁用' };
+  }
+
   async handleTfaLogin(
     loginDto: LoginDto,
     generateToken: (
@@ -77,18 +161,15 @@ export class AuthTfaService {
   ): Promise<LoginResponse> {
     const { username, tfaCode, secret, id, uuid, deviceInfo } = loginDto;
 
-    // 验证参数完整性
     if (!tfaCode || !secret) {
       throw new BadRequestException({ error: '双因素认证参数不完整' });
     }
 
-    // 验证TFA代码
     const isValidTfa = this.verifyTfaCode(secret, tfaCode);
     if (!isValidTfa) {
       throw new UnauthorizedException({ error: '双因素认证验证码错误' });
     }
 
-    // 查找用户
     const user = await this.userRepository
       .createQueryBuilder('user')
       .where('user.username = :username OR user.email = :email', {
@@ -104,23 +185,18 @@ export class AuthTfaService {
       throw new UnauthorizedException({ error: '用户不存在' });
     }
 
-    // 验证secret是否与用户的tfaSecret匹配
     if (user.tfaSecret !== secret) {
       throw new UnauthorizedException({ error: '双因素认证参数无效' });
     }
 
-    // 检查用户状态
     if (user.status === UserStatus.DISABLED) {
-      // UserStatus.DISABLED
       throw new UnauthorizedException({ error: '账户已被禁用' });
     }
 
-    // 创建设备记录
     if (createOrUpdateDevice && (id || uuid)) {
       await createOrUpdateDevice(user.guid, id, uuid, deviceInfo);
     }
 
-    // 生成Token
     const token = await generateToken(user, id, uuid);
 
     this.logger.log(`用户 ${username} TFA认证成功，已登录`);
