@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import * as uuid from 'uuid';
 import { Strategy } from './entities/strategy.entity';
 import { Peer } from '../../common/entities/peer.entity';
@@ -47,7 +47,6 @@ export class StrategyService {
     strategy.configOptions = dto.config_options
       ? JSON.stringify(dto.config_options)
       : '';
-    strategy.modifiedAt = Date.now();
 
     await this.strategyRepository.save(strategy);
 
@@ -56,7 +55,7 @@ export class StrategyService {
       name: strategy.name,
       note: strategy.note,
       config_options: dto.config_options || {},
-      modified_at: strategy.modifiedAt,
+      updated_at: strategy.updatedAt,
     };
   }
 
@@ -86,8 +85,6 @@ export class StrategyService {
       strategy.configOptions = JSON.stringify(dto.config_options);
     }
 
-    strategy.modifiedAt = Date.now();
-
     await this.strategyRepository.save(strategy);
 
     const configOptions: Record<string, string> = dto.config_options
@@ -99,7 +96,7 @@ export class StrategyService {
       name: strategy.name,
       note: strategy.note,
       config_options: configOptions,
-      modified_at: strategy.modifiedAt,
+      updated_at: strategy.updatedAt,
     };
   }
 
@@ -137,12 +134,6 @@ export class StrategyService {
         guid: s.guid,
         name: s.name,
         note: s.note || '',
-        config_options: JSON.parse(s.configOptions || '{}') as Record<
-          string,
-          string
-        >,
-        modified_at: s.modifiedAt,
-        created_at: s.createdAt,
         updated_at: s.updatedAt,
       })),
       total,
@@ -165,8 +156,6 @@ export class StrategyService {
         string,
         string
       >,
-      modified_at: strategy.modifiedAt,
-      created_at: strategy.createdAt,
       updated_at: strategy.updatedAt,
     };
   }
@@ -174,7 +163,7 @@ export class StrategyService {
   async assignStrategy(
     strategyGuid: string,
     targetType: string,
-    targetGuid: string,
+    targetGuids: string[],
   ) {
     const strategy = await this.strategyRepository.findOne({
       where: { guid: strategyGuid },
@@ -183,44 +172,65 @@ export class StrategyService {
       throw new NotFoundException('策略不存在');
     }
 
+    const success: string[] = [];
+    const errors: { target_guid: string; reason: string }[] = [];
+
     switch (targetType) {
       case 'device': {
-        const peer = await this.peerRepository.findOne({
-          where: { uuid: targetGuid },
+        const peers = await this.peerRepository.find({
+          where: { uuid: In(targetGuids) },
         });
-        if (!peer) {
-          throw new NotFoundException('设备不存在');
+        const foundUuids = new Set(peers.map((p) => p.uuid));
+        for (const targetGuid of targetGuids) {
+          if (!foundUuids.has(targetGuid)) {
+            errors.push({ target_guid: targetGuid, reason: '设备不存在' });
+          }
         }
-        await this.peerRepository.update(
-          { uuid: targetGuid },
-          { strategyGuid },
-        );
+        if (peers.length > 0) {
+          await this.peerRepository.update(
+            { uuid: In(peers.map((p) => p.uuid)) },
+            { strategyGuid },
+          );
+          success.push(...peers.map((p) => p.uuid));
+        }
         break;
       }
       case 'user': {
-        const user = await this.userRepository.findOne({
-          where: { guid: targetGuid },
+        const users = await this.userRepository.find({
+          where: { guid: In(targetGuids) },
         });
-        if (!user) {
-          throw new NotFoundException('用户不存在');
+        const foundGuids = new Set(users.map((u) => u.guid));
+        for (const targetGuid of targetGuids) {
+          if (!foundGuids.has(targetGuid)) {
+            errors.push({ target_guid: targetGuid, reason: '用户不存在' });
+          }
         }
-        await this.userRepository.update(
-          { guid: targetGuid },
-          { strategyGuid },
-        );
+        if (users.length > 0) {
+          await this.userRepository.update(
+            { guid: In(users.map((u) => u.guid)) },
+            { strategyGuid },
+          );
+          success.push(...users.map((u) => u.guid));
+        }
         break;
       }
       case 'device_group': {
-        const group = await this.deviceGroupRepository.findOne({
-          where: { guid: targetGuid },
+        const groups = await this.deviceGroupRepository.find({
+          where: { guid: In(targetGuids) },
         });
-        if (!group) {
-          throw new NotFoundException('设备组不存在');
+        const foundGuids = new Set(groups.map((g) => g.guid));
+        for (const targetGuid of targetGuids) {
+          if (!foundGuids.has(targetGuid)) {
+            errors.push({ target_guid: targetGuid, reason: '设备组不存在' });
+          }
         }
-        await this.deviceGroupRepository.update(
-          { guid: targetGuid },
-          { strategyGuid },
-        );
+        if (groups.length > 0) {
+          await this.deviceGroupRepository.update(
+            { guid: In(groups.map((g) => g.guid)) },
+            { strategyGuid },
+          );
+          success.push(...groups.map((g) => g.guid));
+        }
         break;
       }
       default:
@@ -229,48 +239,69 @@ export class StrategyService {
         );
     }
 
-    return { message: '策略分配成功' };
+    return { success, errors };
   }
 
-  async unassignStrategy(targetType: string, targetGuid: string) {
+  async unassignStrategy(targetType: string, targetGuids: string[]) {
+    const success: string[] = [];
+    const errors: { target_guid: string; reason: string }[] = [];
+
     switch (targetType) {
       case 'device': {
-        const peer = await this.peerRepository.findOne({
-          where: { uuid: targetGuid },
+        const peers = await this.peerRepository.find({
+          where: { uuid: In(targetGuids) },
         });
-        if (!peer) {
-          throw new NotFoundException('设备不存在');
+        const foundUuids = new Set(peers.map((p) => p.uuid));
+        for (const targetGuid of targetGuids) {
+          if (!foundUuids.has(targetGuid)) {
+            errors.push({ target_guid: targetGuid, reason: '设备不存在' });
+          }
         }
-        await this.peerRepository.update(
-          { uuid: targetGuid },
-          { strategyGuid: null },
-        );
+        if (peers.length > 0) {
+          await this.peerRepository.update(
+            { uuid: In(peers.map((p) => p.uuid)) },
+            { strategyGuid: null },
+          );
+          success.push(...peers.map((p) => p.uuid));
+        }
         break;
       }
       case 'user': {
-        const user = await this.userRepository.findOne({
-          where: { guid: targetGuid },
+        const users = await this.userRepository.find({
+          where: { guid: In(targetGuids) },
         });
-        if (!user) {
-          throw new NotFoundException('用户不存在');
+        const foundGuids = new Set(users.map((u) => u.guid));
+        for (const targetGuid of targetGuids) {
+          if (!foundGuids.has(targetGuid)) {
+            errors.push({ target_guid: targetGuid, reason: '用户不存在' });
+          }
         }
-        await this.userRepository.update(
-          { guid: targetGuid },
-          { strategyGuid: null },
-        );
+        if (users.length > 0) {
+          await this.userRepository.update(
+            { guid: In(users.map((u) => u.guid)) },
+            { strategyGuid: null },
+          );
+          success.push(...users.map((u) => u.guid));
+        }
         break;
       }
       case 'device_group': {
-        const group = await this.deviceGroupRepository.findOne({
-          where: { guid: targetGuid },
+        const groups = await this.deviceGroupRepository.find({
+          where: { guid: In(targetGuids) },
         });
-        if (!group) {
-          throw new NotFoundException('设备组不存在');
+        const foundGuids = new Set(groups.map((g) => g.guid));
+        for (const targetGuid of targetGuids) {
+          if (!foundGuids.has(targetGuid)) {
+            errors.push({ target_guid: targetGuid, reason: '设备组不存在' });
+          }
         }
-        await this.deviceGroupRepository.update(
-          { guid: targetGuid },
-          { strategyGuid: null },
-        );
+        if (groups.length > 0) {
+          await this.deviceGroupRepository.update(
+            { guid: In(groups.map((g) => g.guid)) },
+            { strategyGuid: null },
+          );
+          success.push(...groups.map((g) => g.guid));
+        }
         break;
       }
       default:
@@ -279,7 +310,7 @@ export class StrategyService {
         );
     }
 
-    return { message: '策略取消分配成功' };
+    return { success, errors };
   }
 
   async findStrategyForDevice(deviceUuid: string): Promise<Strategy | null> {

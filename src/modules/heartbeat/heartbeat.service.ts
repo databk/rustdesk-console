@@ -103,13 +103,13 @@ export class HeartbeatService {
         return null;
       }
 
-      if (strategy.modifiedAt > clientModifiedAt) {
+      if (strategy.updatedAt.getTime() > clientModifiedAt) {
         const configOptions: Record<string, string> = JSON.parse(
           strategy.configOptions || '{}',
         ) as Record<string, string>;
         return {
           config_options: configOptions,
-          modified_at: strategy.modifiedAt,
+          modified_at: strategy.updatedAt.getTime(),
         };
       }
 
