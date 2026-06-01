@@ -6,6 +6,8 @@ import {
   IsNumber,
   Min,
   IsInt,
+  IsArray,
+  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -42,9 +44,10 @@ export class AssignStrategyDto {
   @IsNotEmpty()
   target_type: 'device' | 'user' | 'device_group';
 
-  @IsString()
+  @IsArray()
   @IsNotEmpty()
-  target_guid: string;
+  @ArrayMaxSize(200)
+  target_guids: string[];
 }
 
 export class StrategyQueryDto {

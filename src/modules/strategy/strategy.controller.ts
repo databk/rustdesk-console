@@ -71,7 +71,7 @@ export class StrategyController {
     return this.strategyService.assignStrategy(
       guid,
       dto.target_type,
-      dto.target_guid,
+      dto.target_guids,
     );
   }
 
@@ -81,7 +81,7 @@ export class StrategyController {
   async unassignStrategy(@Body() dto: AssignStrategyDto) {
     return this.strategyService.unassignStrategy(
       dto.target_type,
-      dto.target_guid,
+      dto.target_guids,
     );
   }
 }

@@ -22,9 +22,6 @@ export class Strategy {
   @Column({ type: 'text', nullable: true })
   configOptions: string;
 
-  @Column({ type: 'bigint', default: 0 })
-  modifiedAt: number;
-
   @CreateDateColumn()
   createdAt: Date;
 
