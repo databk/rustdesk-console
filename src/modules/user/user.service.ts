@@ -22,6 +22,7 @@ import {
   UpdateCurrentUserDto,
   BatchStatusDto,
   BatchSecurityDto,
+  ChangePasswordDto,
 } from './dto/user.dto';
 
 const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
@@ -329,6 +330,40 @@ export class UserService {
     await this.userRepository.save(user);
 
     return { message: '用户信息已更新' };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .where('user.guid = :guid', { guid: userId })
+      .addSelect('user.password')
+      .addSelect('user.thirdAuthType')
+      .getOne();
+
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    if (user.thirdAuthType) {
+      throw new BadRequestException('第三方登录用户不支持修改密码');
+    }
+
+    if (!user.password) {
+      throw new BadRequestException('当前账户未设置密码，请联系管理员');
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      dto.current_password,
+      user.password,
+    );
+    if (!isPasswordValid) {
+      throw new BadRequestException('当前密码错误');
+    }
+
+    user.password = await bcrypt.hash(dto.new_password, 10);
+    await this.userRepository.save(user);
+
+    return { message: '密码修改成功' };
   }
 
   async updateUserSecurity(guid: string, dto: UpdateUserSecurityDto) {
