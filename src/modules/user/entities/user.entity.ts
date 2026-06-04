@@ -138,7 +138,7 @@ export class User {
   @Index()
   oidcSubject: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   avatar: string | null;
 
   @Column({ type: 'varchar', nullable: true })
