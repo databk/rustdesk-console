@@ -204,7 +204,7 @@ export class AuthService {
     if (user.tfaSecret) {
       if (!tfaCode) {
         return {
-          type: 'tfa_check',
+          type: 'email_check',
           tfa_type: 'tfa_check',
           secret: user.tfaSecret,
           user: {
