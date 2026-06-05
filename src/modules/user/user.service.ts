@@ -460,7 +460,10 @@ export class UserService {
   }
 
   private removeAvatarFile(avatarPath: string) {
-    const fullPath = path.join(process.cwd(), avatarPath);
+    const normalizedPath = avatarPath.startsWith('/')
+      ? avatarPath.slice(1)
+      : avatarPath;
+    const fullPath = path.join(process.cwd(), normalizedPath);
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
     }
@@ -504,7 +507,7 @@ export class UserService {
     this.ensureAvatarDir();
 
     const filename = `${userGuid}.webp`;
-    const relativePath = `avatars/${filename}`;
+    const relativePath = `/api/avatars/${filename}`;
     const fullPath = path.join(AVATAR_DIR, filename);
 
     await sharp(file.buffer)
