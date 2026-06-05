@@ -7,6 +7,7 @@ import {
   IsNumber,
   Min,
   IsInt,
+  MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { UserStatus } from '../entities/user.entity';
@@ -146,4 +147,13 @@ export class BatchSessionsDto {
   @IsArray()
   @IsString({ each: true })
   user_guids: string[];
+}
+
+export class ChangePasswordDto {
+  @IsString()
+  current_password: string;
+
+  @IsString()
+  @MinLength(6)
+  new_password: string;
 }

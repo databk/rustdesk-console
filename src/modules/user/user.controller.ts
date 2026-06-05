@@ -29,6 +29,7 @@ import {
   BatchStatusDto,
   BatchSecurityDto,
   BatchSessionsDto,
+  ChangePasswordDto,
 } from './dto/user.dto';
 
 @Controller()
@@ -58,6 +59,16 @@ export class UserController {
     @Body() dto: UpdateCurrentUserDto,
   ) {
     return this.userService.updateCurrentUser(userId, dto);
+  }
+
+  @Patch('users/me/password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.userService.changePassword(userId, dto);
   }
 
   @Post('users/me/avatar')
