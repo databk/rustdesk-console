@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -92,36 +92,6 @@ export class AdminUserService {
         updated_at: u.updatedAt,
       })),
       total,
-    };
-  }
-
-  async getAdminUser(guid: string) {
-    const user = await this.userRepository.findOne({ where: { guid } });
-    if (!user) {
-      throw new NotFoundException('用户不存在');
-    }
-
-    let strategyName = '';
-    if (user.strategyGuid) {
-      const strategy = await this.strategyRepository.findOne({
-        where: { guid: user.strategyGuid },
-      });
-      strategyName = strategy?.name || '';
-    }
-
-    return {
-      guid: user.guid,
-      name: user.username,
-      email: user.email || '',
-      note: user.note || '',
-      status: user.status,
-      is_admin: user.isAdmin,
-      third_auth_type: user.thirdAuthType || '',
-      strategy_guid: user.strategyGuid || '',
-      strategy_name: strategyName,
-      avatar: user.avatar || '',
-      created_at: user.createdAt,
-      updated_at: user.updatedAt,
     };
   }
 }

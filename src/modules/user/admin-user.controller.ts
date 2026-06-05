@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  Param,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -17,10 +16,5 @@ export class AdminUserController {
   @Get()
   async getAdminUsers(@Query() query: AdminUserQueryDto) {
     return this.adminUserService.getAdminUsers(query);
-  }
-
-  @Get(':guid')
-  async getAdminUser(@Param('guid') guid: string) {
-    return this.adminUserService.getAdminUser(guid);
   }
 }
