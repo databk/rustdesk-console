@@ -13,7 +13,7 @@ export class AlarmAudit {
   @Column({ type: 'varchar', length: 255 })
   deviceId: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'varchar', length: 36 })
   deviceUuid: string;
 
   @Column({ type: 'int' })

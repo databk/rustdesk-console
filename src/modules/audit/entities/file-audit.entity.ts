@@ -23,13 +23,13 @@ export class FileAudit {
   @Column({ type: 'varchar', length: 255 })
   deviceId: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'varchar', length: 36 })
   deviceUuid: string;
 
   @Column({ type: 'varchar', length: 255 })
   peerId: string;
 
-  @Column({ type: 'int' }) // SQLite 使用 int，其他数据库可以用 enum
+  @Column({ type: 'int' })
   type: number;
 
   @Column({ type: 'text', nullable: true })

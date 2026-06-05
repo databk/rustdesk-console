@@ -88,7 +88,7 @@ export class User {
    * -1: 未验证邮箱, 0: 禁用, 1: 正常
    */
   @Column({
-    type: 'integer',
+    type: 'int',
     default: UserStatus.ACTIVE,
   })
   status: UserStatus;

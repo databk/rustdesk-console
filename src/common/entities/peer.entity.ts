@@ -73,7 +73,7 @@ export class Peer {
    * 1: 正常, 0: 禁用
    */
   @Column({
-    type: 'integer',
+    type: 'int',
     default: PeerStatus.ACTIVE,
   })
   status: PeerStatus;
