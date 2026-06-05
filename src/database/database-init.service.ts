@@ -37,40 +37,42 @@ export class DatabaseInitService implements OnModuleInit {
    * 创建默认管理员账户
    */
   private async createDefaultAdmin() {
-    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    // 检查数据库中是否已存在管理员用户
+    const existingAdmin = await this.userRepository.findOne({
+      where: { isAdmin: true },
+    });
+
+    if (existingAdmin) {
+      this.logger.log('Admin user already exists, skipping creation');
+      return;
+    }
+
+    const adminUsername = process.env.ADMIN_USERNAME || 'databk';
+    const adminEmail = process.env.ADMIN_EMAIL || 'databk@github.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'databk';
 
     // 检查是否使用默认密码
     if (!process.env.ADMIN_PASSWORD) {
       this.logger.warn(
-        'WARNING: Using default admin password "admin123". Please set ADMIN_PASSWORD environment variable in production!',
+        'WARNING: Using default admin password "databk". Please set ADMIN_PASSWORD environment variable in production!',
       );
     }
 
-    const existingAdmin = await this.userRepository.findOne({
-      where: { username: adminUsername },
+    const admin = this.userRepository.create({
+      guid: uuidv4(),
+      username: adminUsername,
+      email: adminEmail,
+      password: await bcrypt.hash(adminPassword, 10),
+      status: UserStatus.ACTIVE,
+      isAdmin: true,
+      note: 'Default administrator account',
     });
 
-    if (!existingAdmin) {
-      const admin = this.userRepository.create({
-        guid: uuidv4(),
-        username: adminUsername,
-        email: adminEmail,
-        password: await bcrypt.hash(adminPassword, 10),
-        status: UserStatus.ACTIVE,
-        isAdmin: true,
-        note: 'Default administrator account',
-      });
-
-      await this.userRepository.save(admin);
-      this.logger.log(`Default admin user created: ${adminUsername}`);
-      this.logger.warn(
-        `Please change the default password for user: ${adminUsername}`,
-      );
-    } else {
-      this.logger.log('Admin user already exists, skipping creation');
-    }
+    await this.userRepository.save(admin);
+    this.logger.log(`Default admin user created: ${adminUsername}`);
+    this.logger.warn(
+      `Please change the default password for user: ${adminUsername}`,
+    );
   }
 
   /**
