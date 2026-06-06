@@ -240,30 +240,6 @@ src/
 
 Copy `.env.example` to `.env` and configure the following variables:
 
-```env
-# Server Configuration
-PORT=3000                          # API server port
-
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-in-production  # Secret key for signing JWTs
-
-# Default Admin Account (auto-created on first run)
-ADMIN_USERNAME=admin               # Default admin username
-ADMIN_EMAIL=admin@example.com      # Default admin email
-ADMIN_PASSWORD=admin123            # Default admin password (CHANGE IN PRODUCTION!)
-
-# Database Configuration
-# Currently uses SQLite (rustdesk.db file in project root)
-# To use PostgreSQL/MySQL, modify TypeORM config in src/app.module.ts
-
-# OIDC Configuration
-# OIDC_REDIRECT_URI=http://localhost:3000    # Base URL for OIDC callback
-
-# Web Frontend URLs (comma-separated)
-# Allowed URLs for OIDC web login callbackUrl parameter
-WEB_FRONTEND_URLS=http://localhost:5173
-```
-
 > ⚠️ **Security Note**: Always change default passwords and JWT secrets before deploying to production!
 
 ## 🗄️ Database
