@@ -156,7 +156,6 @@ docker run -d \
   -p 3000:3000 \
   -e JWT_SECRET=your-super-secret-key \
   -e ADMIN_PASSWORD=your-secure-password \
-  -e SMTP_HOST=smtp.example.com \
   databk/rustdesk-console:latest
 ```
 
@@ -238,165 +237,6 @@ src/
 └── database/                  # Database initialization & seed data
 ```
 
-## API Endpoints
-
-### Authentication (`/api/`)
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|------------|-------------|
-| POST | `/api/login` | Public | 5/min | User login (password/email code/TFA) |
-| POST | `/api/logout` | Required | - | User logout |
-| POST | `/api/currentUser` | Required | - | Get current user info |
-| POST | `/api/2fa/setup` | Required | - | Setup 2FA (generate secret & QR) |
-| POST | `/api/2fa/verify` | Required | - | Verify and enable 2FA |
-| DELETE | `/api/2fa` | Required | - | Disable 2FA |
-
-### Users (`/api/users`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/users` | Required | List accessible users (paginated) |
-| POST | `/api/users` | Admin | Create user |
-| PATCH | `/api/users/me` | Required | Update current user |
-| PATCH | `/api/users/me/password` | Required | Change password |
-| POST | `/api/users/me/avatar` | Required | Upload avatar (max 2MB, WebP) |
-| DELETE | `/api/users/me/avatar` | Required | Delete avatar |
-| POST | `/api/users/invite` | Admin | Invite user via email |
-| PATCH | `/api/users/batch/status` | Admin | Batch update user status |
-| PATCH | `/api/users/batch/security` | Admin | Batch update security settings |
-| DELETE | `/api/users/batch/sessions` | Admin | Batch force logout |
-| GET | `/api/users/:guid` | Admin | Get user details |
-| PATCH | `/api/users/:guid` | Admin | Update user |
-| DELETE | `/api/users/:guid` | Admin | Delete user |
-| PATCH | `/api/users/:guid/security` | Admin | Update user security settings |
-| DELETE | `/api/users/:guid/sessions` | Admin | Force logout user |
-
-### Admin Users (`/api/admin/users`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/admin/users` | Admin | List admin users (paginated) |
-
-### Avatars (`/api/avatars`)
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|------------|-------------|
-| GET | `/api/avatars/:filename` | Public | 60/min | Get avatar file |
-
-### Address Book (`/api/ab`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET/POST | `/api/ab` | Required | Get/update legacy address book |
-| POST | `/api/ab/settings` | Required | Get address book settings |
-| GET/POST | `/api/ab/personal` | Required | Get personal address book GUID |
-| GET/POST | `/api/ab/shared/profiles` | Required | List shared address books |
-| POST | `/api/ab/shared/add` | Required | Add shared address book |
-| PUT | `/api/ab/shared/update/profile` | Required | Update shared address book |
-| DELETE | `/api/ab/shared` | Required | Delete shared address book |
-| GET/POST | `/api/ab/peers` | Required | List address book peers |
-| POST | `/api/ab/peer/add/:guid` | Required | Add peer to address book |
-| PUT | `/api/ab/peer/update/:guid` | Required | Update peer |
-| DELETE | `/api/ab/peer/:guid` | Required | Delete peer |
-| POST | `/api/ab/tag/add/:guid` | Required | Add tag |
-| PUT | `/api/ab/tag/rename/:guid` | Required | Rename tag |
-| PUT | `/api/ab/tag/update/:guid` | Required | Update tag color |
-| DELETE | `/api/ab/tag/:guid` | Required | Delete tag |
-| GET | `/api/ab/rules` | Required | List access rules |
-| POST | `/api/ab/rule` | Required | Add rule |
-| PATCH | `/api/ab/rule` | Required | Update rule |
-| DELETE | `/api/ab/rules` | Required | Delete rule |
-
-### Device Groups (`/api/device-groups`, `/api/devices`, `/api/peers`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/device-group/accessible` | Required | List accessible device groups |
-| GET | `/api/peers` | Required | List accessible devices |
-| GET | `/api/device-groups` | Admin | List all device groups |
-| POST | `/api/device-groups` | Admin | Create device group |
-| PATCH | `/api/device-groups/:guid` | Admin | Update device group |
-| DELETE | `/api/device-groups/:guid` | Admin | Delete device group |
-| POST | `/api/device-groups/:guid` | Admin | Add device to group |
-| DELETE | `/api/device-groups/:guid/devices` | Admin | Remove device from group |
-| GET | `/api/devices` | Required | List devices |
-| POST | `/api/devices/:guid/disable` | Admin | Disable device |
-| POST | `/api/devices/:guid/enable` | Admin | Enable device |
-| PATCH | `/api/devices/status` | Admin | Batch update device status |
-| DELETE | `/api/devices/:guid` | Admin | Delete device |
-| POST | `/api/devices/:guid/assign` | Admin | Assign device attributes |
-| POST | `/api/devices/:uuid/disconnect` | Admin | Force disconnect device |
-
-### Strategies (`/api/strategies`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/strategies` | Admin | List strategies (paginated, searchable) |
-| GET | `/api/strategies/:guid` | Admin | Get strategy details |
-| POST | `/api/strategies` | Admin | Create strategy |
-| PATCH | `/api/strategies/:guid` | Admin | Update strategy |
-| DELETE | `/api/strategies/:guid` | Admin | Delete strategy |
-| POST | `/api/strategies/:guid/assign` | Admin | Assign strategy to targets |
-| POST | `/api/strategies/:guid/unassign` | Admin | Unassign strategy from targets |
-
-### Audit (`/api/audit`, `/api/audits`)
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|------------|-------------|
-| POST | `/api/audit/conn` | Public | 50/min | Record connection audit |
-| POST | `/api/audit/file` | Public | 50/min | Record file audit |
-| POST | `/api/audit/alarm` | Public | 50/min | Record alarm audit |
-| GET | `/api/audits/conn` | Admin | - | Query connection audits |
-| PATCH | `/api/audits/conn/:id` | Admin | - | Update connection audit (note) |
-| GET | `/api/audits/file` | Admin | - | Query file audits |
-| GET | `/api/audits/alarm` | Admin | - | Query alarm audits |
-| GET | `/api/audits/console` | Admin | - | Query console audits |
-
-### Heartbeat (`/api/heartbeat`)
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|------------|-------------|
-| POST | `/api/heartbeat` | Public | 10/min | Submit device heartbeat |
-
-### System Info (`/api/sysinfo`)
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|------------|-------------|
-| POST | `/api/sysinfo` | Public | 5/min | Submit device system info |
-
-### OIDC (`/api/oidc`, `/api/oidc-providers`)
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|------------|-------------|
-| GET | `/api/login-options` | Public | 20/min | Get login options |
-| POST | `/api/oidc/auth` | Public | 5/min | Request OIDC authorization |
-| GET | `/api/oidc/auth-query` | Public | 120/min | Query OIDC auth status |
-| GET | `/api/oidc/callback` | Public | 20/min | OIDC callback (client & web) |
-| GET | `/api/oidc-providers` | Admin | - | List OIDC providers |
-| GET | `/api/oidc-providers/:guid` | Admin | - | Get OIDC provider |
-| POST | `/api/oidc-providers` | Admin | - | Create OIDC provider |
-| PATCH | `/api/oidc-providers/:guid` | Admin | - | Update OIDC provider |
-| DELETE | `/api/oidc-providers/:guid` | Admin | - | Delete OIDC provider |
-| PATCH | `/api/oidc-providers/:guid/toggle` | Admin | - | Toggle OIDC provider |
-| POST | `/api/oidc-providers/:guid/test` | Admin | - | Test OIDC connection |
-
-### Dashboard (`/api/dashboard`)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/dashboard/overview` | Required | Overview statistics |
-| GET | `/api/dashboard/statistics` | Required | Detailed statistics |
-| GET | `/api/dashboard/trends` | Required | Trend data (7d/30d/90d) |
-| GET | `/api/dashboard/realtime` | Required | Real-time data |
-
-### Settings (`/api/settings`)
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|------------|-------------|
-| GET | `/api/settings/smtp` | Admin | - | Get SMTP config (password masked) |
-| PUT | `/api/settings/smtp` | Admin | - | Create/update SMTP config |
-| POST | `/api/settings/smtp/test` | Admin | 5/min | Test SMTP connection |
-
 ## Environment Configuration
 
 Copy `.env.example` to `.env` and configure the following variables:
@@ -417,13 +257,8 @@ ADMIN_PASSWORD=admin123            # Default admin password (CHANGE IN PRODUCTIO
 # Currently uses SQLite (rustdesk.db file in project root)
 # To use PostgreSQL/MySQL, modify TypeORM config in src/app.module.ts
 
-# SMTP Configuration (for email verification & notifications)
-SMTP_HOST=smtp.example.com        # SMTP server hostname
-SMTP_PORT=587                     # SMTP port (587 for TLS, 465 for SSL)
-SMTP_SECURE=false                 # Use true for SSL/TLS
-SMTP_USER=your-email@example.com  # SMTP username
-SMTP_PASS=your-email-password     # SMTP password
-SMTP_FROM="No Reply" <noreply@example.com>  # Sender display name & email
+# SMTP Configuration
+# SMTP settings are managed via the Settings API (PUT /api/settings/smtp), not environment variables
 
 # OIDC Configuration
 # OIDC_REDIRECT_URI=http://localhost:3000    # Base URL for OIDC callback
@@ -526,7 +361,7 @@ npm run test:debug     # Run tests in debug mode
 ### Production Checklist
 - [ ] Change `JWT_SECRET` to a strong random value (min 32 chars)
 - [ ] Change default admin password in `.env`
-- [ ] Configure production SMTP settings
+- [ ] Configure production SMTP settings via the Settings API
 - [ ] Set `synchronize: false` in TypeORM config and use migrations
 - [ ] Configure CORS origins to your frontend domain only
 - [ ] Set up HTTPS/reverse proxy (nginx, Apache, etc.)
