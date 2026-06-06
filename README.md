@@ -8,9 +8,9 @@
 
 ## 📖 Overview
 
-**RustDesk Console** is a comprehensive management platform built with [NestJS](https://nestjs.com/) that powers the RustDesk remote desktop ecosystem. It provides robust device management, user authentication, address book management, security auditing, and real-time monitoring capabilities for enterprise-grade remote desktop deployments.
+**RustDesk Console** is a comprehensive management platform built with [NestJS](https://nestjs.com/) that powers the RustDesk remote desktop ecosystem. It provides robust device management, user authentication, address book management, security auditing, strategy-based configuration, and real-time monitoring capabilities for enterprise-grade remote desktop deployments.
 
-This console serves as the central hub for managing RustDesk clients, handling everything from user authentication and authorization to device grouping, access control, and comprehensive audit logging.
+This console serves as the central hub for managing RustDesk clients, handling everything from user authentication and authorization to device grouping, access control, strategy management, and comprehensive audit logging.
 
 ## ✨ Key Features
 
@@ -18,32 +18,46 @@ This console serves as the central hub for managing RustDesk clients, handling e
 - **JWT-based Authentication**: Secure token-based authentication with automatic token refresh and revocation
 - **Two-Factor Authentication (TFA/OTP)**: Enhanced security using TOTP (Time-based One-Time Password) via `otplib`
 - **Email Verification**: Email-based verification system using Nodemailer with Handlebars templates
-- **OIDC Integration**: Support for OpenID Connect providers (e.g., Google, Azure AD, Okta)
+- **OIDC Integration**: Support for OpenID Connect providers (e.g., Google, Azure AD, Okta) with Authorization Code Flow + PKCE
+- **Cookie-based Authentication**: Web frontend login support with cookie-based session management
 - **Password Encryption**: Secure password hashing using `bcryptjs`
-- **Rate Limiting**: Built-in request throttling to prevent abuse (100 req/min default, 5 req/min for login)
+- **Rate Limiting**: Built-in request throttling to prevent abuse
 
 ### 👥 User Management
 - Complete CRUD operations for user accounts
 - User invitation via email
 - Enable/disable user accounts
-- Force logout capabilities
 - Admin role-based access control
 - TFA enforcement policies
+- Avatar upload and management
 
 ### 📖 Address Book Management
 - Personal and shared address books
-- Device peer management (add, update, delete)
+- Device peer management (add, update, delete, pagination)
 - Tag-based organization with custom colors
 - Access rules and permission levels
 - Legacy API compatibility support
-- Pagination and search functionality
+- Multi-field filtering and search
 
 ### 🖥️ Device Group Management
 - Create and manage device groups
 - Assign devices to groups with role-based permissions
 - User-to-user permission mapping
 - Device enable/disable controls
-- Accessible resource queries based on user permissions
+- Batch device status update
+- Force disconnect via heartbeat
+
+### 🎯 Strategy Management
+- Create and manage configuration strategies
+- Assign strategies to devices, users, or device groups
+- Priority-based strategy resolution (device > user > device group)
+- Strategy-based configuration options delivery
+
+### 📊 Dashboard & Analytics
+- **Overview**: Real-time totals for users, devices, connections, audits, and file transfers
+- **Statistics**: User distribution, device distribution, connection analysis, file transfer stats
+- **Trends**: Historical trends for connections, user activity, and alarms (7d/30d/90d)
+- **Realtime**: Active connections, recent events, and system status (CPU, memory, disk, uptime)
 
 ### 📊 Audit & Compliance
 - **Connection Auditing**: Track all remote connections (established, closed, authorized)
@@ -53,14 +67,20 @@ This console serves as the central hub for managing RustDesk clients, handling e
 
 ### 💓 Real-time Monitoring
 - **Heartbeat System**: Monitor device online status and last activity
+- **Active Connection Tracking**: Track currently active connections
 - **System Information Collection**: Gather hardware/OS details from connected devices
 - Automatic status updates and device tracking
+
+### ⚙️ System Settings
+- **SMTP Configuration**: Manage SMTP settings via API (Upsert, test connection)
+- Generic key-value settings store with category grouping
+- Sensitive value masking in API responses
 
 ### 📧 Email Services
 - Welcome email templates
 - Verification code emails
 - Customizable Handlebars templates
-- SMTP configuration support
+- SMTP configuration via API
 
 ## 🛠️ Tech Stack
 
@@ -68,11 +88,15 @@ This console serves as the central hub for managing RustDesk clients, handling e
 |----------|------------|
 | **Framework** | NestJS 11 (TypeScript) |
 | **Database** | SQLite via TypeORM 0.3 |
-| **Authentication** | JWT (passport-jwt), Passport.js |
+| **Authentication** | JWT (passport-jwt), Passport.js, cookie-parser |
 | **Security** | bcryptjs, otplib (TOTP), @nestjs/throttler |
-| **Email** | Nodemailer + Handlebars templates |
+| **Email** | Nodemailer + Handlebars templates, @nestjs-modules/mailer |
+| **OIDC** | openid-client (OIDC + OAuth2 dual protocol) |
 | **Validation** | class-validator, class-transformer |
-| **Utilities** | uuid, dotenv |
+| **Scheduling** | @nestjs/schedule (cron jobs) |
+| **Monitoring** | systeminformation (CPU, memory, disk) |
+| **Image Processing** | sharp (avatar resizing) |
+| **Utilities** | uuid, dotenv, @nestjs/config |
 | **Testing** | Jest, supertest |
 
 ## 🚀 Quick Start
@@ -130,38 +154,18 @@ docker run -d \
   databk/rustdesk-console:latest
 ```
 
-**Docker Compose** (recommended for production):
-
-```yaml
-version: '3.8'
-services:
-  rustdesk-console:
-    image: databk/rustdesk-console:latest
-    container_name: rustdesk-console
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - JWT_SECRET=your-super-secret-key
-      - ADMIN_PASSWORD=your-secure-password
-    restart: unless-stopped
-```
-
 #### 📦 Option 3: GitHub Container Registry (ghcr)
 
-For users who prefer GitHub Container Registry or Kubernetes deployments:
+For users who prefer GitHub Container Registry:
 
 ```bash
 # Pull from GitHub Container Registry
 docker pull ghcr.io/databk/rustdesk-console:latest
-
-# Or use in Kubernetes deployment
-# image: ghcr.io/databk/rustdesk-console:latest
 ```
 
 Available tags for both Docker Hub and GHCR:
 - `latest` - Latest stable release
-- `X.Y.Z` - Specific version (e.g., `1.0.0`)
+- `X.Y.Z` - Specific version (e.g., `1.3.0`)
 - `dev` - Latest development build
 
 ### Running the Application
@@ -191,21 +195,22 @@ src/
 ├── app.module.ts              # Root application module
 │
 ├── modules/
-│   ├── auth/                  # Authentication & authorization (JWT, TFA, OIDC, email)
-│   ├── user/                  # User management (admin CRUD operations)
-│   ├── address-book/          # Address book & device peer management
+│   ├── auth/                  # Authentication & authorization (JWT, TFA, OIDC, email, tokens)
+│   ├── user/                  # User management (admin CRUD, avatars)
+│   ├── address-book/          # Address book & device peer management (peers, tags, rules, permissions)
 │   ├── device-group/          # Device grouping & permissions
+│   ├── strategy/              # Strategy management (create, assign, unassign, config resolution)
 │   ├── audit/                 # Connection/file/alarm audit logging
-│   ├── heartbeat/             # Device heartbeat monitoring
+│   ├── heartbeat/             # Device heartbeat & active connection monitoring
 │   ├── sysinfo/               # System information collection
-│   ├── oidc/                  # OpenID Connect integration
+│   ├── oidc/                  # OpenID Connect integration (providers, auth flow, callback)
+│   ├── dashboard/             # Dashboard statistics & analytics (overview, trends, realtime)
+│   ├── settings/              # System settings management (SMTP config, key-value store)
 │   └── email/                 # Email services (templates, SMTP)
 │
 ├── common/                    # Shared utilities (guards, decorators, entities)
 └── database/                  # Database initialization & seed data
 ```
-
-> **Note**: For detailed API endpoint documentation and database schema, please refer to the dedicated documentation files (coming soon).
 
 ## ⚙️ Environment Configuration
 
@@ -213,28 +218,39 @@ Copy `.env.example` to `.env` and configure the following variables:
 
 ```env
 # Server Configuration
-PORT=3000                          # API server port
+PORT=3000                              # API server port
 
 # JWT Configuration
 JWT_SECRET=your-super-secret-jwt-key-change-in-production  # Secret key for signing JWTs
 
 # Default Admin Account (auto-created on first run)
-ADMIN_USERNAME=admin               # Default admin username
-ADMIN_EMAIL=admin@example.com      # Default admin email
-ADMIN_PASSWORD=admin123           # Default admin password (CHANGE IN PRODUCTION!)
+ADMIN_USERNAME=admin                   # Default admin username
+ADMIN_EMAIL=admin@example.com          # Default admin email
+ADMIN_PASSWORD=admin123                # Default admin password (CHANGE IN PRODUCTION!)
 
 # Database Configuration
-# Currently uses SQLite (rustdesk.db file in project root)
-# To use PostgreSQL/MySQL, modify TypeORM config in src/app.module.ts
+# Uses SQLite by default (rustdesk.db file in project root)
+# TypeORM config is in src/app.module.ts
 
 # SMTP Configuration (for email verification & notifications)
-SMTP_HOST=smtp.example.com        # SMTP server hostname
-SMTP_PORT=587                     # SMTP port (587 for TLS, 465 for SSL)
-SMTP_SECURE=false                 # Use true for SSL/TLS
-SMTP_USER=your-email@example.com  # SMTP username
-SMTP_PASS=your-email-password     # SMTP password
+SMTP_HOST=smtp.example.com             # SMTP server hostname
+SMTP_PORT=587                          # SMTP port (587 for TLS, 465 for SSL)
+SMTP_SECURE=false                      # Use true for SSL/TLS
+SMTP_USER=your-email@example.com       # SMTP username
+SMTP_PASS=your-email-password          # SMTP password
 SMTP_FROM="No Reply" <noreply@example.com>  # Sender display name & email
+
+# OIDC Configuration
+# The base URL for OIDC callback, defaults to http://localhost:3000
+# OIDC_REDIRECT_URI=http://localhost:3000
+
+# Web Frontend URLs (comma-separated)
+# Allowed URLs for OIDC web login callbackUrl parameter
+# Example: WEB_FRONTEND_URLS=http://localhost:5173,https://admin.example.com
+WEB_FRONTEND_URLS=http://localhost:5173
 ```
+
+> **Note**: SMTP settings can also be configured dynamically via the Settings API (`GET/PUT /api/settings/smtp`, `POST /api/settings/smtp/test`), which takes precedence over environment variables for email sending.
 
 > ⚠️ **Security Note**: Always change default passwords and JWT secrets before deploying to production!
 
@@ -246,12 +262,15 @@ The application uses **SQLite** as the default database engine (file: `rustdesk.
 - User accounts & tokens
 - Address books, peers, tags & access rules
 - Device groups & permissions
+- Strategies (configurations assigned to devices, users, groups)
 - Audit logs (connections, file transfers, alarms)
 - Device system information & heartbeats
+- Active connections tracking
 - OIDC provider configurations & auth states
 - Email verification sessions
+- System settings (key-value store)
 
-> **Configuration**: Database settings can be modified in [`src/app.module.ts`](src/app.module.ts). The application supports migration to PostgreSQL or MySQL for production deployments requiring higher concurrency.
+> **Configuration**: Database settings can be modified in [`src/app.module.ts`](src/app.module.ts). The application can be migrated to MySQL for production deployments requiring higher concurrency.
 
 ## 🛡️ Security Features
 
@@ -260,12 +279,13 @@ The application uses **SQLite** as the default database engine (file: `rustdesk.
 2. Server validates credentials (with optional TFA check)
 3. Returns JWT access token + refresh token
 4. Client includes Bearer token in Authorization header for subsequent requests
-5. Token is validated on each request via `JwtAuthGuard`
+5. Token is validated on each request via `JwtAuthGuard` (global)
 6. Token can be revoked via `POST /api/logout`
 
 ### Rate Limiting Strategy
 - **Global**: 100 requests per minute per IP
 - **Login endpoint**: 5 attempts per minute (brute force protection)
+- **SMTP test**: 5 per minute
 - **Heartbeat submissions**: 10 per minute per device
 - **System info submissions**: 5 per minute per device
 
@@ -275,7 +295,7 @@ The application uses **SQLite** as the default database engine (file: `rustdesk.
 - **ThrottlerGuard**: Global rate limiting protection
 - **DeviceThrottlerGuard**: Specialized rate limiting for device endpoints
 - **ValidationPipe**: Global input validation with auto-whitelisting and transformation
-- **CORS**: Configured to allow all origins (restrict in production)
+- **CORS**: Configured with credentials support for web frontend
 
 ## 🧪 Development
 
@@ -315,7 +335,7 @@ npm run test:debug     # Run tests in debug mode
 ### Production Checklist
 - [ ] Change `JWT_SECRET` to a strong random value (min 32 chars)
 - [ ] Change default admin password in `.env`
-- [ ] Configure production SMTP settings
+- [ ] Configure production SMTP settings (via env vars or Settings API)
 - [ ] Set `synchronize: false` in TypeORM config and use migrations
 - [ ] Configure CORS origins to your frontend domain only
 - [ ] Set up HTTPS/reverse proxy (nginx, Apache, etc.)
@@ -326,7 +346,7 @@ npm run test:debug     # Run tests in debug mode
 
 ### Scaling Notes
 - **SQLite Limitations**: Single-writer, suitable for small-medium deployments (< 100 concurrent users)
-- **For High Availability**: Migrate to PostgreSQL with connection pooling
+- **For High Availability**: Migrate to MySQL with connection pooling
 - **Horizontal Scaling**: Consider Redis for session/token storage if running multiple instances
 - **Performance**: Enable WAL mode for better SQLite read concurrency
 
@@ -361,5 +381,5 @@ This project is licensed under the **GNU Affero General Public License v3.0** (A
 ---
 
 <p align="center">
-  <strong>Built with ❤️ using NestJS | The RustDesk Console Backend</strong>
+  <strong>Built with NestJS | The RustDesk Console Backend</strong>
 </p>
