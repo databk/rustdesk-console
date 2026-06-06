@@ -22,6 +22,7 @@ import {
   UpdateDeviceStatusDto,
   DeviceOperationResult,
 } from './dto/device-status.dto';
+import { UpdateDeviceDto } from './dto/update-device.dto';
 import { DisconnectDto } from './dto/disconnect.dto';
 import { DisconnectStoreService } from '../heartbeat/services/disconnect-store.service';
 import { HeartbeatService } from '../heartbeat/heartbeat.service';
@@ -245,33 +246,24 @@ export class DeviceGroupController {
   }
 
   /**
-   * 禁用设备
-   * 管理员可以禁用设备
+   * 更新设备属性
+   * 管理员可以部分更新设备的用户、设备组、策略和备注
+   * 传字符串值 -> 按名称查找并关联
+   * 传 null -> 清除关联
+   * 不传某字段 -> 不修改该属性
    *
    * @param guid 设备GUID
-   * @returns 禁用结果
+   * @param dto 更新数据
+   * @returns 更新结果
    */
-  @Post('devices/:guid/disable')
+  @Patch('devices/:guid')
   @UseGuards(AdminGuard)
-  @HttpCode(HttpStatus.OK)
-  async disableDevice(@Param('guid') guid: string) {
-    await this.deviceGroupService.disableDevice(guid);
-    return { message: '设备已禁用' };
-  }
-
-  /**
-   * 启用设备
-   * 管理员可以启用设备
-   *
-   * @param guid 设备GUID
-   * @returns 启用结果
-   */
-  @Post('devices/:guid/enable')
-  @UseGuards(AdminGuard)
-  @HttpCode(HttpStatus.OK)
-  async enableDevice(@Param('guid') guid: string) {
-    await this.deviceGroupService.enableDevice(guid);
-    return { message: '设备已启用' };
+  async updateDevice(
+    @Param('guid') guid: string,
+    @Body() dto: UpdateDeviceDto,
+  ) {
+    await this.deviceGroupService.updateDevice(guid, dto);
+    return { message: '设备更新成功' };
   }
 
   /**
@@ -309,29 +301,6 @@ export class DeviceGroupController {
   async deleteDevice(@Param('guid') guid: string) {
     await this.deviceGroupService.deleteDevice(guid);
     return { message: '设备已删除' };
-  }
-
-  /**
-   * 分配设备属性
-   * 管理员可以分配设备属性
-   *
-   * @param guid 设备GUID
-   * @param body 分配数据
-   * @returns 分配结果
-   */
-  @Post('devices/:guid/assign')
-  @UseGuards(AdminGuard)
-  @HttpCode(HttpStatus.OK)
-  async assignDevice(
-    @Param('guid') guid: string,
-    @Body()
-    body: {
-      type: string;
-      value: string;
-    },
-  ) {
-    await this.deviceGroupService.assignDevice(guid, body.type, body.value);
-    return { message: '设备属性已分配' };
   }
 
   /**

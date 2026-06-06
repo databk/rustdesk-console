@@ -16,6 +16,7 @@ import {
   DeviceOperationResult,
   DeviceOperationFailure,
 } from './dto/device-status.dto';
+import { UpdateDeviceDto } from './dto/update-device.dto';
 
 @Injectable()
 /**
@@ -528,10 +529,16 @@ export class DeviceGroupService {
   }
 
   /**
-   * 禁用设备
+   * 更新设备属性
+   * 支持部分更新设备的用户、设备组、策略和备注
+   * 传字符串值 -> 按名称查找并关联
+   * 传 null -> 清除关联
+   * 不传某字段 -> 不修改该属性
+   *
    * @param guid 设备GUID
+   * @param dto 更新数据
    */
-  async disableDevice(guid: string) {
+  async updateDevice(guid: string, dto: UpdateDeviceDto) {
     const peer = await this.peerRepository.findOne({
       where: { uuid: guid },
     });
@@ -539,28 +546,57 @@ export class DeviceGroupService {
       throw new NotFoundException('设备不存在');
     }
 
-    await this.peerRepository.update(
-      { uuid: guid },
-      { status: PeerStatus.DISABLED },
-    );
-  }
+    const updateData: Partial<Peer> = {};
 
-  /**
-   * 启用设备
-   * @param guid 设备GUID
-   */
-  async enableDevice(guid: string) {
-    const peer = await this.peerRepository.findOne({
-      where: { uuid: guid },
-    });
-    if (!peer) {
-      throw new NotFoundException('设备不存在');
+    if (dto.userName !== undefined) {
+      if (dto.userName === null) {
+        updateData.userGuid = null;
+      } else {
+        const user = await this.userRepository.findOne({
+          where: { username: dto.userName },
+        });
+        if (!user) {
+          throw new NotFoundException('用户不存在');
+        }
+        updateData.userGuid = user.guid;
+      }
     }
 
-    await this.peerRepository.update(
-      { uuid: guid },
-      { status: PeerStatus.ACTIVE },
-    );
+    if (dto.deviceGroupName !== undefined) {
+      if (dto.deviceGroupName === null) {
+        updateData.deviceGroupGuid = null;
+      } else {
+        const deviceGroup = await this.deviceGroupRepository.findOne({
+          where: { name: dto.deviceGroupName },
+        });
+        if (!deviceGroup) {
+          throw new NotFoundException('设备组不存在');
+        }
+        updateData.deviceGroupGuid = deviceGroup.guid;
+      }
+    }
+
+    if (dto.strategyName !== undefined) {
+      if (dto.strategyName === null) {
+        updateData.strategyGuid = null;
+      } else {
+        const strategy = await this.strategyRepository.findOne({
+          where: { name: dto.strategyName },
+        });
+        if (!strategy) {
+          throw new NotFoundException('策略不存在');
+        }
+        updateData.strategyGuid = strategy.guid;
+      }
+    }
+
+    if (dto.note !== undefined) {
+      updateData.note = dto.note;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.peerRepository.update({ uuid: guid }, updateData);
+    }
   }
 
   /**
@@ -632,67 +668,5 @@ export class DeviceGroupService {
     }
 
     await this.peerRepository.remove(peer);
-  }
-
-  /**
-   * 分配设备属性
-   * @param guid 设备GUID
-   * @param type 属性类型
-   * @param value 属性值
-   */
-  async assignDevice(guid: string, type: string, value: string) {
-    const peer = await this.peerRepository.findOne({
-      where: { uuid: guid },
-    });
-    if (!peer) {
-      throw new NotFoundException('设备不存在');
-    }
-
-    const updateData: Partial<Peer> = {};
-
-    switch (type) {
-      case 'user_name': {
-        const user = await this.userRepository.findOne({
-          where: { username: value },
-        });
-        if (!user) {
-          throw new NotFoundException('用户不存在');
-        }
-        updateData.userGuid = user.guid;
-        break;
-      }
-      case 'device_group_name': {
-        const deviceGroup = await this.deviceGroupRepository.findOne({
-          where: { name: value },
-        });
-        if (!deviceGroup) {
-          throw new NotFoundException('设备组不存在');
-        }
-        updateData.deviceGroupGuid = deviceGroup.guid;
-        break;
-      }
-      case 'note':
-        // note字段不存在于Peer实体中，暂时忽略
-        break;
-      case 'device_username':
-      case 'device_name':
-      case 'ab':
-      case 'strategy_name': {
-        const strategy = await this.strategyRepository.findOne({
-          where: { name: value },
-        });
-        if (!strategy) {
-          throw new NotFoundException('策略不存在');
-        }
-        updateData.strategyGuid = strategy.guid;
-        break;
-      }
-      default:
-        throw new BadRequestException(`不支持的属性类型: ${type}`);
-    }
-
-    if (Object.keys(updateData).length > 0) {
-      await this.peerRepository.update({ uuid: guid }, updateData);
-    }
   }
 }

@@ -60,6 +60,13 @@ export class Peer {
   @Index()
   strategyGuid: string | null;
 
+  /**
+   * 设备备注
+   * 管理员对设备的备注信息
+   */
+  @Column({ type: 'varchar', nullable: true })
+  note: string | null;
+
   @ManyToOne('Strategy', () => Strategy, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'strategyGuid' })
   strategy: any;

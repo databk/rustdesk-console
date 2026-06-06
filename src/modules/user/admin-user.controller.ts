@@ -1,9 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AdminUserService } from './admin-user.service';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { AdminUserQueryDto } from './dto/admin-user.dto';
