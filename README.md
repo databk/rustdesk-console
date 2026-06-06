@@ -136,30 +136,11 @@ cp .env.example .env
 nano .env
 ```
 
-#### 🐳 Option 2: Docker Hub
+#### 🐳 Option 2: Docker Deployment (Recommended for Production)
 
-Pull and run the official Docker image from Docker Hub:
+This project uses a **frontend-backend separated architecture**. The backend (this project) serves the API, and the [frontend project](https://github.com/databk/rustdesk-console-web) provides the web UI. In production, only port **21114** needs to be exposed externally; the backend's port 3000 is only accessed internally by the frontend and does not need to be exposed.
 
-```bash
-# Pull the latest image
-docker pull databk/rustdesk-console:latest
-
-# Run with default configuration
-docker run -d \
-  --name rustdesk-console \
-  -p 3000:3000 \
-  databk/rustdesk-console:latest
-
-# Run with custom environment variables
-docker run -d \
-  --name rustdesk-console \
-  -p 3000:3000 \
-  -e JWT_SECRET=your-super-secret-key \
-  -e ADMIN_PASSWORD=your-secure-password \
-  databk/rustdesk-console:latest
-```
-
-**Docker Compose** (recommended for production):
+**Docker Compose** (recommended):
 
 ```yaml
 version: '3.8'
@@ -167,28 +148,56 @@ services:
   rustdesk-console:
     image: databk/rustdesk-console:latest
     container_name: rustdesk-console
-    ports:
-      - "3000:3000"
+    restart: unless-stopped
     environment:
       - NODE_ENV=production
       - JWT_SECRET=your-super-secret-key
       - ADMIN_PASSWORD=your-secure-password
+
+  rustdesk-console-web:
+    image: databk/rustdesk-console-web:latest
+    container_name: rustdesk-console-web
+    ports:
+      - "21114:80"
+    depends_on:
+      - rustdesk-console
     restart: unless-stopped
 ```
 
-#### 📦 Option 3: GitHub Container Registry (ghcr)
+> **Note**: The frontend container connects to the backend via the internal Docker network using the service name `rustdesk-console:3000`. No additional network configuration is needed with the default setup.
 
-For users who prefer GitHub Container Registry or Kubernetes deployments:
+**Using GitHub Container Registry (ghcr)**:
 
-```bash
-# Pull from GitHub Container Registry
-docker pull ghcr.io/databk/rustdesk-console:latest
+If you prefer GHCR images, replace the image lines:
 
-# Or use in Kubernetes deployment
-# image: ghcr.io/databk/rustdesk-console:latest
+```yaml
+    image: ghcr.io/databk/rustdesk-console:latest      # backend
+    image: ghcr.io/databk/rustdesk-console-web:latest   # frontend
 ```
 
-Available tags for both Docker Hub and GHCR:
+**Docker CLI** (alternative, without Compose):
+
+```bash
+# Create a shared network
+docker network create rustdesk-net
+
+# Start the backend
+docker run -d \
+  --name rustdesk-console \
+  --network rustdesk-net \
+  -e JWT_SECRET=your-super-secret-key \
+  -e ADMIN_PASSWORD=your-secure-password \
+  databk/rustdesk-console:latest
+
+# Start the frontend
+docker run -d \
+  --name rustdesk-console-web \
+  --network rustdesk-net \
+  -p 21114:80 \
+  databk/rustdesk-console-web:latest
+```
+
+Available image tags (Docker Hub & GHCR):
 - `latest` - Latest stable release
 - `X.Y.Z` - Specific version (e.g., `1.3.0`)
 
