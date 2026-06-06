@@ -234,7 +234,7 @@ export class PeerService {
           : null,
         user: peer.userGuid || '',
         user_name: user?.username || '',
-        note: sysinfo?.presetNote || '',
+        note: peer.note || '',
         device_group_name: deviceGroupName,
         strategy_name: peer.strategyGuid
           ? strategyMap.get(peer.strategyGuid)?.name || ''

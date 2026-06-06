@@ -140,6 +140,11 @@ export class SysinfoService {
       if (sysinfo.presetDeviceGroupName) {
         await this.addToDeviceGroup(sysinfo);
       }
+
+      // 处理预设备注
+      if (sysinfo.presetNote) {
+        await this.setPresetNote(sysinfo);
+      }
     } catch (error: unknown) {
       const err = error as { message?: string; stack?: string };
       this.logger.error(
@@ -270,6 +275,37 @@ export class SysinfoService {
       );
     } else {
       this.logger.warn(`设备 ${sysinfo.uuid} 不存在，无法关联到设备组`);
+    }
+  }
+
+  /**
+   * 设置预设备注
+   * 根据预设配置自动将备注写入设备记录
+   *
+   * @param sysinfo 系统信息对象
+   * @private
+   */
+  private async setPresetNote(sysinfo: Sysinfo): Promise<void> {
+    // 查找设备记录
+    const peer = await this.peerRepository.findOne({
+      where: { uuid: sysinfo.uuid },
+    });
+
+    if (peer) {
+      // 仅在设备尚未设置备注时写入预设备注
+      if (!peer.note) {
+        await this.peerRepository.update(
+          { uuid: sysinfo.uuid },
+          { note: sysinfo.presetNote },
+        );
+        this.logger.log(
+          `设备 ${sysinfo.uuid} 已设置预设备注: ${sysinfo.presetNote}`,
+        );
+      } else {
+        this.logger.debug(`设备 ${sysinfo.uuid} 已有备注，跳过预设备注`);
+      }
+    } else {
+      this.logger.warn(`设备 ${sysinfo.uuid} 不存在，无法设置预设备注`);
     }
   }
 }
