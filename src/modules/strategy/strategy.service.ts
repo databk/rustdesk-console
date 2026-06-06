@@ -15,6 +15,7 @@ import {
   CreateStrategyDto,
   UpdateStrategyDto,
   StrategyQueryDto,
+  AssignmentQueryDto,
 } from './dto/strategy.dto';
 
 @Injectable()
@@ -311,6 +312,78 @@ export class StrategyService {
     }
 
     return { success, errors };
+  }
+
+  async getStrategyAssignments(guid: string, query: AssignmentQueryDto) {
+    const strategy = await this.strategyRepository.findOne({
+      where: { guid },
+    });
+    if (!strategy) {
+      throw new NotFoundException('策略不存在');
+    }
+
+    const { target_type, current, pageSize } = query;
+    const skip = (current - 1) * pageSize;
+
+    switch (target_type) {
+      case 'device': {
+        const [peers, total] = await this.peerRepository.findAndCount({
+          where: { strategyGuid: guid },
+          select: ['uuid', 'id', 'status'],
+          skip,
+          take: pageSize,
+          order: { id: 'ASC' },
+        });
+        return {
+          data: peers.map((p) => ({
+            uuid: p.uuid,
+            id: p.id,
+            status: p.status,
+          })),
+          total,
+        };
+      }
+      case 'user': {
+        const [users, total] = await this.userRepository.findAndCount({
+          where: { strategyGuid: guid },
+          select: ['guid', 'username', 'email', 'status', 'isAdmin'],
+          skip,
+          take: pageSize,
+          order: { username: 'ASC' },
+        });
+        return {
+          data: users.map((u) => ({
+            guid: u.guid,
+            username: u.username,
+            email: u.email,
+            status: u.status,
+            is_admin: u.isAdmin,
+          })),
+          total,
+        };
+      }
+      case 'device_group': {
+        const [groups, total] = await this.deviceGroupRepository.findAndCount({
+          where: { strategyGuid: guid },
+          select: ['guid', 'name', 'note'],
+          skip,
+          take: pageSize,
+          order: { name: 'ASC' },
+        });
+        return {
+          data: groups.map((g) => ({
+            guid: g.guid,
+            name: g.name,
+            note: g.note || '',
+          })),
+          total,
+        };
+      }
+      default:
+        throw new BadRequestException(
+          `不支持的目标类型: ${String(target_type)}`,
+        );
+    }
   }
 
   async findStrategyForDevice(deviceUuid: string): Promise<Strategy | null> {

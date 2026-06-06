@@ -8,6 +8,7 @@ import {
   IsInt,
   IsArray,
   ArrayMaxSize,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -66,4 +67,23 @@ export class StrategyQueryDto {
   @IsString()
   @IsOptional()
   name?: string;
+}
+
+export class AssignmentQueryDto {
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['device', 'user', 'device_group'])
+  target_type: 'device' | 'user' | 'device_group';
+
+  @IsNumber()
+  @Min(1)
+  @IsInt()
+  @Type(() => Number)
+  current: number;
+
+  @IsNumber()
+  @Min(1)
+  @IsInt()
+  @Type(() => Number)
+  pageSize: number;
 }

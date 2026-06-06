@@ -17,6 +17,7 @@ import {
   UpdateStrategyDto,
   AssignStrategyDto,
   StrategyQueryDto,
+  AssignmentQueryDto,
 } from './dto/strategy.dto';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
@@ -34,6 +35,15 @@ export class StrategyController {
   @UseGuards(AdminGuard)
   async getStrategy(@Param('guid') guid: string) {
     return this.strategyService.getStrategy(guid);
+  }
+
+  @Get('strategies/:guid/assignments')
+  @UseGuards(AdminGuard)
+  async getStrategyAssignments(
+    @Param('guid') guid: string,
+    @Query() query: AssignmentQueryDto,
+  ) {
+    return this.strategyService.getStrategyAssignments(guid, query);
   }
 
   @Post('strategies')
