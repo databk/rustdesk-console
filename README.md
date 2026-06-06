@@ -6,13 +6,13 @@
 
 ---
 
-## Overview
+## 📖 Overview
 
 **RustDesk Console** is a comprehensive management platform built with [NestJS](https://nestjs.com/) that powers the RustDesk remote desktop ecosystem. It provides robust device management, user authentication, address book management, strategy configuration, security auditing, and real-time monitoring capabilities for enterprise-grade remote desktop deployments.
 
 This console serves as the central hub for managing RustDesk clients, handling everything from user authentication and authorization to device grouping, access control, strategy delivery, and comprehensive audit logging.
 
-## Key Features
+## ✨ Key Features
 
 ### Authentication & Security
 - **JWT-based Authentication**: Secure token-based authentication with automatic token refresh and revocation (JTI blacklist)
@@ -90,7 +90,7 @@ This console serves as the central hub for managing RustDesk clients, handling e
 - SMTP configuration management (CRUD with password masking)
 - SMTP connection testing
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 | Category | Technology |
 |----------|------------|
@@ -105,7 +105,7 @@ This console serves as the central hub for managing RustDesk clients, handling e
 | **Utilities** | uuid, dotenv, cookie-parser |
 | **Testing** | Jest, supertest |
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
@@ -117,7 +117,7 @@ This console serves as the central hub for managing RustDesk clients, handling e
 
 RustDesk Console provides multiple installation methods to suit different deployment needs:
 
-#### Option 1: Build from Source (Recommended for Development)
+#### 🔧 Option 1: Build from Source (Recommended for Development)
 
 Clone the repository and build from source:
 
@@ -136,7 +136,7 @@ cp .env.example .env
 nano .env
 ```
 
-#### Option 2: Docker Hub
+#### 🐳 Option 2: Docker Hub
 
 Pull and run the official Docker image from Docker Hub:
 
@@ -176,7 +176,7 @@ services:
     restart: unless-stopped
 ```
 
-#### Option 3: GitHub Container Registry (ghcr)
+#### 📦 Option 3: GitHub Container Registry (ghcr)
 
 For users who prefer GitHub Container Registry or Kubernetes deployments:
 
@@ -191,7 +191,6 @@ docker pull ghcr.io/databk/rustdesk-console:latest
 Available tags for both Docker Hub and GHCR:
 - `latest` - Latest stable release
 - `X.Y.Z` - Specific version (e.g., `1.3.0`)
-- `dev` - Latest development build
 
 ### Running the Application
 
@@ -212,7 +211,7 @@ npm run start:debug
 
 The API will be available at `http://localhost:3000/api` (configurable via `PORT` env var).
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 src/
@@ -237,7 +236,7 @@ src/
 └── database/                  # Database initialization & seed data
 ```
 
-## Environment Configuration
+## ⚙️ Environment Configuration
 
 Copy `.env.example` to `.env` and configure the following variables:
 
@@ -257,9 +256,6 @@ ADMIN_PASSWORD=admin123            # Default admin password (CHANGE IN PRODUCTIO
 # Currently uses SQLite (rustdesk.db file in project root)
 # To use PostgreSQL/MySQL, modify TypeORM config in src/app.module.ts
 
-# SMTP Configuration
-# SMTP settings are managed via the Settings API (PUT /api/settings/smtp), not environment variables
-
 # OIDC Configuration
 # OIDC_REDIRECT_URI=http://localhost:3000    # Base URL for OIDC callback
 
@@ -268,9 +264,9 @@ ADMIN_PASSWORD=admin123            # Default admin password (CHANGE IN PRODUCTIO
 WEB_FRONTEND_URLS=http://localhost:5173
 ```
 
-> **Security Note**: Always change default passwords and JWT secrets before deploying to production!
+> ⚠️ **Security Note**: Always change default passwords and JWT secrets before deploying to production!
 
-## Database
+## 🗄️ Database
 
 The application uses **SQLite** as the default database engine (file: `rustdesk.db` in project root), managed by **TypeORM 0.3**.
 
@@ -288,7 +284,7 @@ The application uses **SQLite** as the default database engine (file: `rustdesk.
 
 > **Configuration**: Database settings can be modified in [`src/app.module.ts`](src/app.module.ts). The application supports migration to PostgreSQL or MySQL for production deployments requiring higher concurrency.
 
-## Security Features
+## 🛡️ Security Features
 
 ### Authentication Flow
 1. User submits credentials to `POST /api/login`
@@ -322,7 +318,7 @@ The application uses **SQLite** as the default database engine (file: `rustdesk.
 - **ValidationPipe**: Global input validation with auto-whitelisting and transformation
 - **CORS**: Configured to allow all origins (restrict in production)
 
-## Development
+## 🧪 Development
 
 ### Available Scripts
 
@@ -356,7 +352,7 @@ npm run test:debug     # Run tests in debug mode
 - **Documentation**: JSDoc comments on public methods
 - **Commit Messages**: Follow [Conventional Commits](https://www.conventionalcommits.org/)
 
-## Deployment Considerations
+## 🐳 Deployment Considerations
 
 ### Production Checklist
 - [ ] Change `JWT_SECRET` to a strong random value (min 32 chars)
@@ -377,7 +373,7 @@ npm run test:debug     # Run tests in debug mode
 - **Horizontal Scaling**: Consider Redis for session/token storage if running multiple instances
 - **Performance**: Enable WAL mode for better SQLite read concurrency
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -394,11 +390,11 @@ npm run test:debug     # Run tests in debug mode
 - `test:` Adding/updating tests
 - `chore:` Maintenance tasks
 
-## License
+## 📄 License
 
 This project is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0) - see [LICENSE](LICENSE) file for details.
 
-## Additional Resources
+## 📚 Additional Resources
 
 - [NestJS Documentation](https://docs.nestjs.com/) - Framework documentation
 - [TypeORM Documentation](https://typeorm.io/) - ORM documentation
@@ -408,5 +404,5 @@ This project is licensed under the **GNU Affero General Public License v3.0** (A
 ---
 
 <p align="center">
-  <strong>Built with NestJS | The RustDesk Console Backend</strong>
+  <strong>Built with ❤️ using NestJS | The RustDesk Console Backend</strong>
 </p>
