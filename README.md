@@ -238,7 +238,7 @@ src/
 
 ## ⚙️ Environment Configuration
 
-Copy `.env.example` to `.env` and configure the following variables:
+Copy `.env.example` to `.env` and configure the variables.
 
 > ⚠️ **Security Note**: Always change default passwords and JWT secrets before deploying to production!
 
