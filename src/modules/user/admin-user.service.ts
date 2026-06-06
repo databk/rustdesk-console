@@ -17,7 +17,16 @@ export class AdminUserService {
   async getAdminUsers(
     query: AdminUserQueryDto,
   ): Promise<{ data: any[]; total: number }> {
-    const { current, pageSize, status, name, email, is_admin, third_auth_type, strategy_name } = query;
+    const {
+      current,
+      pageSize,
+      status,
+      name,
+      email,
+      is_admin,
+      third_auth_type,
+      strategy_name,
+    } = query;
     const skip = (current - 1) * pageSize;
 
     const queryBuilder = this.userRepository.createQueryBuilder('user');
@@ -63,9 +72,7 @@ export class AdminUserService {
     // Batch load strategy names
     const strategyGuids = [
       ...new Set(
-        users
-          .map((u) => u.strategyGuid)
-          .filter((g): g is string => g != null),
+        users.map((u) => u.strategyGuid).filter((g): g is string => g != null),
       ),
     ];
     const strategies =
@@ -86,7 +93,9 @@ export class AdminUserService {
         is_admin: u.isAdmin,
         third_auth_type: u.thirdAuthType || '',
         strategy_guid: u.strategyGuid || '',
-        strategy_name: u.strategyGuid ? strategyMap.get(u.strategyGuid) || '' : '',
+        strategy_name: u.strategyGuid
+          ? strategyMap.get(u.strategyGuid) || ''
+          : '',
         avatar: u.avatar || '',
         created_at: u.createdAt,
         updated_at: u.updatedAt,

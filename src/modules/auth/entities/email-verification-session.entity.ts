@@ -25,7 +25,6 @@ export class EmailVerificationSession {
    * 用于关联验证请求的唯一密钥
    */
   @Column({ unique: true })
-  @Index()
   secret: string;
 
   /**
