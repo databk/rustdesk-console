@@ -80,9 +80,6 @@ export class SysinfoService {
         existingSysinfo.presetDeviceGroupName =
           sysinfoDto['preset-device-group-name'];
       }
-      if (sysinfoDto['preset-note']) {
-        existingSysinfo.presetNote = sysinfoDto['preset-note'];
-      }
 
       sysinfo = existingSysinfo;
     } else {
@@ -98,7 +95,6 @@ export class SysinfoService {
         presetUsername: sysinfoDto['preset-username'],
         presetStrategyName: sysinfoDto['preset-strategy-name'],
         presetDeviceGroupName: sysinfoDto['preset-device-group-name'],
-        presetNote: sysinfoDto['preset-note'],
       });
     }
 
@@ -139,6 +135,11 @@ export class SysinfoService {
       // 处理预设设备组
       if (sysinfo.presetDeviceGroupName) {
         await this.addToDeviceGroup(sysinfo);
+      }
+
+      // 处理预设备注（直接写入 Peer.note）
+      if (dto['preset-note']) {
+        await this.setPresetNote(sysinfo.uuid, dto['preset-note']);
       }
     } catch (error: unknown) {
       const err = error as { message?: string; stack?: string };
@@ -270,6 +271,32 @@ export class SysinfoService {
       );
     } else {
       this.logger.warn(`设备 ${sysinfo.uuid} 不存在，无法关联到设备组`);
+    }
+  }
+
+  /**
+   * 设置预设备注
+   * 将客户端传入的预设备注写入 Peer.note
+   * 仅在设备尚未设置备注时写入，不覆盖已有备注
+   *
+   * @param uuid 设备UUID
+   * @param presetNote 预设备注
+   * @private
+   */
+  private async setPresetNote(uuid: string, presetNote: string): Promise<void> {
+    const peer = await this.peerRepository.findOne({
+      where: { uuid },
+    });
+
+    if (peer) {
+      if (!peer.note) {
+        await this.peerRepository.update({ uuid }, { note: presetNote });
+        this.logger.log(`设备 ${uuid} 已设置预设备注: ${presetNote}`);
+      } else {
+        this.logger.debug(`设备 ${uuid} 已有备注，跳过预设备注`);
+      }
+    } else {
+      this.logger.warn(`设备 ${uuid} 不存在，无法设置预设备注`);
     }
   }
 }

@@ -35,9 +35,6 @@ export class Sysinfo {
   @Column({ name: 'preset_device_group_name', nullable: true })
   presetDeviceGroupName: string;
 
-  @Column({ name: 'preset_note', nullable: true })
-  presetNote: string;
-
   @CreateDateColumn()
   createdAt: Date;
 
