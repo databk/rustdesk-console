@@ -4,6 +4,10 @@
   <strong>Remote Desktop Management Console for RustDesk</strong>
 </p>
 
+<p align="center">
+  <a href="https://discord.gg/vrQSJfqpwD">Discord Community</a> · <a href="https://github.com/databk/rustdesk-console-web">Frontend Project</a>
+</p>
+
 ---
 
 ## 📖 Overview
@@ -381,6 +385,8 @@ This project is licensed under the **GNU Affero General Public License v3.0** (A
 
 ## 📚 Additional Resources
 
+- [Discord Community](https://discord.gg/vrQSJfqpwD) - Join our community for discussions and support
+- [Frontend Project](https://github.com/databk/rustdesk-console-web) - Web UI for RustDesk Console
 - [NestJS Documentation](https://docs.nestjs.com/) - Framework documentation
 - [TypeORM Documentation](https://typeorm.io/) - ORM documentation
 - [RustDesk Official Site](https://rustdesk.com/) - Main product information
