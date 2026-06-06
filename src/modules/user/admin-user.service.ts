@@ -35,7 +35,7 @@ export class AdminUserService {
     }
 
     if (is_admin !== undefined) {
-      queryBuilder.andWhere('user.isAdmin = :isAdmin', { isAdmin: is_admin });
+      queryBuilder.andWhere('user.isAdmin = :isAdmin', { isAdmin: is_admin === 1 });
     }
 
     if (third_auth_type) {

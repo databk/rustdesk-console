@@ -4,7 +4,7 @@ import {
   Min,
   IsInt,
   IsOptional,
-  IsBoolean,
+  IsIn,
   IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -36,10 +36,11 @@ export class AdminUserQueryDto {
   @IsOptional()
   email?: string;
 
-  @IsBoolean()
+  @IsNumber()
+  @IsIn([0, 1])
   @IsOptional()
-  @Type(() => Boolean)
-  is_admin?: boolean;
+  @Type(() => Number)
+  is_admin?: number;
 
   @IsString()
   @IsOptional()
