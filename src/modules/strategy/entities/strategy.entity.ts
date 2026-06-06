@@ -4,7 +4,6 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  Index,
 } from 'typeorm';
 
 @Entity('strategies')
@@ -13,7 +12,6 @@ export class Strategy {
   guid: string;
 
   @Column({ unique: true })
-  @Index()
   name: string;
 
   @Column({ type: 'text', nullable: true })

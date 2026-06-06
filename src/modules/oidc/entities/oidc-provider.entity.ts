@@ -34,7 +34,8 @@ export class OidcProvider {
   name: string;
 
   @Column({
-    type: 'text',
+    type: 'varchar',
+    length: 20,
     default: OidcProviderType.OIDC,
   })
   type: OidcProviderType;

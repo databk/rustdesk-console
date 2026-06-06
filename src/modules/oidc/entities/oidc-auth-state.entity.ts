@@ -50,7 +50,8 @@ export class OidcAuthState {
   op: string;
 
   @Column({
-    type: 'text',
+    type: 'varchar',
+    length: 20,
     default: OidcProviderType.OIDC,
   })
   providerType: OidcProviderType;
@@ -98,7 +99,8 @@ export class OidcAuthState {
    * cancelled - 已取消
    */
   @Column({
-    type: 'text',
+    type: 'varchar',
+    length: 20,
     default: OidcAuthStatus.PENDING,
   })
   status: OidcAuthStatus;

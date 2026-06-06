@@ -21,7 +21,7 @@ export class ActiveConnection {
    * 连接ID
    * 客户端上报的连接唯一标识
    */
-  @Column({ type: 'integer' })
+  @Column({ type: 'int' })
   @Index()
   connId: number;
 
@@ -29,7 +29,7 @@ export class ActiveConnection {
    * 设备UUID
    * 关联到 peers 表的 uuid 字段
    */
-  @Column({ type: 'text' })
+  @Column({ type: 'varchar', length: 36 })
   @Index()
   deviceUuid: string;
 

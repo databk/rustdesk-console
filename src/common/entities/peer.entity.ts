@@ -73,7 +73,7 @@ export class Peer {
    * 1: 正常, 0: 禁用
    */
   @Column({
-    type: 'integer',
+    type: 'int',
     default: PeerStatus.ACTIVE,
   })
   status: PeerStatus;
@@ -82,14 +82,14 @@ export class Peer {
    * 版本号
    * 设备信息的版本号
    */
-  @Column()
+  @Column({ type: 'int' })
   ver: number;
 
   /**
    * 修改时间戳
-   * 设备信息最后修改的时间戳
+   * 设备信息最后修改的时间戳（毫秒级Unix时间戳）
    */
-  @Column()
+  @Column({ type: 'bigint' })
   modifiedAt: number;
 
   /**
