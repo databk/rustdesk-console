@@ -35,6 +35,10 @@ EXPOSE 3000
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV DB_PATH=/data/rustdesk-console.db
+
+# Create data directory for database persistence
+RUN mkdir -p /data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

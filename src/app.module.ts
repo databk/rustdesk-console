@@ -73,7 +73,7 @@ import { Strategy } from './modules/strategy/entities/strategy.entity';
     ]),
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: 'rustdesk.db',
+      database: process.env.DB_PATH || 'rustdesk-console.db',
       entities: [
         Sysinfo,
         Peer,

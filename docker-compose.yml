@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     environment:
       - JWT_SECRET=your-super-secret-key
+    volumes:
+      - ./data:/data
 
   rustdesk-console-web:
     image: databk/rustdesk-console-web:latest
