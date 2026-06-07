@@ -119,7 +119,9 @@ This console serves as the central hub for managing RustDesk clients, handling e
 
 ### Installation
 
-RustDesk Console provides multiple installation methods to suit different deployment needs:
+RustDesk Console provides multiple installation methods to suit different deployment needs.
+
+> **Default Admin Credentials**: username `databk`, password `databk`. Please change the default password before deploying to production!
 
 #### 🔧 Option 1: Build from Source (Recommended for Development)
 
@@ -146,9 +148,7 @@ This project uses a **frontend-backend separated architecture**. The backend (th
 
 **Docker Compose** (recommended):
 
-The project includes a [`docker-compose.yml`](docker-compose.yml) file for easy deployment. Default admin credentials: username `databk`, password `databk`.
-
-> **Important**: Please change the default admin password and `JWT_SECRET` before deploying to production!
+The project includes a [`docker-compose.yml`](docker-compose.yml) file for easy deployment.
 
 ```bash
 docker compose up -d
