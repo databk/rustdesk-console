@@ -183,6 +183,7 @@ docker run -d \
   --name rustdesk-console-web \
   --network rustdesk-net \
   -p 21114:80 \
+  -e BACKEND_URL=http://rustdesk-console:3000 \
   databk/rustdesk-console-web:latest
 ```
 

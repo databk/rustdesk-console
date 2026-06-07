@@ -6,7 +6,6 @@ services:
     container_name: rustdesk-console
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
       - JWT_SECRET=your-super-secret-key
 
   rustdesk-console-web:
