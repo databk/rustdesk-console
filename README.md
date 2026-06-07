@@ -23,7 +23,7 @@ This console serves as the central hub for managing RustDesk clients, handling e
 Overview statistics with real-time monitoring data, resource distribution, operation analysis, system status, and trend charts.
 
 <p align="center">
-  <img src="Dashboard.png" alt="Dashboard" width="900" />
+  <img src="docs/images/Dashboard.png" alt="Dashboard" width="900" />
 </p>
 
 ### Device Management
@@ -31,7 +31,7 @@ Overview statistics with real-time monitoring data, resource distribution, opera
 Comprehensive device list with status tracking, strategy assignment, group management, and batch operations.
 
 <p align="center">
-  <img src="Devices.png" alt="Device Management" width="900" />
+  <img src="docs/images/Devices.png" alt="Device Management" width="900" />
 </p>
 
 ### Address Book
@@ -39,7 +39,7 @@ Comprehensive device list with status tracking, strategy assignment, group manag
 Personal and shared address books with tag-based organization, device peer management, and access control.
 
 <p align="center">
-  <img src="Personal Adress Book.png" alt="Address Book" width="900" />
+  <img src="docs/images/Personal Adress Book.png" alt="Address Book" width="900" />
 </p>
 
 ### File Transfer Audit
@@ -47,7 +47,7 @@ Personal and shared address books with tag-based organization, device peer manag
 File transfer auditing with detailed logs showing direction, file size, timestamps, and export capabilities.
 
 <p align="center">
-  <img src="File Transfer Logs.png" alt="File Transfer Logs" width="900" />
+  <img src="docs/images/File Transfer Logs.png" alt="File Transfer Logs" width="900" />
 </p>
 
 ## ✨ Key Features
