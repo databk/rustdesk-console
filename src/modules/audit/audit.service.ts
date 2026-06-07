@@ -424,12 +424,21 @@ export class AuditService {
    * @returns 告警审计列表
    */
   async queryAlarmAudits(filters: {
-    device?: string;
+    deviceId?: string;
+    type?: number;
+    startTime?: string;
+    endTime?: string;
     pageSize?: number;
     current?: number;
-    created_at?: string;
   }) {
-    const { device, pageSize = 10, current = 1, created_at } = filters;
+    const {
+      deviceId,
+      type,
+      startTime,
+      endTime,
+      pageSize = 10,
+      current = 1,
+    } = filters;
     const skip = (current - 1) * pageSize;
 
     const queryBuilder = this.alarmAuditRepository
@@ -445,17 +454,26 @@ export class AuditService {
         'aa.createdAt',
       ]);
 
-    // 按设备ID过滤
-    if (device) {
-      queryBuilder.andWhere('aa.deviceId LIKE :device', {
-        device: `%${device}%`,
+    // 按设备ID过滤（模糊匹配）
+    if (deviceId) {
+      queryBuilder.andWhere('aa.deviceId LIKE :deviceId', {
+        deviceId: `%${deviceId}%`,
       });
     }
 
-    // 按创建时间过滤
-    if (created_at) {
-      const createdAt = new Date(created_at);
-      queryBuilder.andWhere('aa.createdAt >= :createdAt', { createdAt });
+    // 按告警类型过滤
+    if (type !== undefined) {
+      queryBuilder.andWhere('aa.typ = :type', { type });
+    }
+
+    // 按时间段过滤
+    if (startTime) {
+      const start = new Date(startTime);
+      queryBuilder.andWhere('aa.createdAt >= :startTime', { startTime: start });
+    }
+    if (endTime) {
+      const end = new Date(endTime);
+      queryBuilder.andWhere('aa.createdAt <= :endTime', { endTime: end });
     }
 
     queryBuilder.orderBy('aa.createdAt', 'DESC').skip(skip).take(pageSize);

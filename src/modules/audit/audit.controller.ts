@@ -246,32 +246,39 @@ export class AuditsController {
    *
    * 功能说明：
    * - 支持分页查询
-   * - 支持按设备ID过滤
-   * - 支持按创建时间过滤
+   * - 支持按被控端设备ID过滤（deviceId模糊匹配）
+   * - 支持按时间段过滤（startTime/endTime范围查询）
+   * - 支持按告警类型过滤（type: 0-IP白名单, 1-超30次尝试, 2-1分钟6次尝试, 6-IPv6前缀超限, 7-终端OS登录backoff, 8-终端OS登录并发超限）
    *
    * 安全措施：
    * - 使用AdminGuard进行认证
    * - 只有管理员可以查询审计记录
    *
-   * @param device 设备ID（模糊匹配）
+   * @param deviceId 被控端设备ID（模糊匹配）
+   * @param type 告警类型
+   * @param startTime 开始时间（ISO 8601格式）
+   * @param endTime 结束时间（ISO 8601格式）
    * @param pageSize 每页记录数
    * @param current 当前页码
-   * @param created_at 创建时间（UTC时间字符串）
    * @returns 告警审计列表
    */
   @UseGuards(AdminGuard)
   @Get('alarm')
   async queryAlarmAudits(
-    @Query('device') device?: string,
+    @Query('deviceId') deviceId?: string,
+    @Query('type') type?: number,
+    @Query('startTime') startTime?: string,
+    @Query('endTime') endTime?: string,
     @Query('pageSize') pageSize?: number,
     @Query('current') current?: number,
-    @Query('created_at') created_at?: string,
   ) {
     return await this.auditService.queryAlarmAudits({
-      device,
+      deviceId,
+      type,
+      startTime,
+      endTime,
       pageSize,
       current,
-      created_at,
     });
   }
 
