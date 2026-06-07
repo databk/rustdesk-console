@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  rustdesk-console:
+    image: databk/rustdesk-console:latest
+    container_name: rustdesk-console
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=your-super-secret-key
+
+  rustdesk-console-web:
+    image: databk/rustdesk-console-web:latest
+    container_name: rustdesk-console-web
+    ports:
+      - "21114:80"
+    environment:
+      - BACKEND_URL=http://rustdesk-console:3000
+    depends_on:
+      - rustdesk-console
+    restart: unless-stopped
