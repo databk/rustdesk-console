@@ -176,6 +176,7 @@ docker run -d \
   --name rustdesk-console \
   --network rustdesk-net \
   -e JWT_SECRET=your-super-secret-key \
+  -v ./data:/data \
   databk/rustdesk-console:latest
 
 # Start the frontend
