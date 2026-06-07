@@ -13,7 +13,7 @@ export class AlarmAuditDto {
 
   @IsInt()
   @Min(0)
-  @Max(6)
+  @Max(8)
   typ: number;
 
   @IsString()
