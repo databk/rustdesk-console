@@ -9,7 +9,8 @@ import { AuditSettingsService } from '../../settings/services/audit-settings.ser
 
 /**
  * 审计日志自动清理服务
- * 每天零点根据保留策略自动清理过期的审计日志
+ * 每天零点根据保留天数自动清理过期的审计日志
+ * 保留天数为 0 时不执行清理
  */
 @Injectable()
 export class AuditCleanupService {
@@ -28,18 +29,15 @@ export class AuditCleanupService {
   @Cron('0 0 * * *')
   async handleCleanupExpiredAudits() {
     try {
-      const config = await this.auditSettingsService.getRetentionConfig();
+      const retentionDays =
+        await this.auditSettingsService.getRetentionDays();
 
-      if (!config.autoCleanupEnabled) {
-        return;
-      }
-
-      if (config.retentionDays <= 0) {
+      if (retentionDays <= 0) {
         return;
       }
 
       const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - config.retentionDays);
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
       let totalDeleted = 0;
 
@@ -61,7 +59,7 @@ export class AuditCleanupService {
 
       if (totalDeleted > 0) {
         this.logger.log(
-          `Cleaned up ${totalDeleted} audit records older than ${config.retentionDays} days ` +
+          `Cleaned up ${totalDeleted} audit records older than ${retentionDays} days ` +
             `(connection: ${connectionResult.affected || 0}, file: ${fileResult.affected || 0}, alarm: ${alarmResult.affected || 0})`,
         );
       }
