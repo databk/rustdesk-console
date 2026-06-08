@@ -128,6 +128,26 @@ File transfer auditing with detailed logs showing direction, file size, timestam
 - SMTP configuration management (CRUD with password masking)
 - SMTP connection testing
 
+## 🚧 Current Development Status
+
+Some management-console features are still under active development. The
+backend and frontend may not yet be feature-complete for the items below.
+
+| Area | Current Status | Notes |
+|------|----------------|-------|
+| **Role management / RBAC** | Frontend scaffold only | The frontend exposes `/roles` and calls `/api/roles` and `/api/permissions`, but the backend does not currently include role or permission modules/controllers. Access control is currently based on `isAdmin` plus device/user/group permission mappings rather than a complete role-permission system. |
+| **User groups** | Frontend scaffold only | The frontend includes a user-group management page and `/api/user-groups` service calls. Backend support for user groups is not implemented yet. |
+| **Custom clients** | Frontend scaffold only | The frontend includes custom-client CRUD/download flows and `/api/custom-clients` calls. Backend support for building, storing, and downloading custom client packages is not implemented yet. |
+| **Generic system settings** | Partially implemented | The backend currently implements SMTP settings under `/api/settings/smtp`. Generic settings endpoints such as `/api/settings`, `/api/settings/:key`, and `/api/settings/batch` are not implemented yet. |
+| **Dashboard online-user and alarm counters** | Partially implemented | Some dashboard metrics are placeholders: online users, active connections, unread alarms, and critical alarms currently require additional session/alarm-state tracking fields. |
+| **SMS-code login** | Placeholder | The login flow recognizes `sms_code`, but SMS verification is not implemented and currently returns a "feature under development" error. |
+| **Console operation auditing** | Query surface only | The audit module exposes a console-audit query endpoint, but full recording of management-console operations is still expected to be completed. |
+| **Database migrations** | Planned production hardening | The project currently relies on TypeORM `synchronize: true`; production-grade migrations are still expected for safer upgrades. |
+
+If you are deploying this project in production, review the checklist below and
+treat the items in this section as work-in-progress rather than stable product
+surface.
+
 ## 🛠️ Tech Stack
 
 | Category | Technology |
