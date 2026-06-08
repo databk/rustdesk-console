@@ -11,7 +11,9 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { SmtpSettingsService } from './services/smtp-settings.service';
+import { AuditSettingsService } from './services/audit-settings.service';
 import { UpdateSmtpConfigDto, TestSmtpConfigDto } from './dto/smtp-config.dto';
+import { UpdateAuditConfigDto } from './dto/audit-config.dto';
 
 /**
  * 系统设置控制器
@@ -27,7 +29,10 @@ import { UpdateSmtpConfigDto, TestSmtpConfigDto } from './dto/smtp-config.dto';
 @UseGuards(AdminGuard)
 @Controller('settings')
 export class SettingsController {
-  constructor(private readonly smtpSettingsService: SmtpSettingsService) {}
+  constructor(
+    private readonly smtpSettingsService: SmtpSettingsService,
+    private readonly auditSettingsService: AuditSettingsService,
+  ) {}
 
   /**
    * 获取 SMTP 配置
@@ -61,5 +66,26 @@ export class SettingsController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async testSmtpConnection(@Body() dto?: TestSmtpConfigDto) {
     return this.smtpSettingsService.testSmtpConnection(dto);
+  }
+
+  // ============ 审计日志保留配置 ============
+
+  /**
+   * 获取审计日志保留配置
+   * 返回当前生效的审计日志保留策略
+   */
+  @Get('audit')
+  async getAuditConfig() {
+    return this.auditSettingsService.getRetentionConfig();
+  }
+
+  /**
+   * 更新审计日志保留配置
+   * 支持配置保留天数和自动清理开关
+   */
+  @Put('audit')
+  @HttpCode(HttpStatus.OK)
+  async updateAuditConfig(@Body() dto: UpdateAuditConfigDto) {
+    return this.auditSettingsService.updateRetentionConfig(dto);
   }
 }
