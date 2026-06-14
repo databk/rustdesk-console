@@ -29,8 +29,7 @@ export class AuditCleanupService {
   @Cron('0 0 * * *')
   async handleCleanupExpiredAudits() {
     try {
-      const retentionDays =
-        await this.auditSettingsService.getRetentionDays();
+      const retentionDays = await this.auditSettingsService.getRetentionDays();
 
       if (retentionDays <= 0) {
         return;
@@ -41,10 +40,9 @@ export class AuditCleanupService {
 
       let totalDeleted = 0;
 
-      const connectionResult =
-        await this.connectionAuditRepository.delete({
-          createdAt: LessThan(cutoffDate),
-        });
+      const connectionResult = await this.connectionAuditRepository.delete({
+        createdAt: LessThan(cutoffDate),
+      });
       totalDeleted += connectionResult.affected || 0;
 
       const fileResult = await this.fileAuditRepository.delete({

@@ -62,10 +62,7 @@ export class LdapService {
    * @throws BadRequestException 当 LDAP 未启用时抛出
    * @throws UnauthorizedException 当认证失败时抛出
    */
-  async authenticate(
-    username: string,
-    password: string,
-  ): Promise<User> {
+  async authenticate(username: string, password: string): Promise<User> {
     const config = await this.ldapSettingsService.getActiveConfig();
 
     if (!config || !config.enabled) {
@@ -490,9 +487,7 @@ export class LdapService {
         return await operation(client);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        this.logger.warn(
-          `LDAP 服务器操作失败: ${url} - ${lastError.message}`,
-        );
+        this.logger.warn(`LDAP 服务器操作失败: ${url} - ${lastError.message}`);
       } finally {
         try {
           await client.unbind();
