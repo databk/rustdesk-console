@@ -116,8 +116,7 @@ export class AuthService {
    * @throws UnauthorizedException 当认证失败时抛出
    */
   async login(loginDto: LoginDto): Promise<LoginResponse> {
-    const { username, password, id, uuid, type, tfaCode, deviceInfo } =
-      loginDto;
+    const { username, password, id, uuid, type, tfaCode } = loginDto;
 
     // 处理邮箱验证码登录（第二步）
     if (type === 'email_code') {
@@ -191,8 +190,7 @@ export class AuthService {
     password: string,
   ): Promise<User | null> {
     // 检查是否为已关联的 LDAP 用户
-    const isLinkedLdapUser =
-      await this.ldapService.isLinkedLdapUser(username);
+    const isLinkedLdapUser = await this.ldapService.isLinkedLdapUser(username);
 
     if (isLinkedLdapUser) {
       // 已关联的 LDAP 用户必须通过 LDAP 认证
@@ -209,9 +207,7 @@ export class AuthService {
     try {
       return await this.ldapService.authenticate(username, password);
     } catch {
-      this.logger.debug(
-        `LDAP 认证失败，回退本地认证: ${username}`,
-      );
+      this.logger.debug(`LDAP 认证失败，回退本地认证: ${username}`);
       return null;
     }
   }
