@@ -1,3 +1,18 @@
+# [1.5.0](https://github.com/databk/rustdesk-console/compare/1.4.1...1.5.0) (2026-06-14)
+
+
+### Bug Fixes
+
+* align alarm audit query interface with file/connection audit ([#138](https://github.com/databk/rustdesk-console/issues/138)) ([825af6a](https://github.com/databk/rustdesk-console/commit/825af6a4dddb4fc02d1f37353d616dfb90072a99))
+
+
+### Features
+
+* add audit log auto-cleanup with configurable retention ([#143](https://github.com/databk/rustdesk-console/issues/143)) ([e83545a](https://github.com/databk/rustdesk-console/commit/e83545a0e13f4c097a2d24ba52a4b3a4fc52a143))
+* add LDAP authentication support ([#148](https://github.com/databk/rustdesk-console/issues/148)) ([efa90ec](https://github.com/databk/rustdesk-console/commit/efa90ecbf3766c7825f1a2f2a0f0d91814afb410)), closes [#135](https://github.com/databk/rustdesk-console/issues/135)
+
+
+
 ## [1.4.1](https://github.com/databk/rustdesk-console/compare/1.4.0...1.4.1) (2026-06-07)
 
 
@@ -80,26 +95,6 @@
 * **audit:** enhance file audit query with advanced filters ([#38](https://github.com/databk/rustdesk-console/issues/38)) ([ecf3845](https://github.com/databk/rustdesk-console/commit/ecf38455a539e14ebdfc2dd23cb6b9cf84b68e41))
 * **security:** Implement JTI Token Blacklist Mechanism ([#36](https://github.com/databk/rustdesk-console/issues/36)) ([16e3b6f](https://github.com/databk/rustdesk-console/commit/16e3b6f8ef069180581511de4438431bd1558914))
 * **settings:** add SMTP configuration management API with generic settings table ([#24](https://github.com/databk/rustdesk-console/issues/24)) ([c5e3c67](https://github.com/databk/rustdesk-console/commit/c5e3c671a659fb2626b2ef17737de717d40a660b))
-
-
-
-# [1.1.0](https://github.com/databk/rustdesk-console/compare/1.0.0...1.1.0) (2026-04-29)
-
-
-### Bug Fixes
-
-* **ab:** support single tag parameter in peers query ([#25](https://github.com/databk/rustdesk-console/issues/25)) ([446c7bd](https://github.com/databk/rustdesk-console/commit/446c7bd40e1f0b1be413e5da774d1b0c7514cda5))
-* **ci:** remove v prefix from docker image tags ([#15](https://github.com/databk/rustdesk-console/issues/15)) ([18464d6](https://github.com/databk/rustdesk-console/commit/18464d66d8a014fa5070afecae4740833b9585c9))
-* **ci:** scope changelog to changes since last release ([#28](https://github.com/databk/rustdesk-console/issues/28)) ([812a66e](https://github.com/databk/rustdesk-console/commit/812a66e83b07d27607849a2c9dc5fa42fefe4c6b))
-* restore device_name field and update user field in peer service response ([#21](https://github.com/databk/rustdesk-console/issues/21)) ([345a2b6](https://github.com/databk/rustdesk-console/commit/345a2b6db681179fe9ebbf3fa1834b67d019814b))
-
-
-### Features
-
-* **ab:** add tag, id, alias filtering for peers endpoint ([#23](https://github.com/databk/rustdesk-console/issues/23)) ([86d858e](https://github.com/databk/rustdesk-console/commit/86d858e4e2ac94a99063987eb98c124edc3b772f))
-* **peers:** add pagination and multi-field filtering to peers API ([#22](https://github.com/databk/rustdesk-console/issues/22)) ([00ef135](https://github.com/databk/rustdesk-console/commit/00ef13577a4709296a1d721d176d7e47da227d87))
-* **peers:** add status column to peers table for device enable/disable ([#18](https://github.com/databk/rustdesk-console/issues/18)) ([50950ce](https://github.com/databk/rustdesk-console/commit/50950ce724cc5b7112011733999d21081e22033f))
-* **workflow:** update release workflow to use manual trigger and conventional changelog ([#29](https://github.com/databk/rustdesk-console/issues/29)) ([afd3f72](https://github.com/databk/rustdesk-console/commit/afd3f728fcb41c7676e1c4d200451041cd607330))
 
 
 
