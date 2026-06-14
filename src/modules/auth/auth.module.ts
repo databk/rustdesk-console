@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -17,6 +17,7 @@ import { UserToken } from '../user/entities/user-token.entity';
 import { Peer } from '../../common/entities';
 import { EmailVerificationSession } from './entities/email-verification-session.entity';
 import { EmailModule } from '../email/email.module';
+import { LdapModule } from '../ldap/ldap.module';
 
 /**
  * 认证模块
@@ -41,6 +42,7 @@ import { EmailModule } from '../email/email.module';
   imports: [
     TypeOrmModule.forFeature([User, UserToken, Peer, EmailVerificationSession]),
     EmailModule,
+    forwardRef(() => LdapModule),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret:

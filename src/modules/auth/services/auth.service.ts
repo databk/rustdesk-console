@@ -4,6 +4,8 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -26,6 +28,7 @@ import { JwtPayload } from '../../../common/services/token.service';
 import { AuthTfaService } from './auth-tfa.service';
 import { AuthEmailService } from './auth-email.service';
 import { AuthDeviceService } from './auth-device.service';
+import { LdapService } from '../../ldap/ldap.service';
 
 /**
  * 认证服务
@@ -35,6 +38,7 @@ import { AuthDeviceService } from './auth-device.service';
  * - 账号密码登录
  * - 邮箱验证码登录
  * - 双因素认证登录
+ * - LDAP 登录
  */
 @Injectable()
 export class AuthService {
@@ -54,6 +58,8 @@ export class AuthService {
     private readonly tfaService: AuthTfaService,
     private readonly emailAuthService: AuthEmailService,
     private readonly deviceService: AuthDeviceService,
+    @Inject(forwardRef(() => LdapService))
+    private readonly ldapService: LdapService,
   ) {}
 
   /**
@@ -137,6 +143,17 @@ export class AuthService {
     if (type === 'sms_code') {
       throw new BadRequestException({
         error: '短信验证码登录功能正在开发中，暂时不可用',
+      });
+    }
+
+    // 处理 LDAP 登录
+    if (type === 'ldap') {
+      return this.ldapService.login({
+        username: username!,
+        password: password!,
+        id,
+        uuid,
+        deviceInfo,
       });
     }
 

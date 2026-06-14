@@ -35,6 +35,7 @@ import { EmailVerificationSession } from './modules/auth/entities/email-verifica
 import { SystemSetting } from './modules/settings/entities/system-setting.entity';
 import { ActiveConnection } from './modules/heartbeat/entities/active-connection.entity';
 import { SettingsModule } from './modules/settings/settings.module';
+import { LdapModule } from './modules/ldap/ldap.module';
 import { StrategyModule } from './modules/strategy/strategy.module';
 import { Strategy } from './modules/strategy/entities/strategy.entity';
 
@@ -111,6 +112,7 @@ import { Strategy } from './modules/strategy/entities/strategy.entity';
     SysinfoModule,
     DashboardModule,
     SettingsModule,
+    LdapModule,
     StrategyModule,
   ],
   providers: [

@@ -56,6 +56,7 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.3.1",
     "handlebars": "^4.7.8",
+    "ldapts": "^8.1.8",
     "nodemailer": "^8.0.1",
     "openid-client": "^6.8.4",
     "otplib": "^12.0.1",
