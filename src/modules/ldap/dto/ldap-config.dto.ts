@@ -4,8 +4,35 @@ import {
   IsOptional,
   IsArray,
   IsNotEmpty,
-  IsObject,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+/**
+ * TLS 配置 DTO
+ * 仅允许安全的 TLS 选项，防止注入危险属性如 rejectUnauthorized: false
+ */
+export class TlsOptionsDto {
+  /** CA 证书（PEM 格式字符串或 Buffer） */
+  @IsOptional()
+  @IsString()
+  ca?: string;
+
+  /** 客户端证书（PEM 格式字符串） */
+  @IsOptional()
+  @IsString()
+  cert?: string;
+
+  /** 客户端私钥（PEM 格式字符串） */
+  @IsOptional()
+  @IsString()
+  key?: string;
+
+  /** 服务器名称指示（SNI） */
+  @IsOptional()
+  @IsString()
+  servername?: string;
+}
 
 /**
  * 更新 LDAP 配置 DTO
@@ -62,10 +89,11 @@ export class UpdateLdapConfigDto {
   @IsOptional()
   adminGroups?: string[];
 
-  /** TLS 配置（如自签名 CA 证书等） */
-  @IsObject()
+  /** TLS 配置（仅允许 ca/cert/key/servername 安全选项） */
+  @ValidateNested()
+  @Type(() => TlsOptionsDto)
   @IsOptional()
-  tlsOptions?: Record<string, any>;
+  tlsOptions?: TlsOptionsDto;
 
   /** 是否启用 LDAP 认证 */
   @IsBoolean()

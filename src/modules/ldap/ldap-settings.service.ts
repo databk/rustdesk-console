@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SystemSetting } from '../settings/entities/system-setting.entity';
-import { UpdateLdapConfigDto } from './dto/ldap-config.dto';
+import { UpdateLdapConfigDto, TlsOptionsDto } from './dto/ldap-config.dto';
 
 /**
  * LDAP 配置接口
@@ -28,7 +28,7 @@ export interface LdapConfig {
   /** 映射为管理员的 LDAP 组 DN 列表 */
   adminGroups: string[];
   /** TLS 配置 */
-  tlsOptions: Record<string, any>;
+  tlsOptions: TlsOptionsDto;
   /** 是否启用 */
   enabled: boolean;
 }
@@ -212,7 +212,7 @@ export class LdapSettingsService {
         this.LDAP_KEYS.ADMIN_GROUPS,
         [],
       ),
-      tlsOptions: this.parseJson<Record<string, any>>(
+      tlsOptions: this.parseJson<TlsOptionsDto>(
         settings,
         this.LDAP_KEYS.TLS_OPTIONS,
         {},

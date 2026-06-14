@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Client, SearchOptions } from 'ldapts';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { LdapSettingsService, LdapConfig } from './ldap-settings.service';
+import { TlsOptionsDto } from './dto/ldap-config.dto';
 
 /**
  * LDAP 用户信息接口
@@ -137,44 +138,30 @@ export class LdapService {
       return { success: false, message: 'LDAP 服务器 URL 不能为空' };
     }
 
-    let client: Client | null = null;
-
     try {
-      client = this.createClient(activeConfig);
+      await this.executeWithFailover(activeConfig, async (client) => {
+        // 使用服务账号绑定
+        await client.bind(activeConfig.bindDN, activeConfig.bindCredentials);
 
-      // 使用服务账号绑定
-      await client.bind(activeConfig.bindDN, activeConfig.bindCredentials);
+        // 执行搜索验证
+        const searchFilter = activeConfig.searchFilter.replace(
+          '{{username}}',
+          '*',
+        );
 
-      // 执行搜索验证
-      const searchBase = activeConfig.searchBase;
-      const searchFilter = activeConfig.searchFilter.replace(
-        '{{username}}',
-        '*',
-      );
-
-      const { searchEntries } = await client.search(searchBase, {
-        scope: 'sub',
-        filter: searchFilter,
-        sizeLimit: 1,
+        await client.search(activeConfig.searchBase, {
+          scope: 'sub',
+          filter: searchFilter,
+          sizeLimit: 1,
+        });
       });
 
       this.logger.log('LDAP 连接测试成功');
-      return {
-        success: true,
-        message: `LDAP 连接测试成功，搜索基础 DN 下共 ${searchEntries.length} 条记录`,
-      };
+      return { success: true, message: 'LDAP 连接测试成功' };
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
       this.logger.error(`LDAP 连接测试失败: ${message}`);
       return { success: false, message: `LDAP 连接测试失败: ${message}` };
-    } finally {
-      if (client) {
-        try {
-          await client.unbind();
-        } catch {
-          // 忽略 unbind 错误
-        }
-      }
     }
   }
 
@@ -191,64 +178,62 @@ export class LdapService {
     config: LdapConfig,
     username: string,
   ): Promise<LdapUserInfo> {
-    let client: Client | null = null;
-
     try {
-      client = this.createClient(config);
+      return await this.executeWithFailover(config, async (client) => {
+        // 使用服务账号绑定
+        await client.bind(config.bindDN, config.bindCredentials);
 
-      // 使用服务账号绑定
-      await client.bind(config.bindDN, config.bindCredentials);
+        // 构建搜索过滤器
+        const searchFilter = config.searchFilter.replace(
+          '{{username}}',
+          this.escapeLdapFilterValue(username),
+        );
 
-      // 构建搜索过滤器
-      const searchFilter = config.searchFilter.replace(
-        '{{username}}',
-        this.escapeLdapFilterValue(username),
-      );
+        const searchOptions: SearchOptions = {
+          scope: 'sub',
+          filter: searchFilter,
+          attributes:
+            config.searchAttributes.length > 0
+              ? config.searchAttributes
+              : undefined,
+        };
 
-      const searchOptions: SearchOptions = {
-        scope: 'sub',
-        filter: searchFilter,
-        attributes:
-          config.searchAttributes.length > 0
-            ? config.searchAttributes
-            : undefined,
-      };
+        const { searchEntries } = await client.search(
+          config.searchBase,
+          searchOptions,
+        );
 
-      const { searchEntries } = await client.search(
-        config.searchBase,
-        searchOptions,
-      );
+        if (!searchEntries || searchEntries.length === 0) {
+          throw new UnauthorizedException({ error: '用户名或密码错误' });
+        }
 
-      if (!searchEntries || searchEntries.length === 0) {
-        throw new UnauthorizedException({ error: '用户名或密码错误' });
-      }
+        const entry = searchEntries[0] as Record<string, any>;
 
-      const entry = searchEntries[0] as Record<string, any>;
-
-      const dn = String(entry.dn || entry.DN || '');
-      const entryUsername = String(
-        entry.sAMAccountName || entry.uid || entry.cn || username,
-      );
-      const entryEmail = entry.mail
-        ? String(entry.mail)
-        : entry.email
-          ? String(entry.email)
-          : undefined;
-      const entryDisplayName = entry.displayName
-        ? String(entry.displayName)
-        : entry.cn
-          ? String(entry.cn)
-          : entry.name
-            ? String(entry.name)
+        const dn = String(entry.dn || entry.DN || '');
+        const entryUsername = String(
+          entry.sAMAccountName || entry.uid || entry.cn || username,
+        );
+        const entryEmail = entry.mail
+          ? String(entry.mail)
+          : entry.email
+            ? String(entry.email)
             : undefined;
+        const entryDisplayName = entry.displayName
+          ? String(entry.displayName)
+          : entry.cn
+            ? String(entry.cn)
+            : entry.name
+              ? String(entry.name)
+              : undefined;
 
-      return {
-        dn,
-        username: entryUsername,
-        email: entryEmail,
-        displayName: entryDisplayName,
-        groups: [],
-      };
+        return {
+          dn,
+          username: entryUsername,
+          email: entryEmail,
+          displayName: entryDisplayName,
+          groups: [],
+        };
+      });
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -256,14 +241,6 @@ export class LdapService {
       const message = error instanceof Error ? error.message : '未知错误';
       this.logger.error(`LDAP 搜索用户失败: ${message}`);
       throw new UnauthorizedException({ error: 'LDAP 认证失败，请重试' });
-    } finally {
-      if (client) {
-        try {
-          await client.unbind();
-        } catch {
-          // 忽略 unbind 错误
-        }
-      }
     }
   }
 
@@ -281,26 +258,15 @@ export class LdapService {
     userDN: string,
     password: string,
   ): Promise<void> {
-    let client: Client | null = null;
-
     try {
-      client = this.createClient(config);
-
-      // 使用用户 DN + 密码绑定
-      await client.bind(userDN, password);
-
+      await this.executeWithFailover(config, async (client) => {
+        // 使用用户 DN + 密码绑定
+        await client.bind(userDN, password);
+      });
       this.logger.debug(`LDAP 用户密码验证成功: ${userDN}`);
     } catch {
       this.logger.warn(`LDAP 用户密码验证失败: ${userDN}`);
       throw new UnauthorizedException({ error: '用户名或密码错误' });
-    } finally {
-      if (client) {
-        try {
-          await client.unbind();
-        } catch {
-          // 忽略 unbind 错误
-        }
-      }
     }
   }
 
@@ -320,41 +286,31 @@ export class LdapService {
       return [];
     }
 
-    let client: Client | null = null;
-
     try {
-      client = this.createClient(config);
+      return await this.executeWithFailover(config, async (client) => {
+        // 使用服务账号绑定
+        await client.bind(config.bindDN, config.bindCredentials);
 
-      // 使用服务账号绑定
-      await client.bind(config.bindDN, config.bindCredentials);
+        // 构建组搜索过滤器
+        const groupFilter = config.groupSearchFilter.replace(
+          '{{dn}}',
+          this.escapeLdapFilterValue(userDN),
+        );
 
-      // 构建组搜索过滤器
-      const groupFilter = config.groupSearchFilter.replace(
-        '{{dn}}',
-        this.escapeLdapFilterValue(userDN),
-      );
+        const { searchEntries } = await client.search(config.groupSearchBase, {
+          scope: 'sub',
+          filter: groupFilter,
+          attributes: ['dn'],
+        });
 
-      const { searchEntries } = await client.search(config.groupSearchBase, {
-        scope: 'sub',
-        filter: groupFilter,
-        attributes: ['dn'],
+        return searchEntries
+          .map((entry) => String((entry as Record<string, any>).dn || ''))
+          .filter(Boolean);
       });
-
-      return searchEntries
-        .map((entry) => String((entry as Record<string, any>).dn || ''))
-        .filter(Boolean);
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
       this.logger.warn(`LDAP 搜索用户组失败: ${message}`);
       return [];
-    } finally {
-      if (client) {
-        try {
-          await client.unbind();
-        } catch {
-          // 忽略 unbind 错误
-        }
-      }
     }
   }
 
@@ -498,14 +454,19 @@ export class LdapService {
   }
 
   /**
-   * 创建 LDAP 客户端
-   * 支持多服务器故障转移
+   * 使用故障转移执行 LDAP 操作
+   * 遍历所有 URL，在第一个可用服务器上执行操作，失败则尝试下一个
+   * 实际的 TCP 连接在 bind() 调用时建立，因此故障转移在操作级别实现
    *
    * @param config LDAP 配置
-   * @returns LDAP 客户端实例
+   * @param operation 要执行的 LDAP 操作（接收已连接的客户端）
+   * @returns 操作的返回值
    * @throws BadRequestException 当所有服务器都无法连接时抛出
    */
-  private createClient(config: LdapConfig): Client {
+  private async executeWithFailover<T>(
+    config: LdapConfig,
+    operation: (client: Client) => Promise<T>,
+  ): Promise<T> {
     const urls = config.urls;
 
     if (!urls || urls.length === 0) {
@@ -521,32 +482,70 @@ export class LdapService {
       }
     }
 
-    // 尝试连接，支持故障转移
     let lastError: Error | null = null;
 
     for (const url of urls) {
+      const client = this.createClientForUrl(url, config);
       try {
-        const client = new Client({
-          url,
-          timeout: 10000,
-          connectTimeout: 5000,
-          tlsOptions:
-            Object.keys(config.tlsOptions || {}).length > 0
-              ? config.tlsOptions
-              : undefined,
-        });
-
-        // 验证连接是否可用
-        return client;
+        return await operation(client);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        this.logger.warn(`LDAP 服务器连接失败: ${url} - ${lastError.message}`);
+        this.logger.warn(
+          `LDAP 服务器操作失败: ${url} - ${lastError.message}`,
+        );
+      } finally {
+        try {
+          await client.unbind();
+        } catch {
+          // 忽略 unbind 错误
+        }
       }
     }
 
     throw new BadRequestException(
       `无法连接到任何 LDAP 服务器: ${lastError?.message || '未知错误'}`,
     );
+  }
+
+  /**
+   * 为单个 URL 创建 LDAP 客户端
+   * 将 TlsOptionsDto 安全映射为 Node.js TLS 选项
+   *
+   * @param url LDAP 服务器 URL
+   * @param config LDAP 配置
+   * @returns LDAP 客户端实例
+   */
+  private createClientForUrl(url: string, config: LdapConfig): Client {
+    const tlsOptions = this.buildTlsOptions(config.tlsOptions);
+    return new Client({
+      url,
+      timeout: 10000,
+      connectTimeout: 5000,
+      tlsOptions: Object.keys(tlsOptions).length > 0 ? tlsOptions : undefined,
+    });
+  }
+
+  /**
+   * 将 TlsOptionsDto 安全映射为 Node.js TLS 选项
+   * 仅允许白名单中的属性，防止注入危险选项
+   */
+  private buildTlsOptions(
+    dto: TlsOptionsDto | Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (!dto || typeof dto !== 'object') {
+      return {};
+    }
+
+    const result: Record<string, unknown> = {};
+    const allowedKeys = ['ca', 'cert', 'key', 'servername'] as const;
+
+    for (const key of allowedKeys) {
+      if (dto[key] !== undefined && dto[key] !== null && dto[key] !== '') {
+        result[key] = dto[key];
+      }
+    }
+
+    return result;
   }
 
   /**
