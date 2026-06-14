@@ -1,8 +1,7 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SystemSetting } from '../settings/entities/system-setting.entity';
 import { User } from '../user/entities/user.entity';
-import { AuthModule } from '../auth/auth.module';
 import { LdapController } from './ldap.controller';
 import { LdapService } from './ldap.service';
 import { LdapSettingsService } from './ldap-settings.service';
@@ -13,17 +12,13 @@ import { LdapSettingsService } from './ldap-settings.service';
  *
  * 导入模块：
  * - TypeOrmModule（SystemSetting、User）
- * - AuthModule（AuthTokenService、AuthDeviceService）
  *
  * 导出服务：
- * - LdapService（供 AuthModule 集成 LDAP 登录）
+ * - LdapService（供 AuthModule 集成 LDAP 认证）
  * - LdapSettingsService（供其他模块读取 LDAP 配置）
  */
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([SystemSetting, User]),
-    forwardRef(() => AuthModule),
-  ],
+  imports: [TypeOrmModule.forFeature([SystemSetting, User])],
   controllers: [LdapController],
   providers: [LdapService, LdapSettingsService],
   exports: [LdapService, LdapSettingsService],

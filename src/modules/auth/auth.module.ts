@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -42,7 +42,7 @@ import { LdapModule } from '../ldap/ldap.module';
   imports: [
     TypeOrmModule.forFeature([User, UserToken, Peer, EmailVerificationSession]),
     EmailModule,
-    forwardRef(() => LdapModule),
+    LdapModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret:

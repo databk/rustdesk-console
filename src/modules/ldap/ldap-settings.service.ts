@@ -217,7 +217,7 @@ export class LdapSettingsService {
         this.LDAP_KEYS.TLS_OPTIONS,
         {},
       ),
-      enabled: settings.get(this.LDAP_KEYS.ENABLED) !== 'false',
+      enabled: settings.get(this.LDAP_KEYS.ENABLED) === 'true',
     };
   }
 

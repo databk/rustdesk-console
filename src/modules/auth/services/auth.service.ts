@@ -4,8 +4,6 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -35,10 +33,9 @@ import { LdapService } from '../../ldap/ldap.service';
  * 负责处理用户注册、登录、登出等核心认证功能
  *
  * 支持多种登录方式：
- * - 账号密码登录
+ * - 账号密码登录（自动检测 LDAP/本地认证）
  * - 邮箱验证码登录
  * - 双因素认证登录
- * - LDAP 登录
  */
 @Injectable()
 export class AuthService {
@@ -58,7 +55,6 @@ export class AuthService {
     private readonly tfaService: AuthTfaService,
     private readonly emailAuthService: AuthEmailService,
     private readonly deviceService: AuthDeviceService,
-    @Inject(forwardRef(() => LdapService))
     private readonly ldapService: LdapService,
   ) {}
 
@@ -107,12 +103,12 @@ export class AuthService {
 
   /**
    * 用户登录
-   * 支持多种登录方式：账号密码、邮箱验证码、双因素认证
+   * 支持多种登录方式：账号密码（自动检测 LDAP/本地）、邮箱验证码、双因素认证
    *
-   * 登录流程：
-   * 1. 普通登录 -> 检查是否需要邮箱验证或TFA
-   * 2. 邮箱验证码 -> 第二步验证
-   * 3. TFA验证 -> 双因素认证
+   * LDAP 自动检测策略（遵循 LDAP 最佳实践）：
+   * 1. 已关联的 LDAP 用户（oidcSubject 以 'ldap:' 开头）→ 强制走 LDAP 认证
+   * 2. LDAP 已启用且用户在 LDAP 中存在 → 走 LDAP 认证
+   * 3. 以上均不满足 → 回退到本地账号密码认证
    *
    * @param loginDto 登录信息，包含用户名、密码、设备信息等
    * @returns 登录响应，可能包含token或需要进一步验证的提示
@@ -146,17 +142,6 @@ export class AuthService {
       });
     }
 
-    // 处理 LDAP 登录
-    if (type === 'ldap') {
-      return this.ldapService.login({
-        username: username!,
-        password: password!,
-        id,
-        uuid,
-        deviceInfo,
-      });
-    }
-
     // 处理双因素认证登录
     if (type === 'tfa_code') {
       return this.tfaService.handleTfaLogin(
@@ -173,11 +158,81 @@ export class AuthService {
       );
     }
 
-    // 标准账号密码登录
+    // 标准账号密码登录（自动检测 LDAP/本地认证）
     if (!username || !password) {
       throw new BadRequestException({ error: '用户名和密码不能为空' });
     }
 
+    // 尝试 LDAP 认证
+    const ldapUser = await this.tryLdapAuthentication(username, password);
+    if (ldapUser) {
+      return this.buildLoginResponse(ldapUser, id, uuid);
+    }
+
+    // 回退到本地账号密码认证
+    return this.localLogin(username, password, id, uuid, tfaCode);
+  }
+
+  /**
+   * 尝试 LDAP 认证
+   * 遵循 LDAP 最佳实践：后端自动判断账号类型，用户无需指定
+   *
+   * 策略：
+   * 1. 已关联的 LDAP 用户 → 强制走 LDAP（必须通过 LDAP 验证）
+   * 2. LDAP 已启用且用户在 LDAP 中存在 → 走 LDAP 认证
+   * 3. LDAP 认证失败 → 返回 null，回退本地认证
+   *
+   * @param username 用户名
+   * @param password 密码
+   * @returns 认证成功返回 User 实体，否则返回 null
+   */
+  private async tryLdapAuthentication(
+    username: string,
+    password: string,
+  ): Promise<User | null> {
+    // 检查是否为已关联的 LDAP 用户
+    const isLinkedLdapUser =
+      await this.ldapService.isLinkedLdapUser(username);
+
+    if (isLinkedLdapUser) {
+      // 已关联的 LDAP 用户必须通过 LDAP 认证
+      return this.ldapService.authenticate(username, password);
+    }
+
+    // LDAP 未启用则跳过
+    const ldapEnabled = await this.ldapService.isEnabled();
+    if (!ldapEnabled) {
+      return null;
+    }
+
+    // 尝试 LDAP 认证，失败静默回退本地认证
+    try {
+      return await this.ldapService.authenticate(username, password);
+    } catch {
+      this.logger.debug(
+        `LDAP 认证失败，回退本地认证: ${username}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * 本地账号密码登录
+   *
+   * @param username 用户名
+   * @param password 密码
+   * @param id 设备 ID
+   * @param uuid 设备 UUID
+   * @param tfaCode 双因素认证码
+   * @returns 登录响应
+   */
+  private async localLogin(
+    username: string,
+    password: string,
+    id?: string,
+    uuid?: string,
+    tfaCode?: string,
+  ): Promise<LoginResponse> {
     // 查找用户（支持用户名或邮箱登录）
     const user = await this.userRepository
       .createQueryBuilder('user')
@@ -224,16 +279,7 @@ export class AuthService {
           type: 'email_check',
           tfa_type: 'tfa_check',
           secret: user.tfaSecret,
-          user: {
-            name: user.username,
-            email: user.email || undefined,
-            note: user.note || undefined,
-            status: user.status,
-            info: user.getUserInfo(),
-            is_admin: user.isAdmin,
-            third_auth_type: user.thirdAuthType || undefined,
-            ...(user.avatar ? { avatar: user.avatar } : {}),
-          },
+          user: this.buildUserPayload(user),
         };
       }
       const isValidTfa = this.tfaService.verifyTfaCode(user.tfaSecret, tfaCode);
@@ -243,47 +289,56 @@ export class AuthService {
     } else if (userInfo?.other?.tfa_enforce) {
       return {
         type: 'enforce_tfa',
-        user: {
-          name: user.username,
-          email: user.email || undefined,
-          note: user.note || undefined,
-          status: user.status,
-          info: user.getUserInfo(),
-          is_admin: user.isAdmin,
-          third_auth_type: user.thirdAuthType || undefined,
-          ...(user.avatar ? { avatar: user.avatar } : {}),
-        },
+        user: this.buildUserPayload(user),
       };
     }
 
+    return this.buildLoginResponse(user, id, uuid);
+  }
+
+  /**
+   * 构建登录响应
+   */
+  private async buildLoginResponse(
+    user: User,
+    id?: string,
+    uuid?: string,
+  ): Promise<LoginResponse> {
     // 创建或更新设备记录
     if (id || uuid) {
       await this.deviceService.createOrUpdateDevice(
         user.guid,
         id,
         uuid,
-        deviceInfo,
+        undefined,
       );
     }
 
     // 生成JWT Token
     const token = await this.tokenService.generateToken(user, id, uuid);
 
-    this.logger.log(`用户登录成功: ${username}`);
+    this.logger.log(`用户登录成功: ${user.username}`);
 
     return {
       access_token: token,
       type: 'access_token',
-      user: {
-        name: user.username,
-        email: user.email || undefined,
-        note: user.note || undefined,
-        status: user.status,
-        info: user.getUserInfo(),
-        is_admin: user.isAdmin,
-        third_auth_type: user.thirdAuthType || undefined,
-        ...(user.avatar ? { avatar: user.avatar } : {}),
-      },
+      user: this.buildUserPayload(user),
+    };
+  }
+
+  /**
+   * 构建用户信息载荷
+   */
+  private buildUserPayload(user: User) {
+    return {
+      name: user.username,
+      email: user.email || undefined,
+      note: user.note || undefined,
+      status: user.status,
+      info: user.getUserInfo(),
+      is_admin: user.isAdmin,
+      third_auth_type: user.thirdAuthType || undefined,
+      ...(user.avatar ? { avatar: user.avatar } : {}),
     };
   }
 

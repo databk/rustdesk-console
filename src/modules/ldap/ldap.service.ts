@@ -3,8 +3,6 @@ import {
   Logger,
   UnauthorizedException,
   BadRequestException,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
@@ -12,10 +10,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { Client, SearchOptions } from 'ldapts';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { LdapSettingsService, LdapConfig } from './ldap-settings.service';
-import { LdapLoginDto } from './dto/ldap-login.dto';
-import { LoginResponse } from '../../common/interfaces';
-import { AuthTokenService } from '../auth/services/auth-token.service';
-import { AuthDeviceService } from '../auth/services/auth-device.service';
 
 /**
  * LDAP 用户信息接口
@@ -44,6 +38,7 @@ interface LdapUserInfo {
  * - 使用服务账号绑定后搜索用户，再以用户 DN 绑定验证密码
  * - 支持组到管理员角色的映射
  * - JIT 自动创建本地用户
+ * - authenticate() 仅返回认证后的 User 实体，Token 生成由 AuthService 统一处理
  */
 @Injectable()
 export class LdapService {
@@ -53,20 +48,23 @@ export class LdapService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly ldapSettingsService: LdapSettingsService,
-    @Inject(forwardRef(() => AuthTokenService))
-    private readonly authTokenService: AuthTokenService,
-    @Inject(forwardRef(() => AuthDeviceService))
-    private readonly deviceService: AuthDeviceService,
   ) {}
 
   /**
-   * LDAP 登录
-   * 完整的 LDAP 认证流程：查找用户 → 验证密码 → 组映射 → 创建/关联本地用户 → 生成 Token
+   * LDAP 认证（仅认证，不生成 Token）
+   * 完整的 LDAP 认证流程：查找用户 → 验证密码 → 组映射 → 创建/关联本地用户
+   * Token 生成和设备管理由 AuthService 统一处理，避免循环依赖
    *
-   * @param loginDto LDAP 登录请求
-   * @returns 登录响应
+   * @param username 用户名
+   * @param password 密码
+   * @returns 认证成功后的本地用户实体
+   * @throws BadRequestException 当 LDAP 未启用时抛出
+   * @throws UnauthorizedException 当认证失败时抛出
    */
-  async login(loginDto: LdapLoginDto): Promise<LoginResponse> {
+  async authenticate(
+    username: string,
+    password: string,
+  ): Promise<User> {
     const config = await this.ldapSettingsService.getActiveConfig();
 
     if (!config || !config.enabled) {
@@ -74,10 +72,10 @@ export class LdapService {
     }
 
     // 1. 使用服务账号搜索用户
-    const ldapUserInfo = await this.searchUser(config, loginDto.username);
+    const ldapUserInfo = await this.searchUser(config, username);
 
     // 2. 使用用户 DN + 密码绑定验证
-    await this.verifyUserPassword(config, ldapUserInfo.dn, loginDto.password);
+    await this.verifyUserPassword(config, ldapUserInfo.dn, password);
 
     // 3. 查找用户所属组
     const groups = await this.searchUserGroups(config, ldapUserInfo.dn);
@@ -86,39 +84,36 @@ export class LdapService {
     // 4. 查找或创建本地用户
     const user = await this.findOrCreateUser(ldapUserInfo, config);
 
-    // 5. 创建或更新设备记录
-    if (loginDto.id || loginDto.uuid) {
-      await this.deviceService.createOrUpdateDevice(
-        user.guid,
-        loginDto.id,
-        loginDto.uuid,
-        loginDto.deviceInfo,
-      );
+    // 5. 检查用户状态
+    if (user.status === UserStatus.DISABLED) {
+      throw new UnauthorizedException({ error: '账户已被禁用' });
     }
 
-    // 6. 生成 JWT Token
-    const token = await this.authTokenService.generateToken(
-      user,
-      loginDto.id,
-      loginDto.uuid,
-    );
+    this.logger.log(`LDAP 用户认证成功: ${username}`);
 
-    this.logger.log(`LDAP 用户登录成功: ${loginDto.username}`);
+    return user;
+  }
 
-    return {
-      access_token: token,
-      type: 'access_token',
-      user: {
-        name: user.username,
-        email: user.email || undefined,
-        note: user.note || undefined,
-        status: user.status,
-        info: user.getUserInfo(),
-        is_admin: user.isAdmin,
-        third_auth_type: user.thirdAuthType || undefined,
-        ...(user.avatar ? { avatar: user.avatar } : {}),
-      },
-    };
+  /**
+   * 检查 LDAP 是否已启用
+   */
+  async isEnabled(): Promise<boolean> {
+    return this.ldapSettingsService.isEnabled();
+  }
+
+  /**
+   * 检查用户是否为已关联的 LDAP 用户
+   * 通过 oidcSubject 字段判断
+   *
+   * @param username 用户名
+   * @returns 如果是已关联的 LDAP 用户则返回 true
+   */
+  async isLinkedLdapUser(username: string): Promise<boolean> {
+    const ldapSubject = `ldap:${username}`;
+    const user = await this.userRepository.findOne({
+      where: { oidcSubject: ldapSubject },
+    });
+    return !!user;
   }
 
   /**
