@@ -60,7 +60,7 @@ export class User {
    */
   @Column({ unique: true, nullable: true })
   @Index()
-  email: string;
+  email: string | null;
 
   /**
    * 密码

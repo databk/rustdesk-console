@@ -188,7 +188,7 @@ export class UserService {
     const user = new User();
     user.guid = uuidv4();
     user.username = name;
-    user.email = email || '';
+    user.email = email || null;
     user.password = await bcrypt.hash(password, 10);
     user.note = note || '';
     user.status = UserStatus.ACTIVE;
@@ -273,7 +273,7 @@ export class UserService {
           throw new BadRequestException('邮箱已存在');
         }
       }
-      user.email = dto.email;
+      user.email = dto.email || null;
     }
 
     if (dto.note !== undefined) {
@@ -320,7 +320,7 @@ export class UserService {
           throw new BadRequestException('邮箱已存在');
         }
       }
-      user.email = dto.email;
+      user.email = dto.email || null;
     }
 
     if (dto.note !== undefined) {

@@ -47,7 +47,7 @@ export class AuthTokenService {
     const payload: JwtPayload = {
       sub: user.guid,
       username: user.username,
-      email: user.email,
+      email: user.email ?? undefined,
       isAdmin: user.isAdmin,
       deviceId,
       jti,

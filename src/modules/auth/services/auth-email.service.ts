@@ -46,6 +46,12 @@ export class AuthEmailService {
    * @throws BadRequestException 当邮件发送失败时抛出
    */
   async initiateEmailVerification(user: User): Promise<LoginResponse> {
+    if (!user.email) {
+      throw new BadRequestException({
+        error: '用户未设置邮箱，无法进行邮箱验证',
+      });
+    }
+
     // 生成6位随机验证码
     const code = Math.random().toString().slice(-6);
 
