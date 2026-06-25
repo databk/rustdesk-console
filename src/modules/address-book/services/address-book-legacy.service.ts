@@ -9,6 +9,7 @@ import {
   AddressBookPeerTag,
 } from '../entities';
 import { Sysinfo } from '../../../common/entities';
+import { mapOsToPlatform } from '../../../common/utils/platform.util';
 
 @Injectable()
 /**
@@ -106,7 +107,7 @@ export class AddressBookLegacyService {
         hash: p.hash || '',
         username: sysinfo?.username || '',
         hostname: sysinfo?.hostname || '',
-        platform: sysinfo?.os || '',
+        platform: mapOsToPlatform(sysinfo?.os),
         alias: p.alias || '',
         tags: p.tags?.map((t) => t.name) || [],
       };
