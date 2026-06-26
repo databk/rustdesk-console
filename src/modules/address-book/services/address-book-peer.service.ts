@@ -14,6 +14,7 @@ import {
 } from '../entities';
 import { AddPeerDto, UpdatePeerDto, PeersQueryDto, TagMatchMode } from '../dto';
 import { Sysinfo, Peer } from '../../../common/entities';
+import { mapOsToPlatform } from '../../../common/utils/platform.util';
 
 @Injectable()
 /**
@@ -168,7 +169,7 @@ export class AddressBookPeerService {
         password: p.password,
         username: sysinfo?.username || '',
         hostname: sysinfo?.hostname || '',
-        platform: sysinfo?.os || '',
+        platform: mapOsToPlatform(sysinfo?.os),
         alias: p.alias,
         tags: p.tags?.map((t) => t.name) || [],
         note: p.note,
