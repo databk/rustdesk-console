@@ -64,17 +64,31 @@ export class LdapController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async testLdapConnection(@Body() dto?: TestLdapConfigDto) {
     if (dto && dto.urls && dto.urls.length > 0) {
+      // Get saved config to fall back for fields not provided in DTO (e.g. bindCredentials)
+      const savedConfig = await this.ldapSettingsService.getActiveConfig();
+      const bindCredentials =
+        dto.bindCredentials || savedConfig?.bindCredentials || '';
+
       return this.ldapService.testConnection({
         urls: dto.urls,
-        bindDN: dto.bindDN || '',
-        bindCredentials: dto.bindCredentials || '',
-        searchBase: dto.searchBase || '',
-        searchFilter: dto.searchFilter || '(sAMAccountName={{username}})',
-        searchAttributes: ['dn', 'sAMAccountName', 'mail', 'displayName'],
-        groupSearchBase: '',
-        groupSearchFilter: '',
-        adminGroups: [],
-        tlsOptions: {},
+        bindDN: dto.bindDN || savedConfig?.bindDN || '',
+        bindCredentials,
+        searchBase: dto.searchBase || savedConfig?.searchBase || '',
+        searchFilter:
+          dto.searchFilter ||
+          savedConfig?.searchFilter ||
+          '(sAMAccountName={{username}})',
+        searchAttributes:
+          savedConfig?.searchAttributes || [
+            'dn',
+            'sAMAccountName',
+            'mail',
+            'displayName',
+          ],
+        groupSearchBase: savedConfig?.groupSearchBase || '',
+        groupSearchFilter: savedConfig?.groupSearchFilter || '',
+        adminGroups: savedConfig?.adminGroups || [],
+        tlsOptions: savedConfig?.tlsOptions || {},
         enabled: true,
       });
     }
