@@ -58,7 +58,7 @@ export class User {
    * 邮箱地址
    * 用于邮箱验证和通知
    */
-  @Column({ unique: true, nullable: true })
+  @Column({ type: 'varchar', unique: true, nullable: true })
   @Index()
   email: string | null;
 
