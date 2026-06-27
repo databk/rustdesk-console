@@ -14,13 +14,6 @@ export enum UpdateChannel {
 export class ReportFrontendVersionDto {
   @IsString()
   version: string;
-
-  /**
-   * 共享密钥，用于验证前端容器的身份
-   * 前后端通过环境变量 SHARED_SECRET 配置相同的密钥
-   */
-  @IsString()
-  secret: string;
 }
 
 /**

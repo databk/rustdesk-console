@@ -332,6 +332,23 @@ export class UpdateCheckService {
   }
 
   /**
+   * 获取前端版本上报的信任 IP
+   */
+  async getTrustedFrontendIp(): Promise<string | null> {
+    const setting = await this.settingRepository.findOne({
+      where: { key: 'trusted_frontend_ip', category: 'update_check' },
+    });
+    return setting?.value ?? null;
+  }
+
+  /**
+   * 设置前端版本上报的信任 IP（TOFU）
+   */
+  async setTrustedFrontendIp(ip: string): Promise<void> {
+    await this.setSetting('update_check', 'trusted_frontend_ip', ip);
+  }
+
+  /**
    * 通用设置存储（upsert）
    */
   private async setSetting(
