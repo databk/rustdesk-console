@@ -2,30 +2,24 @@ import {
   Controller,
   Get,
   Post,
-  Put,
   Body,
   UseGuards,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { Public } from '../../common/decorators/public.decorator';
 import { UpdateCheckService } from './update-check.service';
-import {
-  ReportFrontendVersionDto,
-  SetUpdateChannelDto,
-  UpdateChannel,
-} from './dto/update-check.dto';
+import { ReportFrontendVersionDto } from './dto/update-check.dto';
 
 /**
  * 更新检查控制器
  *
  * 端点：
- * - GET  /api/update-check           - 检查更新（管理员）
- * - GET  /api/update-check/channel   - 获取当前更新通道（管理员）
- * - PUT  /api/update-check/channel   - 设置更新通道（管理员）
- * - POST /api/update-check/frontend-version - 前端上报版本号（公开，前端容器调用）
+ * - GET  /api/update-check                  - 检查更新（管理员）
+ * - POST /api/update-check/frontend-version - 前端上报版本号（需共享密钥）
  */
 @Controller('update-check')
 export class UpdateCheckController {
@@ -43,34 +37,23 @@ export class UpdateCheckController {
   }
 
   /**
-   * 获取当前更新通道
-   */
-  @Get('channel')
-  @UseGuards(AdminGuard)
-  async getUpdateChannel() {
-    const channel = await this.updateCheckService.getUpdateChannel();
-    return { channel };
-  }
-
-  /**
-   * 设置更新通道
-   */
-  @Put('channel')
-  @UseGuards(AdminGuard)
-  @HttpCode(HttpStatus.OK)
-  async setUpdateChannel(@Body() dto: SetUpdateChannelDto) {
-    await this.updateCheckService.setUpdateChannel(dto.channel);
-    return { channel: dto.channel };
-  }
-
-  /**
    * 前端上报版本号
-   * 公开接口，前端容器启动时调用，无需认证
+   * 通过 SHARED_SECRET 环境变量验证前端容器身份
+   * 未配置 SHARED_SECRET 时拒绝所有请求
    */
   @Post('frontend-version')
   @Public()
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async reportFrontendVersion(@Body() dto: ReportFrontendVersionDto) {
+    const sharedSecret = process.env.SHARED_SECRET;
+    if (!sharedSecret) {
+      throw new ForbiddenException('Shared secret is not configured');
+    }
+    if (dto.secret !== sharedSecret) {
+      throw new ForbiddenException('Invalid shared secret');
+    }
+
     await this.updateCheckService.reportFrontendVersion(dto.version);
     return { version: dto.version };
   }

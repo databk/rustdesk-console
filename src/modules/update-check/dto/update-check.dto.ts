@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsNumber } from 'class-validator';
+import { IsString } from 'class-validator';
 
 /**
  * 更新通道
@@ -14,14 +14,13 @@ export enum UpdateChannel {
 export class ReportFrontendVersionDto {
   @IsString()
   version: string;
-}
 
-/**
- * 更新通道设置 DTO
- */
-export class SetUpdateChannelDto {
-  @IsEnum(UpdateChannel)
-  channel: UpdateChannel;
+  /**
+   * 共享密钥，用于验证前端容器的身份
+   * 前后端通过环境变量 SHARED_SECRET 配置相同的密钥
+   */
+  @IsString()
+  secret: string;
 }
 
 /**
