@@ -37,6 +37,10 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV DB_PATH=/data/rustdesk-console.db
 
+# Inject application version from package.json at build time
+ARG APP_VERSION=unknown
+ENV APP_VERSION=${APP_VERSION}
+
 # Create data directory for database persistence
 RUN mkdir -p /data
 
