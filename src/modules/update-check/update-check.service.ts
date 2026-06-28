@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { SystemSetting } from '../settings/entities/system-setting.entity';
-import { User, UserStatus } from '../user/entities/user.entity';
+import { User } from '../user/entities/user.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
@@ -43,9 +43,10 @@ export class UpdateCheckService {
   /**
    * 检查更新
    * 收集信息 → 调用第三方 API → 返回结果
+   * @param frontendVersion 前端版本号，由前端在请求时携带
    */
-  async checkUpdate(): Promise<UpdateCheckResponse> {
-    const payload = await this.buildRequestPayload();
+  async checkUpdate(frontendVersion?: string): Promise<UpdateCheckResponse> {
+    const payload = await this.buildRequestPayload(frontendVersion);
 
     try {
       const response = await fetch(UPDATE_API_URL, {
@@ -68,23 +69,6 @@ export class UpdateCheckService {
       this.logger.warn(`Update check failed: ${error.message}`);
       return { backend: { has_update: false }, frontend: { has_update: false } };
     }
-  }
-
-  /**
-   * 上报前端版本号
-   */
-  async reportFrontendVersion(version: string): Promise<void> {
-    await this.setSetting('update_check', 'frontend_version', version);
-  }
-
-  /**
-   * 获取当前前端版本号
-   */
-  async getFrontendVersion(): Promise<string | null> {
-    const setting = await this.settingRepository.findOne({
-      where: { key: 'frontend_version', category: 'update_check' },
-    });
-    return setting?.value ?? null;
   }
 
   /**
@@ -152,8 +136,8 @@ export class UpdateCheckService {
   /**
    * 构建完整的请求负载
    */
-  private async buildRequestPayload(): Promise<UpdateCheckRequest> {
-    const [osInfo, cpuInfo, cpuLoad, memInfo, fsInfo, installId, frontendVersion, channel, stats] =
+  private async buildRequestPayload(frontendVersion?: string): Promise<UpdateCheckRequest> {
+    const [osInfo, cpuInfo, cpuLoad, memInfo, fsInfo, installId, channel, stats] =
       await Promise.all([
         this.getOsInfo(),
         this.getCpuInfo(),
@@ -161,7 +145,6 @@ export class UpdateCheckService {
         this.getMemInfo(),
         this.getDiskInfo(),
         this.getInstallId(),
-        this.getFrontendVersion(),
         this.getUpdateChannel(),
         this.getStatistics(),
       ]);
@@ -329,23 +312,6 @@ export class UpdateCheckService {
       .where('peer.lastHeartbeat >= :threshold', { threshold: oneMinuteAgo })
       .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
       .getCount();
-  }
-
-  /**
-   * 获取前端版本上报的信任 IP
-   */
-  async getTrustedFrontendIp(): Promise<string | null> {
-    const setting = await this.settingRepository.findOne({
-      where: { key: 'trusted_frontend_ip', category: 'update_check' },
-    });
-    return setting?.value ?? null;
-  }
-
-  /**
-   * 设置前端版本上报的信任 IP（TOFU）
-   */
-  async setTrustedFrontendIp(ip: string): Promise<void> {
-    await this.setSetting('update_check', 'trusted_frontend_ip', ip);
   }
 
   /**

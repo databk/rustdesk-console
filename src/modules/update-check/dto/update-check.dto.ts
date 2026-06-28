@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 
 /**
  * 更新通道
@@ -9,11 +9,13 @@ export enum UpdateChannel {
 }
 
 /**
- * 前端版本上报 DTO
+ * 检查更新请求 DTO
+ * 前端在请求时携带自己的版本号
  */
-export class ReportFrontendVersionDto {
+export class CheckUpdateDto {
+  @IsOptional()
   @IsString()
-  version: string;
+  frontend_version?: string;
 }
 
 /**
