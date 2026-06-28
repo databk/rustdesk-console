@@ -38,6 +38,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { LdapModule } from './modules/ldap/ldap.module';
 import { StrategyModule } from './modules/strategy/strategy.module';
 import { Strategy } from './modules/strategy/entities/strategy.entity';
+import { UpdateCheckModule } from './modules/update-check/update-check.module';
 
 /**
  * 应用根模块
@@ -114,6 +115,7 @@ import { Strategy } from './modules/strategy/entities/strategy.entity';
     SettingsModule,
     LdapModule,
     StrategyModule,
+    UpdateCheckModule,
   ],
   providers: [
     {

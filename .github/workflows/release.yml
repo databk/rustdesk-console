@@ -64,6 +64,7 @@ jobs:
           
           # Build and push to Docker Hub
           docker buildx build --push \
+            --build-arg APP_VERSION=$VERSION \
             --tag databk/rustdesk-console:latest \
             --tag databk/rustdesk-console:$VERSION \
             --tag databk/rustdesk-console:$MAJOR \
@@ -73,6 +74,7 @@ jobs:
           
           # Build and push to GitHub Container Registry
           docker buildx build --push \
+            --build-arg APP_VERSION=$VERSION \
             --tag ghcr.io/databk/rustdesk-console:latest \
             --tag ghcr.io/databk/rustdesk-console:$VERSION \
             --tag ghcr.io/databk/rustdesk-console:$MAJOR \
