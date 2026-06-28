@@ -17,7 +17,8 @@ import {
   UpdateCheckResponse,
 } from './dto/update-check.dto';
 
-const UPDATE_API_URL = 'https://api.rustdesk-console.databk.top/v1/update/check';
+const UPDATE_API_URL =
+  'https://api.rustdesk-console.databk.top/v1/update/check';
 
 /**
  * 更新检查服务
@@ -60,14 +61,21 @@ export class UpdateCheckService {
         this.logger.warn(
           `Update check API returned ${response.status}: ${response.statusText}`,
         );
-        return { backend: { has_update: false }, frontend: { has_update: false } };
+        return {
+          backend: { has_update: false },
+          frontend: { has_update: false },
+        };
       }
 
       const data = (await response.json()) as UpdateCheckResponse;
       return data;
-    } catch (error) {
-      this.logger.warn(`Update check failed: ${error.message}`);
-      return { backend: { has_update: false }, frontend: { has_update: false } };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Update check failed: ${message}`);
+      return {
+        backend: { has_update: false },
+        frontend: { has_update: false },
+      };
     }
   }
 
@@ -94,7 +102,7 @@ export class UpdateCheckService {
    * 获取 install_id，首次生成并持久化
    */
   async getInstallId(): Promise<string> {
-    let setting = await this.settingRepository.findOne({
+    const setting = await this.settingRepository.findOne({
       where: { key: 'install_id', category: 'update_check' },
     });
     if (setting) return setting.value;
@@ -113,7 +121,9 @@ export class UpdateCheckService {
 
     try {
       const pkgPath = path.join(__dirname, '..', '..', 'package.json');
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as {
+        version?: string;
+      };
       return pkg.version || 'unknown';
     } catch {
       return 'unknown';
@@ -136,18 +146,28 @@ export class UpdateCheckService {
   /**
    * 构建完整的请求负载
    */
-  private async buildRequestPayload(frontendVersion?: string): Promise<UpdateCheckRequest> {
-    const [osInfo, cpuInfo, cpuLoad, memInfo, fsInfo, installId, channel, stats] =
-      await Promise.all([
-        this.getOsInfo(),
-        this.getCpuInfo(),
-        this.getCpuLoad(),
-        this.getMemInfo(),
-        this.getDiskInfo(),
-        this.getInstallId(),
-        this.getUpdateChannel(),
-        this.getStatistics(),
-      ]);
+  private async buildRequestPayload(
+    frontendVersion?: string,
+  ): Promise<UpdateCheckRequest> {
+    const [
+      osInfo,
+      cpuInfo,
+      cpuLoad,
+      memInfo,
+      fsInfo,
+      installId,
+      channel,
+      stats,
+    ] = await Promise.all([
+      this.getOsInfo(),
+      this.getCpuInfo(),
+      this.getCpuLoad(),
+      this.getMemInfo(),
+      this.getDiskInfo(),
+      this.getInstallId(),
+      this.getUpdateChannel(),
+      this.getStatistics(),
+    ]);
 
     const dbPath = process.env.DB_PATH || 'rustdesk-console.db';
     let dbSize = 0;
@@ -266,20 +286,27 @@ export class UpdateCheckService {
     try {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-      const [totalUsers, adminUsers, activeUsers7d, totalDevices, onlineDevices, deviceGroups, connections7d] =
-        await Promise.all([
-          this.userRepository.count(),
-          this.userRepository.count({ where: { isAdmin: true } }),
-          this.userRepository.count({
-            where: { updatedAt: Between(sevenDaysAgo, new Date()) },
-          }),
-          this.peerRepository.count(),
-          this.getOnlineDeviceCount(),
-          this.deviceGroupRepository.count(),
-          this.connectionAuditRepository.count({
-            where: { createdAt: Between(sevenDaysAgo, new Date()) },
-          }),
-        ]);
+      const [
+        totalUsers,
+        adminUsers,
+        activeUsers7d,
+        totalDevices,
+        onlineDevices,
+        deviceGroups,
+        connections7d,
+      ] = await Promise.all([
+        this.userRepository.count(),
+        this.userRepository.count({ where: { isAdmin: true } }),
+        this.userRepository.count({
+          where: { updatedAt: Between(sevenDaysAgo, new Date()) },
+        }),
+        this.peerRepository.count(),
+        this.getOnlineDeviceCount(),
+        this.deviceGroupRepository.count(),
+        this.connectionAuditRepository.count({
+          where: { createdAt: Between(sevenDaysAgo, new Date()) },
+        }),
+      ]);
 
       return {
         users: {
