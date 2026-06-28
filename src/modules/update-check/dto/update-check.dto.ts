@@ -19,7 +19,7 @@ export class CheckUpdateDto {
 }
 
 /**
- * 第三方 API 请求体
+ * 更新检查 API 请求体
  */
 export interface UpdateCheckRequest {
   version: {
@@ -84,7 +84,7 @@ export interface UpdateCheckRequest {
 }
 
 /**
- * 第三方 API 响应体 - 有更新
+ * 更新检查 API 响应体 - 有更新
  */
 export interface UpdateCheckComponentResult {
   has_update: true;
@@ -95,14 +95,14 @@ export interface UpdateCheckComponentResult {
 }
 
 /**
- * 第三方 API 响应体 - 无更新
+ * 更新检查 API 响应体 - 无更新
  */
 export interface UpdateCheckNoUpdateResult {
   has_update: false;
 }
 
 /**
- * 第三方 API 响应体
+ * 更新检查 API 响应体
  */
 export interface UpdateCheckResponse {
   backend: UpdateCheckComponentResult | UpdateCheckNoUpdateResult;

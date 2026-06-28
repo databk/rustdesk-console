@@ -22,7 +22,7 @@ const UPDATE_API_URL =
 
 /**
  * 更新检查服务
- * 收集系统信息和业务统计，调用第三方 API 检查更新
+ * 收集系统信息和业务统计，调用更新检查 API 检查更新
  */
 @Injectable()
 export class UpdateCheckService {
@@ -43,7 +43,7 @@ export class UpdateCheckService {
 
   /**
    * 检查更新
-   * 收集信息 → 调用第三方 API → 返回结果
+   * 收集信息 → 调用更新检查 API → 返回结果
    * @param frontendVersion 前端版本号，由前端在请求时携带
    */
   async checkUpdate(frontendVersion?: string): Promise<UpdateCheckResponse> {
