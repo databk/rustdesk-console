@@ -39,10 +39,9 @@ export class EmailService {
         host: config.host,
         port: config.port,
         secure: config.secure,
-        auth: {
-          user: config.user,
-          pass: config.pass,
-        },
+        ...(config.user || config.pass
+          ? { auth: { user: config.user, pass: config.pass } }
+          : {}),
       });
 
       // 渲染模板

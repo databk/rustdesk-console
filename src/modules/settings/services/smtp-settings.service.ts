@@ -42,8 +42,8 @@ export class SmtpSettingsService {
     host: string;
     port: number;
     secure: boolean;
-    user: string;
-    pass: string;
+    user?: string;
+    pass?: string;
     from: string;
     enabled: boolean;
   } | null> {
@@ -57,8 +57,8 @@ export class SmtpSettingsService {
       host: settings.get(this.SMTP_KEYS.HOST) || '',
       port: parseInt(settings.get(this.SMTP_KEYS.PORT) || '587', 10),
       secure: settings.get(this.SMTP_KEYS.SECURE) === 'true',
-      user: settings.get(this.SMTP_KEYS.USER) || '',
-      pass: settings.get(this.SMTP_KEYS.PASS) || '',
+      user: settings.get(this.SMTP_KEYS.USER) || undefined,
+      pass: settings.get(this.SMTP_KEYS.PASS) || undefined,
       from: settings.get(this.SMTP_KEYS.FROM) || '',
       enabled: settings.get(this.SMTP_KEYS.ENABLED) !== 'false',
     };
@@ -72,7 +72,7 @@ export class SmtpSettingsService {
     host: string;
     port: number;
     secure: boolean;
-    user: string;
+    user?: string;
     pass: string;
     from: string;
     enabled: boolean;
@@ -94,7 +94,7 @@ export class SmtpSettingsService {
       host: settings.get(this.SMTP_KEYS.HOST) || '',
       port: parseInt(settings.get(this.SMTP_KEYS.PORT) || '587', 10),
       secure: settings.get(this.SMTP_KEYS.SECURE) === 'true',
-      user: settings.get(this.SMTP_KEYS.USER) || '',
+      user: settings.get(this.SMTP_KEYS.USER) || undefined,
       pass: this.PASS_MASK,
       from: settings.get(this.SMTP_KEYS.FROM) || '',
       enabled: settings.get(this.SMTP_KEYS.ENABLED) !== 'false',
@@ -112,7 +112,7 @@ export class SmtpSettingsService {
     host: string;
     port: number;
     secure: boolean;
-    user: string;
+    user?: string;
     pass: string;
     from: string;
     enabled: boolean;
@@ -170,15 +170,15 @@ export class SmtpSettingsService {
     let host: string;
     let port: number;
     let secure: boolean;
-    let user: string;
-    let pass: string;
+    let user: string | undefined;
+    let pass: string | undefined;
 
     if (dto && dto.host) {
       host = dto.host;
       port = dto.port ?? 587;
       secure = dto.secure ?? false;
-      user = dto.user ?? '';
-      pass = dto.pass ?? '';
+      user = dto.user;
+      pass = dto.pass;
     } else {
       const config = await this.getActiveConfig();
       if (!config) {
@@ -195,7 +195,7 @@ export class SmtpSettingsService {
       host,
       port,
       secure,
-      auth: { user, pass },
+      ...(user || pass ? { auth: { user, pass } } : {}),
     });
 
     try {

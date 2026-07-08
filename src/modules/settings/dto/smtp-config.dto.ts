@@ -26,12 +26,12 @@ export class CreateSmtpConfigDto {
   secure?: boolean;
 
   @IsString()
-  @IsNotEmpty()
-  user: string;
+  @IsOptional()
+  user?: string;
 
   @IsString()
-  @IsNotEmpty()
-  pass: string;
+  @IsOptional()
+  pass?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -63,12 +63,10 @@ export class UpdateSmtpConfigDto {
   secure?: boolean;
 
   @IsString()
-  @IsNotEmpty()
   @IsOptional()
   user?: string;
 
   @IsString()
-  @IsNotEmpty()
   @IsOptional()
   pass?: string;
 
@@ -103,12 +101,10 @@ export class TestSmtpConfigDto {
   secure?: boolean;
 
   @IsString()
-  @IsNotEmpty()
   @IsOptional()
   user?: string;
 
   @IsString()
-  @IsNotEmpty()
   @IsOptional()
   pass?: string;
 
