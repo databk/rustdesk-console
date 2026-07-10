@@ -88,34 +88,6 @@ jobs:
         with:
           tag_name: ${{ steps.changelog.outputs.version }}
           name: ${{ steps.changelog.outputs.version }}
-          body: |
-            ${{ steps.changelog.outputs.changelog }}
-            
-            ## Docker Images
-            
-            This release is available on:
-            
-            ### Docker Hub
-            ```bash
-            docker pull databk/rustdesk-console:${{ steps.changelog.outputs.version }}
-            docker pull databk/rustdesk-console:latest
-            ```
-            
-            ### GitHub Container Registry
-            ```bash
-            docker pull ghcr.io/databk/rustdesk-console:${{ steps.changelog.outputs.version }}
-            docker pull ghcr.io/databk/rustdesk-console:latest
-            ```
-            
-            ## Quick Start
-            
-            ```bash
-            docker run -d \
-              --name rustdesk-console \
-              -p 3000:3000 \
-              -e JWT_SECRET=your-secret-key \
-              -e ADMIN_PASSWORD=your-password \
-              databk/rustdesk-console:${{ steps.changelog.outputs.version }}
-            ```
+          body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: false
