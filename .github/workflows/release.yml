@@ -88,6 +88,6 @@ jobs:
         with:
           tag_name: ${{ steps.changelog.outputs.version }}
           name: ${{ steps.changelog.outputs.version }}
-          body: ${{ steps.changelog.outputs.changelog }}
+          body: ${{ steps.changelog.outputs.clean_changelog }}
           draft: false
           prerelease: false
