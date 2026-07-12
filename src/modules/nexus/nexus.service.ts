@@ -254,22 +254,16 @@ export class NexusService {
   }
 
   /**
-   * 下载构建产物
-   * 返回 Nexus 的下载流供 Controller 转发
+   * 列出构建产物的文件列表
    */
-  async downloadBuild(
+  async listBuildFiles(
     userGuid: string,
     requestId: string,
-  ): Promise<{ stream: ReadableStream | null; filename: string }> {
+  ): Promise<string[]> {
     const nexusToken = await this.getValidNexusToken(userGuid);
 
-    const targetRequestId = requestId || nexusToken.currentRequestId;
-    if (!targetRequestId) {
-      throw new BadRequestException('未指定构建任务 ID');
-    }
-
     const response = await this.fetchNexus(
-      `/v1/client/download/${encodeURIComponent(targetRequestId)}`,
+      `/v1/client/download/${encodeURIComponent(requestId)}`,
       {
         method: 'GET',
         headers: {
@@ -278,8 +272,48 @@ export class NexusService {
       },
     );
 
+    if (response.status === 401) {
+      throw new UnauthorizedException('Nexus Token 已过期，请重新绑定');
+    }
+
     if (response.status === 404) {
       throw new BadRequestException('构建任务不存在或构建未完成');
+    }
+
+    if (!response.ok) {
+      throw new InternalServerErrorException('查询构建产物列表失败');
+    }
+
+    return (await response.json()) as string[];
+  }
+
+  /**
+   * 下载构建产物
+   * 返回 Nexus 的下载流供 Controller 转发
+   */
+  async downloadBuildFile(
+    userGuid: string,
+    requestId: string,
+    filename: string,
+  ): Promise<{ stream: ReadableStream | null; filename: string; contentType: string }> {
+    const nexusToken = await this.getValidNexusToken(userGuid);
+
+    const response = await this.fetchNexus(
+      `/v1/client/download/${encodeURIComponent(requestId)}/${encodeURIComponent(filename)}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${nexusToken.nexusToken}`,
+        },
+      },
+    );
+
+    if (response.status === 401) {
+      throw new UnauthorizedException('Nexus Token 已过期，请重新绑定');
+    }
+
+    if (response.status === 404) {
+      throw new BadRequestException('构建任务不存在或文件不存在');
     }
 
     if (!response.ok) {
@@ -287,15 +321,22 @@ export class NexusService {
     }
 
     const disposition = response.headers.get('content-disposition');
-    let filename = `custom-client-${targetRequestId}.zip`;
+    let resolvedFilename = filename;
     if (disposition) {
       const match = disposition.match(/filename=([^;]+)/);
       if (match) {
-        filename = match[1].replace(/"/g, '');
+        resolvedFilename = match[1].replace(/"/g, '');
       }
     }
 
-    return { stream: response.body, filename };
+    const contentType =
+      response.headers.get('content-type') || 'application/octet-stream';
+
+    return {
+      stream: response.body,
+      filename: resolvedFilename,
+      contentType,
+    };
   }
 
   /**

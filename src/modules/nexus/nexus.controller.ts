@@ -9,7 +9,6 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { NexusService } from './nexus.service';
 import { NexusLoginDto } from './dto/nexus-auth.dto';
@@ -84,32 +83,54 @@ export class NexusController {
   }
 
   /**
-   * 下载构建产物
-   * 流式转发 ZIP 文件
+   * 列出构建产物的文件列表
+   * 构建完成后，前端先调用此接口获取可下载的文件名列表
    */
-  @Get('client/download')
-  async downloadBuild(
+  @Get('client/files')
+  async listBuildFiles(
     @CurrentUser('id') userGuid: string,
     @Query('request_id') requestId: string,
+  ) {
+    if (!requestId) {
+      return [];
+    }
+    return this.nexusService.listBuildFiles(userGuid, requestId);
+  }
+
+  /**
+   * 下载构建产物
+   * 流式转发指定文件
+   */
+  @Get('client/download')
+  async downloadBuildFile(
+    @CurrentUser('id') userGuid: string,
+    @Query('request_id') requestId: string,
+    @Query('filename') filename: string,
     @Res() res: Response,
   ) {
-    const { stream, filename } = await this.nexusService.downloadBuild(
+    if (!requestId || !filename) {
+      res.status(400).json({ message: 'request_id 和 filename 为必填参数' });
+      return;
+    }
+
+    const result = await this.nexusService.downloadBuildFile(
       userGuid,
       requestId,
+      filename,
     );
 
-    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Type', result.contentType);
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${filename}"`,
+      `attachment; filename="${result.filename}"`,
     );
 
-    if (!stream) {
+    if (!result.stream) {
       res.status(500).send('下载失败');
       return;
     }
 
-    const reader = stream.getReader();
+    const reader = result.stream.getReader();
     try {
       while (true) {
         const { done, value } = await reader.read();
