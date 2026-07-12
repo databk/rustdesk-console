@@ -8,8 +8,11 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { createReadStream, existsSync, statSync } from 'fs';
+import { basename } from 'path';
 import { NexusService } from './nexus.service';
 import { NexusLoginDto } from './dto/nexus-auth.dto';
 import { NexusGenerateDto } from './dto/nexus-client.dto';
@@ -21,7 +24,6 @@ export class NexusController {
 
   /**
    * 创建 Nexus 登录会话
-   * 调用 Nexus API 获取 login_id 和 auth_url，前端打开 auth_url 引导用户授权
    */
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
@@ -34,7 +36,6 @@ export class NexusController {
 
   /**
    * 轮询 Nexus 登录状态
-   * 前端每 2-3 秒轮询此接口，登录成功后后端自动存储 Nexus Token
    */
   @Get('auth/status')
   async pollLoginStatus(@Query('login_id') loginId: string) {
@@ -76,6 +77,7 @@ export class NexusController {
 
   /**
    * 查询构建状态
+   * 构建完成后后端自动下载产物到本地
    */
   @Get('client/status')
   async getBuildStatus(@CurrentUser('id') userGuid: string) {
@@ -83,27 +85,22 @@ export class NexusController {
   }
 
   /**
-   * 列出构建产物的文件列表
-   * 构建完成后，前端先调用此接口获取可下载的文件名列表
+   * 列出构建产物的文件列表（从本地存储读取）
    */
   @Get('client/files')
-  async listBuildFiles(
-    @CurrentUser('id') userGuid: string,
-    @Query('request_id') requestId: string,
-  ) {
+  async listBuildFiles(@Query('request_id') requestId: string) {
     if (!requestId) {
       return [];
     }
-    return this.nexusService.listBuildFiles(userGuid, requestId);
+    return this.nexusService.listBuildFiles(requestId);
   }
 
   /**
    * 下载构建产物
-   * 流式转发指定文件
+   * 直接从本地存储返回文件流
    */
   @Get('client/download')
   async downloadBuildFile(
-    @CurrentUser('id') userGuid: string,
     @Query('request_id') requestId: string,
     @Query('filename') filename: string,
     @Res() res: Response,
@@ -113,33 +110,21 @@ export class NexusController {
       return;
     }
 
-    const result = await this.nexusService.downloadBuildFile(
-      userGuid,
-      requestId,
-      filename,
-    );
+    const filePath = this.nexusService.getLocalFilePath(requestId, filename);
 
-    res.setHeader('Content-Type', result.contentType);
+    if (!existsSync(filePath)) {
+      throw new NotFoundException('文件不存在');
+    }
+
+    const stat = statSync(filePath);
+    res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${result.filename}"`,
+      `attachment; filename="${basename(filePath)}"`,
     );
+    res.setHeader('Content-Length', stat.size);
 
-    if (!result.stream) {
-      res.status(500).send('下载失败');
-      return;
-    }
-
-    const reader = result.stream.getReader();
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(value);
-      }
-      res.end();
-    } catch {
-      res.end();
-    }
+    const stream = createReadStream(filePath);
+    stream.pipe(res);
   }
 }

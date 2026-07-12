@@ -10,6 +10,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { createReadStream, createWriteStream, existsSync, readdirSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { pipeline } from 'stream/promises';
 import { NexusToken } from './entities/nexus-token.entity';
 import {
   NexusLoginResponse,
@@ -23,23 +26,39 @@ import {
 } from './dto/nexus-client.dto';
 
 const NEXUS_BASE_URL = 'https://api.databk.top';
+const DEFAULT_STORAGE_PATH = './data/nexus-builds';
 
 @Injectable()
 export class NexusService {
   private readonly logger = new Logger(NexusService.name);
+  private readonly storagePath: string;
 
   /** 内存中暂存 login_id 与 userGuid 的映射，用于轮询成功后关联用户 */
   private loginSessionMap = new Map<string, string>();
+
+  /** 正在下载的 request_id 集合，防止并发重复下载 */
+  private downloadingSet = new Set<string>();
 
   constructor(
     @InjectRepository(NexusToken)
     private nexusTokenRepository: Repository<NexusToken>,
     private configService: ConfigService,
-  ) {}
+  ) {
+    this.storagePath = this.configService.get<string>(
+      'NEXUS_STORAGE_PATH',
+      DEFAULT_STORAGE_PATH,
+    );
+  }
+
+  /**
+   * 获取本地存储路径
+   */
+  getStoragePath(): string {
+    return this.storagePath;
+  }
 
   /**
    * 创建 Nexus 登录会话
-   * 调用 Nexus API 获取 login_id 和 auth_url
    */
   async createLoginSession(userGuid: string): Promise<NexusLoginResponse> {
     const response = await this.fetchNexus('/v1/auth/github/login', {
@@ -55,10 +74,8 @@ export class NexusService {
 
     const data = (await response.json()) as NexusLoginResponse;
 
-    // 记录 login_id 与 userGuid 的关联
     this.loginSessionMap.set(data.login_id, userGuid);
 
-    // 设置自动清理（按 expires_in）
     setTimeout(
       () => this.loginSessionMap.delete(data.login_id),
       data.expires_in * 1000,
@@ -69,7 +86,6 @@ export class NexusService {
 
   /**
    * 轮询 Nexus 登录状态
-   * 登录成功后将 Nexus Token 存储到数据库
    */
   async pollLoginStatus(
     loginId: string,
@@ -204,7 +220,6 @@ export class NexusService {
 
     const data = (await response.json()) as NexusGenerateResponse;
 
-    // 记录当前构建任务 ID
     nexusToken.currentRequestId = data.request_id;
     await this.nexusTokenRepository.save(nexusToken);
 
@@ -213,12 +228,23 @@ export class NexusService {
 
   /**
    * 查询构建状态
+   * 构建完成后自动将产物下载到本地
    */
   async getBuildStatus(userGuid: string): Promise<NexusBuildStatusResponse> {
     const nexusToken = await this.getValidNexusToken(userGuid);
 
     if (!nexusToken.currentRequestId) {
       throw new BadRequestException('当前没有构建任务');
+    }
+
+    // 如果文件已下载到本地，直接从本地返回终态
+    const localFiles = this.getLocalFiles(nexusToken.currentRequestId);
+    if (localFiles.length > 0) {
+      return {
+        request_id: nexusToken.currentRequestId,
+        status: 'completed',
+        files: localFiles,
+      };
     }
 
     const response = await this.fetchNexus(
@@ -244,8 +270,17 @@ export class NexusService {
 
     const data = (await response.json()) as NexusBuildStatusResponse;
 
-    // 构建终态时清除 currentRequestId
-    if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+    // 构建完成后，将产物下载到本地
+    if (data.status === 'completed' && data.files?.length) {
+      await this.downloadBuildFilesToLocal(
+        nexusToken.nexusToken,
+        nexusToken.currentRequestId,
+        data.files,
+      );
+      // 下载完成后清除 currentRequestId
+      nexusToken.currentRequestId = null as unknown as string;
+      await this.nexusTokenRepository.save(nexusToken);
+    } else if (['failed', 'cancelled'].includes(data.status)) {
       nexusToken.currentRequestId = null as unknown as string;
       await this.nexusTokenRepository.save(nexusToken);
     }
@@ -254,89 +289,107 @@ export class NexusService {
   }
 
   /**
-   * 列出构建产物的文件列表
+   * 列出构建产物的文件列表（从本地目录读取）
    */
-  async listBuildFiles(
-    userGuid: string,
-    requestId: string,
-  ): Promise<string[]> {
-    const nexusToken = await this.getValidNexusToken(userGuid);
-
-    const response = await this.fetchNexus(
-      `/v1/client/download/${encodeURIComponent(requestId)}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${nexusToken.nexusToken}`,
-        },
-      },
-    );
-
-    if (response.status === 401) {
-      throw new UnauthorizedException('Nexus Token 已过期，请重新绑定');
-    }
-
-    if (response.status === 404) {
-      throw new BadRequestException('构建任务不存在或构建未完成');
-    }
-
-    if (!response.ok) {
-      throw new InternalServerErrorException('查询构建产物列表失败');
-    }
-
-    return (await response.json()) as string[];
+  async listBuildFiles(requestId: string): Promise<string[]> {
+    return this.getLocalFiles(requestId);
   }
 
   /**
-   * 下载构建产物
-   * 返回 Nexus 的下载流供 Controller 转发
+   * 获取本地文件路径，用于下载
    */
-  async downloadBuildFile(
-    userGuid: string,
+  getLocalFilePath(requestId: string, filename: string): string {
+    return join(this.storagePath, requestId, filename);
+  }
+
+  /**
+   * 将构建产物从 Nexus 下载到本地存储
+   */
+  private async downloadBuildFilesToLocal(
+    nexusToken: string,
     requestId: string,
-    filename: string,
-  ): Promise<{ stream: ReadableStream | null; filename: string; contentType: string }> {
-    const nexusToken = await this.getValidNexusToken(userGuid);
-
-    const response = await this.fetchNexus(
-      `/v1/client/download/${encodeURIComponent(requestId)}/${encodeURIComponent(filename)}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${nexusToken.nexusToken}`,
-        },
-      },
-    );
-
-    if (response.status === 401) {
-      throw new UnauthorizedException('Nexus Token 已过期，请重新绑定');
+    files: string[],
+  ): Promise<void> {
+    if (this.downloadingSet.has(requestId)) {
+      return;
     }
+    this.downloadingSet.add(requestId);
 
-    if (response.status === 404) {
-      throw new BadRequestException('构建任务不存在或文件不存在');
-    }
+    const dir = join(this.storagePath, requestId);
+    mkdirSync(dir, { recursive: true });
 
-    if (!response.ok) {
-      throw new InternalServerErrorException('下载构建产物失败');
-    }
+    try {
+      for (const file of files) {
+        const filePath = join(dir, file);
+        if (existsSync(filePath)) {
+          continue;
+        }
 
-    const disposition = response.headers.get('content-disposition');
-    let resolvedFilename = filename;
-    if (disposition) {
-      const match = disposition.match(/filename=([^;]+)/);
-      if (match) {
-        resolvedFilename = match[1].replace(/"/g, '');
+        this.logger.log(`Downloading build artifact: ${requestId}/${file}`);
+
+        const response = await this.fetchNexus(
+          `/v1/client/download/${encodeURIComponent(requestId)}/${encodeURIComponent(file)}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${nexusToken}`,
+            },
+          },
+        );
+
+        if (!response.ok) {
+          this.logger.error(
+            `Failed to download ${file}: ${response.status} ${await response.text()}`,
+          );
+          throw new InternalServerErrorException(
+            `下载构建产物 ${file} 失败`,
+          );
+        }
+
+        const writeStream = createWriteStream(filePath);
+        if (!response.body) {
+          throw new InternalServerErrorException(`下载构建产物 ${file} 失败：响应体为空`);
+        }
+        const reader = response.body.getReader();
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            writeStream.write(value);
+          }
+          writeStream.end();
+          await new Promise<void>((resolve, reject) => {
+            writeStream.on('finish', resolve);
+            writeStream.on('error', reject);
+          });
+        } catch (err) {
+          writeStream.destroy();
+          throw err;
+        }
       }
+
+      this.logger.log(`All build artifacts downloaded: ${requestId}`);
+    } finally {
+      this.downloadingSet.delete(requestId);
     }
+  }
 
-    const contentType =
-      response.headers.get('content-type') || 'application/octet-stream';
-
-    return {
-      stream: response.body,
-      filename: resolvedFilename,
-      contentType,
-    };
+  /**
+   * 从本地目录读取文件列表
+   */
+  private getLocalFiles(requestId: string): string[] {
+    const dir = join(this.storagePath, requestId);
+    if (!existsSync(dir)) {
+      return [];
+    }
+    return readdirSync(dir).filter((f) => {
+      try {
+        return !createReadStream(join(dir, f)).destroyed;
+      } catch {
+        return false;
+      }
+    });
   }
 
   /**
