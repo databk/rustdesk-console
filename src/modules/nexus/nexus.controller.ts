@@ -4,6 +4,7 @@ import {
   Post,
   Delete,
   Body,
+  Param,
   Query,
   Res,
   HttpCode,
@@ -22,9 +23,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class NexusController {
   constructor(private readonly nexusService: NexusService) {}
 
-  /**
-   * 创建 Nexus 登录会话
-   */
+  // ── Auth ──────────────────────────────────────────────
+
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
   async createLoginSession(
@@ -34,9 +34,6 @@ export class NexusController {
     return this.nexusService.createLoginSession(userGuid);
   }
 
-  /**
-   * 轮询 Nexus 登录状态
-   */
   @Get('auth/status')
   async pollLoginStatus(@Query('login_id') loginId: string) {
     if (!loginId) {
@@ -45,17 +42,11 @@ export class NexusController {
     return this.nexusService.pollLoginStatus(loginId);
   }
 
-  /**
-   * 查询 Nexus 绑定状态
-   */
   @Get('auth/bind-status')
   async getBindStatus(@CurrentUser('id') userGuid: string) {
     return this.nexusService.getBindStatus(userGuid);
   }
 
-  /**
-   * 解绑 Nexus 账号
-   */
   @Delete('auth/bind')
   @HttpCode(HttpStatus.OK)
   async unbind(@CurrentUser('id') userGuid: string) {
@@ -63,53 +54,67 @@ export class NexusController {
     return { message: '已解绑 Nexus 账号' };
   }
 
-  /**
-   * 提交客户端构建请求
-   */
-  @Post('client/generate')
-  @HttpCode(HttpStatus.OK)
-  async submitBuild(
+  // ── Builds (RESTful) ──────────────────────────────────
+
+  /** 提交客户端构建请求 */
+  @Post('builds')
+  @HttpCode(HttpStatus.CREATED)
+  async createBuild(
     @CurrentUser('id') userGuid: string,
     @Body() dto: NexusGenerateDto,
   ) {
     return this.nexusService.submitBuild(userGuid, dto);
   }
 
-  /**
-   * 查询构建状态
-   * 构建完成后后端自动下载产物到本地
-   */
-  @Get('client/status')
-  async getBuildStatus(@CurrentUser('id') userGuid: string) {
-    return this.nexusService.getBuildStatus(userGuid);
+  /** 获取当前用户的所有构建记录 */
+  @Get('builds')
+  async listBuilds(@CurrentUser('id') userGuid: string) {
+    return this.nexusService.listBuilds(userGuid);
   }
 
-  /**
-   * 列出构建产物的文件列表（从本地存储读取）
-   */
-  @Get('client/files')
-  async listBuildFiles(@Query('request_id') requestId: string) {
-    if (!requestId) {
-      return [];
-    }
+  /** 获取单个构建记录 */
+  @Get('builds/:requestId')
+  async getBuild(
+    @CurrentUser('id') userGuid: string,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.nexusService.getBuild(userGuid, requestId);
+  }
+
+  /** 查询当前构建状态（轮询用，自动下载产物到本地） */
+  @Get('builds/:requestId/status')
+  async getBuildStatus(
+    @CurrentUser('id') userGuid: string,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.nexusService.getBuildStatusByRequestId(userGuid, requestId);
+  }
+
+  /** 删除构建记录 */
+  @Delete('builds/:requestId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteBuild(
+    @CurrentUser('id') userGuid: string,
+    @Param('requestId') requestId: string,
+  ) {
+    await this.nexusService.deleteBuild(userGuid, requestId);
+  }
+
+  // ── Files & Download ──────────────────────────────────
+
+  /** 列出构建产物的文件列表 */
+  @Get('builds/:requestId/files')
+  async listBuildFiles(@Param('requestId') requestId: string) {
     return this.nexusService.listBuildFiles(requestId);
   }
 
-  /**
-   * 下载构建产物
-   * 直接从本地存储返回文件流
-   */
-  @Get('client/download')
+  /** 下载构建产物 */
+  @Get('builds/:requestId/files/:filename')
   async downloadBuildFile(
-    @Query('request_id') requestId: string,
-    @Query('filename') filename: string,
+    @Param('requestId') requestId: string,
+    @Param('filename') filename: string,
     @Res() res: Response,
   ) {
-    if (!requestId || !filename) {
-      res.status(400).json({ message: 'request_id 和 filename 为必填参数' });
-      return;
-    }
-
     const filePath = this.nexusService.getLocalFilePath(requestId, filename);
 
     if (!existsSync(filePath)) {
