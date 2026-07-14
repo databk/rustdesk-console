@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  OnModuleInit,
   BadRequestException,
   UnauthorizedException,
   ForbiddenException,
@@ -9,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { createReadStream, createWriteStream, existsSync, readdirSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { NexusToken } from './entities/nexus-token.entity';
@@ -27,11 +28,13 @@ import {
 
 const NEXUS_BASE_URL = 'https://api.databk.top';
 const DEFAULT_STORAGE_PATH = './data/nexus-builds';
+const POLL_INTERVAL_MS = 10_000;
 
 @Injectable()
-export class NexusService {
+export class NexusService implements OnModuleInit {
   private readonly logger = new Logger(NexusService.name);
   private readonly storagePath: string;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   /** 内存中暂存 login_id 与 userGuid 的映射，用于轮询成功后关联用户 */
   private loginSessionMap = new Map<string, string>();
@@ -50,6 +53,98 @@ export class NexusService {
       'NEXUS_STORAGE_PATH',
       DEFAULT_STORAGE_PATH,
     );
+  }
+
+  async onModuleInit() {
+    // 启动定时轮询
+    this.pollTimer = setInterval(() => this.pollActiveBuilds(), POLL_INTERVAL_MS);
+    // 首次立即执行一次
+    await this.pollActiveBuilds();
+  }
+
+  /**
+   * 定时轮询所有进行中的构建任务
+   * 每隔 10 秒查询一次 Nexus，更新状态并下载产物
+   */
+  private async pollActiveBuilds() {
+    try {
+      const activeBuilds = await this.nexusBuildRepository.find({
+        where: [
+          { status: 'pending' as NexusBuild['status'] },
+          { status: 'building' as NexusBuild['status'] },
+        ],
+      });
+
+      if (activeBuilds.length === 0) return;
+
+      for (const build of activeBuilds) {
+        await this.syncBuildStatus(build);
+      }
+    } catch (err) {
+      this.logger.error(`Error polling active builds: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /**
+   * 同步单个构建任务的状态
+   */
+  private async syncBuildStatus(build: NexusBuild) {
+    const nexusToken = await this.nexusTokenRepository.findOne({
+      where: { userGuid: build.userGuid },
+    });
+
+    if (!nexusToken || nexusToken.isExpired()) {
+      // Nexus Token 不可用，标记任务失败
+      await this.nexusBuildRepository.update(
+        { requestId: build.requestId },
+        { status: 'failed', message: 'Nexus Token 已过期' },
+      );
+      return;
+    }
+
+    const response = await this.fetchNexus(
+      `/v1/client/generate/${encodeURIComponent(build.requestId)}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${nexusToken.nexusToken}` },
+      },
+    );
+
+    if (!response.ok) {
+      this.logger.warn(
+        `Poll build ${build.requestId} failed: ${response.status}`,
+      );
+      return;
+    }
+
+    const data = (await response.json()) as NexusBuildStatusResponse;
+
+    // 更新构建记录
+    await this.nexusBuildRepository.update(
+      { requestId: build.requestId },
+      {
+        status: data.status as NexusBuild['status'],
+        files: data.files ? JSON.stringify(data.files) : undefined,
+        message: data.message ?? undefined,
+      },
+    );
+
+    // 构建完成后下载产物
+    if (data.status === 'completed' && data.files?.length) {
+      await this.downloadBuildFilesToLocal(
+        nexusToken.nexusToken,
+        build.requestId,
+        data.files,
+      );
+    }
+
+    // 终态时清除 currentRequestId
+    if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+      if (nexusToken.currentRequestId === build.requestId) {
+        nexusToken.currentRequestId = null as unknown as string;
+        await this.nexusTokenRepository.save(nexusToken);
+      }
+    }
   }
 
   /**
@@ -241,100 +336,6 @@ export class NexusService {
   }
 
   /**
-   * 查询构建状态
-   * 构建完成后自动将产物下载到本地，并更新构建记录
-   */
-  async getBuildStatusByRequestId(
-    userGuid: string,
-    requestId: string,
-  ): Promise<NexusBuildStatusResponse> {
-    const nexusToken = await this.getValidNexusToken(userGuid);
-
-    // 校验构建记录属于当前用户
-    const build = await this.nexusBuildRepository.findOne({
-      where: { requestId, userGuid },
-    });
-    if (!build) {
-      throw new BadRequestException('构建记录不存在');
-    }
-
-    // 如果已是终态且文件已下载到本地，直接返回
-    if (build.status === 'completed') {
-      const localFiles = this.getLocalFiles(requestId);
-      if (localFiles.length > 0) {
-        return {
-          request_id: requestId,
-          status: 'completed',
-          files: localFiles,
-        };
-      }
-    }
-
-    // 终态不再查询 Nexus
-    if (['failed', 'cancelled'].includes(build.status)) {
-      return {
-        request_id: requestId,
-        status: build.status,
-        message: build.message ?? undefined,
-      };
-    }
-
-    const response = await this.fetchNexus(
-      `/v1/client/generate/${encodeURIComponent(requestId)}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${nexusToken.nexusToken}`,
-        },
-      },
-    );
-
-    if (response.status === 401) {
-      throw new UnauthorizedException('Nexus Token 已过期，请重新绑定');
-    }
-
-    if (!response.ok) {
-      this.logger.error(
-        `Nexus build status query failed: ${response.status}`,
-      );
-      throw new InternalServerErrorException('查询构建状态失败');
-    }
-
-    const data = (await response.json()) as NexusBuildStatusResponse;
-
-    // 更新构建记录状态
-    await this.nexusBuildRepository.update(
-      { requestId },
-      {
-        status: data.status as NexusBuild['status'],
-        files: data.files ? JSON.stringify(data.files) : undefined,
-        message: data.message ?? undefined,
-      },
-    );
-
-    // 构建完成后，将产物下载到本地
-    if (data.status === 'completed' && data.files?.length) {
-      await this.downloadBuildFilesToLocal(
-        nexusToken.nexusToken,
-        requestId,
-        data.files,
-      );
-      // 清除 currentRequestId（如仍指向此任务）
-      if (nexusToken.currentRequestId === requestId) {
-        nexusToken.currentRequestId = null as unknown as string;
-        await this.nexusTokenRepository.save(nexusToken);
-      }
-    } else if (['failed', 'cancelled'].includes(data.status)) {
-      if (nexusToken.currentRequestId === requestId) {
-        nexusToken.currentRequestId = null as unknown as string;
-        await this.nexusTokenRepository.save(nexusToken);
-      }
-    }
-
-    return data;
-  }
-
-  /**
    * 获取当前用户的所有构建记录
    */
   async listBuilds(userGuid: string): Promise<NexusBuild[]> {
@@ -345,20 +346,7 @@ export class NexusService {
   }
 
   /**
-   * 获取单个构建记录
-   */
-  async getBuild(userGuid: string, requestId: string): Promise<NexusBuild> {
-    const build = await this.nexusBuildRepository.findOne({
-      where: { requestId, userGuid },
-    });
-    if (!build) {
-      throw new BadRequestException('构建记录不存在');
-    }
-    return build;
-  }
-
-  /**
-   * 删除构建记录及本地文件
+   * 删除构建记录
    */
   async deleteBuild(userGuid: string, requestId: string): Promise<void> {
     const build = await this.nexusBuildRepository.findOne({

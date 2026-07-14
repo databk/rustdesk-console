@@ -66,28 +66,10 @@ export class NexusController {
     return this.nexusService.submitBuild(userGuid, dto);
   }
 
-  /** 获取当前用户的所有构建记录 */
+  /** 获取当前用户的所有构建记录（含实时状态） */
   @Get('builds')
   async listBuilds(@CurrentUser('id') userGuid: string) {
     return this.nexusService.listBuilds(userGuid);
-  }
-
-  /** 获取单个构建记录 */
-  @Get('builds/:requestId')
-  async getBuild(
-    @CurrentUser('id') userGuid: string,
-    @Param('requestId') requestId: string,
-  ) {
-    return this.nexusService.getBuild(userGuid, requestId);
-  }
-
-  /** 查询当前构建状态（轮询用，自动下载产物到本地） */
-  @Get('builds/:requestId/status')
-  async getBuildStatus(
-    @CurrentUser('id') userGuid: string,
-    @Param('requestId') requestId: string,
-  ) {
-    return this.nexusService.getBuildStatusByRequestId(userGuid, requestId);
   }
 
   /** 删除构建记录 */
