@@ -15,6 +15,7 @@ import { createReadStream, createWriteStream, existsSync, readdirSync, mkdirSync
 import { join } from 'path';
 import { NexusToken } from './entities/nexus-token.entity';
 import { NexusBuild } from './entities/nexus-build.entity';
+import { UpdateCheckService } from '../update-check/update-check.service';
 import {
   NexusLoginResponse,
   NexusAuthStatusResponse,
@@ -47,6 +48,7 @@ export class NexusService implements OnModuleInit {
     private nexusTokenRepository: Repository<NexusToken>,
     @InjectRepository(NexusBuild)
     private nexusBuildRepository: Repository<NexusBuild>,
+    private updateCheckService: UpdateCheckService,
     private configService: ConfigService,
   ) {
     this.storagePath = this.configService.get<string>(
@@ -157,7 +159,8 @@ export class NexusService implements OnModuleInit {
   /**
    * 创建 Nexus 登录会话
    */
-  async createLoginSession(userGuid: string, installId: string): Promise<NexusLoginResponse> {
+  async createLoginSession(userGuid: string): Promise<NexusLoginResponse> {
+    const installId = await this.updateCheckService.getInstallId();
     const response = await this.fetchNexus(
       `/v1/auth/github/login?install_id=${encodeURIComponent(installId)}`,
       { method: 'GET' },
@@ -276,6 +279,7 @@ export class NexusService implements OnModuleInit {
     dto: NexusGenerateDto,
   ): Promise<NexusGenerateResponse> {
     const nexusToken = await this.getValidNexusToken(userGuid);
+    const installId = await this.updateCheckService.getInstallId();
 
     const response = await this.fetchNexus('/v1/client/generate', {
       method: 'POST',
@@ -283,7 +287,7 @@ export class NexusService implements OnModuleInit {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${nexusToken.nexusToken}`,
       },
-      body: JSON.stringify(dto),
+      body: JSON.stringify({ ...dto, install_id: installId }),
     });
 
     if (response.status === 401) {

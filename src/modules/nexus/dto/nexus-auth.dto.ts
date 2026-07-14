@@ -5,9 +5,6 @@ export class NexusLoginDto {
   @IsOptional()
   @IsString()
   callbackUrl?: string;
-
-  @IsString()
-  install_id: string;
 }
 
 /** Nexus 登录会话响应 */

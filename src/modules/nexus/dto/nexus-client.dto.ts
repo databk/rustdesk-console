@@ -62,9 +62,6 @@ export class NexusGenerateDto {
   @IsIn(['x86_64', 'aarch64', 'x86'])
   arch: string;
 
-  @IsString()
-  install_id: string;
-
   @ValidateNested()
   @Type(() => NexusCustomDto)
   custom: NexusCustomDto;
