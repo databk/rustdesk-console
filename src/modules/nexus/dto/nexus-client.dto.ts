@@ -56,10 +56,10 @@ export class NexusCustomDto {
 
 /** 提交构建请求 DTO */
 export class NexusGenerateDto {
-  @IsIn(['windows'])
+  @IsIn(['windows', 'linux', 'macos', 'android', 'ios', 'web'])
   os: string;
 
-  @IsIn(['x86_64', 'aarch64', 'x86'])
+  @IsIn(['x64', 'arm64'])
   arch: string;
 
   @ValidateNested()
@@ -69,14 +69,14 @@ export class NexusGenerateDto {
 
 /** 构建请求响应 */
 export interface NexusGenerateResponse {
-  request_id: string;
+  uuid: string;
   status: string;
   message: string;
 }
 
 /** 构建状态响应 */
 export interface NexusBuildStatusResponse {
-  request_id: string;
+  uuid: string;
   status: 'pending' | 'building' | 'completed' | 'failed' | 'cancelled';
   files?: string[];
   message?: string;

@@ -277,7 +277,7 @@ export class NexusService implements OnModuleInit {
   async submitBuild(
     userGuid: string,
     dto: NexusGenerateDto,
-  ): Promise<NexusGenerateResponse> {
+  ): Promise<{ request_id: string; status: string; message: string }> {
     const nexusToken = await this.getValidNexusToken(userGuid);
     const installId = await this.updateCheckService.getInstallId();
 
@@ -322,12 +322,12 @@ export class NexusService implements OnModuleInit {
 
     const data = (await response.json()) as NexusGenerateResponse;
 
-    nexusToken.currentRequestId = data.request_id;
+    nexusToken.currentRequestId = data.uuid;
     await this.nexusTokenRepository.save(nexusToken);
 
     // 持久化构建记录
     const build = this.nexusBuildRepository.create({
-      requestId: data.request_id,
+      requestId: data.uuid,
       userGuid,
       os: dto.os,
       arch: dto.arch,
@@ -337,7 +337,11 @@ export class NexusService implements OnModuleInit {
     });
     await this.nexusBuildRepository.save(build);
 
-    return data;
+    return {
+      request_id: data.uuid,
+      status: data.status,
+      message: data.message,
+    };
   }
 
   /**
