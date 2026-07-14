@@ -157,10 +157,11 @@ export class NexusService implements OnModuleInit {
   /**
    * 创建 Nexus 登录会话
    */
-  async createLoginSession(userGuid: string): Promise<NexusLoginResponse> {
-    const response = await this.fetchNexus('/v1/auth/github/login', {
-      method: 'GET',
-    });
+  async createLoginSession(userGuid: string, installId: string): Promise<NexusLoginResponse> {
+    const response = await this.fetchNexus(
+      `/v1/auth/github/login?install_id=${encodeURIComponent(installId)}`,
+      { method: 'GET' },
+    );
 
     if (!response.ok) {
       this.logger.error(

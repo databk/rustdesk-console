@@ -29,9 +29,9 @@ export class NexusController {
   @HttpCode(HttpStatus.OK)
   async createLoginSession(
     @CurrentUser('id') userGuid: string,
-    @Body() _dto: NexusLoginDto,
+    @Body() dto: NexusLoginDto,
   ) {
-    return this.nexusService.createLoginSession(userGuid);
+    return this.nexusService.createLoginSession(userGuid, dto.install_id);
   }
 
   @Get('auth/status')
