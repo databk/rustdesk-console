@@ -56,10 +56,10 @@ export class NexusCustomDto {
 
 /** 提交构建请求 DTO */
 export class NexusGenerateDto {
-  @IsIn(['windows', 'linux', 'macos', 'android', 'ios', 'web'])
+  @IsIn(['windows'])
   os: string;
 
-  @IsIn(['x64', 'arm64'])
+  @IsIn(['x86_64', 'aarch64', 'x86'])
   arch: string;
 
   @ValidateNested()
