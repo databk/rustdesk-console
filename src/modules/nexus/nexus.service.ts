@@ -66,7 +66,7 @@ export class NexusService implements OnModuleInit {
   async onModuleInit() {
     // 启动定时轮询
     this.pollTimer = setInterval(
-      () => this.pollActiveBuilds(),
+      () => void this.pollActiveBuilds(),
       POLL_INTERVAL_MS,
     );
     // 首次立即执行一次
@@ -375,7 +375,7 @@ export class NexusService implements OnModuleInit {
   /**
    * 列出构建产物的文件列表（从本地目录读取）
    */
-  async listBuildFiles(uuid: string): Promise<string[]> {
+  listBuildFiles(uuid: string): string[] {
     return this.getLocalFiles(uuid);
   }
 

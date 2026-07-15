@@ -86,13 +86,13 @@ export class NexusController {
 
   /** 列出构建产物的文件列表 */
   @Get('builds/:uuid/files')
-  async listBuildFiles(@Param('uuid') uuid: string) {
+  listBuildFiles(@Param('uuid') uuid: string) {
     return this.nexusService.listBuildFiles(uuid);
   }
 
   /** 下载构建产物 */
   @Get('builds/:uuid/files/:filename')
-  async downloadBuildFile(
+  downloadBuildFile(
     @Param('uuid') uuid: string,
     @Param('filename') filename: string,
     @Res() res: Response,
