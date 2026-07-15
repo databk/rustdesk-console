@@ -15,10 +15,10 @@ export type BuildStatus = 'pending' | 'building' | 'completed' | 'failed' | 'can
  */
 @Entity('nexus_builds')
 export class NexusBuild {
-  /** Nexus 构建任务 ID */
+  /** Nexus 构建任务 UUID */
   @PrimaryColumn()
   @Index()
-  requestId: string;
+  uuid: string;
 
   /** 关联的本地用户 GUID */
   @Column()

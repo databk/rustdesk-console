@@ -73,31 +73,31 @@ export class NexusController {
   }
 
   /** 删除构建记录 */
-  @Delete('builds/:requestId')
+  @Delete('builds/:uuid')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteBuild(
     @CurrentUser('id') userGuid: string,
-    @Param('requestId') requestId: string,
+    @Param('uuid') uuid: string,
   ) {
-    await this.nexusService.deleteBuild(userGuid, requestId);
+    await this.nexusService.deleteBuild(userGuid, uuid);
   }
 
   // ── Files & Download ──────────────────────────────────
 
   /** 列出构建产物的文件列表 */
-  @Get('builds/:requestId/files')
-  async listBuildFiles(@Param('requestId') requestId: string) {
-    return this.nexusService.listBuildFiles(requestId);
+  @Get('builds/:uuid/files')
+  async listBuildFiles(@Param('uuid') uuid: string) {
+    return this.nexusService.listBuildFiles(uuid);
   }
 
   /** 下载构建产物 */
-  @Get('builds/:requestId/files/:filename')
+  @Get('builds/:uuid/files/:filename')
   async downloadBuildFile(
-    @Param('requestId') requestId: string,
+    @Param('uuid') uuid: string,
     @Param('filename') filename: string,
     @Res() res: Response,
   ) {
-    const filePath = this.nexusService.getLocalFilePath(requestId, filename);
+    const filePath = this.nexusService.getLocalFilePath(uuid, filename);
 
     if (!existsSync(filePath)) {
       throw new NotFoundException('文件不存在');

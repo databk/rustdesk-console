@@ -30,9 +30,9 @@ export class NexusToken {
   @Column({ type: 'datetime' })
   expiresAt: Date;
 
-  /** 当前构建任务 ID（如有） */
+  /** 当前构建任务 UUID（如有） */
   @Column({ nullable: true })
-  currentRequestId: string;
+  currentUuid: string;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { createReadStream, createWriteStream, existsSync, readdirSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { NexusToken } from './entities/nexus-token.entity';
@@ -40,7 +40,7 @@ export class NexusService implements OnModuleInit {
   /** 内存中暂存 login_id 与 userGuid 的映射，用于轮询成功后关联用户 */
   private loginSessionMap = new Map<string, string>();
 
-  /** 正在下载的 request_id 集合，防止并发重复下载 */
+  /** 正在下载的 uuid 集合，防止并发重复下载 */
   private downloadingSet = new Set<string>();
 
   constructor(
@@ -98,14 +98,14 @@ export class NexusService implements OnModuleInit {
     if (!nexusToken || nexusToken.isExpired()) {
       // Nexus Token 不可用，标记任务失败
       await this.nexusBuildRepository.update(
-        { requestId: build.requestId },
+        { uuid: build.uuid },
         { status: 'failed', message: 'Nexus Token 已过期' },
       );
       return;
     }
 
     const response = await this.fetchNexus(
-      `/v1/client/generate/${encodeURIComponent(build.requestId)}`,
+      `/v1/client/generate/${encodeURIComponent(build.uuid)}`,
       {
         method: 'GET',
         headers: { Authorization: `Bearer ${nexusToken.nexusToken}` },
@@ -114,7 +114,7 @@ export class NexusService implements OnModuleInit {
 
     if (!response.ok) {
       this.logger.warn(
-        `Poll build ${build.requestId} failed: ${response.status}`,
+        `Poll build ${build.uuid} failed: ${response.status}`,
       );
       return;
     }
@@ -123,7 +123,7 @@ export class NexusService implements OnModuleInit {
 
     // 更新构建记录
     await this.nexusBuildRepository.update(
-      { requestId: build.requestId },
+      { uuid: build.uuid },
       {
         status: data.status as NexusBuild['status'],
         files: data.files ? JSON.stringify(data.files) : undefined,
@@ -135,15 +135,15 @@ export class NexusService implements OnModuleInit {
     if (data.status === 'completed' && data.files?.length) {
       await this.downloadBuildFilesToLocal(
         nexusToken.nexusToken,
-        build.requestId,
+        build.uuid,
         data.files,
       );
     }
 
-    // 终态时清除 currentRequestId
+    // 终态时清除 currentUuid
     if (['completed', 'failed', 'cancelled'].includes(data.status)) {
-      if (nexusToken.currentRequestId === build.requestId) {
-        nexusToken.currentRequestId = null as unknown as string;
+      if (nexusToken.currentUuid === build.uuid) {
+        nexusToken.currentUuid = null as unknown as string;
         await this.nexusTokenRepository.save(nexusToken);
       }
     }
@@ -277,7 +277,7 @@ export class NexusService implements OnModuleInit {
   async submitBuild(
     userGuid: string,
     dto: NexusGenerateDto,
-  ): Promise<{ request_id: string; status: string; message: string }> {
+  ): Promise<{ uuid: string; status: string; message: string }> {
     const nexusToken = await this.getValidNexusToken(userGuid);
     const installId = await this.updateCheckService.getInstallId();
 
@@ -322,12 +322,12 @@ export class NexusService implements OnModuleInit {
 
     const data = (await response.json()) as NexusGenerateResponse;
 
-    nexusToken.currentRequestId = data.uuid;
+    nexusToken.currentUuid = data.uuid;
     await this.nexusTokenRepository.save(nexusToken);
 
     // 持久化构建记录
     const build = this.nexusBuildRepository.create({
-      requestId: data.uuid,
+      uuid: data.uuid,
       userGuid,
       os: dto.os,
       arch: dto.arch,
@@ -338,7 +338,7 @@ export class NexusService implements OnModuleInit {
     await this.nexusBuildRepository.save(build);
 
     return {
-      request_id: data.uuid,
+      uuid: data.uuid,
       status: data.status,
       message: data.message,
     };
@@ -357,9 +357,9 @@ export class NexusService implements OnModuleInit {
   /**
    * 删除构建记录
    */
-  async deleteBuild(userGuid: string, requestId: string): Promise<void> {
+  async deleteBuild(userGuid: string, uuid: string): Promise<void> {
     const build = await this.nexusBuildRepository.findOne({
-      where: { requestId, userGuid },
+      where: { uuid, userGuid },
     });
     if (!build) {
       throw new BadRequestException('构建记录不存在');
@@ -367,21 +367,21 @@ export class NexusService implements OnModuleInit {
     if (build.status === 'pending' || build.status === 'building') {
       throw new BadRequestException('进行中的构建任务不能删除');
     }
-    await this.nexusBuildRepository.delete({ requestId });
+    await this.nexusBuildRepository.delete({ uuid });
   }
 
   /**
    * 列出构建产物的文件列表（从本地目录读取）
    */
-  async listBuildFiles(requestId: string): Promise<string[]> {
-    return this.getLocalFiles(requestId);
+  async listBuildFiles(uuid: string): Promise<string[]> {
+    return this.getLocalFiles(uuid);
   }
 
   /**
    * 获取本地文件路径，用于下载
    */
-  getLocalFilePath(requestId: string, filename: string): string {
-    return join(this.storagePath, requestId, filename);
+  getLocalFilePath(uuid: string, filename: string): string {
+    return join(this.storagePath, uuid, filename);
   }
 
   /**
@@ -389,15 +389,15 @@ export class NexusService implements OnModuleInit {
    */
   private async downloadBuildFilesToLocal(
     nexusToken: string,
-    requestId: string,
+    uuid: string,
     files: string[],
   ): Promise<void> {
-    if (this.downloadingSet.has(requestId)) {
+    if (this.downloadingSet.has(uuid)) {
       return;
     }
-    this.downloadingSet.add(requestId);
+    this.downloadingSet.add(uuid);
 
-    const dir = join(this.storagePath, requestId);
+    const dir = join(this.storagePath, uuid);
     mkdirSync(dir, { recursive: true });
 
     try {
@@ -407,10 +407,10 @@ export class NexusService implements OnModuleInit {
           continue;
         }
 
-        this.logger.log(`Downloading build artifact: ${requestId}/${file}`);
+        this.logger.log(`Downloading build artifact: ${uuid}/${file}`);
 
         const response = await this.fetchNexus(
-          `/v1/client/download/${encodeURIComponent(requestId)}/${encodeURIComponent(file)}`,
+          `/v1/client/download/${encodeURIComponent(uuid)}/${encodeURIComponent(file)}`,
           {
             method: 'GET',
             headers: {
@@ -451,17 +451,17 @@ export class NexusService implements OnModuleInit {
         }
       }
 
-      this.logger.log(`All build artifacts downloaded: ${requestId}`);
+      this.logger.log(`All build artifacts downloaded: ${uuid}`);
     } finally {
-      this.downloadingSet.delete(requestId);
+      this.downloadingSet.delete(uuid);
     }
   }
 
   /**
    * 从本地目录读取文件列表
    */
-  private getLocalFiles(requestId: string): string[] {
-    const dir = join(this.storagePath, requestId);
+  private getLocalFiles(uuid: string): string[] {
+    const dir = join(this.storagePath, uuid);
     if (!existsSync(dir)) {
       return [];
     }
