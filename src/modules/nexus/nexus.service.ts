@@ -277,7 +277,7 @@ export class NexusService implements OnModuleInit {
   async submitBuild(
     userGuid: string,
     dto: NexusGenerateDto,
-  ): Promise<{ uuid: string; status: string; message: string }> {
+  ): Promise<NexusGenerateResponse> {
     const nexusToken = await this.getValidNexusToken(userGuid);
     const installId = await this.updateCheckService.getInstallId();
 
@@ -337,11 +337,7 @@ export class NexusService implements OnModuleInit {
     });
     await this.nexusBuildRepository.save(build);
 
-    return {
-      uuid: data.uuid,
-      status: data.status,
-      message: data.message,
-    };
+    return data;
   }
 
   /**
