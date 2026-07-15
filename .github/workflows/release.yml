@@ -47,6 +47,7 @@ jobs:
           git-user-name: 'DataBK Auto Release'
           git-user-email: 'databk.auto.release@github.com'
           tag-prefix: ''
+          version-file: './package.json,./package-lock.json'
 
       - name: Build and push Docker images
         if: ${{ steps.changelog.outputs.skipped == 'false' }}

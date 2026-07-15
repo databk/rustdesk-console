@@ -1,7 +1,7 @@
 {
   "name": "rustdesk-console",
   "version": "1.5.1",
-  "description": "Remote Desktop Management Console for RustDesk - A comprehensive management platform built with NestJS that provides device management, user authentication, address book management, security auditing, and real-time monitoring capabilities.",
+  "description": "Remote Desktop Management Console for RustDesk - An open-source console designed for self-hosting, as an alternative to RustDesk Server Pro.",
   "author": "databk",
   "private": false,
   "license": "AGPL-3.0",
