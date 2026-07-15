@@ -18,7 +18,7 @@ import {
   readdirSync,
   mkdirSync,
 } from 'fs';
-import { join } from 'path';
+import { resolve, relative } from 'path';
 import { NexusToken } from './entities/nexus-token.entity';
 import { NexusBuild } from './entities/nexus-build.entity';
 import { UpdateCheckService } from '../update-check/update-check.service';
@@ -160,6 +160,19 @@ export class NexusService implements OnModuleInit {
    */
   getStoragePath(): string {
     return this.storagePath;
+  }
+
+  /**
+   * Safely join storage path with user-provided segments.
+   * Throws BadRequestException if the resolved path escapes storagePath.
+   */
+  private safeJoin(...segments: string[]): string {
+    const target = resolve(this.storagePath, ...segments);
+    const rel = relative(this.storagePath, target);
+    if (rel.startsWith('..') || resolve(this.storagePath) === target) {
+      throw new BadRequestException('Invalid path');
+    }
+    return target;
   }
 
   /**
@@ -383,7 +396,7 @@ export class NexusService implements OnModuleInit {
    * 获取本地文件路径，用于下载
    */
   getLocalFilePath(uuid: string, filename: string): string {
-    return join(this.storagePath, uuid, filename);
+    return this.safeJoin(uuid, filename);
   }
 
   /**
@@ -399,12 +412,12 @@ export class NexusService implements OnModuleInit {
     }
     this.downloadingSet.add(uuid);
 
-    const dir = join(this.storagePath, uuid);
+    const dir = this.safeJoin(uuid);
     mkdirSync(dir, { recursive: true });
 
     try {
       for (const file of files) {
-        const filePath = join(dir, file);
+        const filePath = this.safeJoin(uuid, file);
         if (existsSync(filePath)) {
           continue;
         }
@@ -463,13 +476,13 @@ export class NexusService implements OnModuleInit {
    * 从本地目录读取文件列表
    */
   private getLocalFiles(uuid: string): string[] {
-    const dir = join(this.storagePath, uuid);
+    const dir = this.safeJoin(uuid);
     if (!existsSync(dir)) {
       return [];
     }
     return readdirSync(dir).filter((f) => {
       try {
-        return !createReadStream(join(dir, f)).destroyed;
+        return !createReadStream(this.safeJoin(uuid, f)).destroyed;
       } catch {
         return false;
       }
