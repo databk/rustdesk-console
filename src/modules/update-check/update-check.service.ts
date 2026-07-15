@@ -18,7 +18,7 @@ import {
 } from './dto/update-check.dto';
 
 const UPDATE_API_URL =
-  'https://api.rustdesk-console.databk.top/v1/update/check';
+  'https://api.databk.top/v1/update/check';
 
 /**
  * 更新检查服务
@@ -120,7 +120,7 @@ export class UpdateCheckService {
     if (process.env.APP_VERSION) return process.env.APP_VERSION;
 
     try {
-      const pkgPath = path.join(__dirname, '..', '..', 'package.json');
+      const pkgPath = path.join(__dirname, '..', '..', '..', 'package.json');
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as {
         version?: string;
       };
