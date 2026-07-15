@@ -11,7 +11,13 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createReadStream, createWriteStream, existsSync, readdirSync, mkdirSync } from 'fs';
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  readdirSync,
+  mkdirSync,
+} from 'fs';
 import { join } from 'path';
 import { NexusToken } from './entities/nexus-token.entity';
 import { NexusBuild } from './entities/nexus-build.entity';
@@ -59,7 +65,10 @@ export class NexusService implements OnModuleInit {
 
   async onModuleInit() {
     // 启动定时轮询
-    this.pollTimer = setInterval(() => this.pollActiveBuilds(), POLL_INTERVAL_MS);
+    this.pollTimer = setInterval(
+      () => this.pollActiveBuilds(),
+      POLL_INTERVAL_MS,
+    );
     // 首次立即执行一次
     await this.pollActiveBuilds();
   }
@@ -71,10 +80,7 @@ export class NexusService implements OnModuleInit {
   private async pollActiveBuilds() {
     try {
       const activeBuilds = await this.nexusBuildRepository.find({
-        where: [
-          { status: 'pending' as NexusBuild['status'] },
-          { status: 'building' as NexusBuild['status'] },
-        ],
+        where: [{ status: 'pending' }, { status: 'building' }],
       });
 
       if (activeBuilds.length === 0) return;
@@ -83,7 +89,9 @@ export class NexusService implements OnModuleInit {
         await this.syncBuildStatus(build);
       }
     } catch (err) {
-      this.logger.error(`Error polling active builds: ${err instanceof Error ? err.message : err}`);
+      this.logger.error(
+        `Error polling active builds: ${err instanceof Error ? err.message : err}`,
+      );
     }
   }
 
@@ -113,9 +121,7 @@ export class NexusService implements OnModuleInit {
     );
 
     if (!response.ok) {
-      this.logger.warn(
-        `Poll build ${build.uuid} failed: ${response.status}`,
-      );
+      this.logger.warn(`Poll build ${build.uuid} failed: ${response.status}`);
       return;
     }
 
@@ -125,7 +131,7 @@ export class NexusService implements OnModuleInit {
     await this.nexusBuildRepository.update(
       { uuid: build.uuid },
       {
-        status: data.status as NexusBuild['status'],
+        status: data.status,
         files: data.files ? JSON.stringify(data.files) : undefined,
         message: data.message ?? undefined,
       },
@@ -188,9 +194,7 @@ export class NexusService implements OnModuleInit {
   /**
    * 轮询 Nexus 登录状态
    */
-  async pollLoginStatus(
-    loginId: string,
-  ): Promise<NexusAuthStatusResponse> {
+  async pollLoginStatus(loginId: string): Promise<NexusAuthStatusResponse> {
     const response = await this.fetchNexus(
       `/v1/auth/github/status?login_id=${encodeURIComponent(loginId)}`,
       { method: 'GET' },
@@ -201,9 +205,7 @@ export class NexusService implements OnModuleInit {
     }
 
     if (!response.ok) {
-      this.logger.error(
-        `Nexus login status poll failed: ${response.status}`,
-      );
+      this.logger.error(`Nexus login status poll failed: ${response.status}`);
       return { state: 'failed', error: '查询登录状态失败' };
     }
 
@@ -258,7 +260,11 @@ export class NexusService implements OnModuleInit {
     }
 
     if (nexusToken.isExpired()) {
-      return { bound: false, expired: true, nexus_username: nexusToken.nexusUsername };
+      return {
+        bound: false,
+        expired: true,
+        nexus_username: nexusToken.nexusUsername,
+      };
     }
 
     return { bound: true, nexus_username: nexusToken.nexusUsername };
@@ -419,14 +425,14 @@ export class NexusService implements OnModuleInit {
           this.logger.error(
             `Failed to download ${file}: ${response.status} ${await response.text()}`,
           );
-          throw new InternalServerErrorException(
-            `下载构建产物 ${file} 失败`,
-          );
+          throw new InternalServerErrorException(`下载构建产物 ${file} 失败`);
         }
 
         const writeStream = createWriteStream(filePath);
         if (!response.body) {
-          throw new InternalServerErrorException(`下载构建产物 ${file} 失败：响应体为空`);
+          throw new InternalServerErrorException(
+            `下载构建产物 ${file} 失败：响应体为空`,
+          );
         }
         const reader = response.body.getReader();
 

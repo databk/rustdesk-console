@@ -7,7 +7,12 @@ import {
   Index,
 } from 'typeorm';
 
-export type BuildStatus = 'pending' | 'building' | 'completed' | 'failed' | 'cancelled';
+export type BuildStatus =
+  | 'pending'
+  | 'building'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 /**
  * Nexus 构建记录实体
