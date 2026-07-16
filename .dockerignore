@@ -1,5 +1,10 @@
 node_modules
 dist
+dist-sea
+sea-bundle.cjs
+sea-prep.blob
+scripts
+sea-config.json
 *.log
 .env
 .env.*

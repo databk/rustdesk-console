@@ -16,6 +16,7 @@ import * as path from 'path';
 import { OidcService } from '../services/oidc.service';
 import { OidcAuthRequestDto } from '../dto/oidc.dto';
 import { Public } from '../../auth/decorators/public.decorator';
+import { resolveAssetPath } from '../../../common/utils/runtime-paths';
 
 /**
  * HTML特殊字符转义，防止XSS攻击
@@ -50,11 +51,19 @@ export class OidcController {
     private readonly configService: ConfigService,
   ) {
     this.successHtml = fs.readFileSync(
-      path.join(__dirname, '..', 'templates', 'callback-success.html'),
+      resolveAssetPath(
+        __dirname,
+        path.join('..', 'templates', 'callback-success.html'),
+        path.join('templates', 'oidc', 'callback-success.html'),
+      ),
       'utf-8',
     );
     this.errorHtml = fs.readFileSync(
-      path.join(__dirname, '..', 'templates', 'callback-error.html'),
+      resolveAssetPath(
+        __dirname,
+        path.join('..', 'templates', 'callback-error.html'),
+        path.join('templates', 'oidc', 'callback-error.html'),
+      ),
       'utf-8',
     );
   }

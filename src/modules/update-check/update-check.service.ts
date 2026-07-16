@@ -11,6 +11,7 @@ import { User } from '../user/entities/user.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
+import { resolveAssetPath } from '../../common/utils/runtime-paths';
 import {
   UpdateChannel,
   UpdateCheckRequest,
@@ -119,7 +120,11 @@ export class UpdateCheckService {
     if (process.env.APP_VERSION) return process.env.APP_VERSION;
 
     try {
-      const pkgPath = path.join(__dirname, '..', '..', '..', 'package.json');
+      const pkgPath = resolveAssetPath(
+        __dirname,
+        path.join('..', '..', '..', 'package.json'),
+        'package.json',
+      );
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as {
         version?: string;
       };

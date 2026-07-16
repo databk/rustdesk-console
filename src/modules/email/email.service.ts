@@ -4,6 +4,7 @@ import * as Handlebars from 'handlebars';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { SmtpSettingsService } from '../settings/services/smtp-settings.service';
+import { resolveAssetPath } from '../../common/utils/runtime-paths';
 
 @Injectable()
 /**
@@ -75,10 +76,10 @@ export class EmailService {
   ): Promise<string> {
     let template = this.templateCache.get(templateName);
     if (!template) {
-      const templatePath = path.join(
+      const templatePath = resolveAssetPath(
         __dirname,
-        'templates',
-        `${templateName}.hbs`,
+        path.join('templates', `${templateName}.hbs`),
+        path.join('templates', 'email', `${templateName}.hbs`),
       );
       const templateContent = await fs.readFile(templatePath, 'utf-8');
       template = Handlebars.compile(templateContent);

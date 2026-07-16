@@ -3,6 +3,13 @@
 /node_modules
 /build
 
+# SEA build artifacts
+/dist-sea
+/sea-bundle.cjs
+/sea-prep.blob
+/rustdesk-console
+/rustdesk-console.exe
+
 # Logs
 logs
 *.log
