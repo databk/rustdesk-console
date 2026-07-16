@@ -18,6 +18,7 @@ import {
 } from './entities';
 import { Sysinfo, Peer } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
+import { UserGroupModule } from '../user-group/user-group.module';
 
 /**
  * 地址簿模块
@@ -49,6 +50,7 @@ import { User } from '../user/entities/user.entity';
       Peer,
       User,
     ]),
+    UserGroupModule,
   ],
   controllers: [AddressBookController],
   providers: [

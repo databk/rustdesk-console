@@ -6,8 +6,9 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { isUUID } from 'class-validator';
 import { AddressBookRule, AddressBook, ShareRule } from '../entities';
 import { User } from '../../user/entities/user.entity';
 import {
@@ -17,6 +18,16 @@ import {
   PaginationDto,
 } from '../dto';
 import { AddressBookPermissionService } from './address-book-permission.service';
+import { UserGroupService } from '../../user-group/user-group.service';
+
+interface SharedAddressBookRow {
+  guid: string;
+  name: string | null;
+  owner: string;
+  note: string | null;
+  info: string | null;
+  rule: string | number;
+}
 
 /**
  * 地址簿规则服务
@@ -47,6 +58,7 @@ export class AddressBookRuleService {
     private userRepository: Repository<User>,
 
     private readonly permissionService: AddressBookPermissionService,
+    private readonly userGroupService: UserGroupService,
   ) {}
 
   /**
@@ -112,13 +124,13 @@ export class AddressBookRuleService {
     }
 
     // 如果没有指定用户或组，默认为 everyone
-    let finalTargetUserId = user || '';
-    const finalTargetGroupId = group || '';
+    let finalTargetUserId: string | null = null;
+    let finalTargetGroupId: string | null = null;
 
     // 如果提供了用户名而不是用户GUID，尝试查找用户
-    if (finalTargetUserId && !finalTargetUserId.includes('-')) {
+    if (user) {
       const userEntity = await this.userRepository.findOne({
-        where: { username: finalTargetUserId },
+        where: isUUID(user, '4') ? { guid: user } : { username: user },
       });
       if (userEntity) {
         finalTargetUserId = userEntity.guid;
@@ -127,18 +139,17 @@ export class AddressBookRuleService {
       }
     }
 
-    // 检查是否已存在相同规则
-    const whereClause: Record<string, unknown> = {
-      addressBookGuid: dto.guid,
-    };
+    if (group) {
+      finalTargetGroupId = (await this.userGroupService.requireGroup(group))
+        .guid;
+    }
 
-    // 只添加非空值到 where 子句
-    if (finalTargetUserId) {
-      whereClause.targetUserId = finalTargetUserId;
-    }
-    if (finalTargetGroupId) {
-      whereClause.targetGroupId = finalTargetGroupId;
-    }
+    // 检查是否已存在相同规则
+    const whereClause: FindOptionsWhere<AddressBookRule> = {
+      addressBookGuid: dto.guid,
+      targetUserId: finalTargetUserId || IsNull(),
+      targetGroupId: finalTargetGroupId || IsNull(),
+    };
 
     const existingRule = await this.ruleRepository.findOne({
       where: whereClause,
@@ -149,13 +160,13 @@ export class AddressBookRuleService {
     }
 
     // 创建新规则
-    const newRule: Partial<AddressBookRule> = {
+    const newRule = this.ruleRepository.create({
       guid: uuidv4(),
       addressBookGuid: dto.guid,
       targetUserId: finalTargetUserId,
       targetGroupId: finalTargetGroupId,
       rule,
-    };
+    });
 
     await this.ruleRepository.save(newRule);
 
@@ -256,25 +267,68 @@ export class AddressBookRuleService {
     const { current = 1, pageSize = 100, name } = query;
     const skip = (current - 1) * pageSize;
 
-    const whereCondition: Record<string, unknown> = {
-      targetUserId: userId,
-      targetGroupId: IsNull(), // 只查询用户规则
-    };
-
-    const [rules, total] = await this.ruleRepository.findAndCount({
-      where: whereCondition as Partial<AddressBookRule>,
-      relations: ['addressBook'],
-      skip,
-      take: pageSize,
+    const user = await this.userRepository.findOne({
+      where: { guid: userId },
+      select: ['guid', 'userGroupGuid'],
     });
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    const subjectConditions = [
+      '(rule.targetUserId = :userId AND rule.targetGroupId IS NULL)',
+      '(rule.targetUserId IS NULL AND rule.targetGroupId IS NULL)',
+    ];
+    const parameters: Record<string, string> = { userId };
+    if (user.userGroupGuid) {
+      subjectConditions.push(
+        '(rule.targetUserId IS NULL AND rule.targetGroupId = :userGroupGuid)',
+      );
+      parameters.userGroupGuid = user.userGroupGuid;
+    }
+
+    const queryBuilder = this.addressBookRepository
+      .createQueryBuilder('addressBook')
+      .innerJoin(
+        AddressBookRule,
+        'rule',
+        'rule.addressBookGuid = addressBook.guid',
+      )
+      .where(`(${subjectConditions.join(' OR ')})`, parameters);
+
+    const trimmedName = name?.trim();
+    if (trimmedName) {
+      queryBuilder.andWhere('addressBook.name LIKE :name', {
+        name: `%${trimmedName}%`,
+      });
+    }
+
+    const totalRow = await queryBuilder
+      .clone()
+      .select('COUNT(DISTINCT addressBook.guid)', 'total')
+      .getRawOne<{ total: string | number }>();
+
+    const rows = await queryBuilder
+      .select('addressBook.guid', 'guid')
+      .addSelect('addressBook.name', 'name')
+      .addSelect('addressBook.owner', 'owner')
+      .addSelect('addressBook.note', 'note')
+      .addSelect('addressBook.info', 'info')
+      .addSelect('MAX(rule.rule)', 'rule')
+      .groupBy('addressBook.guid')
+      .addGroupBy('addressBook.name')
+      .addGroupBy('addressBook.owner')
+      .addGroupBy('addressBook.note')
+      .addGroupBy('addressBook.info')
+      .orderBy('addressBook.name', 'ASC')
+      .addOrderBy('addressBook.guid', 'ASC')
+      .offset(skip)
+      .limit(pageSize)
+      .getRawMany<SharedAddressBookRow>();
 
     // 收集所有 owner (用户 GUID)
     const ownerGuids = [
-      ...new Set(
-        rules
-          .map((r) => r.addressBook?.owner)
-          .filter((guid): guid is string => !!guid),
-      ),
+      ...new Set(rows.map((row) => row.owner).filter((guid) => !!guid)),
     ];
 
     // 批量查询用户信息
@@ -288,24 +342,16 @@ export class AddressBookRuleService {
     const userMap = new Map(users.map((u) => [u.guid, u.username]));
 
     // 组装返回数据
-    let data = rules.map((r) => ({
-      guid: r.addressBookGuid,
-      name: r.addressBook?.name || '',
-      owner:
-        userMap.get(r.addressBook?.owner || '') || r.addressBook?.owner || '',
-      note: r.addressBook?.note || '',
-      rule: r.rule,
-      info: r.addressBook?.info
-        ? (JSON.parse(r.addressBook.info) as Record<string, unknown>)
-        : {},
+    const data = rows.map((row) => ({
+      guid: row.guid,
+      name: row.name || '',
+      owner: userMap.get(row.owner) || row.owner,
+      note: row.note || '',
+      rule: Number(row.rule),
+      info: row.info ? (JSON.parse(row.info) as Record<string, unknown>) : {},
     }));
 
-    // 如果提供了name参数，进行过滤
-    if (name) {
-      data = data.filter((item) => item.name.includes(name));
-    }
-
-    return { total, data };
+    return { total: Number(totalRow?.total || 0), data };
   }
 
   /**

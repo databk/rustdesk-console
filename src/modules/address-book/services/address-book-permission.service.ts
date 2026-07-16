@@ -4,8 +4,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { FindOptionsWhere, IsNull, Repository } from 'typeorm';
 import { AddressBook, AddressBookRule, ShareRule } from '../entities';
+import { User } from '../../user/entities/user.entity';
 
 /**
  * 地址簿权限检查服务
@@ -24,6 +25,9 @@ export class AddressBookPermissionService {
 
     @InjectRepository(AddressBookRule)
     private ruleRepository: Repository<AddressBookRule>,
+
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
   /**
@@ -55,21 +59,47 @@ export class AddressBookPermissionService {
       return addressBook;
     }
 
-    // 检查规则权限（用户规则）
-    const rule = await this.ruleRepository.findOne({
-      where: {
+    const user = await this.userRepository.findOne({
+      where: { guid: userId },
+      select: ['guid', 'userGroupGuid'],
+    });
+    if (!user) {
+      throw new ForbiddenException('无权访问此地址簿');
+    }
+
+    const applicableTargets: FindOptionsWhere<AddressBookRule>[] = [
+      {
         addressBookGuid,
         targetUserId: userId,
-        targetGroupId: IsNull(), // 确保是用户规则
+        targetGroupId: IsNull(),
       },
-    });
+      {
+        addressBookGuid,
+        targetUserId: IsNull(),
+        targetGroupId: IsNull(),
+      },
+    ];
 
-    if (!rule) {
+    if (user.userGroupGuid) {
+      applicableTargets.push({
+        addressBookGuid,
+        targetUserId: IsNull(),
+        targetGroupId: user.userGroupGuid,
+      });
+    }
+
+    const rules = await this.ruleRepository.find({ where: applicableTargets });
+    const effectiveRule = rules.reduce(
+      (strongest, rule) => Math.max(strongest, rule.rule),
+      0,
+    );
+
+    if (effectiveRule === 0) {
       throw new ForbiddenException('无权访问此地址簿');
     }
 
     // 检查权限级别
-    if (rule.rule < Number(requiredRule)) {
+    if (effectiveRule < Number(requiredRule)) {
       const requiredPermission =
         requiredRule === ShareRule.READ_WRITE ? '读写' : '完全控制';
       throw new ForbiddenException(`需要${requiredPermission}权限`);

@@ -526,11 +526,7 @@ export class AddressBookController {
   @Post('rule')
   @HttpCode(HttpStatus.OK)
   async addRule(@Body() dto: CreateRuleDto, @CurrentUser('id') userId: number) {
-    try {
-      return await this.ruleService.createRule(dto, String(userId));
-    } catch (e: unknown) {
-      return { error: e instanceof Error ? e.message : String(e) };
-    }
+    return this.ruleService.createRule(dto, String(userId));
   }
 
   /**
@@ -547,11 +543,7 @@ export class AddressBookController {
     @Body() dto: UpdateRuleDto,
     @CurrentUser('id') userId: number,
   ) {
-    try {
-      return await this.ruleService.updateRule(dto, String(userId));
-    } catch (e: unknown) {
-      return { error: e instanceof Error ? e.message : String(e) };
-    }
+    return this.ruleService.updateRule(dto, String(userId));
   }
 
   /**
@@ -568,10 +560,6 @@ export class AddressBookController {
     @Body() ruleGuids: string[],
     @CurrentUser('id') userId: number,
   ) {
-    try {
-      return await this.ruleService.deleteRules(ruleGuids, String(userId));
-    } catch (e: unknown) {
-      return { error: e instanceof Error ? e.message : String(e) };
-    }
+    return this.ruleService.deleteRules(ruleGuids, String(userId));
   }
 }

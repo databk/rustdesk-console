@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   Min,
   Max,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaginationDto } from './query.dto';
@@ -52,8 +53,7 @@ export class CreateRuleDto {
    * 与 user 互斥
    */
   @IsOptional()
-  @IsString()
-  @IsNotEmpty()
+  @IsUUID('4')
   group?: string;
 
   /**
