@@ -166,7 +166,7 @@ surface.
 
 ### Prerequisites
 
-- **Node.js** >= 24.0.0
+- **Node.js** >= 20.0.0 (24.0.0 recommended)
 - **npm** >= 9.0.0
 - **SQLite3** (included as dependency)
 
