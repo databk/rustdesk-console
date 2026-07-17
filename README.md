@@ -62,6 +62,7 @@ File transfer auditing with detailed logs showing direction, file size, timestam
 
 ### User Management
 - Complete CRUD operations for user accounts (RESTful conventions)
+- User-group CRUD, single-group membership, bulk member moves, and protected default-group assignment
 - User invitation via email
 - Enable/disable user accounts with batch operations
 - Force logout capabilities (single and batch)
@@ -75,7 +76,7 @@ File transfer auditing with detailed logs showing direction, file size, timestam
 - Personal and shared address books
 - Device peer management (add, update, delete)
 - Tag-based organization with custom colors
-- Access rules and permission levels
+- Direct-user, user-group, and everyone access rules with strongest-permission resolution
 - Legacy API compatibility support
 - Pagination and search functionality
 
@@ -136,7 +137,7 @@ backend and frontend may not yet be feature-complete for the items below.
 | Area | Current Status | Notes |
 |------|----------------|-------|
 | **Role management / RBAC** | Frontend scaffold only | The frontend exposes `/roles` and calls `/api/roles` and `/api/permissions`, but the backend does not currently include role or permission modules/controllers. Access control is currently based on `isAdmin` plus device/user/group permission mappings rather than a complete role-permission system. |
-| **User groups** | Frontend scaffold only | The frontend includes a user-group management page and `/api/user-groups` service calls. Backend support for user groups is not implemented yet. |
+| **User groups** | Backend implemented, frontend partial | `/api/user-groups` supports CRUD, membership, default assignment, and address-book group grants. The current frontend supports group CRUD; member and grant-management UI remains follow-up work. |
 | **Generic system settings** | Partially implemented | The backend currently implements SMTP settings under `/api/settings/smtp`. Generic settings endpoints such as `/api/settings`, `/api/settings/:key`, and `/api/settings/batch` are not implemented yet. |
 | **Dashboard online-user and alarm counters** | Partially implemented | Some dashboard metrics are placeholders: online users, active connections, unread alarms, and critical alarms currently require additional session/alarm-state tracking fields. |
 | **SMS-code login** | Placeholder | The login flow recognizes `sms_code`, but SMS verification is not implemented and currently returns a "feature under development" error. |
@@ -274,6 +275,7 @@ src/
 ├── modules/
 │   ├── auth/                  # Authentication & authorization (JWT, TFA, OIDC, email)
 │   ├── user/                  # User management (CRUD, avatar, password, admin queries)
+│   ├── user-group/            # User-group CRUD, membership, and default assignment
 │   ├── address-book/          # Address book & device peer management
 │   ├── device-group/          # Device grouping & permissions
 │   ├── strategy/              # Strategy configuration & assignment
@@ -303,6 +305,7 @@ The application uses **SQLite** as the default database engine (file: `rustdesk-
 - User accounts, tokens & avatars
 - Address books, peers, tags & access rules
 - Device groups & permissions
+- User groups & membership assignments
 - Strategies & assignments
 - Audit logs (connections, file transfers, alarms, console)
 - Active connections
@@ -427,6 +430,7 @@ This project is licensed under the **GNU Affero General Public License v3.0** (A
 
 - [Discord Community](https://discord.gg/vrQSJfqpwD) - Join our community for discussions and support
 - [Frontend Project](https://github.com/databk/rustdesk-console-web) - Web UI for RustDesk Console
+- [User Group API Contract](docs/user-groups-api.md) - Backend endpoints, compatibility, and frontend follow-up fields
 - [NestJS Documentation](https://docs.nestjs.com/) - Framework documentation
 - [TypeORM Documentation](https://typeorm.io/) - ORM documentation
 - [RustDesk Official Site](https://rustdesk.com/) - Main product information
