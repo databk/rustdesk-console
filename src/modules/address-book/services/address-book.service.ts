@@ -86,6 +86,32 @@ export class AddressBookService {
     return { guid: addressBook.guid };
   }
 
+  async getCustomAddressBooks(userId: string, query: PaginationDto) {
+    return this.ruleService.getCustomAddressBooks(userId, query);
+  }
+
+  async addCustomAddressBook(
+    name: string,
+    userId: string,
+    note?: string,
+    password?: string,
+  ) {
+    return this.ruleService.addCustomAddressBook(name, userId, note, password);
+  }
+
+  async updateCustomAddressBook(
+    guid: string,
+    userId: string,
+    name?: string,
+    note?: string,
+  ) {
+    return this.ruleService.updateCustomAddressBook(guid, userId, name, note);
+  }
+
+  async deleteCustomAddressBooks(guids: string[], userId: string) {
+    return this.ruleService.deleteCustomAddressBooks(guids, userId);
+  }
+
   // ============ 设备管理（委托给 PeerService） ============
 
   /**
@@ -277,6 +303,10 @@ export class AddressBookService {
    */
   async getSharedAddressBooks(userId: string, query: PaginationDto) {
     return this.ruleService.getSharedAddressBooks(userId, query);
+  }
+
+  async getWebSharedAddressBooks(userId: string, query: PaginationDto) {
+    return this.ruleService.getWebSharedAddressBooks(userId, query);
   }
 
   /**

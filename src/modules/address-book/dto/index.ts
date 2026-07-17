@@ -14,3 +14,11 @@ export { PaginationDto, PeersQueryDto, TagMatchMode } from './query.dto';
 
 /** 规则相关 DTO - 规则查询、创建和更新 */
 export { RuleQueryDto, CreateRuleDto, UpdateRuleDto } from './rule.dto';
+
+/** Address book profile CRUD DTOs used by the web console. */
+export {
+  CreateAddressBookProfileDto,
+  UpdateAddressBookProfileDto,
+  UpdateCustomAddressBookProfileDto,
+  DeleteAddressBooksDto,
+} from './profile.dto';

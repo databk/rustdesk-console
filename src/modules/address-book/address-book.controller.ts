@@ -10,6 +10,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { AddressBookService } from './services';
 import {
@@ -23,9 +24,14 @@ import {
   RuleQueryDto,
   CreateRuleDto,
   UpdateRuleDto,
+  CreateAddressBookProfileDto,
+  UpdateAddressBookProfileDto,
+  UpdateCustomAddressBookProfileDto,
+  DeleteAddressBooksDto,
 } from './dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AddressBookRuleService } from './services/address-book-rule.service';
+import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
  * 地址簿控制器
@@ -147,6 +153,58 @@ export class AddressBookController {
     return this.addressBookService.getPersonalAddressBook(String(userId));
   }
 
+  @Get('custom/profiles')
+  @HttpCode(HttpStatus.OK)
+  getCustomAddressBooks(
+    @Query() query: PaginationDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.addressBookService.getCustomAddressBooks(String(userId), query);
+  }
+
+  @Post('custom/add')
+  @HttpCode(HttpStatus.OK)
+  async addCustomAddressBook(
+    @Body() dto: CreateAddressBookProfileDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    const guid = await this.addressBookService.addCustomAddressBook(
+      dto.name,
+      String(userId),
+      dto.note,
+      dto.password ?? dto.info?.password,
+    );
+    return { guid };
+  }
+
+  @Put('custom/update/profile')
+  @HttpCode(HttpStatus.OK)
+  async updateCustomAddressBook(
+    @Body() dto: UpdateCustomAddressBookProfileDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    await this.addressBookService.updateCustomAddressBook(
+      dto.guid,
+      String(userId),
+      dto.name,
+      dto.note,
+    );
+    return { message: '更新成功' };
+  }
+
+  @Delete('custom')
+  @HttpCode(HttpStatus.OK)
+  async deleteCustomAddressBooks(
+    @Body() dto: DeleteAddressBooksDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    await this.addressBookService.deleteCustomAddressBooks(
+      dto.guids,
+      String(userId),
+    );
+    return { message: '删除成功' };
+  }
+
   /**
    * 获取共享地址簿列表
    * 获取当前用户可访问的所有共享地址簿列表
@@ -181,6 +239,18 @@ export class AddressBookController {
     return this.addressBookService.getSharedAddressBooks(String(userId), query);
   }
 
+  @Get('shared/list')
+  @HttpCode(HttpStatus.OK)
+  getWebSharedAddressBooks(
+    @Query() query: PaginationDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.addressBookService.getWebSharedAddressBooks(
+      String(userId),
+      query,
+    );
+  }
+
   /**
    * 添加共享地址簿
    * 创建一个新的共享地址簿
@@ -190,9 +260,10 @@ export class AddressBookController {
    * @returns 操作结果
    */
   @Post('shared/add')
+  @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
   async addSharedAddressBook(
-    @Body() dto: { name: string; note?: string; password?: string },
+    @Body() dto: CreateAddressBookProfileDto,
     @CurrentUser('id') userId: number,
   ) {
     try {
@@ -200,7 +271,7 @@ export class AddressBookController {
         dto.name,
         String(userId),
         dto.note,
-        dto.password,
+        dto.password ?? dto.info?.password,
       );
       return { guid };
     } catch (e: unknown) {
@@ -217,16 +288,10 @@ export class AddressBookController {
    * @returns 操作结果
    */
   @Put('shared/update/profile')
+  @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
   async updateSharedAddressBook(
-    @Body()
-    dto: {
-      guid: string;
-      name?: string;
-      note?: string;
-      owner?: string;
-      password?: string;
-    },
+    @Body() dto: UpdateAddressBookProfileDto,
     @CurrentUser('id') userId: number,
   ) {
     try {
@@ -235,7 +300,7 @@ export class AddressBookController {
         dto.name,
         dto.note,
         dto.owner,
-        dto.password,
+        dto.password ?? dto.info?.password,
         String(userId),
       );
       return '';
@@ -253,6 +318,7 @@ export class AddressBookController {
    * @returns 操作结果
    */
   @Delete('shared')
+  @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
   async deleteSharedAddressBooks(
     @Body() guids: string[],
@@ -524,6 +590,7 @@ export class AddressBookController {
    * @returns 新创建的规则 GUID
    */
   @Post('rule')
+  @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
   async addRule(@Body() dto: CreateRuleDto, @CurrentUser('id') userId: number) {
     return this.ruleService.createRule(dto, String(userId));
@@ -538,6 +605,7 @@ export class AddressBookController {
    * @returns 更新成功消息
    */
   @Patch('rule')
+  @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
   async updateRule(
     @Body() dto: UpdateRuleDto,
@@ -555,6 +623,7 @@ export class AddressBookController {
    * @returns 删除成功消息
    */
   @Delete('rules')
+  @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
   async deleteRules(
     @Body() ruleGuids: string[],

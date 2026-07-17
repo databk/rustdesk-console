@@ -38,6 +38,10 @@ export class AddressBook {
   @Column({ default: false })
   isPersonal: boolean;
 
+  /** Whether this non-personal address book is managed as a shared resource. */
+  @Column({ default: false })
+  isShared: boolean;
+
   /**
    * 地址簿名称
    * 用于显示和区分不同的地址簿
