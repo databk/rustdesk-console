@@ -23,6 +23,8 @@ import {
 } from '../address-book/entities/address-book-rule.entity';
 import { AddressBookTag } from '../address-book/entities/address-book-tag.entity';
 import { AddressBook } from '../address-book/entities/address-book.entity';
+import { AddressBookController } from '../address-book/address-book.controller';
+import { DeleteAddressBooksDto } from '../address-book/dto/profile.dto';
 import { CreateRuleDto } from '../address-book/dto/rule.dto';
 import { AddressBookPermissionService } from '../address-book/services/address-book-permission.service';
 import { AddressBookRuleService } from '../address-book/services/address-book-rule.service';
@@ -151,6 +153,7 @@ describe('User group integration', () => {
   async function createAddressBook(
     owner: string,
     name = 'Shared book',
+    isShared = false,
   ): Promise<AddressBook> {
     return addressBookRepository.save(
       addressBookRepository.create({
@@ -158,6 +161,7 @@ describe('User group integration', () => {
         owner,
         name,
         isPersonal: false,
+        isShared,
       }),
     );
   }
@@ -664,6 +668,92 @@ describe('User group integration', () => {
     expect(movedMemberBooks.data[0].rule).toBe(ShareRule.READ);
   });
 
+  it('separates private, shared, and protocol address book profiles', async () => {
+    const defaultGroup = await userGroupService.initializeStorage();
+    const operators = await userGroupService.createGroup({
+      name: 'Address book operators',
+    });
+    const owner = await createUser('profile-owner', defaultGroup.guid);
+    const member = await createUser('profile-member', operators.guid);
+
+    const privateGuid = await ruleService.addCustomAddressBook(
+      'Private operations',
+      owner.guid,
+    );
+    const sharedGuid = await ruleService.addSharedAddressBook(
+      'Managed shared',
+      owner.guid,
+    );
+    await ruleService.createRule(
+      {
+        guid: sharedGuid,
+        group: operators.guid,
+        rule: ShareRule.READ_WRITE,
+      },
+      owner.guid,
+    );
+
+    const legacyShared = await createAddressBook(owner.guid, 'Legacy shared');
+    await createRule(legacyShared.guid, null, operators.guid, ShareRule.READ);
+
+    const privateProfiles = await ruleService.getCustomAddressBooks(
+      owner.guid,
+      { current: 1, pageSize: 20 },
+    );
+    expect(privateProfiles.data.map((book) => book.guid)).toEqual([
+      privateGuid,
+    ]);
+
+    const ownerSharedProfiles = await ruleService.getWebSharedAddressBooks(
+      owner.guid,
+      { current: 1, pageSize: 20 },
+    );
+    expect(
+      ownerSharedProfiles.data.map((book) => [book.guid, book.is_owner]),
+    ).toEqual([
+      [legacyShared.guid, true],
+      [sharedGuid, true],
+    ]);
+
+    const memberSharedProfiles = await ruleService.getWebSharedAddressBooks(
+      member.guid,
+      { current: 1, pageSize: 20 },
+    );
+    expect(
+      memberSharedProfiles.data.map((book) => [book.guid, book.is_owner]),
+    ).toEqual([
+      [legacyShared.guid, false],
+      [sharedGuid, false],
+    ]);
+
+    const ownerProtocolProfiles = await ruleService.getSharedAddressBooks(
+      owner.guid,
+      { current: 1, pageSize: 20 },
+    );
+    expect(ownerProtocolProfiles.data.map((book) => book.guid)).toEqual([
+      legacyShared.guid,
+      sharedGuid,
+      privateGuid,
+    ]);
+
+    await ruleService.updateCustomAddressBook(
+      privateGuid,
+      owner.guid,
+      'Private renamed',
+    );
+    await expect(
+      ruleService.updateCustomAddressBook(
+        sharedGuid,
+        owner.guid,
+        'Not allowed here',
+      ),
+    ).rejects.toThrow('私有自定义地址簿不存在');
+    await ruleService.deleteCustomAddressBooks([privateGuid], owner.guid);
+    expect(
+      await addressBookRepository.findOneBy({ guid: privateGuid }),
+    ).toBeNull();
+  });
+
   it('publishes validated DTOs and protects every user-group route with AdminGuard', async () => {
     const guards = Reflect.getMetadata(
       GUARDS_METADATA,
@@ -709,6 +799,27 @@ describe('User group integration', () => {
       rule: ShareRule.READ,
     });
     expect(await validate(invalidGroupRule)).not.toHaveLength(0);
+
+    const invalidAddressBookDelete = plainToInstance(DeleteAddressBooksDto, {
+      guids: ['not-a-uuid'],
+    });
+    expect(await validate(invalidAddressBookDelete)).not.toHaveLength(0);
+
+    for (const methodName of [
+      'addSharedAddressBook',
+      'updateSharedAddressBook',
+      'deleteSharedAddressBooks',
+      'addRule',
+      'updateRule',
+      'deleteRules',
+    ] as const) {
+      const method = AddressBookController.prototype[methodName];
+      const methodGuards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        method,
+      ) as unknown[];
+      expect(methodGuards).toContain(AdminGuard);
+    }
   });
 
   it('serves the existing frontend CRUD contract under /api/user-groups', async () => {
