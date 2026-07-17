@@ -6,6 +6,7 @@ import { OidcProvider } from '../modules/oidc/entities/oidc-provider.entity';
 import { OidcAuthState } from '../modules/oidc/entities/oidc-auth-state.entity';
 import { SystemSetting } from '../modules/settings/entities/system-setting.entity';
 import { DatabaseInitService } from './database-init.service';
+import { UserGroupModule } from '../modules/user-group/user-group.module';
 
 @Global()
 /**
@@ -24,6 +25,7 @@ import { DatabaseInitService } from './database-init.service';
       OidcAuthState,
       SystemSetting,
     ]),
+    UserGroupModule,
   ],
   providers: [DatabaseInitService],
   exports: [DatabaseInitService],

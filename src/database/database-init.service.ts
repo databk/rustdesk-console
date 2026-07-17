@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../modules/user/entities/user.entity';
 import { OidcProvider } from '../modules/oidc/entities/oidc-provider.entity';
 import { OidcAuthState } from '../modules/oidc/entities/oidc-auth-state.entity';
+import { UserGroupService } from '../modules/user-group/user-group.service';
 
 @Injectable()
 /**
@@ -25,10 +26,12 @@ export class DatabaseInitService implements OnModuleInit {
     private oidcProviderRepository: Repository<OidcProvider>,
     @InjectRepository(OidcAuthState)
     private oidcAuthStateRepository: Repository<OidcAuthState>,
+    private readonly userGroupService: UserGroupService,
   ) {}
 
   async onModuleInit() {
-    await this.createDefaultAdmin();
+    const defaultGroup = await this.userGroupService.initializeStorage();
+    await this.createDefaultAdmin(defaultGroup.guid);
     await this.createDefaultOidcProviders();
     await this.cleanupExpiredAuthStates();
   }
@@ -36,7 +39,7 @@ export class DatabaseInitService implements OnModuleInit {
   /**
    * 创建默认管理员账户
    */
-  private async createDefaultAdmin() {
+  private async createDefaultAdmin(defaultGroupGuid: string) {
     // 检查数据库中是否已存在管理员用户
     const existingAdmin = await this.userRepository.findOne({
       where: { isAdmin: true },
@@ -66,6 +69,7 @@ export class DatabaseInitService implements OnModuleInit {
       status: UserStatus.ACTIVE,
       isAdmin: true,
       note: 'Default administrator account',
+      userGroupGuid: defaultGroupGuid,
     });
 
     await this.userRepository.save(admin);

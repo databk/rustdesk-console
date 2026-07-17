@@ -9,11 +9,13 @@ import { OidcProvider } from './entities/oidc-provider.entity';
 import { OidcAuthState } from './entities/oidc-auth-state.entity';
 import { User } from '../user/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
+import { UserGroupModule } from '../user-group/user-group.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([OidcProvider, OidcAuthState, User]),
     AuthModule,
+    UserGroupModule,
   ],
   controllers: [OidcController, OidcAdminController],
   providers: [OidcService, OidcAdminService, OidcAuthStateCleanupService],

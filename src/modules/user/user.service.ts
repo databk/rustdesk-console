@@ -24,6 +24,7 @@ import {
   BatchSecurityDto,
   ChangePasswordDto,
 } from './dto/user.dto';
+import { UserGroupService } from '../user-group/user-group.service';
 
 const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
 const AVATAR_SIZE = 256;
@@ -41,6 +42,7 @@ export class UserService {
     private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
     @InjectRepository(UserUserPermission)
     private userUserPermissionRepository: Repository<UserUserPermission>,
+    private readonly userGroupService: UserGroupService,
   ) {}
 
   async getAccessibleUsers(
@@ -60,6 +62,7 @@ export class UserService {
     if (isAdmin) {
       const queryBuilder = this.userRepository
         .createQueryBuilder('user')
+        .leftJoinAndSelect('user.userGroup', 'userGroup')
         .where('user.status = :status', {
           status: parseInt(status || '1') || UserStatus.ACTIVE,
         });
@@ -88,26 +91,14 @@ export class UserService {
         .getManyAndCount();
 
       return {
-        data: users.map((u) => {
-          const item: Record<string, unknown> = {
-            guid: u.guid,
-            name: u.username,
-            email: u.email || '',
-            note: u.note || '',
-            status: u.status,
-            is_admin: u.isAdmin,
-          };
-          if (u.avatar) {
-            item.avatar = u.avatar;
-          }
-          return item;
-        }),
+        data: users.map((user) => this.buildUserResponse(user)),
         total,
       };
     }
 
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userGroup', 'userGroup')
       .where('user.status = :status', {
         status: parseInt(status || '1') || UserStatus.ACTIVE,
       })
@@ -148,26 +139,16 @@ export class UserService {
       .getManyAndCount();
 
     return {
-      data: users.map((u) => {
-        const item: Record<string, unknown> = {
-          guid: u.guid,
-          name: u.username,
-          email: u.email || '',
-          note: u.note || '',
-          status: u.status,
-          is_admin: u.isAdmin,
-        };
-        if (u.avatar) {
-          item.avatar = u.avatar;
-        }
-        return item;
-      }),
+      data: users.map((user) => this.buildUserResponse(user)),
       total,
     };
   }
 
   async createUser(dto: CreateUserDto) {
     const { name, password, email, note } = dto;
+    const userGroupGuid = await this.userGroupService.resolveUserGroupGuid(
+      dto.user_group_guid,
+    );
 
     const existingUser = await this.userRepository.findOne({
       where: { username: name },
@@ -193,6 +174,7 @@ export class UserService {
     user.note = note || '';
     user.status = UserStatus.ACTIVE;
     user.isAdmin = false;
+    user.userGroupGuid = userGroupGuid;
 
     await this.userRepository.save(user);
 
@@ -201,6 +183,9 @@ export class UserService {
 
   async inviteUser(dto: InviteUserDto) {
     const { email, name, note } = dto;
+    const userGroupGuid = await this.userGroupService.resolveUserGroupGuid(
+      dto.user_group_guid,
+    );
 
     const existingUser = await this.userRepository.findOne({
       where: { email },
@@ -217,6 +202,7 @@ export class UserService {
     user.note = note || '';
     user.status = UserStatus.UNVERIFIED;
     user.isAdmin = false;
+    user.userGroupGuid = userGroupGuid;
 
     await this.userRepository.save(user);
 
@@ -226,6 +212,7 @@ export class UserService {
   async getUser(guid: string) {
     const user = await this.userRepository.findOne({
       where: { guid },
+      relations: ['userGroup'],
     });
     if (!user) {
       throw new NotFoundException('用户不存在');
@@ -240,6 +227,8 @@ export class UserService {
       is_admin: user.isAdmin,
       third_auth_type: user.thirdAuthType || '',
       strategy_guid: user.strategyGuid || '',
+      user_group_guid: user.userGroupGuid || '',
+      user_group_name: user.userGroup?.name || '',
       created_at: user.createdAt,
       updated_at: user.updatedAt,
       ...(user.avatar ? { avatar: user.avatar } : {}),
@@ -510,6 +499,8 @@ export class UserService {
       note: user.note || '',
       status: user.status,
       is_admin: user.isAdmin,
+      user_group_guid: user.userGroupGuid || '',
+      user_group_name: user.userGroup?.name || '',
     };
     if (user.avatar) {
       response.avatar = user.avatar;

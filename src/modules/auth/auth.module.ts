@@ -18,6 +18,7 @@ import { Peer } from '../../common/entities';
 import { EmailVerificationSession } from './entities/email-verification-session.entity';
 import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
+import { UserGroupModule } from '../user-group/user-group.module';
 
 /**
  * 认证模块
@@ -43,6 +44,7 @@ import { LdapModule } from '../ldap/ldap.module';
     TypeOrmModule.forFeature([User, UserToken, Peer, EmailVerificationSession]),
     EmailModule,
     LdapModule,
+    UserGroupModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret:

@@ -5,6 +5,7 @@ import { User } from '../user/entities/user.entity';
 import { LdapController } from './ldap.controller';
 import { LdapService } from './ldap.service';
 import { LdapSettingsService } from './ldap-settings.service';
+import { UserGroupModule } from '../user-group/user-group.module';
 
 /**
  * LDAP 认证模块
@@ -18,7 +19,7 @@ import { LdapSettingsService } from './ldap-settings.service';
  * - LdapSettingsService（供其他模块读取 LDAP 配置）
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([SystemSetting, User])],
+  imports: [TypeOrmModule.forFeature([SystemSetting, User]), UserGroupModule],
   controllers: [LdapController],
   providers: [LdapService, LdapSettingsService],
   exports: [LdapService, LdapSettingsService],

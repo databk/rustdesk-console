@@ -8,6 +8,7 @@ import {
   Min,
   IsInt,
   MinLength,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { UserStatus } from '../entities/user.entity';
@@ -22,6 +23,10 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   group_name?: string;
+
+  @IsUUID('4')
+  @IsOptional()
+  user_group_guid?: string;
 
   @IsString()
   @IsOptional()
@@ -42,6 +47,10 @@ export class InviteUserDto {
   @IsString()
   @IsOptional()
   group_name?: string;
+
+  @IsUUID('4')
+  @IsOptional()
+  user_group_guid?: string;
 
   @IsString()
   @IsOptional()
@@ -106,6 +115,10 @@ export class UserQueryDto {
   @IsInt()
   @Type(() => Number)
   pageSize: number;
+
+  @IsString()
+  @IsOptional()
+  accessible?: string;
 
   @IsString()
   @IsOptional()

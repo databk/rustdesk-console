@@ -13,6 +13,7 @@ import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { DeviceGroupUserPermission } from '../device-group/entities/device-group-user-permission.entity';
 import { UserUserPermission } from '../device-group/entities/user-user-permission.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
+import { UserGroupModule } from '../user-group/user-group.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { Strategy } from '../strategy/entities/strategy.entity';
       Strategy,
     ]),
     AuthModule,
+    UserGroupModule,
   ],
   controllers: [UserController, AvatarController, AdminUserController],
   providers: [UserService, AdminUserService],

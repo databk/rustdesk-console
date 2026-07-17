@@ -42,6 +42,8 @@ import { UpdateCheckModule } from './modules/update-check/update-check.module';
 import { NexusModule } from './modules/nexus/nexus.module';
 import { NexusToken } from './modules/nexus/entities/nexus-token.entity';
 import { NexusBuild } from './modules/nexus/entities/nexus-build.entity';
+import { UserGroupModule } from './modules/user-group/user-group.module';
+import { UserGroup } from './modules/user-group/entities/user-group.entity';
 
 /**
  * 应用根模块
@@ -103,6 +105,7 @@ import { NexusBuild } from './modules/nexus/entities/nexus-build.entity';
         Strategy,
         NexusToken,
         NexusBuild,
+        UserGroup,
       ],
       synchronize: true,
       logging: false,
@@ -122,6 +125,7 @@ import { NexusBuild } from './modules/nexus/entities/nexus-build.entity';
     StrategyModule,
     UpdateCheckModule,
     NexusModule,
+    UserGroupModule,
   ],
   providers: [
     {

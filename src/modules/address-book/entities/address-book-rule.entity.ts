@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  JoinColumn,
+  Index,
 } from 'typeorm';
 import { AddressBook } from './address-book.entity';
+import { UserGroup } from '../../user-group/entities/user-group.entity';
 
 /**
  * 共享权限规则枚举
@@ -57,7 +60,8 @@ export class AddressBookRule {
    * 当规则类型为 'group' 或 'everyone' 时，此字段为空
    */
   @Column({ type: 'varchar', nullable: true })
-  targetUserId: string;
+  @Index()
+  targetUserId: string | null;
 
   /**
    * 目标组 GUID
@@ -65,7 +69,15 @@ export class AddressBookRule {
    * 当规则类型为 'user' 或 'everyone' 时，此字段为空
    */
   @Column({ type: 'varchar', nullable: true })
-  targetGroupId: string;
+  @Index()
+  targetGroupId: string | null;
+
+  @ManyToOne(() => UserGroup, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'targetGroupId' })
+  targetGroup: UserGroup | null;
 
   /**
    * 规则权限级别

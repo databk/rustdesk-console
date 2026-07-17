@@ -27,6 +27,7 @@ import { AuthTfaService } from './auth-tfa.service';
 import { AuthEmailService } from './auth-email.service';
 import { AuthDeviceService } from './auth-device.service';
 import { LdapService } from '../../ldap/ldap.service';
+import { UserGroupService } from '../../user-group/user-group.service';
 
 /**
  * 认证服务
@@ -56,6 +57,7 @@ export class AuthService {
     private readonly emailAuthService: AuthEmailService,
     private readonly deviceService: AuthDeviceService,
     private readonly ldapService: LdapService,
+    private readonly userGroupService: UserGroupService,
   ) {}
 
   /**
@@ -83,6 +85,7 @@ export class AuthService {
 
     // 使用bcrypt加密密码，强度为10
     const hashedPassword = await bcrypt.hash(password, 10);
+    const userGroupGuid = await this.userGroupService.resolveUserGroupGuid();
 
     // 创建新用户
     const user = this.userRepository.create({
@@ -93,6 +96,7 @@ export class AuthService {
       note: note || '',
       status: UserStatus.ACTIVE,
       isAdmin: false,
+      userGroupGuid,
     });
 
     await this.userRepository.save(user);

@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { UserToken } from './user-token.entity';
 import { Strategy } from '../../strategy/entities/strategy.entity';
+import { UserGroup } from '../../user-group/entities/user-group.entity';
 
 /**
  * 用户状态枚举
@@ -148,6 +149,17 @@ export class User {
   @ManyToOne('Strategy', () => Strategy, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'strategyGuid' })
   strategy: any;
+
+  @Column({ type: 'varchar', nullable: true })
+  @Index()
+  userGroupGuid: string | null;
+
+  @ManyToOne(() => UserGroup, (userGroup) => userGroup.users, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'userGroupGuid' })
+  userGroup: UserGroup | null;
 
   @OneToMany(() => UserToken, (token) => token.user, { cascade: true })
   tokens: UserToken[];

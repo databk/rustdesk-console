@@ -22,6 +22,7 @@ import { OidcAuthRequestDto } from '../dto/oidc.dto';
 import { LoginResponse } from '../../../common/interfaces';
 import { AuthTokenService } from '../../auth/services/auth-token.service';
 import { AuthDeviceService } from '../../auth/services/auth-device.service';
+import { UserGroupService } from '../../user-group/user-group.service';
 
 /**
  * OIDC配置接口
@@ -121,6 +122,7 @@ export class OidcService {
     private authTokenService: AuthTokenService,
     private deviceService: AuthDeviceService,
     private configService: ConfigService,
+    private readonly userGroupService: UserGroupService,
   ) {}
 
   /**
@@ -790,6 +792,7 @@ export class OidcService {
     let finalUsername = username;
     let suffix = 1;
     const maxRetries = 3;
+    const userGroupGuid = await this.userGroupService.resolveUserGroupGuid();
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       // 检查用户名是否已存在
@@ -818,6 +821,7 @@ export class OidcService {
         user.note = `OIDC用户 (${providerName})`;
         user.thirdAuthType = 'oidc';
         user.oidcSubject = oidcSubject;
+        user.userGroupGuid = userGroupGuid;
 
         await this.userRepository.save(user);
         this.logger.log(

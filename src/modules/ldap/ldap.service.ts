@@ -11,6 +11,7 @@ import { Client, SearchOptions } from 'ldapts';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { LdapSettingsService, LdapConfig } from './ldap-settings.service';
 import { TlsOptionsDto } from './dto/ldap-config.dto';
+import { UserGroupService } from '../user-group/user-group.service';
 
 /**
  * LDAP 用户信息接口
@@ -49,6 +50,7 @@ export class LdapService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly ldapSettingsService: LdapSettingsService,
+    private readonly userGroupService: UserGroupService,
   ) {}
 
   /**
@@ -373,6 +375,7 @@ export class LdapService {
     let finalUsername = username;
     let suffix = 1;
     const maxRetries = 3;
+    const userGroupGuid = await this.userGroupService.resolveUserGroupGuid();
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       while (
@@ -401,6 +404,7 @@ export class LdapService {
           : 'LDAP用户';
         user.thirdAuthType = 'ldap';
         user.oidcSubject = ldapSubject;
+        user.userGroupGuid = userGroupGuid;
 
         await this.userRepository.save(user);
         this.logger.log(`LDAP 用户已创建: ${finalUsername}`);

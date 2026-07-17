@@ -29,7 +29,9 @@ export class AdminUserService {
     } = query;
     const skip = (current - 1) * pageSize;
 
-    const queryBuilder = this.userRepository.createQueryBuilder('user');
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userGroup', 'userGroup');
 
     if (status !== undefined) {
       queryBuilder.andWhere('user.status = :status', { status });
@@ -98,6 +100,8 @@ export class AdminUserService {
         strategy_name: u.strategyGuid
           ? strategyMap.get(u.strategyGuid) || ''
           : '',
+        user_group_guid: u.userGroupGuid || '',
+        user_group_name: u.userGroup?.name || '',
         avatar: u.avatar || '',
         created_at: u.createdAt,
         updated_at: u.updatedAt,
