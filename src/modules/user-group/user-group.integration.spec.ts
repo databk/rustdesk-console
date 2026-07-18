@@ -116,6 +116,7 @@ describe('User group integration', () => {
       userRepository,
       permissionService,
       userGroupService,
+      dataSource,
     );
     userService = new UserService(
       userRepository,

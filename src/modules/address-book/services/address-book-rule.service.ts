@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, In, IsNull, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { isUUID } from 'class-validator';
 import { AddressBookRule, AddressBook, ShareRule } from '../entities';
@@ -70,6 +70,7 @@ export class AddressBookRuleService {
 
     private readonly permissionService: AddressBookPermissionService,
     private readonly userGroupService: UserGroupService,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -658,7 +659,11 @@ export class AddressBookRuleService {
     guids: string[],
     userId: string,
   ): Promise<void> {
-    for (const guid of guids) {
+    const uniqueGuids = [...new Set(guids)];
+
+    // 预先验证所有地址簿的存在性和所有权
+    const addressBooks: AddressBook[] = [];
+    for (const guid of uniqueGuids) {
       const addressBook = await this.findSharedAddressBook(guid);
 
       if (!addressBook) {
@@ -670,10 +675,23 @@ export class AddressBookRuleService {
         throw new ForbiddenException(`无权删除地址簿 '${addressBook.name}'`);
       }
 
-      // 删除地址簿及其关联的规则记录
-      await this.addressBookRepository.delete(guid);
-      await this.ruleRepository.delete({ addressBookGuid: guid });
+      addressBooks.push(addressBook);
     }
+
+    if (addressBooks.length === 0) {
+      return;
+    }
+
+    // 在事务中批量删除地址簿及其关联的规则记录
+    const guidsToDelete = addressBooks.map((ab) => ab.guid);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(AddressBookRule).delete({
+        addressBookGuid: In(guidsToDelete),
+      });
+      await manager.getRepository(AddressBook).delete({
+        guid: In(guidsToDelete),
+      });
+    });
   }
 
   /**
