@@ -15,6 +15,7 @@ import {
 import { AddPeerDto, UpdatePeerDto, PeersQueryDto, TagMatchMode } from '../dto';
 import { Sysinfo, Peer } from '../../../common/entities';
 import { mapOsToPlatform } from '../../../common/utils/platform.util';
+import { isIpDevice } from '../../../common/utils/ip.util';
 
 @Injectable()
 /**
@@ -220,13 +221,8 @@ export class AddressBookPeerService {
     }
 
     // 通过客户端发送的 id 查找 peers 表获取 uuid (deviceId)
-    const peerRecord = await this.peerRepository.findOne({
-      where: { id: dto.id },
-    });
-
-    if (!peerRecord) {
-      throw new NotFoundException('设备不存在');
-    }
+    // 对于 IP 格式的设备，如果不在 peers 表中则自动创建记录
+    const peerRecord = await this.findOrCreatePeer(dto.id);
 
     const deviceId = peerRecord.uuid;
 
@@ -300,13 +296,8 @@ export class AddressBookPeerService {
     }
 
     // 通过客户端发送的 id 查找 peers 表获取 uuid (deviceId)
-    const peerRecord = await this.peerRepository.findOne({
-      where: { id: dto.id },
-    });
-
-    if (!peerRecord) {
-      throw new NotFoundException('设备不存在');
-    }
+    // 对于 IP 格式的设备，如果不在 peers 表中则自动创建记录
+    const peerRecord = await this.findOrCreatePeer(dto.id);
 
     const deviceId = peerRecord.uuid;
 
@@ -399,5 +390,39 @@ export class AddressBookPeerService {
     }
 
     return {};
+  }
+
+  /**
+   * 查找或创建设备记录
+   * 在 peers 表中查找指定 id 的设备，如果找不到且 id 为 IP 格式则自动创建
+   *
+   * @param id 设备ID（RustDesk 数字 ID 或 IP 地址）
+   * @returns Peer 记录
+   * @throws NotFoundException 当设备不存在且 id 不为 IP 格式时抛出
+   */
+  private async findOrCreatePeer(id: string): Promise<Peer> {
+    const peerRecord = await this.peerRepository.findOne({
+      where: { id },
+    });
+
+    if (peerRecord) {
+      return peerRecord;
+    }
+
+    // 对于 IP 格式的设备（如 192.168.1.94 或 192.168.1.94:21118），
+    // 自动创建 peer 记录，因为这些设备通过直连 IP 访问，不会通过心跳注册
+    if (isIpDevice(id)) {
+      const newPeer = this.peerRepository.create({
+        uuid: uuidv4(),
+        id,
+        ver: 0,
+        modifiedAt: 0,
+        lastHeartbeat: null,
+      });
+      await this.peerRepository.save(newPeer);
+      return newPeer;
+    }
+
+    throw new NotFoundException('设备不存在');
   }
 }
