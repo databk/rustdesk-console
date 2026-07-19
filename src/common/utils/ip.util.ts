@@ -20,7 +20,6 @@ export function isIpDevice(id: string): boolean {
 
   // IPv4 格式: 包含点号，如 192.168.1.94 或 192.168.1.94:21118
   // 通过正则匹配 IPv4 或 IPv4:port
-  const ipv4WithOptionalPort =
-    /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/;
+  const ipv4WithOptionalPort = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/;
   return ipv4WithOptionalPort.test(id);
 }
