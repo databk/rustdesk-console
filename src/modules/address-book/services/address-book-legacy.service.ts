@@ -91,16 +91,14 @@ export class AddressBookLegacyService {
 
     const sysinfoMap = new Map(sysinfos.map((s) => [s.uuid, s]));
 
-    // 从 peers 表获取设备 ID 映射（deviceId -> RustDesk ID）
-    // 对于通过新 API 添加的设备，deviceId 是 peers.uuid，需要解析为 peers.id
-    // 对于通过旧版 API 添加的设备，deviceId 直接是原始 ID，peers 表中可能无对应记录
+    // 从 peers 表获取设备信息（deviceId 引用 peers.uuid，需要解析为 peers.id）
     const peerRecords =
       deviceIds.length > 0
         ? await this.peerRepository.find({
             where: { uuid: In(deviceIds) },
           })
         : [];
-    const peerMap = new Map(peerRecords.map((p) => [p.uuid, p.id]));
+    const peerMap = new Map(peerRecords.map((p) => [p.uuid, p]));
 
     // 如果地址簿为空，返回 "null"
     if (tags.length === 0 && peers.length === 0) {
@@ -116,10 +114,9 @@ export class AddressBookLegacyService {
     // 构建设备列表
     const peersData = peers.map((p) => {
       const sysinfo = sysinfoMap.get(p.deviceId);
-      // 优先从 peers 表解析 ID，若无记录则使用 deviceId 本身（兼容旧版 API 数据）
-      const resolvedId = peerMap.get(p.deviceId) || p.deviceId;
+      const peerRecord = peerMap.get(p.deviceId);
       return {
-        id: resolvedId,
+        id: peerRecord?.id || '',
         hash: p.hash || '',
         username: sysinfo?.username || '',
         hostname: sysinfo?.hostname || '',
