@@ -60,7 +60,7 @@ export class User {
    * 用户在客户端显示的名称，区别于登录用户名
    */
   @Column({ type: 'varchar', nullable: true })
-  display_name: string | null;
+  displayName: string | null;
 
   /**
    * 邮箱地址
