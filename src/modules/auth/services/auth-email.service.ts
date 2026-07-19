@@ -9,7 +9,7 @@ import { Repository, MoreThan } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../../user/entities/user.entity';
 import { EmailVerificationSession } from '../entities/email-verification-session.entity';
-import { LoginDto } from '../dto/auth.dto';
+import { LoginDto, DeviceInfoDto } from '../dto/auth.dto';
 import { EmailService } from '../../email/email.service';
 import { LoginResponse } from '../../../common/interfaces';
 
@@ -42,10 +42,14 @@ export class AuthEmailService {
    * 生成6位验证码并发送邮件，用于登录的第二步验证
    *
    * @param user 用户对象
+   * @param buildUserPayload 构建用户信息载荷的回调函数
    * @returns 登录响应，包含验证密钥
    * @throws BadRequestException 当邮件发送失败时抛出
    */
-  async initiateEmailVerification(user: User): Promise<LoginResponse> {
+  async initiateEmailVerification(
+    user: User,
+    buildUserPayload: (user: User) => Record<string, unknown>,
+  ): Promise<LoginResponse> {
     if (!user.email) {
       throw new BadRequestException({
         error: '用户未设置邮箱，无法进行邮箱验证',
@@ -98,15 +102,7 @@ export class AuthEmailService {
       type: 'email_check',
       tfa_type: 'email_check',
       secret,
-      user: {
-        name: user.username,
-        email: user.email || undefined,
-        note: user.note || undefined,
-        status: user.status,
-        info: user.getUserInfo(),
-        is_admin: user.isAdmin,
-        third_auth_type: user.thirdAuthType || undefined,
-      },
+      user: buildUserPayload(user) as LoginResponse['user'],
     };
   }
 
@@ -117,6 +113,7 @@ export class AuthEmailService {
    * @param loginDto 登录信息
    * @param generateToken Token生成函数
    * @param createOrUpdateDevice 设备创建/更新函数（可选）
+   * @param buildUserPayload 构建用户信息载荷的回调函数
    * @returns 登录响应
    * @throws BadRequestException 当验证参数不完整时抛出
    * @throws UnauthorizedException 当验证失败或用户状态异常时抛出
@@ -132,8 +129,9 @@ export class AuthEmailService {
       userGuid: string,
       deviceId?: string,
       deviceUuid?: string,
-      deviceInfo?: Record<string, any>,
+      deviceInfo?: DeviceInfoDto,
     ) => Promise<void>,
+    buildUserPayload?: (user: User) => Record<string, unknown>,
   ): Promise<LoginResponse> {
     const { username, verificationCode, secret, id, uuid, deviceInfo } =
       loginDto;
@@ -172,6 +170,7 @@ export class AuthEmailService {
       })
       .addSelect('user.info')
       .addSelect('user.thirdAuthType')
+      .addSelect('user.avatar')
       .getOne();
 
     if (!user || user.guid !== session.userGuid) {
@@ -201,15 +200,17 @@ export class AuthEmailService {
     return {
       access_token: token,
       type: 'access_token',
-      user: {
-        name: user.username,
-        email: user.email || undefined,
-        note: user.note || undefined,
-        status: user.status,
-        info: user.getUserInfo(),
-        is_admin: user.isAdmin,
-        third_auth_type: user.thirdAuthType || undefined,
-      },
+      user: buildUserPayload
+        ? (buildUserPayload(user) as LoginResponse['user'])
+        : {
+            name: user.username,
+            email: user.email || undefined,
+            note: user.note || undefined,
+            status: user.status,
+            info: user.getUserInfo(),
+            is_admin: user.isAdmin,
+            third_auth_type: user.thirdAuthType || undefined,
+          },
     };
   }
 }

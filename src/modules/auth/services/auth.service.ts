@@ -123,7 +123,24 @@ export class AuthService {
     const { username, password, id, uuid, type, tfaCode } = loginDto;
 
     // 处理邮箱验证码登录（第二步）
+    // 兼容 RustDesk 客户端：客户端使用 type: "email_code" + tfaCode 提交 2FA 验证码
+    // 当同时提交 tfaCode 时，走 2FA 验证路径
     if (type === 'email_code') {
+      if (tfaCode) {
+        return this.tfaService.handleTfaLogin(
+          loginDto,
+          (user, deviceId, deviceUuid) =>
+            this.tokenService.generateToken(user, deviceId, deviceUuid),
+          (userGuid, deviceId, deviceUuid, deviceInfo) =>
+            this.deviceService.createOrUpdateDevice(
+              userGuid,
+              deviceId,
+              deviceUuid,
+              deviceInfo,
+            ),
+          (user) => this.buildUserPayload(user),
+        );
+      }
       return this.emailAuthService.handleEmailCodeLogin(
         loginDto,
         (user, deviceId, deviceUuid) =>
@@ -135,6 +152,7 @@ export class AuthService {
             deviceUuid,
             deviceInfo,
           ),
+        (user) => this.buildUserPayload(user),
       );
     }
 
@@ -158,6 +176,7 @@ export class AuthService {
             deviceUuid,
             deviceInfo,
           ),
+        (user) => this.buildUserPayload(user),
       );
     }
 
@@ -269,7 +288,10 @@ export class AuthService {
     // 检查是否需要邮箱验证（用户设置中开启了email_verification）
     const userInfo = user.getUserInfo();
     if (userInfo?.email_verification && user.email) {
-      return this.emailAuthService.initiateEmailVerification(user);
+      return this.emailAuthService.initiateEmailVerification(
+        user,
+        (u) => this.buildUserPayload(u),
+      );
     }
 
     // 检查是否需要双因素认证
@@ -332,6 +354,7 @@ export class AuthService {
   private buildUserPayload(user: User) {
     return {
       name: user.username,
+      display_name: user.display_name || undefined,
       email: user.email || undefined,
       note: user.note || undefined,
       status: user.status,
@@ -369,6 +392,7 @@ export class AuthService {
 
     return {
       name: user.username,
+      display_name: user.display_name || undefined,
       email: user.email || undefined,
       note: user.note || undefined,
       verifier: user.verifier || undefined,

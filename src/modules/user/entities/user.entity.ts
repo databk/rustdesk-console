@@ -56,6 +56,13 @@ export class User {
   username: string;
 
   /**
+   * 显示名称
+   * 用户在客户端显示的名称，区别于登录用户名
+   */
+  @Column({ type: 'varchar', nullable: true })
+  display_name: string | null;
+
+  /**
    * 邮箱地址
    * 用于邮箱验证和通知
    */

@@ -18,6 +18,10 @@ export interface LoginResponse {
   user?: {
     /** 用户名 */
     name: string;
+    /** 显示名称 */
+    display_name?: string;
+    /** 头像 URL */
+    avatar?: string;
     /** 邮箱地址 */
     email?: string;
     /** 用户备注 */

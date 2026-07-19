@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Peer } from '../../../common/entities';
+import { DeviceInfoDto } from '../dto/auth.dto';
 
 @Injectable()
 /**
@@ -35,7 +36,7 @@ export class AuthDeviceService {
     userGuid: string,
     deviceId?: string,
     deviceUuid?: string,
-    _deviceInfo?: Record<string, unknown>,
+    _deviceInfo?: DeviceInfoDto,
   ): Promise<void> {
     if (!deviceUuid) return;
 

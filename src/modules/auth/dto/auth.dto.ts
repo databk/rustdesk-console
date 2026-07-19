@@ -2,10 +2,30 @@ import {
   IsString,
   IsOptional,
   IsBoolean,
-  IsObject,
   IsEmail,
   IsIn,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+/**
+ * DeviceInfoDto
+ * 设备信息数据传输对象
+ * 客户端自动填充，包含操作系统、来源类型和设备名称
+ */
+export class DeviceInfoDto {
+  @IsOptional()
+  @IsString()
+  os?: string; // 操作系统（如 linux, windows, android）
+
+  @IsOptional()
+  @IsString()
+  type?: string; // 来源类型（"client" 表示客户端，"browser" 表示浏览器）
+
+  @IsOptional()
+  @IsString()
+  name?: string; // 设备名称（客户端取自主机名 hostname）
+}
 
 /**
  * LoginDto
@@ -49,8 +69,9 @@ export class LoginDto {
   secret?: string;
 
   @IsOptional()
-  @IsObject()
-  deviceInfo?: Record<string, any>;
+  @ValidateNested()
+  @Type(() => DeviceInfoDto)
+  deviceInfo?: DeviceInfoDto;
 }
 
 /**

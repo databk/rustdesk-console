@@ -9,7 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { authenticator } from 'otplib';
 import { User, UserStatus } from '../../user/entities/user.entity';
-import { LoginDto } from '../dto/auth.dto';
+import { LoginDto, DeviceInfoDto } from '../dto/auth.dto';
 import { LoginResponse } from '../../../common/interfaces';
 
 @Injectable()
@@ -174,8 +174,9 @@ export class AuthTfaService {
       userGuid: string,
       deviceId?: string,
       deviceUuid?: string,
-      deviceInfo?: Record<string, any>,
+      deviceInfo?: DeviceInfoDto,
     ) => Promise<void>,
+    buildUserPayload?: (user: User) => Record<string, unknown>,
   ): Promise<LoginResponse> {
     const { username, tfaCode, secret, id, uuid, deviceInfo } = loginDto;
 
@@ -197,6 +198,7 @@ export class AuthTfaService {
       .addSelect('user.tfaSecret')
       .addSelect('user.info')
       .addSelect('user.thirdAuthType')
+      .addSelect('user.avatar')
       .getOne();
 
     if (!user) {
@@ -222,15 +224,17 @@ export class AuthTfaService {
     return {
       access_token: token,
       type: 'access_token',
-      user: {
-        name: user.username,
-        email: user.email || undefined,
-        note: user.note || undefined,
-        status: user.status,
-        info: user.getUserInfo(),
-        is_admin: user.isAdmin,
-        third_auth_type: user.thirdAuthType || undefined,
-      },
+      user: buildUserPayload
+        ? (buildUserPayload(user) as LoginResponse['user'])
+        : {
+            name: user.username,
+            email: user.email || undefined,
+            note: user.note || undefined,
+            status: user.status,
+            info: user.getUserInfo(),
+            is_admin: user.isAdmin,
+            third_auth_type: user.thirdAuthType || undefined,
+          },
     };
   }
 }
