@@ -10,7 +10,6 @@ import {
 } from '../entities';
 import { Sysinfo, Peer } from '../../../common/entities';
 import { mapOsToPlatform } from '../../../common/utils/platform.util';
-import { isIpDevice } from '../../../common/utils/ip.util';
 
 @Injectable()
 /**
