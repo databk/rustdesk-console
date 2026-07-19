@@ -68,9 +68,10 @@ export class UserService {
         });
 
       if (name) {
-        queryBuilder.andWhere('user.username LIKE :name', {
-          name: `%${name}%`,
-        });
+        queryBuilder.andWhere(
+          '(user.username LIKE :name OR user.displayName LIKE :name)',
+          { name: `%${name}%` },
+        );
       }
 
       if (group_name) {
@@ -118,7 +119,10 @@ export class UserService {
       );
 
     if (name) {
-      queryBuilder.andWhere('user.username LIKE :name', { name: `%${name}%` });
+      queryBuilder.andWhere(
+        '(user.username LIKE :name OR user.displayName LIKE :name)',
+        { name: `%${name}%` },
+      );
     }
 
     if (group_name) {
@@ -145,7 +149,7 @@ export class UserService {
   }
 
   async createUser(dto: CreateUserDto) {
-    const { name, password, email, note } = dto;
+    const { name, password, email, note, display_name } = dto;
     const userGroupGuid = await this.userGroupService.resolveUserGroupGuid(
       dto.user_group_guid,
     );
@@ -169,6 +173,7 @@ export class UserService {
     const user = new User();
     user.guid = uuidv4();
     user.username = name;
+    user.displayName = display_name || null;
     user.email = email || null;
     user.password = await bcrypt.hash(password, 10);
     user.note = note || '';
@@ -182,7 +187,7 @@ export class UserService {
   }
 
   async inviteUser(dto: InviteUserDto) {
-    const { email, name, note } = dto;
+    const { email, name, note, display_name } = dto;
     const userGroupGuid = await this.userGroupService.resolveUserGroupGuid(
       dto.user_group_guid,
     );
@@ -197,6 +202,7 @@ export class UserService {
     const user = new User();
     user.guid = uuidv4();
     user.username = name;
+    user.displayName = display_name || null;
     user.email = email;
     user.password = '';
     user.note = note || '';
@@ -221,6 +227,7 @@ export class UserService {
     return {
       guid: user.guid,
       name: user.username,
+      display_name: user.displayName || '',
       email: user.email || '',
       note: user.note || '',
       status: user.status,
@@ -251,6 +258,10 @@ export class UserService {
         throw new BadRequestException('用户名已存在');
       }
       user.username = dto.name;
+    }
+
+    if (dto.display_name !== undefined) {
+      user.displayName = dto.display_name || null;
     }
 
     if (dto.email !== undefined) {
@@ -288,16 +299,6 @@ export class UserService {
     });
     if (!user) {
       throw new NotFoundException('用户不存在');
-    }
-
-    if (dto.name !== undefined) {
-      const existingUser = await this.userRepository.findOne({
-        where: { username: dto.name },
-      });
-      if (existingUser && existingUser.guid !== userId) {
-        throw new BadRequestException('用户名已存在');
-      }
-      user.username = dto.name;
     }
 
     if (dto.email !== undefined) {
@@ -495,6 +496,7 @@ export class UserService {
     const response: Record<string, unknown> = {
       guid: user.guid,
       name: user.username,
+      display_name: user.displayName || '',
       email: user.email || '',
       note: user.note || '',
       status: user.status,

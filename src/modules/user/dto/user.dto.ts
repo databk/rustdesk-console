@@ -18,6 +18,10 @@ export class CreateUserDto {
   name: string;
 
   @IsString()
+  @IsOptional()
+  display_name?: string;
+
+  @IsString()
   password: string;
 
   @IsString()
@@ -46,6 +50,10 @@ export class InviteUserDto {
 
   @IsString()
   @IsOptional()
+  display_name?: string;
+
+  @IsString()
+  @IsOptional()
   group_name?: string;
 
   @IsUUID('4')
@@ -61,6 +69,10 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   name?: string;
+
+  @IsString()
+  @IsOptional()
+  display_name?: string;
 
   @IsString()
   @IsOptional()
@@ -90,10 +102,6 @@ export class UpdateUserSecurityDto {
 }
 
 export class UpdateCurrentUserDto {
-  @IsString()
-  @IsOptional()
-  name?: string;
-
   @IsString()
   @IsOptional()
   email?: string;

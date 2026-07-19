@@ -38,7 +38,10 @@ export class AdminUserService {
     }
 
     if (name) {
-      queryBuilder.andWhere('user.username LIKE :name', { name: `%${name}%` });
+      queryBuilder.andWhere(
+        '(user.username LIKE :name OR user.displayName LIKE :name)',
+        { name: `%${name}%` },
+      );
     }
 
     if (email) {
@@ -91,6 +94,7 @@ export class AdminUserService {
       data: users.map((u) => ({
         guid: u.guid,
         name: u.username,
+        display_name: u.displayName || '',
         email: u.email || '',
         note: u.note || '',
         status: u.status,
