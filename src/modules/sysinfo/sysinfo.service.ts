@@ -41,69 +41,57 @@ export class SysinfoService {
   ) {}
 
   /**
-   * 创建或更新系统信息
-   * 接收设备上报的系统信息，存储或更新到数据库
+   * 更新系统信息
+   * 接收设备上报的系统信息，更新到数据库
+   * 仅更新已存在的设备记录，不自动创建新记录
    *
    * @param sysinfoDto 系统信息数据
-   * @returns 保存的系统信息记录
+   * @returns 更新结果，found 为 false 表示设备 ID 不存在
    */
-  async createSysinfo(sysinfoDto: SysinfoDto): Promise<Sysinfo> {
+  async createSysinfo(
+    sysinfoDto: SysinfoDto,
+  ): Promise<{ found: boolean; sysinfo?: Sysinfo }> {
     // 根据uuid查找是否已存在记录
     const existingSysinfo = await this.sysinfoRepository.findOne({
       where: { uuid: sysinfoDto.uuid },
     });
 
-    let sysinfo: Sysinfo;
-
-    if (existingSysinfo) {
-      // 已存在，更新记录
-      this.logger.debug(`设备 ${sysinfoDto.uuid} 已存在，更新系统信息`);
-
-      // 更新字段（只更新有值的字段）
-      if (sysinfoDto.hostname !== undefined)
-        existingSysinfo.hostname = sysinfoDto.hostname;
-      if (sysinfoDto.username !== undefined)
-        existingSysinfo.username = sysinfoDto.username;
-      if (sysinfoDto.os !== undefined) existingSysinfo.os = sysinfoDto.os;
-      if (sysinfoDto.cpu !== undefined) existingSysinfo.cpu = sysinfoDto.cpu;
-      if (sysinfoDto.memory !== undefined)
-        existingSysinfo.memory = sysinfoDto.memory;
-
-      // 更新预设字段（如果提供了新值）
-      if (sysinfoDto['preset-username']) {
-        existingSysinfo.presetUsername = sysinfoDto['preset-username'];
-      }
-      if (sysinfoDto['preset-strategy-name']) {
-        existingSysinfo.presetStrategyName = sysinfoDto['preset-strategy-name'];
-      }
-      if (sysinfoDto['preset-device-group-name']) {
-        existingSysinfo.presetDeviceGroupName =
-          sysinfoDto['preset-device-group-name'];
-      }
-
-      sysinfo = existingSysinfo;
-    } else {
-      // 不存在，创建新记录
-      this.logger.debug(`设备 ${sysinfoDto.uuid} 不存在，创建新系统信息`);
-      sysinfo = this.sysinfoRepository.create({
-        uuid: sysinfoDto.uuid,
-        hostname: sysinfoDto.hostname,
-        username: sysinfoDto.username,
-        os: sysinfoDto.os,
-        cpu: sysinfoDto.cpu,
-        memory: sysinfoDto.memory,
-        presetUsername: sysinfoDto['preset-username'],
-        presetStrategyName: sysinfoDto['preset-strategy-name'],
-        presetDeviceGroupName: sysinfoDto['preset-device-group-name'],
-      });
+    if (!existingSysinfo) {
+      this.logger.debug(`设备 ${sysinfoDto.uuid} 不存在，返回 ID_NOT_FOUND`);
+      return { found: false };
     }
 
-    const savedSysinfo = await this.sysinfoRepository.save(sysinfo);
+    // 已存在，更新记录
+    this.logger.debug(`设备 ${sysinfoDto.uuid} 已存在，更新系统信息`);
+
+    // 更新字段（只更新有值的字段）
+    if (sysinfoDto.hostname !== undefined)
+      existingSysinfo.hostname = sysinfoDto.hostname;
+    if (sysinfoDto.username !== undefined)
+      existingSysinfo.username = sysinfoDto.username;
+    if (sysinfoDto.os !== undefined) existingSysinfo.os = sysinfoDto.os;
+    if (sysinfoDto.cpu !== undefined) existingSysinfo.cpu = sysinfoDto.cpu;
+    if (sysinfoDto.memory !== undefined)
+      existingSysinfo.memory = sysinfoDto.memory;
+
+    // 更新预设字段（如果提供了新值）
+    if (sysinfoDto['preset-username']) {
+      existingSysinfo.presetUsername = sysinfoDto['preset-username'];
+    }
+    if (sysinfoDto['preset-strategy-name']) {
+      existingSysinfo.presetStrategyName = sysinfoDto['preset-strategy-name'];
+    }
+    if (sysinfoDto['preset-device-group-name']) {
+      existingSysinfo.presetDeviceGroupName =
+        sysinfoDto['preset-device-group-name'];
+    }
+
+    const savedSysinfo = await this.sysinfoRepository.save(existingSysinfo);
 
     // 处理预设功能
     await this.processPresetSettings(savedSysinfo, sysinfoDto);
 
-    return savedSysinfo;
+    return { found: true, sysinfo: savedSysinfo };
   }
 
   /**
