@@ -12,7 +12,7 @@ export interface LoginResponse {
   type: string;
   /** 双因素认证类型，仅在需要TFA时返回 */
   tfa_type?: string;
-  /** TFA密钥，仅在需要TFA时返回 */
+  /** 登录会话标识符（UUID），由服务端在需要二次验证时返回，客户端在后续请求中回传，用于跟踪一次登录 */
   secret?: string;
   /** 用户信息 */
   user?: {

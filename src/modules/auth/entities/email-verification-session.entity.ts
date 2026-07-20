@@ -8,8 +8,12 @@ import {
 } from 'typeorm';
 
 /**
- * 邮箱验证会话实体
- * 管理邮箱验证的临时会话
+ * 登录验证会话实体
+ * 管理登录二次验证（邮箱验证码 / TFA）的临时会话
+ *
+ * 安全说明：
+ * secret 字段是服务端生成的 UUID 会话标识符，仅用于跟踪一次登录，
+ * 绝不是 TFA 密钥本身。TFA 密钥始终保留在服务端，不会返回给客户端。
  */
 @Entity('email_verification_sessions')
 export class EmailVerificationSession {
@@ -22,7 +26,8 @@ export class EmailVerificationSession {
 
   /**
    * 会话密钥
-   * 用于关联验证请求的唯一密钥
+   * 服务端生成的 UUID，用于关联两次登录请求（发起验证 / 提交验证码）
+   * 注意：此字段不是 TFA 密钥，仅为一次性会话标识符
    */
   @Column({ unique: true })
   @Index()
@@ -37,18 +42,26 @@ export class EmailVerificationSession {
   userGuid: string;
 
   /**
-   * 邮箱地址
-   * 待验证的邮箱地址
+   * 验证方式
+   * 'email' - 邮箱验证码登录
+   * 'tfa' - 双因素认证登录
    */
-  @Column()
-  email: string;
+  @Column({ default: 'email' })
+  method: 'email' | 'tfa';
+
+  /**
+   * 邮箱地址
+   * 待验证的邮箱地址（仅邮箱验证方式使用，TFA 方式可空）
+   */
+  @Column({ nullable: true })
+  email?: string;
 
   /**
    * 验证码
-   * 发送到邮箱的验证码
+   * 发送到邮箱的验证码（仅邮箱验证方式使用，TFA 方式可空）
    */
-  @Column()
-  code: string;
+  @Column({ nullable: true })
+  code?: string;
 
   /**
    * 过期时间

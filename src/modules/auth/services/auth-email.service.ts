@@ -79,6 +79,7 @@ export class AuthEmailService {
       guid: uuidv4(),
       secret,
       userGuid: user.guid,
+      method: 'email',
       email: user.email,
       code,
       expiresAt,
@@ -141,10 +142,11 @@ export class AuthEmailService {
       throw new BadRequestException({ error: '验证参数不完整' });
     }
 
-    // 查找验证会话
+    // 查找验证会话（仅匹配邮箱验证方式，避免与 TFA 会话混淆）
     const session = await this.verificationSessionRepository.findOne({
       where: {
         secret,
+        method: 'email',
         used: false,
         expiresAt: MoreThan(new Date()),
       },
