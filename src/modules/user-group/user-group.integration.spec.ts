@@ -124,11 +124,13 @@ describe('User group integration', () => {
     userService = new UserService(
       userRepository,
       dataSource.getRepository(UserToken),
-      { save: async () => ({}) } as unknown as Repository<Invitation>,
+      { save: () => ({}) } as unknown as Repository<Invitation>,
       {} as Repository<DeviceGroupUserPermission>,
       {} as Repository<UserUserPermission>,
       userGroupService,
-      { sendInvitation: async () => true } as unknown as EmailService,
+      {
+        sendInvitation: () => Promise.resolve(true),
+      } as unknown as EmailService,
       { get: () => 'http://localhost:3000' } as unknown as ConfigService,
     );
   });
