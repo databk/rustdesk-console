@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  ParseArrayPipe,
 } from '@nestjs/common';
 import { AdminGuard } from '../../../common/guards/admin.guard';
 import { OidcAdminService } from '../services/oidc-admin.service';
@@ -18,7 +19,6 @@ import {
   UpdateOidcProviderDto,
   ToggleOidcProviderDto,
   OidcProviderQueryDto,
-  SortOidcProvidersDto,
 } from '../dto/oidc-provider.dto';
 
 @Controller('oidc-providers')
@@ -44,8 +44,11 @@ export class OidcAdminController {
 
   @Patch('sort')
   @HttpCode(HttpStatus.OK)
-  async sort(@Body() dto: SortOidcProvidersDto) {
-    await this.oidcAdminService.sort(dto.guids);
+  async sort(
+    @Body(new ParseArrayPipe({ items: String, disableErrorMessages: false }))
+    guids: string[],
+  ) {
+    await this.oidcAdminService.sort(guids);
     return { message: 'OIDC 提供商排序已更新' };
   }
 
