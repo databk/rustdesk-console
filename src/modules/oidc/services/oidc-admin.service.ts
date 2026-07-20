@@ -153,6 +153,12 @@ export class OidcAdminService {
   }
 
   async sort(guids: string[]): Promise<void> {
+    const MAX_SORT_ITEMS = 100;
+    if (guids.length > MAX_SORT_ITEMS) {
+      throw new BadRequestException(
+        `排序项目不能超过 ${MAX_SORT_ITEMS} 个`,
+      );
+    }
     for (let i = 0; i < guids.length; i++) {
       await this.providerRepository.update(
         { guid: guids[i] },
