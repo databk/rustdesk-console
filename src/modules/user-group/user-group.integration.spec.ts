@@ -36,8 +36,11 @@ import { OidcService } from '../oidc/services/oidc.service';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { CreateUserDto, UserQueryDto } from '../user/dto/user.dto';
 import { UserToken } from '../user/entities/user-token.entity';
+import { Invitation } from '../user/entities/invitation.entity';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { UserService } from '../user/user.service';
+import { EmailService } from '../email/email.service';
+import { ConfigService } from '@nestjs/config';
 import { UserGroupMembersDto, UserGroupQueryDto } from './dto/user-group.dto';
 import { UserGroup } from './entities/user-group.entity';
 import { UserGroupController } from './user-group.controller';
@@ -121,9 +124,12 @@ describe('User group integration', () => {
     userService = new UserService(
       userRepository,
       dataSource.getRepository(UserToken),
+      { save: async () => ({}) } as unknown as Repository<Invitation>,
       {} as Repository<DeviceGroupUserPermission>,
       {} as Repository<UserUserPermission>,
       userGroupService,
+      { sendInvitation: async () => true } as unknown as EmailService,
+      { get: () => 'http://localhost:3000' } as unknown as ConfigService,
     );
   });
 

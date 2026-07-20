@@ -9,6 +9,7 @@ import {
   IsInt,
   MinLength,
   IsUUID,
+  IsEmail,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { UserStatus } from '../entities/user.entity';
@@ -42,7 +43,7 @@ export class CreateUserDto {
 }
 
 export class InviteUserDto {
-  @IsString()
+  @IsEmail()
   email: string;
 
   @IsString()
@@ -63,6 +64,20 @@ export class InviteUserDto {
   @IsString()
   @IsOptional()
   note?: string;
+}
+
+export class AcceptInvitationDto {
+  @IsString()
+  token: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+
+export class VerifyInvitationDto {
+  @IsString()
+  token: string;
 }
 
 export class UpdateUserDto {

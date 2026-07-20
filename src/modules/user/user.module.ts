@@ -7,6 +7,7 @@ import { UserService } from './user.service';
 import { AdminUserService } from './admin-user.service';
 import { User } from './entities/user.entity';
 import { UserToken } from './entities/user-token.entity';
+import { Invitation } from './entities/invitation.entity';
 import { Peer, Sysinfo } from '../../common/entities';
 import { AuthModule } from '../auth/auth.module';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
@@ -14,12 +15,14 @@ import { DeviceGroupUserPermission } from '../device-group/entities/device-group
 import { UserUserPermission } from '../device-group/entities/user-user-permission.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { UserGroupModule } from '../user-group/user-group.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       User,
       UserToken,
+      Invitation,
       Peer,
       Sysinfo,
       DeviceGroup,
@@ -29,6 +32,7 @@ import { UserGroupModule } from '../user-group/user-group.module';
     ]),
     AuthModule,
     UserGroupModule,
+    EmailModule,
   ],
   controllers: [UserController, AvatarController, AdminUserController],
   providers: [UserService, AdminUserService],

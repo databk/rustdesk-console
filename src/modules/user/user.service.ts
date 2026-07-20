@@ -2,21 +2,26 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import * as crypto from 'crypto';
 import sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
 import { User, UserStatus, UserInfo } from './entities/user.entity';
 import { UserToken } from './entities/user-token.entity';
+import { Invitation } from './entities/invitation.entity';
 import { DeviceGroupUserPermission } from '../device-group/entities/device-group-user-permission.entity';
 import { UserUserPermission } from '../device-group/entities/user-user-permission.entity';
 import {
   CreateUserDto,
   InviteUserDto,
+  AcceptInvitationDto,
   UpdateUserDto,
   UpdateUserSecurityDto,
   UpdateCurrentUserDto,
@@ -25,24 +30,34 @@ import {
   ChangePasswordDto,
 } from './dto/user.dto';
 import { UserGroupService } from '../user-group/user-group.service';
+import { EmailService } from '../email/email.service';
 
 const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
 const AVATAR_SIZE = 256;
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
+const INVITATION_EXPIRY_DAYS = 7;
+const INVITATION_TOKEN_BYTES = 32;
+
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(UserToken)
     private userTokenRepository: Repository<UserToken>,
+    @InjectRepository(Invitation)
+    private invitationRepository: Repository<Invitation>,
     @InjectRepository(DeviceGroupUserPermission)
     private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
     @InjectRepository(UserUserPermission)
     private userUserPermissionRepository: Repository<UserUserPermission>,
     private readonly userGroupService: UserGroupService,
+    private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   async getAccessibleUsers(
@@ -199,6 +214,14 @@ export class UserService {
       throw new BadRequestException('邮箱已存在');
     }
 
+    const existingUsername = await this.userRepository.findOne({
+      where: { username: name },
+    });
+    if (existingUsername) {
+      throw new BadRequestException('用户名已存在');
+    }
+
+    // 创建用户（UNVERIFIED 状态，空密码）
     const user = new User();
     user.guid = uuidv4();
     user.username = name;
@@ -212,7 +235,128 @@ export class UserService {
 
     await this.userRepository.save(user);
 
-    return { message: '邀请发送成功' };
+    // 生成邀请令牌
+    const token = crypto.randomBytes(INVITATION_TOKEN_BYTES).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + INVITATION_EXPIRY_DAYS);
+
+    // 保存邀请记录
+    const invitation = new Invitation();
+    invitation.guid = uuidv4();
+    invitation.token = token;
+    invitation.email = email;
+    invitation.name = name;
+    invitation.displayName = display_name || null;
+    invitation.userGroupGuid = userGroupGuid;
+    invitation.note = note || null;
+    invitation.userGuid = user.guid;
+    invitation.expiresAt = expiresAt;
+    invitation.usedAt = null;
+
+    await this.invitationRepository.save(invitation);
+
+    // 发送邀请邮件
+    const consoleUrl = this.configService.get<string>(
+      'CONSOLE_URL',
+      this.configService.get<string>(
+        'OIDC_REDIRECT_URI',
+        'http://localhost:3000',
+      ),
+    );
+    const inviteUrl = `${consoleUrl}/#/invite?token=${token}`;
+    const emailSent = await this.emailService.sendInvitation(
+      email,
+      inviteUrl,
+      `${INVITATION_EXPIRY_DAYS}天`,
+    );
+
+    if (!emailSent) {
+      this.logger.warn(
+        `邀请邮件发送失败，但用户已创建: ${email}。邀请令牌: ${token}`,
+      );
+    }
+
+    return {
+      message: emailSent ? '邀请发送成功' : '用户已创建，但邀请邮件发送失败，请检查SMTP配置',
+      token: emailSent ? undefined : token,
+    };
+  }
+
+  /**
+   * 验证邀请令牌
+   * 返回邀请信息，用于前端展示邀请页面
+   */
+  async verifyInvitation(token: string) {
+    const invitation = await this.invitationRepository.findOne({
+      where: { token },
+    });
+
+    if (!invitation) {
+      throw new BadRequestException('邀请令牌无效');
+    }
+
+    if (invitation.usedAt) {
+      throw new BadRequestException('邀请已被使用');
+    }
+
+    if (new Date() > invitation.expiresAt) {
+      throw new BadRequestException('邀请已过期');
+    }
+
+    return {
+      name: invitation.name,
+      display_name: invitation.displayName || '',
+      email: invitation.email,
+    };
+  }
+
+  /**
+   * 接受邀请
+   * 验证令牌、设置密码、激活用户
+   */
+  async acceptInvitation(dto: AcceptInvitationDto) {
+    const invitation = await this.invitationRepository.findOne({
+      where: { token: dto.token },
+    });
+
+    if (!invitation) {
+      throw new BadRequestException('邀请令牌无效');
+    }
+
+    if (invitation.usedAt) {
+      throw new BadRequestException('邀请已被使用');
+    }
+
+    if (new Date() > invitation.expiresAt) {
+      throw new BadRequestException('邀请已过期');
+    }
+
+    // 查找关联用户
+    if (!invitation.userGuid) {
+      throw new NotFoundException('邀请未关联用户');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { guid: invitation.userGuid },
+    });
+
+    if (!user) {
+      throw new NotFoundException('关联用户不存在');
+    }
+
+    // 设置密码并激活用户
+    user.password = await bcrypt.hash(dto.password, 10);
+    user.status = UserStatus.ACTIVE;
+
+    await this.userRepository.save(user);
+
+    // 标记邀请已使用
+    invitation.usedAt = new Date();
+    await this.invitationRepository.save(invitation);
+
+    this.logger.log(`用户 ${user.username} 已通过邀请激活`);
+
+    return { message: '账户已激活，请登录' };
   }
 
   async getUser(guid: string) {

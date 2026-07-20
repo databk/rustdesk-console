@@ -19,9 +19,12 @@ import { Throttle } from '@nestjs/throttler';
 import { UserService } from './user.service';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import {
   CreateUserDto,
   InviteUserDto,
+  AcceptInvitationDto,
+  VerifyInvitationDto,
   UpdateUserDto,
   UpdateUserSecurityDto,
   UpdateCurrentUserDto,
@@ -99,6 +102,20 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   async inviteUser(@Body() dto: InviteUserDto) {
     return this.userService.inviteUser(dto);
+  }
+
+  @Public()
+  @Post('invitations/verify')
+  @HttpCode(HttpStatus.OK)
+  async verifyInvitation(@Body() dto: VerifyInvitationDto) {
+    return this.userService.verifyInvitation(dto.token);
+  }
+
+  @Public()
+  @Post('invitations/accept')
+  @HttpCode(HttpStatus.OK)
+  async acceptInvitation(@Body() dto: AcceptInvitationDto) {
+    return this.userService.acceptInvitation(dto);
   }
 
   @Patch('users/batch/status')

@@ -68,6 +68,52 @@ export class EmailService {
   }
 
   /**
+   * 发送邀请邮件
+   */
+  async sendInvitation(
+    email: string,
+    inviteUrl: string,
+    expiresIn: string = '7天',
+  ): Promise<boolean> {
+    try {
+      const config = await this.smtpSettingsService.getActiveConfig();
+      if (!config) {
+        this.logger.warn('SMTP 未配置或未启用，无法发送邀请邮件');
+        return false;
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        ...(config.user || config.pass
+          ? { auth: { user: config.user, pass: config.pass } }
+          : {}),
+      });
+
+      const html = await this.renderTemplate('invitation', {
+        serviceName: 'RustDesk Console',
+        inviteUrl,
+        expiresIn,
+      });
+
+      await transporter.sendMail({
+        from: config.from,
+        to: email,
+        subject: '邀请加入 RustDesk Console',
+        html,
+      });
+
+      transporter.close();
+      this.logger.log(`邀请邮件已发送至: ${email}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`发送邀请邮件失败: ${email}`, error);
+      return false;
+    }
+  }
+
+  /**
    * 渲染 Handlebars 邮件模板
    */
   private async renderTemplate(
