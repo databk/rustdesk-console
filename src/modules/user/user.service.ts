@@ -277,7 +277,9 @@ export class UserService {
     }
 
     return {
-      message: emailSent ? '邀请发送成功' : '用户已创建，但邀请邮件发送失败，请检查SMTP配置',
+      message: emailSent
+        ? '邀请发送成功'
+        : '用户已创建，但邀请邮件发送失败，请检查SMTP配置',
       token: emailSent ? undefined : token,
     };
   }

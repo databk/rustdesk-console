@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  UseGuards,
-  Header,
-} from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Header } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { SysinfoService } from './sysinfo.service';
 import { SysinfoDto } from './dto/sysinfo.dto';
@@ -43,9 +37,7 @@ export class SysinfoController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('sysinfo')
   @Header('Content-Type', 'text/plain')
-  async submitSysInfo(
-    @Body() sysinfoDto: SysinfoDto,
-  ): Promise<string> {
+  async submitSysInfo(@Body() sysinfoDto: SysinfoDto): Promise<string> {
     const result = await this.sysinfoService.createSysinfo(sysinfoDto);
     return result.found ? 'SYSINFO_UPDATED' : 'ID_NOT_FOUND';
   }
