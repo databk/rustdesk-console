@@ -91,7 +91,6 @@ export class OidcAdminService {
     provider.userinfoEndpoint = (dto.userinfoEndpoint || null) as string;
     provider.jwksUri = (dto.jwksUri || null) as string;
     provider.enabled = dto.enabled !== undefined ? dto.enabled : true;
-    provider.priority = dto.priority || 0;
 
     await this.providerRepository.save(provider);
     this.logger.log(`OIDC 提供商创建成功: ${dto.name}`);
