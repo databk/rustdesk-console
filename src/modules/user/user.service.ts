@@ -288,6 +288,12 @@ export class UserService {
       user.isAdmin = dto.is_admin;
     }
 
+    if (dto.user_group_guid !== undefined) {
+      user.userGroupGuid = await this.userGroupService.resolveUserGroupGuid(
+        dto.user_group_guid,
+      );
+    }
+
     await this.userRepository.save(user);
 
     return { message: '用户已更新' };
