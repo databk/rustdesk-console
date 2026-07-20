@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
+import { promises as fs, type StatsFs } from 'fs';
+import * as os from 'os';
 import * as si from 'systeminformation';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
@@ -14,6 +16,7 @@ import {
   DashboardStatisticsDto,
   DashboardTrendsDto,
   DashboardRealtimeDto,
+  SystemStatusDto,
 } from './dto/dashboard-overview.dto';
 
 /**
@@ -612,49 +615,56 @@ export class DashboardService {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 
-  /**
-   * 获取系统状态
-   * 使用 systeminformation 库获取真实的系统监控数据
-   *
-   * 注意: 在 Docker 容器中运行时:
-   * - 默认只能获取容器内的资源使用情况
-   * - 如需获取宿主机信息,需要挂载 /proc 和 /sys 文件系统
-   * - Docker 运行示例: docker run -v /proc:/host/proc:ro -v /sys:/host/sys:ro
-   */
-  private async getSystemStatus() {
+  private async getSystemStatus(): Promise<SystemStatusDto> {
+    const databasePath = process.env.DB_PATH || 'rustdesk-console.db';
+    const [cpuResult, memoryResult, filesystemResult] =
+      await Promise.allSettled([
+        si.currentLoad(),
+        si.mem(),
+        fs.statfs(databasePath),
+      ] as const);
+
+    return {
+      cpu:
+        cpuResult.status === 'fulfilled'
+          ? this.roundPercentage(cpuResult.value.currentLoad)
+          : null,
+      memory:
+        memoryResult.status === 'fulfilled' && memoryResult.value.total > 0
+          ? this.roundPercentage(
+              ((memoryResult.value.total - memoryResult.value.available) /
+                memoryResult.value.total) *
+                100,
+            )
+          : null,
+      disk:
+        filesystemResult.status === 'fulfilled'
+          ? this.getDiskUsage(filesystemResult.value)
+          : null,
+      uptime: this.getSystemUptime(),
+    };
+  }
+
+  private getDiskUsage(filesystem: StatsFs): number | null {
+    if (filesystem.blocks <= 0) return null;
+
+    return this.roundPercentage(
+      ((filesystem.blocks - filesystem.bfree) / filesystem.blocks) * 100,
+    );
+  }
+
+  private roundPercentage(value: number | undefined): number | null {
+    if (value === undefined || !Number.isFinite(value)) return null;
+
+    return Math.round(Math.min(100, Math.max(0, value)) * 10) / 10;
+  }
+
+  private getSystemUptime(): number | null {
     try {
-      // 获取 CPU 当前使用率
-      const cpuData = await si.currentLoad();
-      const cpu = Math.round(cpuData.currentLoad * 10) / 10;
-
-      // 获取内存使用情况
-      const memData = await si.mem();
-      const memory = Math.round((memData.used / memData.total) * 1000) / 10;
-
-      // 获取磁盘使用情况（第一个磁盘）
-      const fsData = await si.fsSize();
-      let disk = 0;
-      if (fsData && fsData.length > 0) {
-        disk = Math.round(fsData[0].use * 10) / 10;
-      }
-
-      // 系统运行时间（秒）
-      const uptime = process.uptime();
-
-      return {
-        cpu,
-        memory,
-        disk,
-        uptime,
-      };
+      const uptime = os.uptime();
+      return Number.isFinite(uptime) && uptime >= 0 ? Math.floor(uptime) : null;
     } catch {
-      // 如果获取失败，返回默认值
-      return {
-        cpu: 0,
-        memory: 0,
-        disk: 0,
-        uptime: process.uptime(),
-      };
+      return null;
     }
   }
 }

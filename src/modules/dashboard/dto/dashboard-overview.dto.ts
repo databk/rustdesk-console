@@ -178,10 +178,10 @@ export class RecentEventDto {
  * 系统状态 DTO
  */
 export class SystemStatusDto {
-  cpu: number;
-  memory: number;
-  disk: number;
-  uptime: number;
+  cpu: number | null;
+  memory: number | null;
+  disk: number | null;
+  uptime: number | null;
 }
 
 /**

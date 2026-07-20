@@ -4,6 +4,8 @@ import { SystemSetting } from './entities/system-setting.entity';
 import { SettingsController } from './settings.controller';
 import { SmtpSettingsService } from './services/smtp-settings.service';
 import { AuditSettingsService } from './services/audit-settings.service';
+import { GeneralSettingsController } from './general-settings.controller';
+import { GeneralSettingsService } from './services/general-settings.service';
 
 /**
  * 系统设置模块
@@ -17,8 +19,12 @@ import { AuditSettingsService } from './services/audit-settings.service';
  */
 @Module({
   imports: [TypeOrmModule.forFeature([SystemSetting])],
-  controllers: [SettingsController],
-  providers: [SmtpSettingsService, AuditSettingsService],
+  controllers: [SettingsController, GeneralSettingsController],
+  providers: [
+    SmtpSettingsService,
+    AuditSettingsService,
+    GeneralSettingsService,
+  ],
   exports: [SmtpSettingsService, AuditSettingsService],
 })
 export class SettingsModule {}
