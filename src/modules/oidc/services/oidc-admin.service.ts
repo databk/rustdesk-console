@@ -153,17 +153,26 @@ export class OidcAdminService {
   }
 
   async sort(guids: string[]): Promise<void> {
-    const MAX_SORT_ITEMS = 100;
-    if (guids.length > MAX_SORT_ITEMS) {
+    const existingProviders = await this.providerRepository.find({
+      where: guids.map((guid) => ({ guid })),
+    });
+
+    if (existingProviders.length !== guids.length) {
+      const existingGuids = new Set(existingProviders.map((p) => p.guid));
+      const invalidGuids = guids.filter((g) => !existingGuids.has(g));
       throw new BadRequestException(
-        `排序项目不能超过 ${MAX_SORT_ITEMS} 个`,
+        `以下 OIDC 提供商不存在: ${invalidGuids.join(', ')}`,
       );
     }
-    for (let i = 0; i < guids.length; i++) {
-      await this.providerRepository.update(
-        { guid: guids[i] },
-        { priority: i },
-      );
+
+    for (const provider of existingProviders) {
+      const priority = guids.indexOf(provider.guid);
+      if (provider.priority !== priority) {
+        await this.providerRepository.update(
+          { guid: provider.guid },
+          { priority },
+        );
+      }
     }
     this.logger.log(`OIDC 提供商排序已更新`);
   }
