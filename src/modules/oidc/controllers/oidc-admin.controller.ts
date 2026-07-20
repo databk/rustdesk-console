@@ -18,6 +18,7 @@ import {
   UpdateOidcProviderDto,
   ToggleOidcProviderDto,
   OidcProviderQueryDto,
+  SortOidcProvidersDto,
 } from '../dto/oidc-provider.dto';
 
 @Controller('oidc-providers')
@@ -39,6 +40,13 @@ export class OidcAdminController {
   @HttpCode(HttpStatus.OK)
   async create(@Body() dto: CreateOidcProviderDto) {
     return this.oidcAdminService.create(dto);
+  }
+
+  @Patch('sort')
+  @HttpCode(HttpStatus.OK)
+  async sort(@Body() dto: SortOidcProvidersDto) {
+    await this.oidcAdminService.sort(dto.guids);
+    return { message: 'OIDC 提供商排序已更新' };
   }
 
   @Patch(':guid')

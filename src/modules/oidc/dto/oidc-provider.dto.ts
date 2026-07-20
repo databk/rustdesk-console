@@ -8,6 +8,7 @@ import {
   Min,
   IsUrl,
   IsEnum,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { OidcProviderType } from '../entities/oidc-provider.entity';
@@ -119,10 +120,13 @@ export class UpdateOidcProviderDto {
   @IsBoolean()
   @IsOptional()
   enabled?: boolean;
+}
 
-  @IsNumber()
-  @IsOptional()
-  priority?: number;
+export class SortOidcProvidersDto {
+  @IsArray()
+  @IsNotEmpty()
+  @IsString({ each: true })
+  guids: string[];
 }
 
 export class ToggleOidcProviderDto {

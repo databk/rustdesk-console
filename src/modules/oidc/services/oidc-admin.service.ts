@@ -139,7 +139,6 @@ export class OidcAdminService {
       }),
       ...(dto.jwksUri !== undefined && { jwksUri: dto.jwksUri }),
       ...(dto.enabled !== undefined && { enabled: dto.enabled }),
-      ...(dto.priority !== undefined && { priority: dto.priority }),
     });
 
     await this.providerRepository.save(provider);
@@ -151,6 +150,16 @@ export class OidcAdminService {
 
     this.logger.log(`OIDC 提供商更新成功: ${provider.name}`);
     return provider;
+  }
+
+  async sort(guids: string[]): Promise<void> {
+    for (let i = 0; i < guids.length; i++) {
+      await this.providerRepository.update(
+        { guid: guids[i] },
+        { priority: i },
+      );
+    }
+    this.logger.log(`OIDC 提供商排序已更新`);
   }
 
   async remove(guid: string): Promise<void> {
