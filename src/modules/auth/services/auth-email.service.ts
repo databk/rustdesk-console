@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../../user/entities/user.entity';
-import { EmailVerificationSession } from '../entities/email-verification-session.entity';
+import { LoginSession } from '../entities/login-session.entity';
 import { LoginDto, DeviceInfoDto } from '../dto/auth.dto';
 import { EmailService } from '../../email/email.service';
 import { LoginResponse } from '../../../common/interfaces';
@@ -30,8 +30,8 @@ export class AuthEmailService {
   private readonly VERIFICATION_CODE_EXPIRY_MINUTES = 5;
 
   constructor(
-    @InjectRepository(EmailVerificationSession)
-    private verificationSessionRepository: Repository<EmailVerificationSession>,
+    @InjectRepository(LoginSession)
+    private loginSessionRepository: Repository<LoginSession>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private emailService: EmailService,
@@ -43,7 +43,7 @@ export class AuthEmailService {
    *
    * @param user 用户对象
    * @param buildUserPayload 构建用户信息载荷的回调函数
-   * @returns 登录响应，包含验证密钥
+   * @returns 登录响应，包含会话标识符 secret（实际为 guid）
    * @throws BadRequestException 当邮件发送失败时抛出
    */
   async initiateEmailVerification(
@@ -59,8 +59,8 @@ export class AuthEmailService {
     // 生成6位随机验证码
     const code = Math.random().toString().slice(-6);
 
-    // 生成secret（用于关联两次请求）
-    const secret = uuidv4();
+    // 生成会话 guid（返回给客户端作为会话标识符）
+    const guid = uuidv4();
 
     // 计算过期时间
     const expiresAt = new Date();
@@ -69,15 +69,14 @@ export class AuthEmailService {
     );
 
     // 删除该用户之前的验证会话
-    await this.verificationSessionRepository.delete({
+    await this.loginSessionRepository.delete({
       userGuid: user.guid,
       used: false,
     });
 
     // 创建验证会话
-    const session = this.verificationSessionRepository.create({
-      guid: uuidv4(),
-      secret,
+    const session = this.loginSessionRepository.create({
+      guid,
       userGuid: user.guid,
       method: 'email',
       email: user.email,
@@ -85,7 +84,7 @@ export class AuthEmailService {
       expiresAt,
       used: false,
     });
-    await this.verificationSessionRepository.save(session);
+    await this.loginSessionRepository.save(session);
 
     // 发送验证码邮件
     const sent = await this.emailService.sendVerificationCode(user.email, code);
@@ -99,10 +98,11 @@ export class AuthEmailService {
       `用户 ${user.username} 登录需要邮箱验证，验证码已发送至 ${user.email}`,
     );
 
+    // 返回 guid 作为会话标识符（通过 secret 字段，保持 API 兼容）
     return {
       type: 'email_check',
       tfa_type: 'email_check',
-      secret,
+      secret: guid,
       user: buildUserPayload(user) as LoginResponse['user'],
     };
   }
@@ -143,9 +143,10 @@ export class AuthEmailService {
     }
 
     // 查找验证会话（仅匹配邮箱验证方式，避免与 TFA 会话混淆）
-    const session = await this.verificationSessionRepository.findOne({
+    // secret 字段实际是会话 guid
+    const session = await this.loginSessionRepository.findOne({
       where: {
-        secret,
+        guid: secret,
         method: 'email',
         used: false,
         expiresAt: MoreThan(new Date()),
@@ -187,7 +188,7 @@ export class AuthEmailService {
 
     // 标记验证会话为已使用
     session.used = true;
-    await this.verificationSessionRepository.save(session);
+    await this.loginSessionRepository.save(session);
 
     // 创建设备记录
     if (createOrUpdateDevice && (id || uuid)) {

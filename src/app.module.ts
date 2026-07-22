@@ -31,7 +31,7 @@ import { DeviceGroup } from './modules/device-group/entities/device-group.entity
 import { DeviceGroupUserPermission } from './modules/device-group/entities/device-group-user-permission.entity';
 import { UserUserPermission } from './modules/device-group/entities/user-user-permission.entity';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
-import { EmailVerificationSession } from './modules/auth/entities/email-verification-session.entity';
+import { LoginSession } from './modules/auth/entities/login-session.entity';
 import { SystemSetting } from './modules/settings/entities/system-setting.entity';
 import { ActiveConnection } from './modules/heartbeat/entities/active-connection.entity';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -99,7 +99,7 @@ import { UserGroup } from './modules/user-group/entities/user-group.entity';
         DeviceGroup,
         DeviceGroupUserPermission,
         UserUserPermission,
-        EmailVerificationSession,
+        LoginSession,
         SystemSetting,
         ActiveConnection,
         Strategy,

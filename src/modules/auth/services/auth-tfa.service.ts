@@ -10,7 +10,7 @@ import { Repository, MoreThan } from 'typeorm';
 import { authenticator } from 'otplib';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../../user/entities/user.entity';
-import { EmailVerificationSession } from '../entities/email-verification-session.entity';
+import { LoginSession } from '../entities/login-session.entity';
 import { LoginDto, DeviceInfoDto } from '../dto/auth.dto';
 import { LoginResponse } from '../../../common/interfaces';
 
@@ -23,8 +23,8 @@ export class AuthTfaService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(EmailVerificationSession)
-    private verificationSessionRepository: Repository<EmailVerificationSession>,
+    @InjectRepository(LoginSession)
+    private loginSessionRepository: Repository<LoginSession>,
   ) {}
 
   verifyTfaCode(secret: string, code: string): boolean {
@@ -174,46 +174,46 @@ export class AuthTfaService {
    * 密码校验通过后，当用户启用了 TFA 时调用。
    *
    * 安全说明：
-   * 创建一个一次性的登录会话，返回的 secret 是服务端生成的 UUID 会话标识符，
-   * 仅用于在第二步中回传定位本次登录。TFA 密钥（tfaSecret）始终保留在服务端，
-   * 绝不返回给客户端，避免被抓包窃取导致 2FA 失效。
+   * 创建一个一次性的登录会话，返回的 secret 字段实际是会话的 guid（UUID）。
+   * 客户端在二次验证时通过 secret 字段回传此值。
+   * TFA 密钥（tfaSecret）始终保留在服务端，绝不返回给客户端。
    *
    * @param user 已通过密码校验的用户
    * @param buildUserPayload 构建用户信息载荷的回调函数
-   * @returns 登录响应，包含会话标识符 secret（UUID），type 为 email_check 兼容客户端
+   * @returns 登录响应，包含会话标识符 secret（实际为 guid），type 为 email_check 兼容客户端
    */
   async initiateTfaLogin(
     user: User,
     buildUserPayload: (user: User) => Record<string, unknown>,
   ): Promise<LoginResponse> {
     // 删除该用户之前未使用的验证会话，避免会话堆积
-    await this.verificationSessionRepository.delete({
+    await this.loginSessionRepository.delete({
       userGuid: user.guid,
       used: false,
     });
 
-    const secret = uuidv4();
+    const guid = uuidv4();
     const expiresAt = new Date();
     expiresAt.setMinutes(
       expiresAt.getMinutes() + this.TFA_LOGIN_SESSION_EXPIRY_MINUTES,
     );
 
-    const session = this.verificationSessionRepository.create({
-      guid: uuidv4(),
-      secret,
+    const session = this.loginSessionRepository.create({
+      guid,
       userGuid: user.guid,
       method: 'tfa',
       expiresAt,
       used: false,
     });
-    await this.verificationSessionRepository.save(session);
+    await this.loginSessionRepository.save(session);
 
     this.logger.log(`用户 ${user.username} 登录需要 TFA 验证，已创建会话`);
 
+    // 返回 guid 作为会话标识符（通过 secret 字段，保持 API 兼容）
     return {
       type: 'email_check',
       tfa_type: 'tfa_check',
-      secret,
+      secret: guid,
       user: buildUserPayload(user) as LoginResponse['user'],
     };
   }
@@ -239,10 +239,10 @@ export class AuthTfaService {
       throw new BadRequestException({ error: '双因素认证参数不完整' });
     }
 
-    // 通过会话标识符定位本次登录，secret 仅为 UUID，不参与 TFA 验证
-    const session = await this.verificationSessionRepository.findOne({
+    // 通过会话标识符定位本次登录，secret 字段实际是会话 guid
+    const session = await this.loginSessionRepository.findOne({
       where: {
-        secret,
+        guid: secret,
         method: 'tfa',
         used: false,
         expiresAt: MoreThan(new Date()),
@@ -290,7 +290,7 @@ export class AuthTfaService {
 
     // 标记会话为已使用，防止重放
     session.used = true;
-    await this.verificationSessionRepository.save(session);
+    await this.loginSessionRepository.save(session);
 
     if (createOrUpdateDevice && (id || uuid)) {
       await createOrUpdateDevice(user.guid, id, uuid, deviceInfo);

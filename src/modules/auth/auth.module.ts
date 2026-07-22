@@ -15,7 +15,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../user/entities/user.entity';
 import { UserToken } from '../user/entities/user-token.entity';
 import { Peer } from '../../common/entities';
-import { EmailVerificationSession } from './entities/email-verification-session.entity';
+import { LoginSession } from './entities/login-session.entity';
 import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
@@ -41,7 +41,7 @@ import { UserGroupModule } from '../user-group/user-group.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserToken, Peer, EmailVerificationSession]),
+    TypeOrmModule.forFeature([User, UserToken, Peer, LoginSession]),
     EmailModule,
     LdapModule,
     UserGroupModule,

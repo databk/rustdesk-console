@@ -19,7 +19,7 @@ import {
   CurrentUserDto,
   LogoutDto,
 } from '../dto/auth.dto';
-import { EmailVerificationSession } from '../entities/email-verification-session.entity';
+import { LoginSession } from '../entities/login-session.entity';
 import { EmailService } from '../../email/email.service';
 import { AuthTokenService } from './auth-token.service';
 import { JwtPayload } from '../../../common/services/token.service';
@@ -49,8 +49,8 @@ export class AuthService {
     private tokenRepository: Repository<UserToken>,
     @InjectRepository(Peer)
     private peerRepository: Repository<Peer>,
-    @InjectRepository(EmailVerificationSession)
-    private verificationSessionRepository: Repository<EmailVerificationSession>,
+    @InjectRepository(LoginSession)
+    private loginSessionRepository: Repository<LoginSession>,
     private readonly emailService: EmailService,
     private readonly tokenService: AuthTokenService,
     private readonly tfaService: AuthTfaService,
@@ -124,17 +124,17 @@ export class AuthService {
 
     // 处理邮箱验证码登录（第二步）
     // 兼容 RustDesk 客户端：客户端使用 type: "email_code" 提交二次验证
-    // secret 为服务端下发的会话标识符（UUID），TFA 与邮箱验证均使用此机制跟踪一次登录
-    // 通过 secret 关联的服务端会话 method 字段区分 TFA 登录与邮箱验证码登录，
+    // secret 字段传递的是服务端下发的会话 guid（UUID），用于跟踪一次登录
+    // 通过会话的 method 字段区分 TFA 登录与邮箱验证码登录，
     // 而非使用用户可控的 tfaCode 字段控制流程，避免攻击者通过操控 tfaCode 绕过验证
     if (type === 'email_code') {
       // type === 'email_code' 是二次验证请求，secret 必须存在
       if (!loginDto.secret) {
         throw new BadRequestException({ error: '缺少会话标识符' });
       }
-      // 通过 secret 查找会话，由服务端会话的 method 决定路由
-      const session = await this.verificationSessionRepository.findOne({
-        where: { secret: loginDto.secret, used: false },
+      // 通过 guid（客户端通过 secret 字段传递）查找会话，由服务端会话的 method 决定路由
+      const session = await this.loginSessionRepository.findOne({
+        where: { guid: loginDto.secret, used: false },
       });
       if (!session) {
         throw new UnauthorizedException({

@@ -8,30 +8,22 @@ import {
 } from 'typeorm';
 
 /**
- * 登录验证会话实体
+ * 登录会话实体
  * 管理登录二次验证（邮箱验证码 / TFA）的临时会话
  *
  * 安全说明：
- * secret 字段是服务端生成的 UUID 会话标识符，仅用于跟踪一次登录，
- * 绝不是 TFA 密钥本身。TFA 密钥始终保留在服务端，不会返回给客户端。
+ * guid 字段同时作为数据库主键和返回给客户端的会话标识符，
+ * 避免冗余的 secret 字段。客户端在二次验证时回传 guid（通过 secret 字段）。
  */
-@Entity('email_verification_sessions')
-export class EmailVerificationSession {
+@Entity('login_sessions')
+export class LoginSession {
   /**
    * 会话唯一标识符
-   * UUID格式，用于唯一标识一个验证会话
+   * UUID格式，同时作为数据库主键和客户端会话标识符
    */
   @PrimaryColumn()
-  guid: string;
-
-  /**
-   * 会话密钥
-   * 服务端生成的 UUID，用于关联两次登录请求（发起验证 / 提交验证码）
-   * 注意：此字段不是 TFA 密钥，仅为一次性会话标识符
-   */
-  @Column({ unique: true })
   @Index()
-  secret: string;
+  guid: string;
 
   /**
    * 所属用户唯一标识符
