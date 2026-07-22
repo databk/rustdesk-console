@@ -128,27 +128,33 @@ export class AuthService {
     // 通过 secret 关联的服务端会话 method 字段区分 TFA 登录与邮箱验证码登录，
     // 而非使用用户可控的 tfaCode 字段控制流程，避免攻击者通过操控 tfaCode 绕过验证
     if (type === 'email_code') {
-      if (loginDto.secret) {
-        // 通过 secret 查找会话，由服务端会话的 method 决定路由
-        const session =
-          await this.verificationSessionRepository.findOne({
-            where: { secret: loginDto.secret, used: false },
-          });
-        if (session?.method === 'tfa') {
-          return this.tfaService.handleTfaLogin(
-            loginDto,
-            (user, deviceId, deviceUuid) =>
-              this.tokenService.generateToken(user, deviceId, deviceUuid),
-            (userGuid, deviceId, deviceUuid, deviceInfo) =>
-              this.deviceService.createOrUpdateDevice(
-                userGuid,
-                deviceId,
-                deviceUuid,
-                deviceInfo,
-              ),
-            (user) => this.buildUserPayload(user),
-          );
-        }
+      // type === 'email_code' 是二次验证请求，secret 必须存在
+      if (!loginDto.secret) {
+        throw new BadRequestException({ error: '缺少会话标识符' });
+      }
+      // 通过 secret 查找会话，由服务端会话的 method 决定路由
+      const session = await this.verificationSessionRepository.findOne({
+        where: { secret: loginDto.secret, used: false },
+      });
+      if (!session) {
+        throw new UnauthorizedException({
+          error: '登录会话已过期或无效，请重新登录',
+        });
+      }
+      if (session.method === 'tfa') {
+        return this.tfaService.handleTfaLogin(
+          loginDto,
+          (user, deviceId, deviceUuid) =>
+            this.tokenService.generateToken(user, deviceId, deviceUuid),
+          (userGuid, deviceId, deviceUuid, deviceInfo) =>
+            this.deviceService.createOrUpdateDevice(
+              userGuid,
+              deviceId,
+              deviceUuid,
+              deviceInfo,
+            ),
+          (user) => this.buildUserPayload(user),
+        );
       }
       return this.emailAuthService.handleEmailCodeLogin(
         loginDto,
@@ -201,7 +207,7 @@ export class AuthService {
     }
 
     // 回退到本地账号密码认证
-    return this.localLogin(username, password, id, uuid, loginDto);
+    return this.localLogin(username, password, id, uuid);
   }
 
   /**
@@ -251,7 +257,6 @@ export class AuthService {
    * @param password 密码
    * @param id 设备 ID
    * @param uuid 设备 UUID
-   * @param loginDto 完整登录请求（包含 secret 和 tfaCode 等字段）
    * @returns 登录响应
    */
   private async localLogin(
@@ -259,7 +264,6 @@ export class AuthService {
     password: string,
     id?: string,
     uuid?: string,
-    loginDto?: LoginDto,
   ): Promise<LoginResponse> {
     // 查找用户（支持用户名或邮箱登录）
     const user = await this.userRepository
@@ -303,26 +307,9 @@ export class AuthService {
     }
 
     // 检查是否需要双因素认证
-    // 使用 secret（服务端会话标识符）控制流程，而非 tfaCode（用户可控值）
-    // secret 存在表示这是二次验证请求，secret 不存在且用户启用了 TFA 则发起 TFA 流程
+    // localLogin 仅在首次登录（账号密码）时调用，二次验证通过 tfa_code/email_code 类型处理
+    // 因此这里始终发起 TFA 流程，无需检查 secret
     if (user.tfaSecret) {
-      if (loginDto?.secret) {
-        // 二次验证：通过会话标识符走标准 TFA 验证流程
-        return this.tfaService.handleTfaLogin(
-          loginDto,
-          (user, deviceId, deviceUuid) =>
-            this.tokenService.generateToken(user, deviceId, deviceUuid),
-          (userGuid, deviceId, deviceUuid, deviceInfo) =>
-            this.deviceService.createOrUpdateDevice(
-              userGuid,
-              deviceId,
-              deviceUuid,
-              deviceInfo,
-            ),
-          (user) => this.buildUserPayload(user),
-        );
-      }
-      // 首次请求：发起 TFA 登录，返回会话标识符
       return this.tfaService.initiateTfaLogin(user, (u) =>
         this.buildUserPayload(u),
       );
