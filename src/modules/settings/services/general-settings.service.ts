@@ -7,8 +7,8 @@ import {
 } from '../dto/general-settings.dto';
 import { SystemSetting } from '../entities/system-setting.entity';
 
-const CATEGORY = 'console';
-const WATERMARK_ENABLED_KEY = 'console.watermarkEnabled';
+const CATEGORY = 'general';
+const WATERMARK_ENABLED_KEY = 'general.watermarkEnabled';
 
 @Injectable()
 export class GeneralSettingsService {
