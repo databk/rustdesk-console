@@ -2,7 +2,9 @@ import {
   Controller,
   Post,
   Delete,
+  Get,
   Body,
+  Param,
   HttpCode,
   HttpStatus,
   Req,
@@ -10,6 +12,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './services';
 import { AuthTfaService } from './services/auth-tfa.service';
+import { AuthPasskeyService } from './services/auth-passkey.service';
 import {
   LoginDto,
   CurrentUserDto,
@@ -18,6 +21,11 @@ import {
   VerifyTfaDto,
   DisableTfaDto,
 } from './dto/auth.dto';
+import {
+  VerifyPasskeyRegistrationDto,
+  VerifyPasskeyAuthDto,
+  TogglePasskeyTfaDto,
+} from './dto/passkey.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { Request } from 'express';
@@ -27,6 +35,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly tfaService: AuthTfaService,
+    private readonly passkeyService: AuthPasskeyService,
   ) {}
 
   @Public()
@@ -62,6 +71,8 @@ export class AuthController {
     return this.authService.getCurrentUser(userId, currentUserDto);
   }
 
+  // ==================== TOTP 2FA ====================
+
   @Post('2fa/setup')
   @HttpCode(HttpStatus.OK)
   async setupTfa(@CurrentUser('id') userId: string, @Body() dto: SetupTfaDto) {
@@ -84,5 +95,74 @@ export class AuthController {
     @Body() dto: DisableTfaDto,
   ) {
     return this.tfaService.disableTfa(userId, dto.code);
+  }
+
+  // ==================== Passkey 注册 ====================
+
+  @Post('passkey/register/begin')
+  @HttpCode(HttpStatus.OK)
+  async beginPasskeyRegistration(@CurrentUser('id') userId: string) {
+    return this.passkeyService.beginRegistration(userId);
+  }
+
+  @Post('passkey/register/verify')
+  @HttpCode(HttpStatus.OK)
+  async verifyPasskeyRegistration(
+    @CurrentUser('id') userId: string,
+    @Body() dto: VerifyPasskeyRegistrationDto,
+  ) {
+    return this.passkeyService.verifyRegistration(userId, dto.response, dto.name);
+  }
+
+  // ==================== Passkey 无密码登录 ====================
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('passkey/auth/begin')
+  @HttpCode(HttpStatus.OK)
+  async beginPasskeyAuth() {
+    return this.passkeyService.beginAuthLogin();
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('passkey/auth/verify')
+  @HttpCode(HttpStatus.OK)
+  async verifyPasskeyAuth(@Body() dto: VerifyPasskeyAuthDto) {
+    return this.passkeyService.verifyAuthLogin(
+      dto.secret,
+      dto.response,
+      dto.id,
+      dto.uuid,
+      dto.deviceInfo,
+    );
+  }
+
+  // ==================== Passkey 凭证管理 ====================
+
+  @Get('passkey/list')
+  async listPasskeys(@CurrentUser('id') userId: string) {
+    return this.passkeyService.listCredentials(userId);
+  }
+
+  @Delete('passkey/:guid')
+  @HttpCode(HttpStatus.OK)
+  async deletePasskey(
+    @CurrentUser('id') userId: string,
+    @Param('guid') guid: string,
+  ) {
+    await this.passkeyService.deleteCredential(userId, guid);
+    return { message: '凭证已删除' };
+  }
+
+  // ==================== Passkey 双因素认证 ====================
+
+  @Post('passkey/tfa')
+  @HttpCode(HttpStatus.OK)
+  async togglePasskeyTfa(
+    @CurrentUser('id') userId: string,
+    @Body() dto: TogglePasskeyTfaDto,
+  ) {
+    return this.passkeyService.setPasskeyTfaEnabled(userId, dto.enabled);
   }
 }

@@ -26,6 +26,7 @@ import { JwtPayload } from '../../../common/services/token.service';
 import { AuthTfaService } from './auth-tfa.service';
 import { AuthEmailService } from './auth-email.service';
 import { AuthDeviceService } from './auth-device.service';
+import { AuthPasskeyService } from './auth-passkey.service';
 import { LdapService } from '../../ldap/ldap.service';
 import { UserGroupService } from '../../user-group/user-group.service';
 
@@ -56,6 +57,7 @@ export class AuthService {
     private readonly tfaService: AuthTfaService,
     private readonly emailAuthService: AuthEmailService,
     private readonly deviceService: AuthDeviceService,
+    private readonly passkeyService: AuthPasskeyService,
     private readonly ldapService: LdapService,
     private readonly userGroupService: UserGroupService,
   ) {}
@@ -304,6 +306,16 @@ export class AuthService {
       return this.emailAuthService.initiateEmailVerification(user, (u) =>
         this.buildUserPayload(u),
       );
+    }
+
+    // 检查是否需要 Passkey 双因素认证
+    if (userInfo?.other?.passkey_tfa_enabled) {
+      const hasPasskey = await this.passkeyService.hasCredentials(user.guid);
+      if (hasPasskey) {
+        return this.passkeyService.initiatePasskeyTfa(user, (u) =>
+          this.buildUserPayload(u),
+        );
+      }
     }
 
     // 检查是否需要双因素认证

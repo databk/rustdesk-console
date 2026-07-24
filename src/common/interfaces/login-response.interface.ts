@@ -1,9 +1,10 @@
 import { UserInfo } from '../../modules/user/entities/user.entity';
+import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/types';
 
 /**
  * 登录响应接口
  * 定义登录成功后返回的数据结构
- * 适用于所有认证方式（密码登录、TFA、邮箱验证码、OIDC等）
+ * 适用于所有认证方式（密码登录、TFA、邮箱验证码、OIDC、Passkey等）
  */
 export interface LoginResponse {
   /** 访问令牌，仅在登录成功时返回 */
@@ -14,6 +15,8 @@ export interface LoginResponse {
   tfa_type?: string;
   /** 登录会话标识符（UUID），由服务端在需要二次验证时返回，客户端在后续请求中回传，用于跟踪一次登录 */
   secret?: string;
+  /** Passkey 认证选项，仅在需要 Passkey 验证时返回，供浏览器调用 navigator.credentials.get() */
+  passkey_options?: PublicKeyCredentialRequestOptionsJSON;
   /** 用户信息 */
   user?: {
     /** 用户名 */

@@ -53,7 +53,14 @@ export class LoginDto {
   autoLogin?: boolean;
 
   @IsOptional()
-  @IsIn(['account', 'mobile', 'sms_code', 'email_code', 'tfa_code'])
+  @IsIn([
+    'account',
+    'mobile',
+    'sms_code',
+    'email_code',
+    'tfa_code',
+    'passkey_check',
+  ])
   type?: string;
 
   @IsOptional()

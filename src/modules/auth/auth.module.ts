@@ -9,6 +9,8 @@ import {
   AuthTfaService,
   AuthEmailService,
   AuthDeviceService,
+  AuthPasskeyService,
+  WebAuthnConfigService,
   TokenCleanupService,
 } from './services';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -16,6 +18,8 @@ import { User } from '../user/entities/user.entity';
 import { UserToken } from '../user/entities/user-token.entity';
 import { Peer } from '../../common/entities';
 import { LoginSession } from './entities/login-session.entity';
+import { PasskeyCredential } from './entities/passkey-credential.entity';
+import { SystemSetting } from '../settings/entities/system-setting.entity';
 import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
@@ -41,7 +45,14 @@ import { UserGroupModule } from '../user-group/user-group.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserToken, Peer, LoginSession]),
+    TypeOrmModule.forFeature([
+      User,
+      UserToken,
+      Peer,
+      LoginSession,
+      PasskeyCredential,
+      SystemSetting,
+    ]),
     EmailModule,
     LdapModule,
     UserGroupModule,
@@ -62,6 +73,8 @@ import { UserGroupModule } from '../user-group/user-group.module';
     AuthTfaService,
     AuthEmailService,
     AuthDeviceService,
+    AuthPasskeyService,
+    WebAuthnConfigService,
     TokenCleanupService,
     JwtStrategy,
   ],

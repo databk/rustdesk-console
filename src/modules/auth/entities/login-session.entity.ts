@@ -37,9 +37,12 @@ export class LoginSession {
    * 验证方式
    * 'email' - 邮箱验证码登录
    * 'tfa' - 双因素认证登录
+   * 'passkey_reg' - Passkey 注册（存储 challenge）
+   * 'passkey' - Passkey 无密码登录（存储 challenge）
+   * 'passkey_tfa' - Passkey 双因素认证登录（存储 challenge）
    */
   @Column({ default: 'email' })
-  method: 'email' | 'tfa';
+  method: 'email' | 'tfa' | 'passkey_reg' | 'passkey' | 'passkey_tfa';
 
   /**
    * 邮箱地址

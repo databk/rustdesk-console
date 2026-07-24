@@ -32,6 +32,7 @@ import { DeviceGroupUserPermission } from './modules/device-group/entities/devic
 import { UserUserPermission } from './modules/device-group/entities/user-user-permission.entity';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { LoginSession } from './modules/auth/entities/login-session.entity';
+import { PasskeyCredential } from './modules/auth/entities/passkey-credential.entity';
 import { SystemSetting } from './modules/settings/entities/system-setting.entity';
 import { ActiveConnection } from './modules/heartbeat/entities/active-connection.entity';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -100,6 +101,7 @@ import { UserGroup } from './modules/user-group/entities/user-group.entity';
         DeviceGroupUserPermission,
         UserUserPermission,
         LoginSession,
+        PasskeyCredential,
         SystemSetting,
         ActiveConnection,
         Strategy,
