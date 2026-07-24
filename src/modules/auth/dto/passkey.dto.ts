@@ -12,6 +12,23 @@ import type {
 } from '@simplewebauthn/types';
 
 /**
+ * Passkey 登录设备信息
+ */
+class PasskeyAuthDeviceInfoDto {
+  @IsOptional()
+  @IsString()
+  os?: string;
+
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+}
+
+/**
  * Passkey 注册验证 DTO
  * 客户端在 navigator.credentials.create() 后提交此数据
  */
@@ -66,23 +83,6 @@ export class VerifyPasskeyAuthDto {
   @ValidateNested()
   @Type(() => PasskeyAuthDeviceInfoDto)
   deviceInfo?: PasskeyAuthDeviceInfoDto;
-}
-
-/**
- * Passkey 登录设备信息
- */
-class PasskeyAuthDeviceInfoDto {
-  @IsOptional()
-  @IsString()
-  os?: string;
-
-  @IsOptional()
-  @IsString()
-  type?: string;
-
-  @IsOptional()
-  @IsString()
-  name?: string;
 }
 
 /**

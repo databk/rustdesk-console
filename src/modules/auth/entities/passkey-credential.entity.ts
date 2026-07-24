@@ -33,14 +33,14 @@ export class PasskeyCredential {
    * base64url 编码，由认证器生成，全局唯一
    * 登录时通过此字段反查用户，实现无密码登录
    */
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   credentialId: string;
 
   /**
    * 凭证公钥
    * base64url 编码，用于验证认证器签名
    */
-  @Column()
+  @Column({ type: 'varchar' })
   credentialPublicKey: string;
 
   /**
@@ -55,7 +55,7 @@ export class PasskeyCredential {
    * JSON 数组，如 ["internal", "hybrid"]
    * 浏览器据此选择如何唤醒认证器
    */
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   transports: string | null;
 
   /**
@@ -63,7 +63,7 @@ export class PasskeyCredential {
    * 'singleDevice' - 单设备凭证（如安全密钥）
    * 'multiDevice' - 多设备凭证（如 Touch ID、Windows Hello，支持云端同步）
    */
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   deviceType: string;
 
   /**
@@ -77,7 +77,7 @@ export class PasskeyCredential {
    * 用户自定义凭证名称
    * 用于在管理界面中识别不同的凭证
    */
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   name: string | null;
 
   /**
