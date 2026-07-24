@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, In } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import {
   generateRegistrationOptions,
@@ -15,10 +15,15 @@ import {
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
 import type {
+  VerifiedRegistrationResponse,
+  VerifiedAuthenticationResponse,
+} from '@simplewebauthn/server';
+import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
+  AuthenticatorTransportFuture,
 } from '@simplewebauthn/types';
 import { User, UserStatus } from '../../user/entities/user.entity';
 import { PasskeyCredential } from '../entities/passkey-credential.entity';
@@ -89,16 +94,14 @@ export class AuthPasskeyService {
       },
       excludeCredentials: existingCredentials.map((cred) => ({
         id: cred.credentialId,
-        transports: cred.transports ? JSON.parse(cred.transports) : undefined,
+        transports: cred.transports
+          ? (JSON.parse(cred.transports) as AuthenticatorTransportFuture[])
+          : undefined,
       })),
     });
 
     // 创建临时会话存储 challenge
-    await this.createSession(
-      userGuid,
-      'passkey_reg',
-      options.challenge,
-    );
+    await this.createSession(userGuid, 'passkey_reg', options.challenge);
 
     this.logger.log(`用户 ${user.username} 发起 Passkey 注册`);
 
@@ -126,10 +129,12 @@ export class AuthPasskeyService {
     // 查找注册会话获取 challenge
     const session = await this.findValidSession(userGuid, 'passkey_reg');
     if (!session) {
-      throw new BadRequestException({ error: '注册会话已过期，请重新发起注册' });
+      throw new BadRequestException({
+        error: '注册会话已过期，请重新发起注册',
+      });
     }
 
-    let verification;
+    let verification: VerifiedRegistrationResponse;
     try {
       verification = await verifyRegistrationResponse({
         response,
@@ -273,7 +278,10 @@ export class AuthPasskeyService {
     }
 
     // 对于双因素认证，校验凭证所属用户与会话用户一致
-    if (session.method === 'passkey_tfa' && session.userGuid !== credential.userGuid) {
+    if (
+      session.method === 'passkey_tfa' &&
+      session.userGuid !== credential.userGuid
+    ) {
       throw new UnauthorizedException({ error: '凭证与用户不匹配' });
     }
 
@@ -292,10 +300,10 @@ export class AuthPasskeyService {
 
     // 验证认证响应
     const transports = credential.transports
-      ? (JSON.parse(credential.transports) as string[])
+      ? (JSON.parse(credential.transports) as AuthenticatorTransportFuture[])
       : undefined;
 
-    let verification;
+    let verification: VerifiedAuthenticationResponse;
     try {
       verification = await verifyAuthenticationResponse({
         response,
@@ -306,7 +314,7 @@ export class AuthPasskeyService {
           id: credential.credentialId,
           publicKey: Buffer.from(credential.credentialPublicKey, 'base64url'),
           counter: credential.counter,
-          transports: transports as never,
+          transports,
         },
         requireUserVerification: true,
       });
@@ -387,7 +395,7 @@ export class AuthPasskeyService {
       allowCredentials: credentials.map((cred) => ({
         id: cred.credentialId,
         transports: cred.transports
-          ? JSON.parse(cred.transports)
+          ? (JSON.parse(cred.transports) as AuthenticatorTransportFuture[])
           : undefined,
       })),
       userVerification: 'preferred',

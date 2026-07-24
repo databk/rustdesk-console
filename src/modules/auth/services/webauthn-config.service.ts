@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SystemSetting } from '../../settings/entities/system-setting.entity';
 
-const CATEGORY = 'webauthn';
 const RP_ID_KEY = 'webauthn.rpId';
 const RP_NAME_KEY = 'webauthn.rpName';
 const RP_ORIGINS_KEY = 'webauthn.rpOrigins';
@@ -39,26 +38,22 @@ export class WebAuthnConfigService {
    * 优先从数据库读取，未配置时回退到环境变量
    */
   async getConfig(): Promise<WebAuthnConfig> {
-    if (this.cachedConfig && Date.now() - this.lastCacheTime < this.CACHE_TTL_MS) {
+    if (
+      this.cachedConfig &&
+      Date.now() - this.lastCacheTime < this.CACHE_TTL_MS
+    ) {
       return this.cachedConfig;
     }
 
     const settings = await this.settingRepository.find({
       where: {
-        key: [
-          RP_ID_KEY,
-          RP_NAME_KEY,
-          RP_ORIGINS_KEY,
-          ENABLED_KEY,
-        ] as never,
+        key: [RP_ID_KEY, RP_NAME_KEY, RP_ORIGINS_KEY, ENABLED_KEY] as never,
       },
     });
     const values = new Map(settings.map((s) => [s.key, s.value]));
 
     const rpId =
-      values.get(RP_ID_KEY) ||
-      process.env.WEBAUTHN_RP_ID ||
-      'localhost';
+      values.get(RP_ID_KEY) || process.env.WEBAUTHN_RP_ID || 'localhost';
 
     const rpName =
       values.get(RP_NAME_KEY) ||
