@@ -23,6 +23,7 @@ import { SystemSetting } from '../settings/entities/system-setting.entity';
 import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
+import { RbacModule } from '../rbac/rbac.module';
 
 /**
  * 认证模块
@@ -56,6 +57,7 @@ import { UserGroupModule } from '../user-group/user-group.module';
     EmailModule,
     LdapModule,
     UserGroupModule,
+    RbacModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret:

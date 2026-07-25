@@ -7,6 +7,7 @@ import { User } from '../../user/entities/user.entity';
 import { UserToken } from '../../user/entities/user-token.entity';
 import { JwtPayload } from '../../../common/services/token.service';
 import { DeviceInfoDto } from '../dto/auth.dto';
+import { PermissionService } from '../../rbac/services/permission.service';
 
 export interface SessionInfo {
   jti: string;
@@ -38,6 +39,7 @@ export class AuthTokenService {
     @InjectRepository(UserToken)
     private tokenRepository: Repository<UserToken>,
     private jwtService: JwtService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   /**
@@ -58,6 +60,9 @@ export class AuthTokenService {
   ): Promise<string> {
     const jti = uuidv4();
 
+    const { roles, permissions } =
+      await this.permissionService.getEffectivePermissions(user.guid);
+
     const payload: JwtPayload = {
       sub: user.guid,
       username: user.username,
@@ -65,6 +70,8 @@ export class AuthTokenService {
       isAdmin: user.isAdmin,
       deviceId,
       jti,
+      roles,
+      permissions,
     };
 
     const token = this.jwtService.sign(payload);
