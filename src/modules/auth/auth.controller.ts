@@ -13,6 +13,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './services';
 import { AuthTfaService } from './services/auth-tfa.service';
 import { AuthPasskeyService } from './services/auth-passkey.service';
+import { AuthTokenService } from './services/auth-token.service';
 import {
   LoginDto,
   CurrentUserDto,
@@ -36,6 +37,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly tfaService: AuthTfaService,
     private readonly passkeyService: AuthPasskeyService,
+    private readonly tokenService: AuthTokenService,
   ) {}
 
   @Public()
@@ -111,7 +113,11 @@ export class AuthController {
     @CurrentUser('id') userId: string,
     @Body() dto: VerifyPasskeyRegistrationDto,
   ) {
-    return this.passkeyService.verifyRegistration(userId, dto.response, dto.name);
+    return this.passkeyService.verifyRegistration(
+      userId,
+      dto.response,
+      dto.name,
+    );
   }
 
   // ==================== Passkey 无密码登录 ====================
@@ -164,5 +170,23 @@ export class AuthController {
     @Body() dto: TogglePasskeyTfaDto,
   ) {
     return this.passkeyService.setPasskeyTfaEnabled(userId, dto.enabled);
+  }
+
+  // ==================== 登录会话管理 ====================
+
+  @Get('sessions')
+  async listSessions(@CurrentUser('id') userId: string) {
+    const sessions = await this.tokenService.listSessions(userId);
+    return sessions;
+  }
+
+  @Delete('sessions/:jti')
+  @HttpCode(HttpStatus.OK)
+  async revokeSession(
+    @CurrentUser('id') userId: string,
+    @Param('jti') jti: string,
+  ) {
+    await this.tokenService.revokeSession(userId, jti);
+    return { message: '会话已撤销' };
   }
 }

@@ -18,6 +18,7 @@ import {
   RegisterDto,
   CurrentUserDto,
   LogoutDto,
+  DeviceInfoDto,
 } from '../dto/auth.dto';
 import { LoginSession } from '../entities/login-session.entity';
 import { EmailService } from '../../email/email.service';
@@ -147,7 +148,12 @@ export class AuthService {
         return this.tfaService.handleTfaLogin(
           loginDto,
           (user, deviceId, deviceUuid) =>
-            this.tokenService.generateToken(user, deviceId, deviceUuid),
+            this.tokenService.generateToken(
+              user,
+              deviceId,
+              deviceUuid,
+              loginDto.deviceInfo,
+            ),
           (userGuid, deviceId, deviceUuid, deviceInfo) =>
             this.deviceService.createOrUpdateDevice(
               userGuid,
@@ -161,7 +167,12 @@ export class AuthService {
       return this.emailAuthService.handleEmailCodeLogin(
         loginDto,
         (user, deviceId, deviceUuid) =>
-          this.tokenService.generateToken(user, deviceId, deviceUuid),
+          this.tokenService.generateToken(
+            user,
+            deviceId,
+            deviceUuid,
+            loginDto.deviceInfo,
+          ),
         (userGuid, deviceId, deviceUuid, deviceInfo) =>
           this.deviceService.createOrUpdateDevice(
             userGuid,
@@ -185,7 +196,12 @@ export class AuthService {
       return this.tfaService.handleTfaLogin(
         loginDto,
         (user, deviceId, deviceUuid) =>
-          this.tokenService.generateToken(user, deviceId, deviceUuid),
+          this.tokenService.generateToken(
+            user,
+            deviceId,
+            deviceUuid,
+            loginDto.deviceInfo,
+          ),
         (userGuid, deviceId, deviceUuid, deviceInfo) =>
           this.deviceService.createOrUpdateDevice(
             userGuid,
@@ -205,11 +221,11 @@ export class AuthService {
     // 尝试 LDAP 认证
     const ldapUser = await this.tryLdapAuthentication(username, password);
     if (ldapUser) {
-      return this.buildLoginResponse(ldapUser, id, uuid);
+      return this.buildLoginResponse(ldapUser, id, uuid, loginDto.deviceInfo);
     }
 
     // 回退到本地账号密码认证
-    return this.localLogin(username, password, id, uuid);
+    return this.localLogin(username, password, id, uuid, loginDto.deviceInfo);
   }
 
   /**
@@ -266,6 +282,7 @@ export class AuthService {
     password: string,
     id?: string,
     uuid?: string,
+    deviceInfo?: DeviceInfoDto,
   ): Promise<LoginResponse> {
     // 查找用户（支持用户名或邮箱登录）
     const user = await this.userRepository
@@ -332,7 +349,7 @@ export class AuthService {
       };
     }
 
-    return this.buildLoginResponse(user, id, uuid);
+    return this.buildLoginResponse(user, id, uuid, deviceInfo);
   }
 
   /**
@@ -342,6 +359,7 @@ export class AuthService {
     user: User,
     id?: string,
     uuid?: string,
+    deviceInfo?: DeviceInfoDto,
   ): Promise<LoginResponse> {
     // 创建或更新设备记录
     if (id || uuid) {
@@ -349,12 +367,17 @@ export class AuthService {
         user.guid,
         id,
         uuid,
-        undefined,
+        deviceInfo,
       );
     }
 
     // 生成JWT Token
-    const token = await this.tokenService.generateToken(user, id, uuid);
+    const token = await this.tokenService.generateToken(
+      user,
+      id,
+      uuid,
+      deviceInfo,
+    );
 
     this.logger.log(`用户登录成功: ${user.username}`);
 

@@ -69,6 +69,27 @@ export class UserToken {
   isRevoked: boolean;
 
   /**
+   * 设备操作系统
+   * 登录时由客户端提交，如 linux, windows, android
+   */
+  @Column({ type: 'varchar', nullable: true })
+  deviceOs: string;
+
+  /**
+   * 设备来源类型
+   * "client" 表示 RustDesk 客户端，"browser" 表示浏览器
+   */
+  @Column({ type: 'varchar', nullable: true })
+  deviceType: string;
+
+  /**
+   * 设备名称
+   * 客户端取自主机名 hostname，浏览器取自 navigator.userAgent
+   */
+  @Column({ type: 'varchar', nullable: true })
+  deviceName: string;
+
+  /**
    * 关联的用户实体
    * 多对一关系，关联到 User
    */

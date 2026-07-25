@@ -349,6 +349,7 @@ export class AuthPasskeyService {
       user,
       deviceId,
       deviceUuid,
+      deviceInfo,
     );
 
     this.logger.log(`用户 ${user.username} 通过 Passkey 登录成功`);

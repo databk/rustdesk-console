@@ -102,7 +102,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token 已失效或被撤销');
     }
 
-    const { sub, username, email, isAdmin } = payload;
+    const { sub, username, email, isAdmin, jti } = payload;
 
     // 保持原有字段名 id，实际值是用户的 guid
     return {
@@ -110,6 +110,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       username,
       email,
       isAdmin,
+      jti, // 令牌唯一标识，用于会话管理
     };
   }
 }
