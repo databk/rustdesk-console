@@ -135,9 +135,7 @@ npm run start:prod
 
 ## 🤝 Contributing
 
-1. Fork → 2. Feature branch → 3. Commit → 4. Push → 5. Pull Request
-
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions, and contribution guidelines.
 
 ---
 
