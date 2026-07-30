@@ -142,5 +142,5 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 ---
 
 <p align="center">
-  <strong>Built with ❤️ using NestJS | The RustDesk Console Backend</strong>
+  <strong>Built with ❤️ using NestJS | [Data Block](https://github.com/databk)</strong>
 </p>
