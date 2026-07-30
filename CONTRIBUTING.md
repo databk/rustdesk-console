@@ -54,17 +54,6 @@ Common types used in this project:
 
 The `scope` is optional but recommended — use the module name (e.g., `auth`, `oidc`, `device`).
 
-## Branch Naming
-
-Branch names should follow the pattern `<type>/<description>`, using the same types as Conventional Commits:
-
-```
-feat/add-webauthn-login
-fix/session-validation
-docs/update-readme
-chore/upgrade-dependencies
-```
-
 ## Pull Requests
 
 1. Fork the repository and create a branch from `main`
