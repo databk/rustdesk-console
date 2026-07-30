@@ -81,6 +81,8 @@ Connection · File transfer · Security alarm · Console operation logging
 
 ### Docker (Recommended)
 
+See [`docker-compose.yml`](docker-compose.yml) for the full configuration.
+
 ```bash
 docker compose up -d
 ```
@@ -137,6 +139,8 @@ npm run start:prod
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/).
 
-## 📄 License
+---
 
-[AGPL-3.0](LICENSE) · Built with ❤️ using NestJS
+<p align="center">
+  <strong>Built with ❤️ using NestJS | The RustDesk Console Backend</strong>
+</p>
