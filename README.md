@@ -81,7 +81,7 @@ Connection · File transfer · Security alarm · Console operation logging
 
 ### Docker (Recommended)
 
-See [`docker-compose.yml`](docker-compose.yml) for the full configuration.
+Grab the [`docker-compose.yml`](docker-compose.yml) and launch:
 
 ```bash
 docker compose up -d
