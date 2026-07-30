@@ -22,7 +22,7 @@
 <td width="50%">
 
 ### 🔐 Authentication & Security
-JWT tokens · TOTP 2FA · OIDC SSO · Email verification · Rate limiting
+JWT tokens · TOTP 2FA · OIDC SSO · Passkey · Email verification · Rate limiting
 
 </td>
 <td width="50%">
