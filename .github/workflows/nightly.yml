@@ -1,0 +1,240 @@
+name: Nightly Build
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC (08:00 CST)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  check-commits:
+    name: Check for New Commits
+    runs-on: ubuntu-latest
+    outputs:
+      has_new_commits: ${{ steps.check.outputs.has_new_commits }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check for new commits since last nightly
+        id: check
+        run: |
+          LAST_NIGHTLY=$(git tag -l "nightly-*" --sort=-version:refname | head -n 1)
+          if [ -z "$LAST_NIGHTLY" ]; then
+            echo "No previous nightly tag found, proceeding with build"
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+          else
+            COMMIT_COUNT=$(git rev-list "${LAST_NIGHTLY}..HEAD" --count)
+            if [ "$COMMIT_COUNT" -gt 0 ]; then
+              echo "Found ${COMMIT_COUNT} new commits since ${LAST_NIGHTLY}, proceeding with build"
+              echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "No new commits since ${LAST_NIGHTLY}, skipping build"
+              echo "has_new_commits=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+  nightly:
+    name: Nightly Build
+    needs: check-commits
+    if: ${{ needs.check-commits.outputs.has_new_commits == 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Build application
+        run: npm run build
+
+      - name: Generate nightly version
+        id: version
+        run: |
+          BASE_VERSION=$(jq -r '.version' package.json)
+          DATE=$(date +%Y%m%d)
+          VERSION="${BASE_VERSION}-nightly.${DATE}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Nightly version: ${VERSION}"
+
+      - name: Build and push Docker images
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+
+          docker buildx create --use
+
+          # Login to Docker Hub
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+          # Login to GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+          # Build and push to Docker Hub
+          docker buildx build --push \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg APP_VERSION=$VERSION \
+            --tag databk/rustdesk-console:nightly \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            .
+
+          # Build and push to GitHub Container Registry
+          docker buildx build --push \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg APP_VERSION=$VERSION \
+            --tag ghcr.io/databk/rustdesk-console:nightly \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            .
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          LAST_NIGHTLY=$(git tag -l "nightly-*" --sort=-version:refname | head -n 1)
+          if [ -z "$LAST_NIGHTLY" ]; then
+            # No previous nightly tag, use last release tag
+            LAST_RELEASE=$(git tag -l --sort=-version:refname | grep -v "nightly-" | head -n 1)
+            if [ -n "$LAST_RELEASE" ]; then
+              CHANGELOG=$(git log "${LAST_RELEASE}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
+            else
+              CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+            fi
+          else
+            CHANGELOG=$(git log "${LAST_NIGHTLY}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="- No significant changes"
+          fi
+
+          # Write changelog to file for multiline output
+          echo "## What's Changed" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "$CHANGELOG" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_NIGHTLY:-$(git rev-list --max-parents=0 HEAD | head -1)}...${{ steps.version.outputs.version }}" >> CHANGELOG.md
+
+      - name: Create nightly tag
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          DATE_TAG="nightly-$(date +%Y%m%d)"
+          git tag "$DATE_TAG"
+
+      - name: Push nightly tag
+        run: |
+          DATE_TAG="nightly-$(date +%Y%m%d)"
+          git push origin "$DATE_TAG"
+
+      - name: Create GitHub Pre-release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: nightly-$(date +%Y%m%d)
+          name: Nightly ${{ steps.version.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: true
+
+  sea-build:
+    name: Build SEA (${{ matrix.target }})
+    needs: nightly
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+          - target: win-x64
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set nightly version in package.json
+        shell: bash
+        run: |
+          VERSION=${{ needs.nightly.outputs.version }}
+          # Update version in package.json for SEA build
+          node -e "const pkg = require('./package.json'); pkg.version = '${VERSION}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
+
+      - name: Build SEA executable
+        run: npm run build:sea
+
+      - name: Create archive (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd dist-sea
+          tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path dist-sea/* -DestinationPath rustdesk-console-${{ matrix.target }}.zip
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: nightly-$(date +%Y%m%d)
+          files: |
+            rustdesk-console-${{ matrix.target }}.tar.gz
+            rustdesk-console-${{ matrix.target }}.zip
+          fail_on_unmatched_files: false
+
+  cleanup:
+    name: Cleanup Old Nightly Tags
+    needs: [nightly, sea-build]
+    if: always() && needs.nightly.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Remove old nightly tags (keep last 7)
+        run: |
+          # List nightly tags sorted by date, keep the 7 most recent
+          TAGS=$(git tag -l "nightly-*" --sort=-version:refname)
+          COUNT=$(echo "$TAGS" | wc -l)
+          if [ "$COUNT" -gt 7 ]; then
+            OLD_TAGS=$(echo "$TAGS" | tail -n +8)
+            for TAG in $OLD_TAGS; do
+              echo "Removing old nightly tag: $TAG"
+              git push origin --delete "$TAG" || true
+              git tag -d "$TAG" || true
+            done
+          fi
