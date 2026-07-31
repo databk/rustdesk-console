@@ -51,6 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      date_tag: ${{ steps.version.outputs.date_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -79,6 +80,7 @@ jobs:
           DATE=$(date +%Y%m%d)
           VERSION="${BASE_VERSION}-nightly.${DATE}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "date_tag=nightly-${DATE}" >> "$GITHUB_OUTPUT"
           echo "Nightly version: ${VERSION}"
 
       - name: Build and push Docker images
@@ -141,18 +143,18 @@ jobs:
       - name: Create nightly tag
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          DATE_TAG="nightly-$(date +%Y%m%d)"
+          DATE_TAG="${{ steps.version.outputs.date_tag }}"
           git tag "$DATE_TAG"
 
       - name: Push nightly tag
         run: |
-          DATE_TAG="nightly-$(date +%Y%m%d)"
+          DATE_TAG="${{ steps.version.outputs.date_tag }}"
           git push origin "$DATE_TAG"
 
       - name: Create GitHub Pre-release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: nightly-$(date +%Y%m%d)
+          tag_name: ${{ steps.version.outputs.date_tag }}
           name: Nightly ${{ steps.version.outputs.version }}
           body_path: CHANGELOG.md
           draft: false
@@ -208,7 +210,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: nightly-$(date +%Y%m%d)
+          tag_name: ${{ needs.nightly.outputs.date_tag }}
           files: |
             rustdesk-console-${{ matrix.target }}.tar.gz
             rustdesk-console-${{ matrix.target }}.zip
