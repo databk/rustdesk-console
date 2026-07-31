@@ -123,6 +123,10 @@ export class UpdateUserSecurityDto {
 export class UpdateCurrentUserDto {
   @IsString()
   @IsOptional()
+  display_name?: string;
+
+  @IsString()
+  @IsOptional()
   email?: string;
 
   @IsString()

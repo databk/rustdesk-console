@@ -453,6 +453,10 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
+    if (dto.display_name !== undefined) {
+      user.displayName = dto.display_name || null;
+    }
+
     if (dto.email !== undefined) {
       if (dto.email) {
         const existingEmail = await this.userRepository.findOne({
