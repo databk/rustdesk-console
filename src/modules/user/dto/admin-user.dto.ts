@@ -49,4 +49,12 @@ export class AdminUserQueryDto {
   @IsString()
   @IsOptional()
   strategy_name?: string;
+
+  @IsString()
+  @IsOptional()
+  user_group_guid?: string;
+
+  @IsString()
+  @IsOptional()
+  user_group_name?: string;
 }

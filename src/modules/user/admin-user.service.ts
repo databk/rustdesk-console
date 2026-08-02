@@ -26,6 +26,8 @@ export class AdminUserService {
       is_admin,
       third_auth_type,
       strategy_name,
+      user_group_guid,
+      user_group_name,
     } = query;
     const skip = (current - 1) * pageSize;
 
@@ -68,6 +70,18 @@ export class AdminUserService {
         )`,
         { strategyName: `%${strategy_name}%` },
       );
+    }
+
+    if (user_group_guid) {
+      queryBuilder.andWhere('user.userGroupGuid = :userGroupGuid', {
+        userGroupGuid: user_group_guid,
+      });
+    }
+
+    if (user_group_name && !user_group_guid) {
+      queryBuilder.andWhere('userGroup.name LIKE :userGroupName', {
+        userGroupName: `%${user_group_name}%`,
+      });
     }
 
     const [users, total] = await queryBuilder
