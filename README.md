@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/databk/rustdesk-console-web/main/public/logo.svg" alt="RustDesk Console" width="64" />
+
 # RustDesk Console
 
 **Enterprise-grade management platform for the RustDesk ecosystem**
