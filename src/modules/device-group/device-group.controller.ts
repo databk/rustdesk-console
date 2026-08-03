@@ -246,27 +246,6 @@ export class DeviceGroupController {
   }
 
   /**
-   * 更新设备属性
-   * 管理员可以部分更新设备的用户、设备组、策略和备注
-   * 传字符串值 -> 按名称查找并关联
-   * 传 null -> 清除关联
-   * 不传某字段 -> 不修改该属性
-   *
-   * @param guid 设备GUID
-   * @param dto 更新数据
-   * @returns 更新结果
-   */
-  @Patch('devices/:guid')
-  @UseGuards(AdminGuard)
-  async updateDevice(
-    @Param('guid') guid: string,
-    @Body() dto: UpdateDeviceDto,
-  ) {
-    await this.deviceGroupService.updateDevice(guid, dto);
-    return { message: '设备更新成功' };
-  }
-
-  /**
    * 批量更新设备状态
    * 管理员可以批量启用或禁用设备
    *
@@ -286,6 +265,27 @@ export class DeviceGroupController {
       success: result.failedCount === 0,
       data: result,
     };
+  }
+
+  /**
+   * 更新设备属性
+   * 管理员可以部分更新设备的用户、设备组、策略和备注
+   * 传字符串值 -> 按名称查找并关联
+   * 传 null -> 清除关联
+   * 不传某字段 -> 不修改该属性
+   *
+   * @param guid 设备GUID
+   * @param dto 更新数据
+   * @returns 更新结果
+   */
+  @Patch('devices/:guid')
+  @UseGuards(AdminGuard)
+  async updateDevice(
+    @Param('guid') guid: string,
+    @Body() dto: UpdateDeviceDto,
+  ) {
+    await this.deviceGroupService.updateDevice(guid, dto);
+    return { message: '设备更新成功' };
   }
 
   /**
