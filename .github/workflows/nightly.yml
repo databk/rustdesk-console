@@ -2,7 +2,7 @@ name: Nightly Build
 
 on:
   schedule:
-    # Run daily at 00:00 Beijing time (16:00 UTC)
+    # Run daily at 00:00 CST (16:00 UTC)
     - cron: '0 16 * * *'
   workflow_dispatch:
 
