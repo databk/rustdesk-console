@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/databk/rustdesk-console-web/main/public/logo.svg" alt="RustDesk Console" width="64" />
+<img src="https://raw.githubusercontent.com/databk/rustdesk-console-web/main/public/logo.svg" alt="RustDesk Console" width="128" />
 
 # RustDesk Console
 
