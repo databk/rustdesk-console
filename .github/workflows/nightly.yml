@@ -2,8 +2,8 @@ name: Nightly Build
 
 on:
   schedule:
-    # Run daily at 00:00 UTC (08:00 CST)
-    - cron: '0 0 * * *'
+    # Run daily at 00:00 Beijing time (16:00 UTC)
+    - cron: '0 16 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -29,19 +29,18 @@ jobs:
       - name: Check for new commits since last nightly
         id: check
         run: |
-          LAST_NIGHTLY=$(git tag -l "nightly-*" --sort=-version:refname | head -n 1)
-          if [ -z "$LAST_NIGHTLY" ]; then
-            echo "No previous nightly tag found, proceeding with build"
-            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
-          else
-            COMMIT_COUNT=$(git rev-list "${LAST_NIGHTLY}..HEAD" --count)
+          if git tag -l "nightly" | grep -q "nightly"; then
+            COMMIT_COUNT=$(git rev-list "nightly..HEAD" --count)
             if [ "$COMMIT_COUNT" -gt 0 ]; then
-              echo "Found ${COMMIT_COUNT} new commits since ${LAST_NIGHTLY}, proceeding with build"
+              echo "Found ${COMMIT_COUNT} new commits since nightly, proceeding with build"
               echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
             else
-              echo "No new commits since ${LAST_NIGHTLY}, skipping build"
+              echo "No new commits since nightly, skipping build"
               echo "has_new_commits=false" >> "$GITHUB_OUTPUT"
             fi
+          else
+            echo "No previous nightly tag found, proceeding with build"
+            echo "has_new_commits=true" >> "$GITHUB_OUTPUT"
           fi
 
   nightly:
@@ -51,7 +50,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      date_tag: ${{ steps.version.outputs.date_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -80,7 +78,6 @@ jobs:
           DATE=$(date +%Y%m%d)
           VERSION="${BASE_VERSION}-nightly.${DATE}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "date_tag=nightly-${DATE}" >> "$GITHUB_OUTPUT"
           echo "Nightly version: ${VERSION}"
 
       - name: Build and push Docker images
@@ -113,50 +110,49 @@ jobs:
             --cache-to type=gha,mode=max \
             .
 
+      - name: Delete existing nightly tag and release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Delete existing release if it exists
+          gh release delete nightly --yes || true
+          # Delete existing remote tag if it exists
+          git push origin --delete nightly || true
+          # Delete existing local tag if it exists
+          git tag -d nightly || true
+
       - name: Generate changelog
         id: changelog
+        uses: TriPSs/conventional-changelog-action@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          git-user-name: 'DataBK Auto Release'
+          git-user-email: 'databk.auto.release@github.com'
+          skip-tag: 'true'
+          skip-commit: 'true'
+          skip-on-no-changelog: 'false'
+
+      - name: Prepare release body
+        env:
+          CHANGELOG: ${{ steps.changelog.outputs.clean_changelog }}
         run: |
-          LAST_NIGHTLY=$(git tag -l "nightly-*" --sort=-version:refname | head -n 1)
-          if [ -z "$LAST_NIGHTLY" ]; then
-            # No previous nightly tag, use last release tag
-            LAST_RELEASE=$(git tag -l --sort=-version:refname | grep -v "nightly-" | head -n 1)
-            if [ -n "$LAST_RELEASE" ]; then
-              CHANGELOG=$(git log "${LAST_RELEASE}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
-            else
-              CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
-            fi
-          else
-            CHANGELOG=$(git log "${LAST_NIGHTLY}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
-          fi
-
           if [ -z "$CHANGELOG" ]; then
-            CHANGELOG="- No significant changes"
+            printf '## What'\''s Changed\n\n- No significant changes\n' > RELEASE_BODY.md
+          else
+            printf '%s\n' "$CHANGELOG" > RELEASE_BODY.md
           fi
-
-          # Write changelog to file for multiline output
-          echo "## What's Changed" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          echo "$CHANGELOG" >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_NIGHTLY:-$(git rev-list --max-parents=0 HEAD | head -1)}...${{ steps.version.outputs.version }}" >> CHANGELOG.md
 
       - name: Create nightly tag
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          DATE_TAG="${{ steps.version.outputs.date_tag }}"
-          git tag "$DATE_TAG"
-
-      - name: Push nightly tag
-        run: |
-          DATE_TAG="${{ steps.version.outputs.date_tag }}"
-          git push origin "$DATE_TAG"
+          git tag nightly
+          git push origin nightly
 
       - name: Create GitHub Pre-release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.version.outputs.date_tag }}
+          tag_name: nightly
           name: Nightly ${{ steps.version.outputs.version }}
-          body_path: CHANGELOG.md
+          body_path: RELEASE_BODY.md
           draft: false
           prerelease: true
 
@@ -210,33 +206,9 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.nightly.outputs.date_tag }}
+          tag_name: nightly
           files: |
             rustdesk-console-${{ matrix.target }}.tar.gz
             rustdesk-console-${{ matrix.target }}.zip
           fail_on_unmatched_files: false
 
-  cleanup:
-    name: Cleanup Old Nightly Tags
-    needs: [nightly, sea-build]
-    if: always() && needs.nightly.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Remove old nightly tags (keep last 7)
-        run: |
-          # List nightly tags sorted by date, keep the 7 most recent
-          TAGS=$(git tag -l "nightly-*" --sort=-version:refname)
-          COUNT=$(echo "$TAGS" | wc -l)
-          if [ "$COUNT" -gt 7 ]; then
-            OLD_TAGS=$(echo "$TAGS" | tail -n +8)
-            for TAG in $OLD_TAGS; do
-              echo "Removing old nightly tag: $TAG"
-              git push origin --delete "$TAG" || true
-              git tag -d "$TAG" || true
-            done
-          fi
