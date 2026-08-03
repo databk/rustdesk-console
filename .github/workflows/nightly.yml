@@ -92,7 +92,7 @@ jobs:
           # Login to GitHub Container Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-          # Build once and push to both Docker Hub and GitHub Container Registry
+          # Build and push to Docker Hub and GitHub Container Registry
           docker buildx build --push \
             --platform linux/amd64,linux/arm64 \
             --build-arg APP_VERSION=$VERSION \
