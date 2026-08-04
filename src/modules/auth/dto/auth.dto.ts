@@ -7,6 +7,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { LOGIN_TYPE_VALUES } from '../auth.constants';
 
 /**
  * DeviceInfoDto
@@ -53,14 +54,7 @@ export class LoginDto {
   autoLogin?: boolean;
 
   @IsOptional()
-  @IsIn([
-    'account',
-    'mobile',
-    'sms_code',
-    'email_code',
-    'tfa_code',
-    'passkey_check',
-  ])
+  @IsIn(LOGIN_TYPE_VALUES)
   type?: string;
 
   @IsOptional()

@@ -10,8 +10,6 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../../user/entities/user.entity';
-import { UserToken } from '../../user/entities/user-token.entity';
-import { Peer } from '../../../common/entities';
 import { LoginResponse } from '../../../common/interfaces';
 import {
   LoginDto,
@@ -20,8 +18,8 @@ import {
   LogoutDto,
   DeviceInfoDto,
 } from '../dto/auth.dto';
-import { LoginSession } from '../entities/login-session.entity';
-import { EmailService } from '../../email/email.service';
+import { LoginType } from '../auth.constants';
+
 import { AuthTokenService } from './auth-token.service';
 import { JwtPayload } from '../../../common/services/token.service';
 import { AuthTfaService } from './auth-tfa.service';
@@ -30,6 +28,10 @@ import { AuthDeviceService } from './auth-device.service';
 import { AuthPasskeyService } from './auth-passkey.service';
 import { LdapService } from '../../ldap/ldap.service';
 import { UserGroupService } from '../../user-group/user-group.service';
+import { AuthUserHelper } from './auth-user.helper';
+import { AuthResponseHelper } from './auth-response.helper';
+import { LoginSessionService } from './login-session.service';
+import { LoginContext } from './auth-login.helper';
 
 /**
  * 认证服务
@@ -47,13 +49,7 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(UserToken)
-    private tokenRepository: Repository<UserToken>,
-    @InjectRepository(Peer)
-    private peerRepository: Repository<Peer>,
-    @InjectRepository(LoginSession)
-    private loginSessionRepository: Repository<LoginSession>,
-    private readonly emailService: EmailService,
+
     private readonly tokenService: AuthTokenService,
     private readonly tfaService: AuthTfaService,
     private readonly emailAuthService: AuthEmailService,
@@ -61,6 +57,9 @@ export class AuthService {
     private readonly passkeyService: AuthPasskeyService,
     private readonly ldapService: LdapService,
     private readonly userGroupService: UserGroupService,
+    private readonly authUserHelper: AuthUserHelper,
+    private readonly authResponseHelper: AuthResponseHelper,
+    private readonly loginSessionService: LoginSessionService,
   ) {}
 
   /**
@@ -74,7 +73,6 @@ export class AuthService {
   async register(registerDto: RegisterDto): Promise<{ message: string }> {
     const { username, email, password, note } = registerDto;
 
-    // 检查用户名或邮箱是否已被注册
     const existingUser = await this.userRepository.findOne({
       where: [{ username }, { email }],
     });
@@ -86,11 +84,9 @@ export class AuthService {
       throw new ConflictException('邮箱已被注册');
     }
 
-    // 使用bcrypt加密密码，强度为10
     const hashedPassword = await bcrypt.hash(password, 10);
     const userGroupGuid = await this.userGroupService.resolveUserGroupGuid();
 
-    // 创建新用户
     const user = this.userRepository.create({
       guid: uuidv4(),
       username,
@@ -123,109 +119,99 @@ export class AuthService {
    * @throws UnauthorizedException 当认证失败时抛出
    */
   async login(loginDto: LoginDto): Promise<LoginResponse> {
-    const { username, password, id, uuid, type } = loginDto;
+    const { type } = loginDto;
 
-    // 处理邮箱验证码登录（第二步）
-    // 兼容 RustDesk 客户端：客户端使用 type: "email_code" 提交二次验证
-    // secret 字段传递的是服务端下发的会话 guid（UUID），用于跟踪一次登录
-    // 通过会话的 method 字段区分 TFA 登录与邮箱验证码登录，
-    // 而非使用用户可控的 tfaCode 字段控制流程，避免攻击者通过操控 tfaCode 绕过验证
-    if (type === 'email_code') {
-      // type === 'email_code' 是二次验证请求，secret 必须存在
-      if (!loginDto.secret) {
-        throw new BadRequestException({ error: '缺少会话标识符' });
-      }
-      // 通过 guid（客户端通过 secret 字段传递）查找会话，由服务端会话的 method 决定路由
-      const session = await this.loginSessionRepository.findOne({
-        where: { guid: loginDto.secret, used: false },
-      });
-      if (!session) {
-        throw new UnauthorizedException({
-          error: '登录会话已过期或无效，请重新登录',
+    switch (type) {
+      case LoginType.EMAIL_CODE:
+        return this.handleEmailCodeLogin(loginDto);
+      case LoginType.SMS_CODE:
+        throw new BadRequestException({
+          error: '短信验证码登录功能正在开发中，暂时不可用',
         });
-      }
-      if (session.method === 'tfa') {
+      case LoginType.TFA_CODE:
         return this.tfaService.handleTfaLogin(
           loginDto,
-          (user, deviceId, deviceUuid) =>
-            this.tokenService.generateToken(
-              user,
-              deviceId,
-              deviceUuid,
-              loginDto.deviceInfo,
-            ),
-          (userGuid, deviceId, deviceUuid, deviceInfo) =>
-            this.deviceService.createOrUpdateDevice(
-              userGuid,
-              deviceId,
-              deviceUuid,
-              deviceInfo,
-            ),
-          (user) => this.buildUserPayload(user),
+          this.createLoginContext(loginDto),
         );
-      }
-      return this.emailAuthService.handleEmailCodeLogin(
-        loginDto,
-        (user, deviceId, deviceUuid) =>
-          this.tokenService.generateToken(
-            user,
-            deviceId,
-            deviceUuid,
-            loginDto.deviceInfo,
-          ),
-        (userGuid, deviceId, deviceUuid, deviceInfo) =>
-          this.deviceService.createOrUpdateDevice(
-            userGuid,
-            deviceId,
-            deviceUuid,
-            deviceInfo,
-          ),
-        (user) => this.buildUserPayload(user),
-      );
+      default:
+        return this.handleStandardLogin(loginDto);
+    }
+  }
+
+  /**
+   * 处理邮箱验证码登录（第二步验证）
+   * 通过会话的 method 字段区分 TFA 登录与邮箱验证码登录，
+   * 而非使用用户可控的 tfaCode 字段控制流程，避免攻击者通过操控 tfaCode 绕过验证
+   */
+  private async handleEmailCodeLogin(
+    loginDto: LoginDto,
+  ): Promise<LoginResponse> {
+    if (!loginDto.secret) {
+      throw new BadRequestException({ error: '缺少会话标识符' });
     }
 
-    // 短信验证码登录功能暂未实现
-    if (type === 'sms_code') {
-      throw new BadRequestException({
-        error: '短信验证码登录功能正在开发中，暂时不可用',
+    const session = await this.loginSessionService.findByGuid(loginDto.secret, {
+      used: false,
+    });
+
+    if (!session) {
+      throw new UnauthorizedException({
+        error: '登录会话已过期或无效，请重新登录',
       });
     }
 
-    // 处理双因素认证登录
-    if (type === 'tfa_code') {
-      return this.tfaService.handleTfaLogin(
-        loginDto,
-        (user, deviceId, deviceUuid) =>
-          this.tokenService.generateToken(
-            user,
-            deviceId,
-            deviceUuid,
-            loginDto.deviceInfo,
-          ),
-        (userGuid, deviceId, deviceUuid, deviceInfo) =>
-          this.deviceService.createOrUpdateDevice(
-            userGuid,
-            deviceId,
-            deviceUuid,
-            deviceInfo,
-          ),
-        (user) => this.buildUserPayload(user),
-      );
-    }
+    const context = this.createLoginContext(loginDto);
 
-    // 标准账号密码登录（自动检测 LDAP/本地认证）
+    if (session.method === 'tfa') {
+      return this.tfaService.handleTfaLogin(loginDto, context);
+    }
+    return this.emailAuthService.handleEmailCodeLogin(loginDto, context);
+  }
+
+  /**
+   * 处理标准账号密码登录（自动检测 LDAP/本地认证）
+   */
+  private async handleStandardLogin(
+    loginDto: LoginDto,
+  ): Promise<LoginResponse> {
+    const { username, password, id, uuid, deviceInfo } = loginDto;
+
     if (!username || !password) {
       throw new BadRequestException({ error: '用户名和密码不能为空' });
     }
 
-    // 尝试 LDAP 认证
     const ldapUser = await this.tryLdapAuthentication(username, password);
     if (ldapUser) {
-      return this.buildLoginResponse(ldapUser, id, uuid, loginDto.deviceInfo);
+      return this.buildLoginResponse(ldapUser, id, uuid, deviceInfo);
     }
 
-    // 回退到本地账号密码认证
-    return this.localLogin(username, password, id, uuid, loginDto.deviceInfo);
+    return this.localLogin(username, password, id, uuid, deviceInfo);
+  }
+
+  /**
+   * 创建登录上下文
+   * 封装 generateToken / createOrUpdateDevice / buildUserPayload 三个回调，
+   * 供二次验证（TFA / 邮箱验证码）通过后统一调用
+   */
+  private createLoginContext(loginDto: LoginDto): LoginContext {
+    return {
+      generateToken: (user, deviceId, deviceUuid) =>
+        this.tokenService.generateToken(
+          user,
+          deviceId,
+          deviceUuid,
+          loginDto.deviceInfo,
+        ),
+      createOrUpdateDevice: (userGuid, deviceId, deviceUuid, deviceInfo) =>
+        this.deviceService.createOrUpdateDevice(
+          userGuid,
+          deviceId,
+          deviceUuid,
+          deviceInfo,
+        ),
+      buildUserPayload: (user) =>
+        this.authResponseHelper.buildUserPayload(user),
+    };
   }
 
   /**
@@ -245,21 +231,17 @@ export class AuthService {
     username: string,
     password: string,
   ): Promise<User | null> {
-    // 检查是否为已关联的 LDAP 用户
     const isLinkedLdapUser = await this.ldapService.isLinkedLdapUser(username);
 
     if (isLinkedLdapUser) {
-      // 已关联的 LDAP 用户必须通过 LDAP 认证
       return this.ldapService.authenticate(username, password);
     }
 
-    // LDAP 未启用则跳过
     const ldapEnabled = await this.ldapService.isEnabled();
     if (!ldapEnabled) {
       return null;
     }
 
-    // 尝试 LDAP 认证，失败静默回退本地认证
     try {
       return await this.ldapService.authenticate(username, password);
     } catch {
@@ -284,31 +266,20 @@ export class AuthService {
     uuid?: string,
     deviceInfo?: DeviceInfoDto,
   ): Promise<LoginResponse> {
-    // 查找用户（支持用户名或邮箱登录）
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.username = :username OR user.email = :email', {
-        username,
-        email: username,
-      })
-      .addSelect('user.password')
-      .addSelect('user.tfaSecret')
-      .addSelect('user.info')
-      .addSelect('user.thirdAuthType')
-      .addSelect('user.avatar')
-      .getOne();
+    const user = await this.authUserHelper.findByUsernameOrEmail(username, {
+      withPassword: true,
+      withTfaSecret: true,
+    });
 
     if (!user) {
       throw new UnauthorizedException({ error: '用户名或密码错误' });
     }
 
-    // 验证密码
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException({ error: '用户名或密码错误' });
     }
 
-    // 检查用户状态
     if (user.status === UserStatus.DISABLED) {
       throw new UnauthorizedException({ error: '账户已被禁用' });
     }
@@ -317,35 +288,30 @@ export class AuthService {
       throw new UnauthorizedException({ error: '请先验证邮箱' });
     }
 
-    // 检查是否需要邮箱验证（用户设置中开启了email_verification）
     const userInfo = user.getUserInfo();
+    const buildPayload = (u: User) =>
+      this.authResponseHelper.buildUserPayload(u);
+
     if (userInfo?.email_verification && user.email) {
-      return this.emailAuthService.initiateEmailVerification(user, (u) =>
-        this.buildUserPayload(u),
+      return this.emailAuthService.initiateEmailVerification(
+        user,
+        buildPayload,
       );
     }
 
-    // 检查是否需要 Passkey 双因素认证
     if (userInfo?.other?.passkey_tfa_enabled) {
       const hasPasskey = await this.passkeyService.hasCredentials(user.guid);
       if (hasPasskey) {
-        return this.passkeyService.initiatePasskeyTfa(user, (u) =>
-          this.buildUserPayload(u),
-        );
+        return this.passkeyService.initiatePasskeyTfa(user, buildPayload);
       }
     }
 
-    // 检查是否需要双因素认证
-    // localLogin 仅在首次登录（账号密码）时调用，二次验证通过 tfa_code/email_code 类型处理
-    // 因此这里始终发起 TFA 流程，无需检查 secret
     if (user.tfaSecret) {
-      return this.tfaService.initiateTfaLogin(user, (u) =>
-        this.buildUserPayload(u),
-      );
+      return this.tfaService.initiateTfaLogin(user, buildPayload);
     } else if (userInfo?.other?.tfa_enforce) {
       return {
         type: 'enforce_tfa',
-        user: this.buildUserPayload(user),
+        user: buildPayload(user),
       };
     }
 
@@ -361,7 +327,6 @@ export class AuthService {
     uuid?: string,
     deviceInfo?: DeviceInfoDto,
   ): Promise<LoginResponse> {
-    // 创建或更新设备记录
     if (id || uuid) {
       await this.deviceService.createOrUpdateDevice(
         user.guid,
@@ -371,7 +336,6 @@ export class AuthService {
       );
     }
 
-    // 生成JWT Token
     const token = await this.tokenService.generateToken(
       user,
       id,
@@ -384,24 +348,7 @@ export class AuthService {
     return {
       access_token: token,
       type: 'access_token',
-      user: this.buildUserPayload(user),
-    };
-  }
-
-  /**
-   * 构建用户信息载荷
-   */
-  private buildUserPayload(user: User) {
-    return {
-      name: user.username,
-      display_name: user.displayName || undefined,
-      email: user.email || undefined,
-      note: user.note || undefined,
-      status: user.status,
-      info: user.getUserInfo(),
-      is_admin: user.isAdmin,
-      third_auth_type: user.thirdAuthType || undefined,
-      ...(user.avatar ? { avatar: user.avatar } : {}),
+      user: this.authResponseHelper.buildUserPayload(user),
     };
   }
 
@@ -418,30 +365,13 @@ export class AuthService {
     userGuid: string,
     _currentUserDto?: CurrentUserDto,
   ): Promise<Record<string, unknown>> {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.guid = :guid', { guid: userGuid })
-      .addSelect('user.info')
-      .addSelect('user.thirdAuthType')
-      .addSelect('user.avatar')
-      .getOne();
+    const user = await this.authUserHelper.findByGuid(userGuid);
 
     if (!user) {
       throw new UnauthorizedException('用户不存在');
     }
 
-    return {
-      name: user.username,
-      display_name: user.displayName || undefined,
-      email: user.email || undefined,
-      note: user.note || undefined,
-      verifier: user.verifier || undefined,
-      status: user.status,
-      info: user.getUserInfo(),
-      is_admin: user.isAdmin,
-      third_auth_type: user.thirdAuthType || undefined,
-      ...(user.avatar ? { avatar: user.avatar } : {}),
-    };
+    return this.authResponseHelper.buildCurrentUserPayload(user);
   }
 
   /**
@@ -464,17 +394,13 @@ export class AuthService {
   ): Promise<void> {
     const { id, uuid } = logoutDto;
 
-    // 优先撤销当前token
     if (token) {
       await this.tokenService.revokeToken(userGuid, token);
     }
 
-    // 如果提供了设备信息，撤销该设备的所有token并解除设备绑定
     if (id || uuid) {
-      // 撤销该设备的所有token
       await this.tokenService.revokeDeviceTokens(userGuid, id, uuid);
 
-      // 解除设备与用户的绑定（安全关键：防止退出登录后设备仍关联用户）
       if (uuid) {
         await this.deviceService.unbindDevice(userGuid, uuid);
       }

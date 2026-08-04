@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import {
   generateRegistrationOptions,
@@ -27,15 +27,16 @@ import type {
 } from '@simplewebauthn/types';
 import { User, UserStatus } from '../../user/entities/user.entity';
 import { PasskeyCredential } from '../entities/passkey-credential.entity';
-import { LoginSession } from '../entities/login-session.entity';
+
 import { LoginResponse } from '../../../common/interfaces';
 import { DeviceInfoDto } from '../dto/auth.dto';
 import { WebAuthnConfigService } from './webauthn-config.service';
 import { AuthTokenService } from './auth-token.service';
 import { AuthDeviceService } from './auth-device.service';
-
-/** Passkey 会话有效期（分钟） */
-const SESSION_EXPIRY_MINUTES = 5;
+import { LoginSessionService } from './login-session.service';
+import { AuthUserHelper } from './auth-user.helper';
+import { AuthResponseHelper, UserPayload } from './auth-response.helper';
+import { AuthLoginHelper, LoginContext } from './auth-login.helper';
 
 @Injectable()
 export class AuthPasskeyService {
@@ -44,13 +45,15 @@ export class AuthPasskeyService {
   constructor(
     @InjectRepository(PasskeyCredential)
     private credentialRepository: Repository<PasskeyCredential>,
-    @InjectRepository(LoginSession)
-    private loginSessionRepository: Repository<LoginSession>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly configService: WebAuthnConfigService,
     private readonly tokenService: AuthTokenService,
     private readonly deviceService: AuthDeviceService,
+    private readonly loginSessionService: LoginSessionService,
+    private readonly authUserHelper: AuthUserHelper,
+    private readonly authResponseHelper: AuthResponseHelper,
+    private readonly authLoginHelper: AuthLoginHelper,
   ) {}
 
   // ==================== 注册 ====================
@@ -77,7 +80,6 @@ export class AuthPasskeyService {
       throw new NotFoundException('用户不存在');
     }
 
-    // 查询已绑定的凭证，防止同一认证器重复注册
     const existingCredentials = await this.credentialRepository.find({
       where: { userGuid },
     });
@@ -87,7 +89,6 @@ export class AuthPasskeyService {
       rpID: config.rpId,
       userName: user.username,
       userDisplayName: user.displayName || user.username,
-      // 要求可发现凭证（Passkey），支持无用户名登录
       authenticatorSelection: {
         residentKey: 'required',
         userVerification: 'preferred',
@@ -100,8 +101,11 @@ export class AuthPasskeyService {
       })),
     });
 
-    // 创建临时会话存储 challenge
-    await this.createSession(userGuid, 'passkey_reg', options.challenge);
+    await this.loginSessionService.createSession({
+      userGuid,
+      method: 'passkey_reg',
+      code: options.challenge,
+    });
 
     this.logger.log(`用户 ${user.username} 发起 Passkey 注册`);
 
@@ -126,8 +130,10 @@ export class AuthPasskeyService {
       throw new BadRequestException({ error: 'Passkey 功能未启用' });
     }
 
-    // 查找注册会话获取 challenge
-    const session = await this.findValidSession(userGuid, 'passkey_reg');
+    const session = await this.loginSessionService.findValidSession(
+      userGuid,
+      'passkey_reg',
+    );
     if (!session) {
       throw new BadRequestException({
         error: '注册会话已过期，请重新发起注册',
@@ -155,7 +161,6 @@ export class AuthPasskeyService {
     const { credential, credentialDeviceType, credentialBackedUp } =
       verification.registrationInfo;
 
-    // 检查凭证是否已存在（防止重复注册）
     const existing = await this.credentialRepository.findOne({
       where: { credentialId: credential.id },
     });
@@ -163,7 +168,6 @@ export class AuthPasskeyService {
       throw new BadRequestException({ error: '该凭证已存在' });
     }
 
-    // 保存凭证
     const passkeyCredential = this.credentialRepository.create({
       guid: uuidv4(),
       userGuid,
@@ -182,8 +186,7 @@ export class AuthPasskeyService {
 
     await this.credentialRepository.save(passkeyCredential);
 
-    // 标记会话已使用
-    await this.markSessionUsed(session);
+    await this.loginSessionService.markSessionUsed(session);
 
     this.logger.log(`用户 ${userGuid} 成功绑定 Passkey 凭证`);
 
@@ -209,16 +212,14 @@ export class AuthPasskeyService {
 
     const options = await generateAuthenticationOptions({
       rpID: config.rpId,
-      // 不指定 allowCredentials，支持发现式凭证（无用户名登录）
       userVerification: 'preferred',
     });
 
-    // 创建临时会话存储 challenge，userGuid 暂为空（登录时通过凭证反查）
-    const session = await this.createSession(
-      'pending',
-      'passkey',
-      options.challenge,
-    );
+    const session = await this.loginSessionService.createSession({
+      userGuid: 'pending',
+      method: 'passkey',
+      code: options.challenge,
+    });
 
     this.logger.log(`发起 Passkey 无密码登录，会话 ${session.guid}`);
 
@@ -249,13 +250,9 @@ export class AuthPasskeyService {
       throw new BadRequestException({ error: 'Passkey 功能未启用' });
     }
 
-    // 查找会话
-    const session = await this.loginSessionRepository.findOne({
-      where: {
-        guid: secret,
-        used: false,
-        expiresAt: MoreThan(new Date()),
-      },
+    const session = await this.loginSessionService.findByGuid(secret, {
+      used: false,
+      checkExpiry: true,
     });
 
     if (!session) {
@@ -268,7 +265,6 @@ export class AuthPasskeyService {
       throw new UnauthorizedException({ error: '会话类型不匹配' });
     }
 
-    // 通过 credentialId 查找凭证
     const credential = await this.credentialRepository.findOne({
       where: { credentialId: response.id },
     });
@@ -277,7 +273,6 @@ export class AuthPasskeyService {
       throw new UnauthorizedException({ error: '未找到匹配的凭证' });
     }
 
-    // 对于双因素认证，校验凭证所属用户与会话用户一致
     if (
       session.method === 'passkey_tfa' &&
       session.userGuid !== credential.userGuid
@@ -285,7 +280,6 @@ export class AuthPasskeyService {
       throw new UnauthorizedException({ error: '凭证与用户不匹配' });
     }
 
-    // 查找用户
     const user = await this.userRepository.findOne({
       where: { guid: credential.userGuid },
     });
@@ -298,7 +292,6 @@ export class AuthPasskeyService {
       throw new UnauthorizedException({ error: '账户已被禁用' });
     }
 
-    // 验证认证响应
     const transports = credential.transports
       ? (JSON.parse(credential.transports) as AuthenticatorTransportFuture[])
       : undefined;
@@ -327,38 +320,26 @@ export class AuthPasskeyService {
       throw new UnauthorizedException({ error: 'Passkey 认证失败' });
     }
 
-    // 更新计数器（防克隆检测）
     credential.counter = verification.authenticationInfo.newCounter;
     await this.credentialRepository.save(credential);
 
-    // 标记会话已使用
-    await this.markSessionUsed(session);
+    const context: LoginContext = {
+      generateToken: (u, devId, devUuid) =>
+        this.tokenService.generateToken(u, devId, devUuid, deviceInfo),
+      createOrUpdateDevice: (userGuid, devId, devUuid, info) =>
+        this.deviceService.createOrUpdateDevice(userGuid, devId, devUuid, info),
+      buildUserPayload: (u) => this.authResponseHelper.buildUserPayload(u),
+    };
 
-    // 创建/更新设备记录
-    if (deviceId || deviceUuid) {
-      await this.deviceService.createOrUpdateDevice(
-        user.guid,
-        deviceId,
-        deviceUuid,
-        deviceInfo,
-      );
-    }
-
-    // 生成 JWT Token
-    const token = await this.tokenService.generateToken(
+    return this.authLoginHelper.completeLogin({
       user,
+      session,
+      context,
       deviceId,
       deviceUuid,
       deviceInfo,
-    );
-
-    this.logger.log(`用户 ${user.username} 通过 Passkey 登录成功`);
-
-    return {
-      access_token: token,
-      type: 'access_token',
-      user: this.buildUserPayload(user),
-    };
+      successMessage: `用户 ${user.username} 通过 Passkey 登录成功`,
+    });
   }
 
   // ==================== 双因素认证 ====================
@@ -373,14 +354,13 @@ export class AuthPasskeyService {
    */
   async initiatePasskeyTfa(
     user: User,
-    buildUserPayload: (user: User) => Record<string, unknown>,
+    buildUserPayload: (user: User) => UserPayload,
   ): Promise<LoginResponse> {
     const config = await this.configService.getConfig();
     if (!config.enabled) {
       throw new BadRequestException({ error: 'Passkey 功能未启用' });
     }
 
-    // 查找用户绑定的凭证，用于 allowCredentials
     const credentials = await this.credentialRepository.find({
       where: { userGuid: user.guid },
     });
@@ -402,25 +382,12 @@ export class AuthPasskeyService {
       userVerification: 'preferred',
     });
 
-    // 清除该用户之前未使用的会话
-    await this.loginSessionRepository.delete({
-      userGuid: user.guid,
-      used: false,
-    });
-
-    // 创建 TFA 会话
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + SESSION_EXPIRY_MINUTES);
-
-    const session = this.loginSessionRepository.create({
-      guid: uuidv4(),
+    const session = await this.loginSessionService.createSession({
       userGuid: user.guid,
       method: 'passkey_tfa',
       code: options.challenge,
-      expiresAt,
-      used: false,
+      deleteExisting: true,
     });
-    await this.loginSessionRepository.save(session);
 
     this.logger.log(`用户 ${user.username} 登录需要 Passkey 双因素认证`);
 
@@ -428,7 +395,7 @@ export class AuthPasskeyService {
       type: 'passkey_check',
       secret: session.guid,
       passkey_options: options,
-      user: buildUserPayload(user) as LoginResponse['user'],
+      user: buildUserPayload(user),
     };
   }
 
@@ -461,7 +428,6 @@ export class AuthPasskeyService {
 
     await this.credentialRepository.remove(credential);
 
-    // 如果删除后没有凭证了，自动关闭 Passkey TFA
     const remaining = await this.credentialRepository.count({
       where: { userGuid },
     });
@@ -490,18 +456,16 @@ export class AuthPasskeyService {
     userGuid: string,
     enabled: boolean,
   ): Promise<{ message: string }> {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.guid = :guid', { guid: userGuid })
-      .addSelect('user.info')
-      .getOne();
+    const user = await this.authUserHelper.findByGuid(userGuid, {
+      withThirdAuthType: false,
+      withAvatar: false,
+    });
 
     if (!user) {
       throw new NotFoundException('用户不存在');
     }
 
     if (enabled) {
-      // 启用前检查是否已绑定凭证
       const hasCredential = await this.hasCredentials(userGuid);
       if (!hasCredential) {
         throw new BadRequestException({
@@ -532,11 +496,10 @@ export class AuthPasskeyService {
    * 检查用户是否启用了 Passkey 双因素认证
    */
   async isPasskeyTfaEnabled(userGuid: string): Promise<boolean> {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.guid = :guid', { guid: userGuid })
-      .addSelect('user.info')
-      .getOne();
+    const user = await this.authUserHelper.findByGuid(userGuid, {
+      withThirdAuthType: false,
+      withAvatar: false,
+    });
 
     if (!user) {
       return false;
@@ -544,73 +507,5 @@ export class AuthPasskeyService {
 
     const userInfo = user.getUserInfo();
     return !!userInfo?.other?.passkey_tfa_enabled;
-  }
-
-  // ==================== 私有辅助方法 ====================
-
-  /**
-   * 创建临时会话
-   */
-  private async createSession(
-    userGuid: string,
-    method: LoginSession['method'],
-    challenge: string,
-  ): Promise<LoginSession> {
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + SESSION_EXPIRY_MINUTES);
-
-    const session = this.loginSessionRepository.create({
-      guid: uuidv4(),
-      userGuid,
-      method,
-      code: challenge,
-      expiresAt,
-      used: false,
-    });
-
-    return this.loginSessionRepository.save(session);
-  }
-
-  /**
-   * 查找有效的未使用会话
-   */
-  private async findValidSession(
-    userGuid: string,
-    method: LoginSession['method'],
-  ): Promise<LoginSession | null> {
-    return this.loginSessionRepository.findOne({
-      where: {
-        userGuid,
-        method,
-        used: false,
-        expiresAt: MoreThan(new Date()),
-      },
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  /**
-   * 标记会话已使用
-   */
-  private async markSessionUsed(session: LoginSession): Promise<void> {
-    session.used = true;
-    await this.loginSessionRepository.save(session);
-  }
-
-  /**
-   * 构建用户信息载荷
-   */
-  private buildUserPayload(user: User) {
-    return {
-      name: user.username,
-      display_name: user.displayName || undefined,
-      email: user.email || undefined,
-      note: user.note || undefined,
-      status: user.status,
-      info: user.getUserInfo(),
-      is_admin: user.isAdmin,
-      third_auth_type: user.thirdAuthType || undefined,
-      ...(user.avatar ? { avatar: user.avatar } : {}),
-    };
   }
 }

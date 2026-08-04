@@ -12,6 +12,10 @@ import {
   AuthPasskeyService,
   WebAuthnConfigService,
   TokenCleanupService,
+  AuthResponseHelper,
+  LoginSessionService,
+  AuthUserHelper,
+  AuthLoginHelper,
 } from './services';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../user/entities/user.entity';
@@ -23,6 +27,7 @@ import { SystemSetting } from '../settings/entities/system-setting.entity';
 import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
+import { JWT_DEFAULT_SECRET } from './auth.constants';
 
 /**
  * 认证模块
@@ -58,11 +63,9 @@ import { UserGroupModule } from '../user-group/user-group.module';
     UserGroupModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret:
-        process.env.JWT_SECRET ||
-        'rustdesk-api-secret-key-change-in-production',
+      secret: process.env.JWT_SECRET || JWT_DEFAULT_SECRET,
       signOptions: {
-        expiresIn: '30d', // Token 有效期 30 天
+        expiresIn: '30d',
       },
     }),
   ],
@@ -76,6 +79,10 @@ import { UserGroupModule } from '../user-group/user-group.module';
     AuthPasskeyService,
     WebAuthnConfigService,
     TokenCleanupService,
+    AuthResponseHelper,
+    LoginSessionService,
+    AuthUserHelper,
+    AuthLoginHelper,
     JwtStrategy,
   ],
   exports: [AuthService, AuthTokenService, AuthDeviceService, JwtModule],

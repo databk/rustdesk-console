@@ -7,6 +7,7 @@ import { User } from '../../user/entities/user.entity';
 import { UserToken } from '../../user/entities/user-token.entity';
 import { JwtPayload } from '../../../common/services/token.service';
 import { DeviceInfoDto } from '../dto/auth.dto';
+import { TOKEN_EXPIRY_DAYS } from '../auth.constants';
 
 export interface SessionInfo {
   jti: string;
@@ -31,9 +32,6 @@ export interface SessionInfo {
  * 包括令牌生成、验证和撤销
  */
 export class AuthTokenService {
-  /** Token有效期（天） */
-  private readonly TOKEN_EXPIRY_DAYS = 30;
-
   constructor(
     @InjectRepository(UserToken)
     private tokenRepository: Repository<UserToken>,
@@ -70,7 +68,7 @@ export class AuthTokenService {
     const token = this.jwtService.sign(payload);
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + this.TOKEN_EXPIRY_DAYS);
+    expiresAt.setDate(expiresAt.getDate() + TOKEN_EXPIRY_DAYS);
 
     const userToken = this.tokenRepository.create({
       guid: jti,

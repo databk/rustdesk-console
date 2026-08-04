@@ -6,25 +6,27 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { authenticator } from 'otplib';
-import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../../user/entities/user.entity';
-import { LoginSession } from '../entities/login-session.entity';
-import { LoginDto, DeviceInfoDto } from '../dto/auth.dto';
+import { LoginDto } from '../dto/auth.dto';
 import { LoginResponse } from '../../../common/interfaces';
+import { TFA_LOGIN_SESSION_EXPIRY_MINUTES } from '../auth.constants';
+import { LoginSessionService } from './login-session.service';
+import { AuthUserHelper } from './auth-user.helper';
+import { AuthLoginHelper, LoginContext } from './auth-login.helper';
+import { UserPayload } from './auth-response.helper';
 
 @Injectable()
 export class AuthTfaService {
   private readonly logger = new Logger(AuthTfaService.name);
-  /** TFA 登录会话有效期（分钟） */
-  private readonly TFA_LOGIN_SESSION_EXPIRY_MINUTES = 5;
 
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(LoginSession)
-    private loginSessionRepository: Repository<LoginSession>,
+    private readonly loginSessionService: LoginSessionService,
+    private readonly authUserHelper: AuthUserHelper,
+    private readonly authLoginHelper: AuthLoginHelper,
   ) {}
 
   verifyTfaCode(secret: string, code: string): boolean {
@@ -43,12 +45,11 @@ export class AuthTfaService {
     userGuid: string,
     currentCode?: string,
   ): Promise<{ secret: string; otpauth_url: string }> {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.guid = :guid', { guid: userGuid })
-      .addSelect('user.tfaSecret')
-      .addSelect('user.info')
-      .getOne();
+    const user = await this.authUserHelper.findByGuid(userGuid, {
+      withTfaSecret: true,
+      withThirdAuthType: false,
+      withAvatar: false,
+    });
 
     if (!user) {
       throw new NotFoundException('用户不存在');
@@ -93,12 +94,11 @@ export class AuthTfaService {
     userGuid: string,
     code: string,
   ): Promise<{ message: string }> {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.guid = :guid', { guid: userGuid })
-      .addSelect('user.tfaSecret')
-      .addSelect('user.info')
-      .getOne();
+    const user = await this.authUserHelper.findByGuid(userGuid, {
+      withTfaSecret: true,
+      withThirdAuthType: false,
+      withAvatar: false,
+    });
 
     if (!user) {
       throw new NotFoundException('用户不存在');
@@ -138,12 +138,11 @@ export class AuthTfaService {
     userGuid: string,
     code: string,
   ): Promise<{ message: string }> {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.guid = :guid', { guid: userGuid })
-      .addSelect('user.tfaSecret')
-      .addSelect('user.info')
-      .getOne();
+    const user = await this.authUserHelper.findByGuid(userGuid, {
+      withTfaSecret: true,
+      withThirdAuthType: false,
+      withAvatar: false,
+    });
 
     if (!user) {
       throw new NotFoundException('用户不存在');
@@ -184,54 +183,36 @@ export class AuthTfaService {
    */
   async initiateTfaLogin(
     user: User,
-    buildUserPayload: (user: User) => Record<string, unknown>,
+    buildUserPayload: (user: User) => UserPayload,
   ): Promise<LoginResponse> {
-    // 删除该用户之前未使用的验证会话，避免会话堆积
-    await this.loginSessionRepository.delete({
-      userGuid: user.guid,
-      used: false,
-    });
-
-    const guid = uuidv4();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(
-      expiresAt.getMinutes() + this.TFA_LOGIN_SESSION_EXPIRY_MINUTES,
-    );
-
-    const session = this.loginSessionRepository.create({
-      guid,
+    const session = await this.loginSessionService.createSession({
       userGuid: user.guid,
       method: 'tfa',
-      expiresAt,
-      used: false,
+      expiryMinutes: TFA_LOGIN_SESSION_EXPIRY_MINUTES,
+      deleteExisting: true,
     });
-    await this.loginSessionRepository.save(session);
 
     this.logger.log(`用户 ${user.username} 登录需要 TFA 验证，已创建会话`);
 
-    // 返回 guid 作为会话标识符（通过 secret 字段，保持 API 兼容）
     return {
       type: 'email_check',
       tfa_type: 'tfa_check',
-      secret: guid,
-      user: buildUserPayload(user) as LoginResponse['user'],
+      secret: session.guid,
+      user: buildUserPayload(user),
     };
   }
 
+  /**
+   * 处理 TFA 登录（二次验证）
+   * 验证用户提交的 TFA 验证码并完成登录流程
+   *
+   * @param loginDto 登录信息
+   * @param context 登录上下文（回调集合）
+   * @returns 登录响应
+   */
   async handleTfaLogin(
     loginDto: LoginDto,
-    generateToken: (
-      user: User,
-      deviceId?: string,
-      deviceUuid?: string,
-    ) => Promise<string>,
-    createOrUpdateDevice?: (
-      userGuid: string,
-      deviceId?: string,
-      deviceUuid?: string,
-      deviceInfo?: DeviceInfoDto,
-    ) => Promise<void>,
-    buildUserPayload?: (user: User) => Record<string, unknown>,
+    context: LoginContext,
   ): Promise<LoginResponse> {
     const { username, tfaCode, secret, id, uuid, deviceInfo } = loginDto;
 
@@ -239,14 +220,10 @@ export class AuthTfaService {
       throw new BadRequestException({ error: '双因素认证参数不完整' });
     }
 
-    // 通过会话标识符定位本次登录，secret 字段实际是会话 guid
-    const session = await this.loginSessionRepository.findOne({
-      where: {
-        guid: secret,
-        method: 'tfa',
-        used: false,
-        expiresAt: MoreThan(new Date()),
-      },
+    const session = await this.loginSessionService.findByGuid(secret, {
+      method: 'tfa',
+      used: false,
+      checkExpiry: true,
     });
 
     if (!session) {
@@ -255,21 +232,14 @@ export class AuthTfaService {
       });
     }
 
-    // 按会话绑定的用户查找，确保登录主体由服务端会话决定
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.guid = :guid', { guid: session.userGuid })
-      .addSelect('user.tfaSecret')
-      .addSelect('user.info')
-      .addSelect('user.thirdAuthType')
-      .addSelect('user.avatar')
-      .getOne();
+    const user = await this.authUserHelper.findByGuid(session.userGuid, {
+      withTfaSecret: true,
+    });
 
     if (!user) {
       throw new UnauthorizedException({ error: '用户不存在' });
     }
 
-    // 若客户端回传了用户名，校验与会话用户一致，防止会话替换攻击
     if (username && user.username !== username && user.email !== username) {
       throw new UnauthorizedException({ error: '用户信息不匹配' });
     }
@@ -278,7 +248,6 @@ export class AuthTfaService {
       throw new UnauthorizedException({ error: '双因素认证参数无效' });
     }
 
-    // 对照服务端存储的 tfaSecret 验证 TFA 验证码
     const isValidTfa = this.verifyTfaCode(user.tfaSecret, tfaCode);
     if (!isValidTfa) {
       throw new UnauthorizedException({ error: '双因素认证验证码错误' });
@@ -288,32 +257,14 @@ export class AuthTfaService {
       throw new UnauthorizedException({ error: '账户已被禁用' });
     }
 
-    // 标记会话为已使用，防止重放
-    session.used = true;
-    await this.loginSessionRepository.save(session);
-
-    if (createOrUpdateDevice && (id || uuid)) {
-      await createOrUpdateDevice(user.guid, id, uuid, deviceInfo);
-    }
-
-    const token = await generateToken(user, id, uuid);
-
-    this.logger.log(`用户 ${user.username} TFA认证成功，已登录`);
-
-    return {
-      access_token: token,
-      type: 'access_token',
-      user: buildUserPayload
-        ? (buildUserPayload(user) as LoginResponse['user'])
-        : {
-            name: user.username,
-            email: user.email || undefined,
-            note: user.note || undefined,
-            status: user.status,
-            info: user.getUserInfo(),
-            is_admin: user.isAdmin,
-            third_auth_type: user.thirdAuthType || undefined,
-          },
-    };
+    return this.authLoginHelper.completeLogin({
+      user,
+      session,
+      context,
+      deviceId: id,
+      deviceUuid: uuid,
+      deviceInfo,
+      successMessage: `用户 ${user.username} TFA认证成功，已登录`,
+    });
   }
 }

@@ -4,14 +4,15 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../../user/entities/user.entity';
-import { LoginSession } from '../entities/login-session.entity';
-import { LoginDto, DeviceInfoDto } from '../dto/auth.dto';
+import { LoginDto } from '../dto/auth.dto';
 import { EmailService } from '../../email/email.service';
 import { LoginResponse } from '../../../common/interfaces';
+import { EMAIL_VERIFICATION_CODE_EXPIRY_MINUTES } from '../auth.constants';
+import { LoginSessionService } from './login-session.service';
+import { AuthUserHelper } from './auth-user.helper';
+import { AuthLoginHelper, LoginContext } from './auth-login.helper';
+import { UserPayload } from './auth-response.helper';
 
 @Injectable()
 /**
@@ -26,14 +27,11 @@ import { LoginResponse } from '../../../common/interfaces';
  */
 export class AuthEmailService {
   private readonly logger = new Logger(AuthEmailService.name);
-  /** 验证码有效期（分钟） */
-  private readonly VERIFICATION_CODE_EXPIRY_MINUTES = 5;
 
   constructor(
-    @InjectRepository(LoginSession)
-    private loginSessionRepository: Repository<LoginSession>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private readonly loginSessionService: LoginSessionService,
+    private readonly authUserHelper: AuthUserHelper,
+    private readonly authLoginHelper: AuthLoginHelper,
     private emailService: EmailService,
   ) {}
 
@@ -48,7 +46,7 @@ export class AuthEmailService {
    */
   async initiateEmailVerification(
     user: User,
-    buildUserPayload: (user: User) => Record<string, unknown>,
+    buildUserPayload: (user: User) => UserPayload,
   ): Promise<LoginResponse> {
     if (!user.email) {
       throw new BadRequestException({
@@ -56,37 +54,17 @@ export class AuthEmailService {
       });
     }
 
-    // 生成6位随机验证码
     const code = Math.random().toString().slice(-6);
 
-    // 生成会话 guid（返回给客户端作为会话标识符）
-    const guid = uuidv4();
-
-    // 计算过期时间
-    const expiresAt = new Date();
-    expiresAt.setMinutes(
-      expiresAt.getMinutes() + this.VERIFICATION_CODE_EXPIRY_MINUTES,
-    );
-
-    // 删除该用户之前的验证会话
-    await this.loginSessionRepository.delete({
-      userGuid: user.guid,
-      used: false,
-    });
-
-    // 创建验证会话
-    const session = this.loginSessionRepository.create({
-      guid,
+    const session = await this.loginSessionService.createSession({
       userGuid: user.guid,
       method: 'email',
       email: user.email,
       code,
-      expiresAt,
-      used: false,
+      expiryMinutes: EMAIL_VERIFICATION_CODE_EXPIRY_MINUTES,
+      deleteExisting: true,
     });
-    await this.loginSessionRepository.save(session);
 
-    // 发送验证码邮件
     const sent = await this.emailService.sendVerificationCode(user.email, code);
     if (!sent) {
       throw new BadRequestException({
@@ -98,12 +76,11 @@ export class AuthEmailService {
       `用户 ${user.username} 登录需要邮箱验证，验证码已发送至 ${user.email}`,
     );
 
-    // 返回 guid 作为会话标识符（通过 secret 字段，保持 API 兼容）
     return {
       type: 'email_check',
       tfa_type: 'email_check',
-      secret: guid,
-      user: buildUserPayload(user) as LoginResponse['user'],
+      secret: session.guid,
+      user: buildUserPayload(user),
     };
   }
 
@@ -112,45 +89,26 @@ export class AuthEmailService {
    * 验证用户输入的验证码并完成登录流程
    *
    * @param loginDto 登录信息
-   * @param generateToken Token生成函数
-   * @param createOrUpdateDevice 设备创建/更新函数（可选）
-   * @param buildUserPayload 构建用户信息载荷的回调函数
+   * @param context 登录上下文（回调集合）
    * @returns 登录响应
    * @throws BadRequestException 当验证参数不完整时抛出
    * @throws UnauthorizedException 当验证失败或用户状态异常时抛出
    */
   async handleEmailCodeLogin(
     loginDto: LoginDto,
-    generateToken: (
-      user: User,
-      deviceId?: string,
-      deviceUuid?: string,
-    ) => Promise<string>,
-    createOrUpdateDevice?: (
-      userGuid: string,
-      deviceId?: string,
-      deviceUuid?: string,
-      deviceInfo?: DeviceInfoDto,
-    ) => Promise<void>,
-    buildUserPayload?: (user: User) => Record<string, unknown>,
+    context: LoginContext,
   ): Promise<LoginResponse> {
     const { username, verificationCode, secret, id, uuid, deviceInfo } =
       loginDto;
 
-    // 验证参数完整性
     if (!username || !verificationCode || !secret) {
       throw new BadRequestException({ error: '验证参数不完整' });
     }
 
-    // 查找验证会话（仅匹配邮箱验证方式，避免与 TFA 会话混淆）
-    // secret 字段实际是会话 guid
-    const session = await this.loginSessionRepository.findOne({
-      where: {
-        guid: secret,
-        method: 'email',
-        used: false,
-        expiresAt: MoreThan(new Date()),
-      },
+    const session = await this.loginSessionService.findByGuid(secret, {
+      method: 'email',
+      used: false,
+      checkExpiry: true,
     });
 
     if (!session) {
@@ -159,61 +117,28 @@ export class AuthEmailService {
       });
     }
 
-    // 验证验证码
     if (session.code !== verificationCode) {
       throw new UnauthorizedException({ error: '验证码错误' });
     }
 
-    // 查找用户
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.username = :username OR user.email = :email', {
-        username,
-        email: username,
-      })
-      .addSelect('user.info')
-      .addSelect('user.thirdAuthType')
-      .addSelect('user.avatar')
-      .getOne();
+    const user = await this.authUserHelper.findByUsernameOrEmail(username);
 
     if (!user || user.guid !== session.userGuid) {
       throw new UnauthorizedException({ error: '用户信息不匹配' });
     }
 
-    // 检查用户状态
     if (user.status === UserStatus.DISABLED) {
-      // UserStatus.DISABLED
       throw new UnauthorizedException({ error: '账户已被禁用' });
     }
 
-    // 标记验证会话为已使用
-    session.used = true;
-    await this.loginSessionRepository.save(session);
-
-    // 创建设备记录
-    if (createOrUpdateDevice && (id || uuid)) {
-      await createOrUpdateDevice(user.guid, id, uuid, deviceInfo);
-    }
-
-    // 生成Token
-    const token = await generateToken(user, id, uuid);
-
-    this.logger.log(`用户 ${user.username} 邮箱验证成功，已登录`);
-
-    return {
-      access_token: token,
-      type: 'access_token',
-      user: buildUserPayload
-        ? (buildUserPayload(user) as LoginResponse['user'])
-        : {
-            name: user.username,
-            email: user.email || undefined,
-            note: user.note || undefined,
-            status: user.status,
-            info: user.getUserInfo(),
-            is_admin: user.isAdmin,
-            third_auth_type: user.thirdAuthType || undefined,
-          },
-    };
+    return this.authLoginHelper.completeLogin({
+      user,
+      session,
+      context,
+      deviceId: id,
+      deviceUuid: uuid,
+      deviceInfo,
+      successMessage: `用户 ${user.username} 邮箱验证成功，已登录`,
+    });
   }
 }

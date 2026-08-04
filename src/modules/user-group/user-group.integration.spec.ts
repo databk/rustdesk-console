@@ -340,10 +340,6 @@ describe('User group integration', () => {
     const defaultGroup = await userGroupService.initializeStorage();
     const authService = new AuthService(
       userRepository,
-      dataSource.getRepository(UserToken),
-      undefined as never,
-      undefined as never,
-      undefined as never,
       undefined as never,
       undefined as never,
       undefined as never,
@@ -351,6 +347,9 @@ describe('User group integration', () => {
       undefined as never,
       undefined as never,
       userGroupService,
+      undefined as never,
+      undefined as never,
+      undefined as never,
     );
     const databaseInitService = new DatabaseInitService(
       userRepository,

@@ -29,6 +29,7 @@ import {
 } from './dto/passkey.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { extractBearerToken } from './auth.utils';
 import type { Request } from 'express';
 
 @Controller()
@@ -55,10 +56,7 @@ export class AuthController {
     @Body() logoutDto: LogoutDto,
     @Req() req: Request,
   ) {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
+    const token = extractBearerToken(req);
 
     await this.authService.logout(userId, logoutDto, token);
     return { message: '登出成功' };

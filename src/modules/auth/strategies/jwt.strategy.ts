@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { JwtPayload } from '../../../common/services/token.service';
+import { JWT_DEFAULT_SECRET } from '../auth.constants';
 
 /**
  * 从请求中提取 JWT Token
@@ -51,10 +52,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly logger = new Logger(JwtStrategy.name);
 
   constructor(private authService: AuthService) {
-    const jwtSecret =
-      process.env.JWT_SECRET || 'rustdesk-api-secret-key-change-in-production';
+    const jwtSecret = process.env.JWT_SECRET || JWT_DEFAULT_SECRET;
 
-    // 检查是否使用默认 JWT 密钥
     if (!process.env.JWT_SECRET) {
       const logger = new Logger('JwtStrategy');
       logger.warn(
