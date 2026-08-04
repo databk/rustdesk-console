@@ -1,9 +1,11 @@
+<h1 align="center">
+  <br>
+  <a href="https://github.com/databk/rustdesk-console"><img src="https://raw.githubusercontent.com/rustdesk/rustdesk/master/res/logo.svg" alt="RustDesk Console" width="128" /></a>
+  <br>
+  RustDesk Console
+  <br>
+</h1>
 <div align="center">
-
-<a href="https://github.com/databk/rustdesk-console"><img src="https://raw.githubusercontent.com/rustdesk/rustdesk/master/res/logo.svg" alt="RustDesk Console" width="128" /></a>
-<br>
-# RustDesk Console
-
 **Enterprise-grade management platform for the RustDesk ecosystem**
 
 [![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
@@ -12,7 +14,6 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/databk/rustdesk-console.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/databk/rustdesk-console)
 
 [Discord](https://discord.gg/vrQSJfqpwD) · [Frontend Project](https://github.com/databk/rustdesk-console-web)
-
 </div>
 
 ---
