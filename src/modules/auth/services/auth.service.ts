@@ -19,7 +19,6 @@ import {
   DeviceInfoDto,
 } from '../dto/auth.dto';
 import { LoginType } from '../auth.constants';
-
 import { AuthTokenService } from './auth-token.service';
 import { JwtPayload } from '../../../common/services/token.service';
 import { AuthTfaService } from './auth-tfa.service';
@@ -49,7 +48,6 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-
     private readonly tokenService: AuthTokenService,
     private readonly tfaService: AuthTfaService,
     private readonly emailAuthService: AuthEmailService,

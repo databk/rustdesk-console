@@ -27,7 +27,6 @@ import type {
 } from '@simplewebauthn/types';
 import { User, UserStatus } from '../../user/entities/user.entity';
 import { PasskeyCredential } from '../entities/passkey-credential.entity';
-
 import { LoginResponse } from '../../../common/interfaces';
 import { DeviceInfoDto } from '../dto/auth.dto';
 import { WebAuthnConfigService } from './webauthn-config.service';
