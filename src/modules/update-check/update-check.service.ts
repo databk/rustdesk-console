@@ -52,6 +52,7 @@ export class UpdateCheckService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    await this.loadPersistedFrontendVersion();
     await this.fetchUpdate();
   }
 
@@ -61,10 +62,24 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   async checkUpdate(frontendVersion?: string): Promise<UpdateCheckResponse> {
-    if (frontendVersion) {
+    if (frontendVersion && frontendVersion !== this.lastKnownFrontendVersion) {
       this.lastKnownFrontendVersion = frontendVersion;
+      await this.setSetting(
+        'update_check',
+        'frontend_version',
+        frontendVersion,
+      );
     }
     return this.cachedResult;
+  }
+
+  private async loadPersistedFrontendVersion(): Promise<void> {
+    const setting = await this.settingRepository.findOne({
+      where: { key: 'frontend_version', category: 'update_check' },
+    });
+    if (setting) {
+      this.lastKnownFrontendVersion = setting.value;
+    }
   }
 
   private async fetchUpdate(): Promise<void> {
