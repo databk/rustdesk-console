@@ -76,7 +76,9 @@ export class DeviceGroupService {
         .take(pageSize);
 
       if (name) {
-        queryBuilder = queryBuilder.andWhere('dg.name = :name', { name });
+        queryBuilder = queryBuilder.andWhere('dg.name LIKE :name', {
+          name: `%${name}%`,
+        });
       }
 
       const [groups, total] = await queryBuilder.getManyAndCount();
@@ -106,7 +108,9 @@ export class DeviceGroupService {
       .take(pageSize);
 
     if (name) {
-      queryBuilder = queryBuilder.andWhere('dg.name = :name', { name });
+      queryBuilder = queryBuilder.andWhere('dg.name LIKE :name', {
+        name: `%${name}%`,
+      });
     }
 
     const [groups, total] = await queryBuilder.getManyAndCount();
