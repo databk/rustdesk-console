@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
+import { Interval } from '@nestjs/schedule';
 import * as si from 'systeminformation';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -19,14 +20,23 @@ import {
 } from './dto/update-check.dto';
 
 const UPDATE_API_URL = 'https://api.databk.top/v1/update/check';
+const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
+const EMPTY_RESPONSE: UpdateCheckResponse = {
+  backend: { has_update: false },
+  frontend: { has_update: false },
+};
 
 /**
  * 更新检查服务
- * 收集系统信息和业务统计，调用更新检查 API 检查更新
+ * 每1小时自动检查更新并缓存结果，前端请求时直接返回缓存
  */
 @Injectable()
-export class UpdateCheckService {
+export class UpdateCheckService implements OnModuleInit {
   private readonly logger = new Logger(UpdateCheckService.name);
+  private cachedResult: UpdateCheckResponse = { ...EMPTY_RESPONSE };
+  private lastKnownFrontendVersion?: string;
+  private isChecking = false;
 
   constructor(
     @InjectRepository(SystemSetting)
@@ -41,15 +51,31 @@ export class UpdateCheckService {
     private readonly connectionAuditRepository: Repository<ConnectionAudit>,
   ) {}
 
-  /**
-   * 检查更新
-   * 收集信息 → 调用更新检查 API → 返回结果
-   * @param frontendVersion 前端版本号，由前端在请求时携带
-   */
+  async onModuleInit() {
+    await this.fetchUpdate();
+  }
+
+  @Interval(UPDATE_CHECK_INTERVAL_MS)
+  async handleScheduledUpdateCheck() {
+    await this.fetchUpdate();
+  }
+
   async checkUpdate(frontendVersion?: string): Promise<UpdateCheckResponse> {
-    const payload = await this.buildRequestPayload(frontendVersion);
+    if (frontendVersion) {
+      this.lastKnownFrontendVersion = frontendVersion;
+    }
+    return this.cachedResult;
+  }
+
+  private async fetchUpdate(): Promise<void> {
+    if (this.isChecking) return;
+    this.isChecking = true;
 
     try {
+      const payload = await this.buildRequestPayload(
+        this.lastKnownFrontendVersion,
+      );
+
       const response = await fetch(UPDATE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -61,21 +87,17 @@ export class UpdateCheckService {
         this.logger.warn(
           `Update check API returned ${response.status}: ${response.statusText}`,
         );
-        return {
-          backend: { has_update: false },
-          frontend: { has_update: false },
-        };
+        return;
       }
 
       const data = (await response.json()) as UpdateCheckResponse;
-      return data;
+      this.cachedResult = data;
+      this.logger.log('Update check completed successfully');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Update check failed: ${message}`);
-      return {
-        backend: { has_update: false },
-        frontend: { has_update: false },
-      };
+    } finally {
+      this.isChecking = false;
     }
   }
 

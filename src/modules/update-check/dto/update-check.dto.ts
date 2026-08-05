@@ -1,21 +1,9 @@
-import { IsString, IsOptional } from 'class-validator';
-
 /**
  * 更新通道
  */
 export enum UpdateChannel {
   STABLE = 'stable',
   NIGHTLY = 'nightly',
-}
-
-/**
- * 检查更新请求 DTO
- * 前端在请求时携带自己的版本号
- */
-export class CheckUpdateDto {
-  @IsOptional()
-  @IsString()
-  frontend_version?: string;
 }
 
 /**
