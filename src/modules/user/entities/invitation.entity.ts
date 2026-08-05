@@ -52,7 +52,7 @@ export class Invitation {
   /**
    * 备注
    */
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   note: string | null;
 
   /**

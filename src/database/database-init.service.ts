@@ -7,6 +7,7 @@ import { User, UserStatus } from '../modules/user/entities/user.entity';
 import { OidcProvider } from '../modules/oidc/entities/oidc-provider.entity';
 import { OidcAuthState } from '../modules/oidc/entities/oidc-auth-state.entity';
 import { UserGroupService } from '../modules/user-group/user-group.service';
+import { MigrationService } from './migration.service';
 
 @Injectable()
 /**
@@ -26,10 +27,13 @@ export class DatabaseInitService implements OnModuleInit {
     private oidcProviderRepository: Repository<OidcProvider>,
     @InjectRepository(OidcAuthState)
     private oidcAuthStateRepository: Repository<OidcAuthState>,
+    private readonly migrationService: MigrationService,
     private readonly userGroupService: UserGroupService,
   ) {}
 
   async onModuleInit() {
+    // 在种子数据初始化之前运行数据库迁移（生产环境）
+    await this.migrationService.runMigrationsIfNeeded();
     const defaultGroup = await this.userGroupService.initializeStorage();
     await this.createDefaultAdmin(defaultGroup.guid);
     await this.createDefaultOidcProviders();
