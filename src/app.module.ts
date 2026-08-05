@@ -3,7 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { DeviceThrottlerGuard } from './common/guards/device-throttler.guard';
 import { HeartbeatModule } from './modules/heartbeat/heartbeat.module';
 import { AddressBookModule } from './modules/address-book/address-book.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -132,7 +133,7 @@ import { UserGroup } from './modules/user-group/entities/user-group.entity';
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: DeviceThrottlerGuard,
     },
     {
       provide: APP_GUARD,

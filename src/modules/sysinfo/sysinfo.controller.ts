@@ -1,9 +1,8 @@
-import { Controller, Post, Body, UseGuards, Header } from '@nestjs/common';
+import { Controller, Post, Body, Header } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { SysinfoService } from './sysinfo.service';
 import { SysinfoDto } from './dto/sysinfo.dto';
 import { Public } from '../auth/decorators/public.decorator';
-import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard';
 
 /**
  * 系统信息控制器
@@ -13,7 +12,6 @@ import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard
  * - POST /api/sysinfo - 提交系统信息
  */
 @Controller()
-@UseGuards(DeviceThrottlerGuard)
 export class SysinfoController {
   constructor(private readonly sysinfoService: SysinfoService) {}
 
