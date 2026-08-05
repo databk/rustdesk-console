@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Logger } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { HeartbeatService } from './heartbeat.service';
 import { HeartbeatDto } from './dto/heartbeat.dto';
@@ -15,6 +15,8 @@ import { DeviceThrottlerGuard } from '../../common/guards/device-throttler.guard
 @Controller('heartbeat')
 @UseGuards(DeviceThrottlerGuard)
 export class HeartbeatController {
+  private readonly logger = new Logger(HeartbeatController.name);
+
   constructor(private readonly HeartbeatService: HeartbeatService) {}
 
   /**
@@ -39,6 +41,36 @@ export class HeartbeatController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post()
   receiveHeartbeat(@Body() HeartbeatDto: HeartbeatDto) {
-    return this.HeartbeatService.handleHeartbeat(HeartbeatDto);
+    this.logger.log(
+      `[receiveHeartbeat] 收到心跳请求: id=${HeartbeatDto.id}, uuid=${HeartbeatDto.uuid}, ver=${HeartbeatDto.ver}, modified_at=${HeartbeatDto.modified_at}, conns=${JSON.stringify(HeartbeatDto.conns ?? [])}`,
+    );
+
+    const startTime = Date.now();
+
+    try {
+      const result = this.HeartbeatService.handleHeartbeat(HeartbeatDto);
+
+      result.then((res) => {
+        const elapsed = Date.now() - startTime;
+        this.logger.log(
+          `[receiveHeartbeat] 心跳处理完成: uuid=${HeartbeatDto.uuid}, elapsed=${elapsed}ms, code=${res.code}`,
+        );
+      }).catch((err: unknown) => {
+        const elapsed = Date.now() - startTime;
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `[receiveHeartbeat] 心跳处理失败: uuid=${HeartbeatDto.uuid}, elapsed=${elapsed}ms, error=${msg}`,
+        );
+      });
+
+      return result;
+    } catch (error: unknown) {
+      const elapsed = Date.now() - startTime;
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[receiveHeartbeat] 心跳处理同步异常: uuid=${HeartbeatDto.uuid}, elapsed=${elapsed}ms, error=${msg}`,
+      );
+      throw error;
+    }
   }
 }

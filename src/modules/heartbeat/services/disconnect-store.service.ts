@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 /**
  * 断开连接内存存储服务
@@ -6,6 +6,8 @@ import { Injectable } from '@nestjs/common';
  */
 @Injectable()
 export class DisconnectStoreService {
+  private readonly logger = new Logger(DisconnectStoreService.name);
+
   /**
    * key: 设备UUID, value: 需要断开的连接ID集合
    */
@@ -17,16 +19,32 @@ export class DisconnectStoreService {
    * @param connIds 需要断开的连接ID列表
    */
   addPendingDisconnects(deviceUuid: string, connIds: number[]): void {
-    if (connIds.length === 0) return;
+    if (connIds.length === 0) {
+      this.logger.debug(
+        `[addPendingDisconnects] 空列表，跳过: uuid=${deviceUuid}`,
+      );
+      return;
+    }
 
     const existing = this.store.get(deviceUuid);
     if (existing) {
+      const before = existing.size;
       for (const connId of connIds) {
         existing.add(connId);
       }
+      this.logger.log(
+        `[addPendingDisconnects] 追加断开连接: uuid=${deviceUuid}, added=${connIds.length}, before=${before}, after=${existing.size}, connIds=${JSON.stringify(connIds)}`,
+      );
     } else {
       this.store.set(deviceUuid, new Set(connIds));
+      this.logger.log(
+        `[addPendingDisconnects] 新增断开连接: uuid=${deviceUuid}, connIds=${JSON.stringify(connIds)}`,
+      );
     }
+
+    this.logger.debug(
+      `[addPendingDisconnects] 当前store状态: totalDevices=${this.store.size}`,
+    );
   }
 
   /**
@@ -37,7 +55,11 @@ export class DisconnectStoreService {
    */
   getPendingDisconnects(deviceUuid: string): number[] {
     const pending = this.store.get(deviceUuid);
-    return pending ? Array.from(pending) : [];
+    const result = pending ? Array.from(pending) : [];
+    this.logger.debug(
+      `[getPendingDisconnects] 查询待断开连接: uuid=${deviceUuid}, count=${result.length}${result.length > 0 ? `, connIds=${JSON.stringify(result)}` : ''}`,
+    );
+    return result;
   }
 
   /**
@@ -48,19 +70,34 @@ export class DisconnectStoreService {
    */
   removeDisconnected(deviceUuid: string, currentConns: number[]): void {
     const pending = this.store.get(deviceUuid);
-    if (!pending || pending.size === 0) return;
+    if (!pending || pending.size === 0) {
+      this.logger.debug(
+        `[removeDisconnected] 无待断开连接: uuid=${deviceUuid}`,
+      );
+      return;
+    }
 
+    const beforeSize = pending.size;
     const currentSet = new Set(currentConns);
+    const removed: number[] = [];
     for (const connId of pending) {
       // 客户端不再上报该连接，说明已断开
       if (!currentSet.has(connId)) {
+        removed.push(connId);
         pending.delete(connId);
       }
     }
 
+    this.logger.log(
+      `[removeDisconnected] 清理已断开连接: uuid=${deviceUuid}, removed=${removed.length}${removed.length > 0 ? `, removedConnIds=${JSON.stringify(removed)}` : ''}, before=${beforeSize}, after=${pending.size}, currentConns=${JSON.stringify(currentConns)}`,
+    );
+
     // 如果待断开列表为空，清理 Map 条目
     if (pending.size === 0) {
       this.store.delete(deviceUuid);
+      this.logger.debug(
+        `[removeDisconnected] 待断开列表已清空，移除设备条目: uuid=${deviceUuid}`,
+      );
     }
   }
 }
