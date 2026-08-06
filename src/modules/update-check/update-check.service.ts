@@ -38,6 +38,11 @@ import {
 const UPDATE_API_URL = 'https://api.databk.top/v1/update/check';
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
+const INSTALL_ID_KEY = 'system.installId';
+const INSTALL_ID_CATEGORY = 'system';
+const LEGACY_INSTALL_ID_KEY = 'install_id';
+const LEGACY_INSTALL_ID_CATEGORY = 'update_check';
+
 const EMPTY_RESPONSE: UpdateCheckResponse = {
   backend: { has_update: false },
   frontend: { has_update: false },
@@ -185,15 +190,44 @@ export class UpdateCheckService implements OnModuleInit {
 
   /**
    * 获取 install_id，首次生成并持久化
+   *
+   * 存储在 system.installId（category=system），与统一 key 格式一致。
+   * 兼容从旧键 (install_id, category=update_check) 的自动迁移，
+   * 迁移在单事务内完成，保留原值避免实例标识变化。
    */
   async getInstallId(): Promise<string> {
     const setting = await this.settingRepository.findOne({
-      where: { key: 'install_id', category: 'update_check' },
+      where: { key: INSTALL_ID_KEY, category: INSTALL_ID_CATEGORY },
     });
     if (setting) return setting.value;
 
+    const legacy = await this.settingRepository.findOne({
+      where: {
+        key: LEGACY_INSTALL_ID_KEY,
+        category: LEGACY_INSTALL_ID_CATEGORY,
+      },
+    });
+    if (legacy) {
+      await this.settingRepository.manager.transaction(async (manager) => {
+        const repo = manager.getRepository(SystemSetting);
+        await repo.save(
+          repo.create({
+            key: INSTALL_ID_KEY,
+            value: legacy.value,
+            category: INSTALL_ID_CATEGORY,
+          }),
+        );
+        await repo.delete({
+          key: LEGACY_INSTALL_ID_KEY,
+          category: LEGACY_INSTALL_ID_CATEGORY,
+        });
+      });
+      this.logger.log('Migrated install_id to system.installId');
+      return legacy.value;
+    }
+
     const newId = uuidv4();
-    await this.setSetting('update_check', 'install_id', newId);
+    await this.setSetting(INSTALL_ID_CATEGORY, INSTALL_ID_KEY, newId);
     return newId;
   }
 
