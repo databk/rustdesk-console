@@ -4,7 +4,6 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';

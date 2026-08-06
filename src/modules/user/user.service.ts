@@ -12,7 +12,6 @@ import * as crypto from 'crypto';
 import sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
-
 import { User, UserStatus, UserInfo } from './entities/user.entity';
 import { UserToken } from './entities/user-token.entity';
 import { Invitation } from './entities/invitation.entity';
