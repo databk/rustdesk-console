@@ -372,175 +372,118 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   private async getStatistics() {
-    const empty = {
-      users: { total: 0, admins: 0, active_7d: 0, groups: 0 },
-      devices: { total: 0, online: 0, groups: 0, group_permissions: 0 },
-      connections: { active: 0, audited_7d: 0 },
-      address_book: {
-        total: 0,
-        personal: 0,
-        shared: 0,
-        peers: 0,
-        tags: 0,
-        rules: 0,
-      },
-      strategy: { total: 0 },
-      auth: {
-        passkey_credentials: 0,
-        active_tokens: 0,
-        revoked_tokens: 0,
-        pending_invitations: 0,
-        used_invitations: 0,
-        oidc_providers: 0,
-        oidc_enabled_providers: 0,
-      },
-      nexus: {
-        builds_total: 0,
-        builds_by_status: {
-          pending: 0,
-          building: 0,
-          completed: 0,
-          failed: 0,
-          cancelled: 0,
-        },
-        tokens: 0,
-      },
-      audit: { file_transfers_7d: 0, alarms_7d: 0 },
+    const emptyNexusBuildsByStatus = {
+      pending: 0,
+      building: 0,
+      completed: 0,
+      failed: 0,
+      cancelled: 0,
     };
 
-    try {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const now = new Date();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const now = new Date();
 
-      const [
-        totalUsers,
-        adminUsers,
-        activeUsers7d,
-        userGroups,
-        totalDevices,
-        onlineDevices,
-        deviceGroups,
-        deviceGroupPermissions,
-        activeConnections,
-        connections7d,
-        addressBookTotal,
-        addressBookPersonal,
-        addressBookShared,
-        addressBookPeers,
-        addressBookTags,
-        addressBookRules,
-        strategyTotal,
-        passkeyCredentials,
-        activeTokens,
-        revokedTokens,
-        pendingInvitations,
-        usedInvitations,
-        oidcProviders,
-        oidcEnabledProviders,
-        nexusBuildsTotal,
-        nexusBuildsByStatus,
-        nexusTokens,
-        fileTransfers7d,
-        alarms7d,
-      ] = await Promise.all([
-        this.userRepository.count(),
-        this.userRepository.count({ where: { isAdmin: true } }),
-        this.userRepository.count({
-          where: { updatedAt: Between(sevenDaysAgo, now) },
-        }),
-        this.userGroupRepository.count(),
-        this.peerRepository.count(),
-        this.getOnlineDeviceCount(),
-        this.deviceGroupRepository.count(),
-        this.deviceGroupPermissionRepository.count(),
-        this.activeConnectionRepository.count(),
-        this.connectionAuditRepository.count({
-          where: { createdAt: Between(sevenDaysAgo, now) },
-        }),
-        this.addressBookRepository.count(),
-        this.addressBookRepository.count({ where: { isPersonal: true } }),
-        this.addressBookRepository.count({ where: { isShared: true } }),
-        this.addressBookPeerRepository.count(),
-        this.addressBookTagRepository.count(),
-        this.addressBookRuleRepository.count(),
-        this.strategyRepository.count(),
-        this.passkeyCredentialRepository.count(),
-        this.userTokenRepository
-          .createQueryBuilder('token')
-          .where('token.isRevoked = :revoked', { revoked: false })
-          .andWhere('token.expiresAt > :now', { now })
-          .getCount(),
-        this.userTokenRepository.count({ where: { isRevoked: true } }),
-        this.invitationRepository
-          .createQueryBuilder('invitation')
-          .where('invitation.usedAt IS NULL')
-          .andWhere('invitation.expiresAt > :now', { now })
-          .getCount(),
-        this.invitationRepository
-          .createQueryBuilder('invitation')
-          .where('invitation.usedAt IS NOT NULL')
-          .getCount(),
-        this.oidcProviderRepository.count(),
-        this.oidcProviderRepository.count({ where: { enabled: true } }),
-        this.nexusBuildRepository.count(),
-        this.getNexusBuildsByStatus(),
-        this.nexusTokenRepository.count(),
-        this.fileAuditRepository.count({
-          where: { createdAt: Between(sevenDaysAgo, now) },
-        }),
-        this.alarmAuditRepository.count({
-          where: { createdAt: Between(sevenDaysAgo, now) },
-        }),
-      ]);
+    const results = await Promise.allSettled([
+      this.userRepository.count(),
+      this.userRepository.count({ where: { isAdmin: true } }),
+      this.userRepository.count({
+        where: { updatedAt: Between(sevenDaysAgo, now) },
+      }),
+      this.userGroupRepository.count(),
+      this.peerRepository.count(),
+      this.getOnlineDeviceCount(),
+      this.deviceGroupRepository.count(),
+      this.deviceGroupPermissionRepository.count(),
+      this.activeConnectionRepository.count(),
+      this.connectionAuditRepository.count({
+        where: { createdAt: Between(sevenDaysAgo, now) },
+      }),
+      this.addressBookRepository.count(),
+      this.addressBookRepository.count({ where: { isPersonal: true } }),
+      this.addressBookRepository.count({ where: { isShared: true } }),
+      this.addressBookPeerRepository.count(),
+      this.addressBookTagRepository.count(),
+      this.addressBookRuleRepository.count(),
+      this.strategyRepository.count(),
+      this.passkeyCredentialRepository.count(),
+      this.userTokenRepository
+        .createQueryBuilder('token')
+        .where('token.isRevoked = :revoked', { revoked: false })
+        .andWhere('token.expiresAt > :now', { now })
+        .getCount(),
+      this.userTokenRepository.count({ where: { isRevoked: true } }),
+      this.invitationRepository
+        .createQueryBuilder('invitation')
+        .where('invitation.usedAt IS NULL')
+        .andWhere('invitation.expiresAt > :now', { now })
+        .getCount(),
+      this.invitationRepository
+        .createQueryBuilder('invitation')
+        .where('invitation.usedAt IS NOT NULL')
+        .getCount(),
+      this.oidcProviderRepository.count(),
+      this.oidcProviderRepository.count({ where: { enabled: true } }),
+      this.nexusBuildRepository.count(),
+      this.getNexusBuildsByStatus(),
+      this.nexusTokenRepository.count(),
+      this.fileAuditRepository.count({
+        where: { createdAt: Between(sevenDaysAgo, now) },
+      }),
+      this.alarmAuditRepository.count({
+        where: { createdAt: Between(sevenDaysAgo, now) },
+      }),
+    ]);
 
-      return {
-        users: {
-          total: totalUsers,
-          admins: adminUsers,
-          active_7d: activeUsers7d,
-          groups: userGroups,
-        },
-        devices: {
-          total: totalDevices,
-          online: onlineDevices,
-          groups: deviceGroups,
-          group_permissions: deviceGroupPermissions,
-        },
-        connections: {
-          active: activeConnections,
-          audited_7d: connections7d,
-        },
-        address_book: {
-          total: addressBookTotal,
-          personal: addressBookPersonal,
-          shared: addressBookShared,
-          peers: addressBookPeers,
-          tags: addressBookTags,
-          rules: addressBookRules,
-        },
-        strategy: { total: strategyTotal },
-        auth: {
-          passkey_credentials: passkeyCredentials,
-          active_tokens: activeTokens,
-          revoked_tokens: revokedTokens,
-          pending_invitations: pendingInvitations,
-          used_invitations: usedInvitations,
-          oidc_providers: oidcProviders,
-          oidc_enabled_providers: oidcEnabledProviders,
-        },
-        nexus: {
-          builds_total: nexusBuildsTotal,
-          builds_by_status: nexusBuildsByStatus,
-          tokens: nexusTokens,
-        },
-        audit: {
-          file_transfers_7d: fileTransfers7d,
-          alarms_7d: alarms7d,
-        },
-      };
-    } catch {
-      return empty;
-    }
+    const value = <T>(index: number, fallback: T): T => {
+      const r = results[index];
+      return r.status === 'fulfilled' ? (r.value as T) : fallback;
+    };
+
+    return {
+      users: {
+        total: value(0, 0),
+        admins: value(1, 0),
+        active_7d: value(2, 0),
+        groups: value(3, 0),
+      },
+      devices: {
+        total: value(4, 0),
+        online: value(5, 0),
+        groups: value(6, 0),
+        group_permissions: value(7, 0),
+      },
+      connections: {
+        active: value(8, 0),
+        audited_7d: value(9, 0),
+      },
+      address_book: {
+        total: value(10, 0),
+        personal: value(11, 0),
+        shared: value(12, 0),
+        peers: value(13, 0),
+        tags: value(14, 0),
+        rules: value(15, 0),
+      },
+      strategy: { total: value(16, 0) },
+      auth: {
+        passkey_credentials: value(17, 0),
+        active_tokens: value(18, 0),
+        revoked_tokens: value(19, 0),
+        pending_invitations: value(20, 0),
+        used_invitations: value(21, 0),
+        oidc_providers: value(22, 0),
+        oidc_enabled_providers: value(23, 0),
+      },
+      nexus: {
+        builds_total: value(24, 0),
+        builds_by_status: value(25, emptyNexusBuildsByStatus),
+        tokens: value(26, 0),
+      },
+      audit: {
+        file_transfers_7d: value(27, 0),
+        alarms_7d: value(28, 0),
+      },
+    };
   }
 
   private async getOnlineDeviceCount(): Promise<number> {
