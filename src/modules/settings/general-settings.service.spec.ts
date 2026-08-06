@@ -12,6 +12,7 @@ import { GeneralSettingsService } from './services/general-settings.service';
 
 const DEFAULT_SETTINGS = {
   watermarkEnabled: true,
+  defaultLanguage: 'en-US',
   site: { frontendUrl: '', backendUrl: '' },
   webauthn: { enabled: true, rpName: 'RustDesk Console' },
 };
@@ -67,7 +68,29 @@ describe('GeneralSettingsService', () => {
       ...DEFAULT_SETTINGS,
       watermarkEnabled: false,
     });
-    await expect(repository.count()).resolves.toBe(5);
+    await expect(repository.count()).resolves.toBe(6);
+  });
+
+  it('persists defaultLanguage and validates the format', async () => {
+    await service.updateSettings({
+      watermarkEnabled: true,
+      defaultLanguage: 'pt-BR',
+    });
+    await expect(service.getSettings()).resolves.toMatchObject({
+      defaultLanguage: 'pt-BR',
+    });
+
+    const invalid = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      defaultLanguage: 'english',
+    });
+    await expect(validate(invalid)).resolves.not.toHaveLength(0);
+
+    const invalidCase = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      defaultLanguage: 'EN-us',
+    });
+    await expect(validate(invalidCase)).resolves.not.toHaveLength(0);
   });
 
   it('persists site and webauthn settings and reads them back', async () => {
