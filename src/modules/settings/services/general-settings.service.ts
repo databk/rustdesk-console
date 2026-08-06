@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import {
+  FrontendSettingsDto,
   GeneralSettingsDto,
   UpdateGeneralSettingsDto,
 } from '../dto/general-settings.dto';
@@ -55,6 +56,20 @@ export class GeneralSettingsService {
         enabled: this.readWebAuthnEnabled(values.get(WEBAUTHN_ENABLED_KEY)),
         rpName: values.get(WEBAUTHN_RP_NAME_KEY) ?? DEFAULT_RP_NAME,
       },
+    };
+  }
+
+  /**
+   * 获取前端页面渲染所需的精简配置（公开可读）
+   * 仅返回 watermarkEnabled / defaultLanguage / webauthnEnabled，
+   * 不暴露站点地址与 rpName 等管理员配置
+   */
+  async getFrontendSettings(): Promise<FrontendSettingsDto> {
+    const settings = await this.getSettings();
+    return {
+      watermarkEnabled: settings.watermarkEnabled,
+      defaultLanguage: settings.defaultLanguage,
+      webauthnEnabled: settings.webauthn.enabled,
     };
   }
 

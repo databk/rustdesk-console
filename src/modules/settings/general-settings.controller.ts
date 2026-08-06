@@ -8,7 +8,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../../common/guards/admin.guard';
-import { Public } from '../auth/decorators/public.decorator';
 import { UpdateGeneralSettingsDto } from './dto/general-settings.dto';
 import { GeneralSettingsService } from './services/general-settings.service';
 
@@ -18,8 +17,8 @@ export class GeneralSettingsController {
     private readonly generalSettingsService: GeneralSettingsService,
   ) {}
 
-  @Public()
   @Get()
+  @UseGuards(AdminGuard)
   getSettings() {
     return this.generalSettingsService.getSettings();
   }

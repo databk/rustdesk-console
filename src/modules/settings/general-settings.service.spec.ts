@@ -8,6 +8,7 @@ import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
 import { UpdateGeneralSettingsDto } from './dto/general-settings.dto';
 import { SystemSetting } from './entities/system-setting.entity';
 import { GeneralSettingsController } from './general-settings.controller';
+import { FrontendSettingsController } from './frontend-settings.controller';
 import { GeneralSettingsService } from './services/general-settings.service';
 
 const DEFAULT_SETTINGS = {
@@ -125,6 +126,19 @@ describe('GeneralSettingsService', () => {
     const site2 = await service.getSiteSettings();
     expect(site2.effectiveBackendUrl).toBe('https://back.example.com');
   });
+
+  it('returns a minimal frontend-only projection', async () => {
+    await service.updateSettings({
+      watermarkEnabled: false,
+      defaultLanguage: 'zh-CN',
+      webauthn: { enabled: true, rpName: 'RP' },
+    });
+    await expect(service.getFrontendSettings()).resolves.toEqual({
+      watermarkEnabled: false,
+      defaultLanguage: 'zh-CN',
+      webauthnEnabled: true,
+    });
+  });
 });
 
 describe('general settings HTTP contract', () => {
@@ -155,7 +169,7 @@ describe('general settings HTTP contract', () => {
     await expect(validate(invalidWebauthn)).resolves.not.toHaveLength(0);
   });
 
-  it('keeps reads public and updates administrator-only', () => {
+  it('restricts general reads and updates to administrators', () => {
     const readHandler = Object.getOwnPropertyDescriptor(
       GeneralSettingsController.prototype,
       'getSettings',
@@ -165,9 +179,21 @@ describe('general settings HTTP contract', () => {
       'updateSettings',
     )?.value as (...args: unknown[]) => unknown;
 
-    expect(Reflect.getMetadata(IS_PUBLIC_KEY, readHandler)).toBe(true);
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, readHandler)).toBeUndefined();
+    expect(Reflect.getMetadata(GUARDS_METADATA, readHandler)).toContain(
+      AdminGuard,
+    );
     expect(Reflect.getMetadata(GUARDS_METADATA, updateHandler)).toContain(
       AdminGuard,
     );
+  });
+
+  it('exposes frontend settings publicly', () => {
+    const frontendHandler = Object.getOwnPropertyDescriptor(
+      FrontendSettingsController.prototype,
+      'getSettings',
+    )?.value as (...args: unknown[]) => unknown;
+
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, frontendHandler)).toBe(true);
   });
 });

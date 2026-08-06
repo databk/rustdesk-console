@@ -5,6 +5,7 @@ import { SettingsController } from './settings.controller';
 import { SmtpSettingsService } from './services/smtp-settings.service';
 import { AuditSettingsService } from './services/audit-settings.service';
 import { GeneralSettingsController } from './general-settings.controller';
+import { FrontendSettingsController } from './frontend-settings.controller';
 import { GeneralSettingsService } from './services/general-settings.service';
 
 /**
@@ -19,7 +20,11 @@ import { GeneralSettingsService } from './services/general-settings.service';
  */
 @Module({
   imports: [TypeOrmModule.forFeature([SystemSetting])],
-  controllers: [SettingsController, GeneralSettingsController],
+  controllers: [
+    SettingsController,
+    GeneralSettingsController,
+    FrontendSettingsController,
+  ],
   providers: [
     SmtpSettingsService,
     AuditSettingsService,

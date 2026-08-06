@@ -35,6 +35,12 @@ export class GeneralSettingsDto {
   webauthn: WebAuthnSettingsDto;
 }
 
+export class FrontendSettingsDto {
+  watermarkEnabled: boolean;
+  defaultLanguage: string;
+  webauthnEnabled: boolean;
+}
+
 export class UpdateGeneralSettingsDto {
   @IsBoolean()
   watermarkEnabled: boolean;
