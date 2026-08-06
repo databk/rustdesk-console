@@ -28,7 +28,6 @@ import { OidcProvider } from '../oidc/entities/oidc-provider.entity';
 import { NexusBuild } from '../nexus/entities/nexus-build.entity';
 import { NexusToken } from '../nexus/entities/nexus-token.entity';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
-
 import { resolveAssetPath } from '../../common/utils/runtime-paths';
 import {
   UpdateChannel,
