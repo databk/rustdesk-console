@@ -59,17 +59,18 @@ export interface UpdateCheckRequest {
       total: number;
       admins: number;
       active_7d: number;
+      groups: number;
     };
     devices: {
       total: number;
       online: number;
       groups: number;
+      group_permissions: number;
     };
     connections: {
-      total_7d: number;
+      active: number;
+      audited_7d: number;
     };
-  };
-  features: {
     address_book: {
       total: number;
       personal: number;
@@ -81,19 +82,14 @@ export interface UpdateCheckRequest {
     strategy: {
       total: number;
     };
-    user_group: {
-      total: number;
-    };
     auth: {
       passkey_credentials: number;
       active_tokens: number;
       revoked_tokens: number;
       pending_invitations: number;
       used_invitations: number;
-    };
-    oidc: {
-      providers: number;
-      enabled_providers: number;
+      oidc_providers: number;
+      oidc_enabled_providers: number;
     };
     nexus: {
       builds_total: number;
@@ -109,15 +105,6 @@ export interface UpdateCheckRequest {
     audit: {
       file_transfers_7d: number;
       alarms_7d: number;
-    };
-    active_connections: {
-      current: number;
-    };
-    device_group_permissions: {
-      total: number;
-    };
-    sysinfo: {
-      total: number;
     };
   };
 }

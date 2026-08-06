@@ -21,7 +21,7 @@ import { OidcProvider } from '../oidc/entities/oidc-provider.entity';
 import { NexusBuild } from '../nexus/entities/nexus-build.entity';
 import { NexusToken } from '../nexus/entities/nexus-token.entity';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
-import { Sysinfo } from '../sysinfo/entities/sysinfo.entity';
+
 import { UpdateCheckController } from './update-check.controller';
 import { UpdateCheckService } from './update-check.service';
 
@@ -53,7 +53,6 @@ import { UpdateCheckService } from './update-check.service';
       NexusBuild,
       NexusToken,
       ActiveConnection,
-      Sysinfo,
     ]),
   ],
   controllers: [UpdateCheckController],

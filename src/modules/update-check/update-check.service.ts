@@ -28,7 +28,7 @@ import { OidcProvider } from '../oidc/entities/oidc-provider.entity';
 import { NexusBuild } from '../nexus/entities/nexus-build.entity';
 import { NexusToken } from '../nexus/entities/nexus-token.entity';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
-import { Sysinfo } from '../sysinfo/entities/sysinfo.entity';
+
 import { resolveAssetPath } from '../../common/utils/runtime-paths';
 import {
   UpdateChannel,
@@ -98,8 +98,6 @@ export class UpdateCheckService implements OnModuleInit {
     private readonly nexusTokenRepository: Repository<NexusToken>,
     @InjectRepository(ActiveConnection)
     private readonly activeConnectionRepository: Repository<ActiveConnection>,
-    @InjectRepository(Sysinfo)
-    private readonly sysinfoRepository: Repository<Sysinfo>,
   ) {}
 
   async onModuleInit() {
@@ -250,7 +248,6 @@ export class UpdateCheckService implements OnModuleInit {
       installId,
       channel,
       stats,
-      features,
     ] = await Promise.all([
       this.getOsInfo(),
       this.getCpuInfo(),
@@ -260,7 +257,6 @@ export class UpdateCheckService implements OnModuleInit {
       this.getInstallId(),
       this.getUpdateChannel(),
       this.getStatistics(),
-      this.getFeatures(),
     ]);
 
     const dbPath = process.env.DB_PATH || 'rustdesk-console.db';
@@ -298,7 +294,6 @@ export class UpdateCheckService implements OnModuleInit {
         size: dbSize,
       },
       statistics: stats,
-      features,
     };
   }
 
@@ -378,69 +373,10 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   private async getStatistics() {
-    try {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-      const [
-        totalUsers,
-        adminUsers,
-        activeUsers7d,
-        totalDevices,
-        onlineDevices,
-        deviceGroups,
-        connections7d,
-      ] = await Promise.all([
-        this.userRepository.count(),
-        this.userRepository.count({ where: { isAdmin: true } }),
-        this.userRepository.count({
-          where: { updatedAt: Between(sevenDaysAgo, new Date()) },
-        }),
-        this.peerRepository.count(),
-        this.getOnlineDeviceCount(),
-        this.deviceGroupRepository.count(),
-        this.connectionAuditRepository.count({
-          where: { createdAt: Between(sevenDaysAgo, new Date()) },
-        }),
-      ]);
-
-      return {
-        users: {
-          total: totalUsers,
-          admins: adminUsers,
-          active_7d: activeUsers7d,
-        },
-        devices: {
-          total: totalDevices,
-          online: onlineDevices,
-          groups: deviceGroups,
-        },
-        connections: {
-          total_7d: connections7d,
-        },
-      };
-    } catch {
-      return {
-        users: { total: 0, admins: 0, active_7d: 0 },
-        devices: { total: 0, online: 0, groups: 0 },
-        connections: { total_7d: 0 },
-      };
-    }
-  }
-
-  private async getOnlineDeviceCount(): Promise<number> {
-    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
-    return this.peerRepository
-      .createQueryBuilder('peer')
-      .where('peer.lastHeartbeat >= :threshold', { threshold: oneMinuteAgo })
-      .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
-      .getCount();
-  }
-
-  /**
-   * 收集应用各功能模块的使用情况
-   */
-  private async getFeatures() {
     const empty = {
+      users: { total: 0, admins: 0, active_7d: 0, groups: 0 },
+      devices: { total: 0, online: 0, groups: 0, group_permissions: 0 },
+      connections: { active: 0, audited_7d: 0 },
       address_book: {
         total: 0,
         personal: 0,
@@ -450,15 +386,15 @@ export class UpdateCheckService implements OnModuleInit {
         rules: 0,
       },
       strategy: { total: 0 },
-      user_group: { total: 0 },
       auth: {
         passkey_credentials: 0,
         active_tokens: 0,
         revoked_tokens: 0,
         pending_invitations: 0,
         used_invitations: 0,
+        oidc_providers: 0,
+        oidc_enabled_providers: 0,
       },
-      oidc: { providers: 0, enabled_providers: 0 },
       nexus: {
         builds_total: 0,
         builds_by_status: {
@@ -471,9 +407,6 @@ export class UpdateCheckService implements OnModuleInit {
         tokens: 0,
       },
       audit: { file_transfers_7d: 0, alarms_7d: 0 },
-      active_connections: { current: 0 },
-      device_group_permissions: { total: 0 },
-      sysinfo: { total: 0 },
     };
 
     try {
@@ -481,6 +414,16 @@ export class UpdateCheckService implements OnModuleInit {
       const now = new Date();
 
       const [
+        totalUsers,
+        adminUsers,
+        activeUsers7d,
+        userGroups,
+        totalDevices,
+        onlineDevices,
+        deviceGroups,
+        deviceGroupPermissions,
+        activeConnections,
+        connections7d,
         addressBookTotal,
         addressBookPersonal,
         addressBookShared,
@@ -488,7 +431,6 @@ export class UpdateCheckService implements OnModuleInit {
         addressBookTags,
         addressBookRules,
         strategyTotal,
-        userGroupTotal,
         passkeyCredentials,
         activeTokens,
         revokedTokens,
@@ -501,10 +443,21 @@ export class UpdateCheckService implements OnModuleInit {
         nexusTokens,
         fileTransfers7d,
         alarms7d,
-        activeConnections,
-        deviceGroupPermissions,
-        sysinfoTotal,
       ] = await Promise.all([
+        this.userRepository.count(),
+        this.userRepository.count({ where: { isAdmin: true } }),
+        this.userRepository.count({
+          where: { updatedAt: Between(sevenDaysAgo, now) },
+        }),
+        this.userGroupRepository.count(),
+        this.peerRepository.count(),
+        this.getOnlineDeviceCount(),
+        this.deviceGroupRepository.count(),
+        this.deviceGroupPermissionRepository.count(),
+        this.activeConnectionRepository.count(),
+        this.connectionAuditRepository.count({
+          where: { createdAt: Between(sevenDaysAgo, now) },
+        }),
         this.addressBookRepository.count(),
         this.addressBookRepository.count({ where: { isPersonal: true } }),
         this.addressBookRepository.count({ where: { isShared: true } }),
@@ -512,7 +465,6 @@ export class UpdateCheckService implements OnModuleInit {
         this.addressBookTagRepository.count(),
         this.addressBookRuleRepository.count(),
         this.strategyRepository.count(),
-        this.userGroupRepository.count(),
         this.passkeyCredentialRepository.count(),
         this.userTokenRepository
           .createQueryBuilder('token')
@@ -540,12 +492,25 @@ export class UpdateCheckService implements OnModuleInit {
         this.alarmAuditRepository.count({
           where: { createdAt: Between(sevenDaysAgo, now) },
         }),
-        this.activeConnectionRepository.count(),
-        this.deviceGroupPermissionRepository.count(),
-        this.sysinfoRepository.count(),
       ]);
 
       return {
+        users: {
+          total: totalUsers,
+          admins: adminUsers,
+          active_7d: activeUsers7d,
+          groups: userGroups,
+        },
+        devices: {
+          total: totalDevices,
+          online: onlineDevices,
+          groups: deviceGroups,
+          group_permissions: deviceGroupPermissions,
+        },
+        connections: {
+          active: activeConnections,
+          audited_7d: connections7d,
+        },
         address_book: {
           total: addressBookTotal,
           personal: addressBookPersonal,
@@ -555,17 +520,14 @@ export class UpdateCheckService implements OnModuleInit {
           rules: addressBookRules,
         },
         strategy: { total: strategyTotal },
-        user_group: { total: userGroupTotal },
         auth: {
           passkey_credentials: passkeyCredentials,
           active_tokens: activeTokens,
           revoked_tokens: revokedTokens,
           pending_invitations: pendingInvitations,
           used_invitations: usedInvitations,
-        },
-        oidc: {
-          providers: oidcProviders,
-          enabled_providers: oidcEnabledProviders,
+          oidc_providers: oidcProviders,
+          oidc_enabled_providers: oidcEnabledProviders,
         },
         nexus: {
           builds_total: nexusBuildsTotal,
@@ -576,13 +538,19 @@ export class UpdateCheckService implements OnModuleInit {
           file_transfers_7d: fileTransfers7d,
           alarms_7d: alarms7d,
         },
-        active_connections: { current: activeConnections },
-        device_group_permissions: { total: deviceGroupPermissions },
-        sysinfo: { total: sysinfoTotal },
       };
     } catch {
       return empty;
     }
+  }
+
+  private async getOnlineDeviceCount(): Promise<number> {
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    return this.peerRepository
+      .createQueryBuilder('peer')
+      .where('peer.lastHeartbeat >= :threshold', { threshold: oneMinuteAgo })
+      .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
+      .getCount();
   }
 
   private async getNexusBuildsByStatus(): Promise<{
