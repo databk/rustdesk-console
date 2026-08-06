@@ -26,6 +26,7 @@ import { AddressBookPeerTag } from './modules/address-book/entities/address-book
 import { AddressBookRule } from './modules/address-book/entities/address-book-rule.entity';
 import { User } from './modules/user/entities/user.entity';
 import { UserToken } from './modules/user/entities/user-token.entity';
+import { Invitation } from './modules/user/entities/invitation.entity';
 import { OidcProvider } from './modules/oidc/entities/oidc-provider.entity';
 import { OidcAuthState } from './modules/oidc/entities/oidc-auth-state.entity';
 import { DeviceGroup } from './modules/device-group/entities/device-group.entity';
@@ -96,6 +97,7 @@ import { UserGroup } from './modules/user-group/entities/user-group.entity';
         AddressBookRule,
         User,
         UserToken,
+        Invitation,
         OidcProvider,
         OidcAuthState,
         DeviceGroup,
