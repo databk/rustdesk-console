@@ -547,7 +547,7 @@ export class NexusService implements OnModuleInit {
     path: string,
     options: RequestInit = {},
   ): Promise<Response> {
-    const url = `${this.configService.get<string>('NEXUS_BASE_URL', NEXUS_BASE_URL)}${path}`;
+    const url = `${NEXUS_BASE_URL}${path}`;
     return fetch(url, options);
   }
 }

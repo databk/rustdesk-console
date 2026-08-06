@@ -9,7 +9,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { ConfigService } from '@nestjs/config';
+
 import type { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,6 +17,7 @@ import { OidcService } from '../services/oidc.service';
 import { OidcAuthRequestDto } from '../dto/oidc.dto';
 import { Public } from '../../auth/decorators/public.decorator';
 import { resolveAssetPath } from '../../../common/utils/runtime-paths';
+import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 /**
  * HTML特殊字符转义，防止XSS攻击
@@ -48,7 +49,7 @@ export class OidcController {
 
   constructor(
     private readonly oidcService: OidcService,
-    private readonly configService: ConfigService,
+    private readonly generalSettingsService: GeneralSettingsService,
   ) {
     this.successHtml = fs.readFileSync(
       resolveAssetPath(
@@ -126,12 +127,10 @@ export class OidcController {
   @Get('oidc/callback')
   async handleCallback(@Req() req: Request, @Res() res: Response) {
     try {
-      // 使用配置的OIDC_REDIRECT_URI构建回调URL，避免依赖可被伪造的Host头
-      const baseUrl = this.configService.get<string>(
-        'OIDC_REDIRECT_URI',
-        'http://localhost:3000',
-      );
-      const callbackUrl = `${baseUrl}${req.originalUrl}`;
+      // 使用配置的后端地址构建回调URL，避免依赖可被伪造的Host头
+      const { effectiveBackendUrl } =
+        await this.generalSettingsService.getSiteSettings();
+      const callbackUrl = `${effectiveBackendUrl}${req.originalUrl}`;
 
       const result = await this.oidcService.handleCallback(callbackUrl);
 

@@ -25,6 +25,6 @@ import { GeneralSettingsService } from './services/general-settings.service';
     AuditSettingsService,
     GeneralSettingsService,
   ],
-  exports: [SmtpSettingsService, AuditSettingsService],
+  exports: [SmtpSettingsService, AuditSettingsService, GeneralSettingsService],
 })
 export class SettingsModule {}

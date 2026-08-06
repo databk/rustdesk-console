@@ -23,10 +23,10 @@ import { UserToken } from '../user/entities/user-token.entity';
 import { Peer } from '../../common/entities';
 import { LoginSession } from './entities/login-session.entity';
 import { PasskeyCredential } from './entities/passkey-credential.entity';
-import { SystemSetting } from '../settings/entities/system-setting.entity';
 import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
+import { SettingsModule } from '../settings/settings.module';
 import { JWT_DEFAULT_SECRET } from './auth.constants';
 
 /**
@@ -56,11 +56,11 @@ import { JWT_DEFAULT_SECRET } from './auth.constants';
       Peer,
       LoginSession,
       PasskeyCredential,
-      SystemSetting,
     ]),
     EmailModule,
     LdapModule,
     UserGroupModule,
+    SettingsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || JWT_DEFAULT_SECRET,

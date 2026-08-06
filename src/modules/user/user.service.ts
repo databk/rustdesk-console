@@ -12,7 +12,7 @@ import * as crypto from 'crypto';
 import sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigService } from '@nestjs/config';
+
 import { User, UserStatus, UserInfo } from './entities/user.entity';
 import { UserToken } from './entities/user-token.entity';
 import { Invitation } from './entities/invitation.entity';
@@ -31,6 +31,7 @@ import {
 } from './dto/user.dto';
 import { UserGroupService } from '../user-group/user-group.service';
 import { EmailService } from '../email/email.service';
+import { GeneralSettingsService } from '../settings/services/general-settings.service';
 
 const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
 const AVATAR_SIZE = 256;
@@ -57,7 +58,7 @@ export class UserService {
     private userUserPermissionRepository: Repository<UserUserPermission>,
     private readonly userGroupService: UserGroupService,
     private readonly emailService: EmailService,
-    private readonly configService: ConfigService,
+    private readonly generalSettingsService: GeneralSettingsService,
   ) {}
 
   async getAccessibleUsers(
@@ -256,13 +257,9 @@ export class UserService {
     await this.invitationRepository.save(invitation);
 
     // 发送邀请邮件
-    const consoleUrl = this.configService.get<string>(
-      'CONSOLE_URL',
-      this.configService.get<string>(
-        'OIDC_REDIRECT_URI',
-        'http://localhost:3000',
-      ),
-    );
+    const { effectiveFrontendUrl } =
+      await this.generalSettingsService.getSiteSettings();
+    const consoleUrl = effectiveFrontendUrl;
     const inviteUrl = `${consoleUrl}/#/invite?token=${token}`;
     const emailSent = await this.emailService.sendInvitation(
       email,

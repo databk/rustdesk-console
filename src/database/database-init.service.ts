@@ -50,16 +50,13 @@ export class DatabaseInitService implements OnModuleInit {
       return;
     }
 
-    const adminUsername = process.env.ADMIN_USERNAME || 'databk';
-    const adminEmail = process.env.ADMIN_EMAIL || 'databk@github.com';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'databk';
+    const adminUsername = 'databk';
+    const adminEmail = 'databk@github.com';
+    const adminPassword = 'databk';
 
-    // 检查是否使用默认密码
-    if (!process.env.ADMIN_PASSWORD) {
-      this.logger.warn(
-        'WARNING: Using default admin password "databk". Please set ADMIN_PASSWORD environment variable in production!',
-      );
-    }
+    this.logger.warn(
+      'WARNING: Using default admin password "databk". Please change it immediately after first login!',
+    );
 
     const admin = this.userRepository.create({
       guid: uuidv4(),

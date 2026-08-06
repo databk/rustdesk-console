@@ -40,7 +40,7 @@ import { Invitation } from '../user/entities/invitation.entity';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { UserService } from '../user/user.service';
 import { EmailService } from '../email/email.service';
-import { ConfigService } from '@nestjs/config';
+import { GeneralSettingsService } from '../settings/services/general-settings.service';
 import { UserGroupMembersDto, UserGroupQueryDto } from './dto/user-group.dto';
 import { UserGroup } from './entities/user-group.entity';
 import { UserGroupController } from './user-group.controller';
@@ -131,7 +131,17 @@ describe('User group integration', () => {
       {
         sendInvitation: () => Promise.resolve(true),
       } as unknown as EmailService,
-      { get: () => 'http://localhost:3000' } as unknown as ConfigService,
+      {
+        getSiteSettings: () =>
+          Promise.resolve({
+            frontendUrl: '',
+            backendUrl: '',
+            effectiveFrontendUrl: 'http://localhost:3000',
+            effectiveBackendUrl: 'http://localhost:3000',
+          }),
+        getWebAuthnSettings: () =>
+          Promise.resolve({ enabled: true, rpName: 'RustDesk Console' }),
+      } as unknown as GeneralSettingsService,
     );
   });
 
@@ -372,36 +382,11 @@ describe('User group integration', () => {
       userGroupService,
     );
 
-    const previousAdminUsername = process.env.ADMIN_USERNAME;
-    const previousAdminEmail = process.env.ADMIN_EMAIL;
-    const previousAdminPassword = process.env.ADMIN_PASSWORD;
-    process.env.ADMIN_USERNAME = 'seed-admin';
-    process.env.ADMIN_EMAIL = 'seed-admin@example.com';
-    process.env.ADMIN_PASSWORD = 'seed-password';
-
-    try {
-      await (
-        databaseInitService as unknown as {
-          createDefaultAdmin(groupGuid: string): Promise<void>;
-        }
-      ).createDefaultAdmin(defaultGroup.guid);
-    } finally {
-      if (previousAdminUsername === undefined) {
-        delete process.env.ADMIN_USERNAME;
-      } else {
-        process.env.ADMIN_USERNAME = previousAdminUsername;
+    await (
+      databaseInitService as unknown as {
+        createDefaultAdmin(groupGuid: string): Promise<void>;
       }
-      if (previousAdminEmail === undefined) {
-        delete process.env.ADMIN_EMAIL;
-      } else {
-        process.env.ADMIN_EMAIL = previousAdminEmail;
-      }
-      if (previousAdminPassword === undefined) {
-        delete process.env.ADMIN_PASSWORD;
-      } else {
-        process.env.ADMIN_PASSWORD = previousAdminPassword;
-      }
-    }
+    ).createDefaultAdmin(defaultGroup.guid);
 
     await authService.register({
       username: 'registered-user',
@@ -455,7 +440,7 @@ describe('User group integration', () => {
 
     const createdUsers = await userRepository.find({
       where: [
-        { username: 'seed-admin' },
+        { username: 'databk' },
         { username: 'registered-user' },
         { username: 'ldap-user' },
         { username: 'oidc-user' },

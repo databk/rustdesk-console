@@ -10,6 +10,12 @@ import { SystemSetting } from './entities/system-setting.entity';
 import { GeneralSettingsController } from './general-settings.controller';
 import { GeneralSettingsService } from './services/general-settings.service';
 
+const DEFAULT_SETTINGS = {
+  watermarkEnabled: true,
+  site: { frontendUrl: '', backendUrl: '' },
+  webauthn: { enabled: true, rpName: 'RustDesk Console' },
+};
+
 describe('GeneralSettingsService', () => {
   let dataSource: DataSource;
   let repository: Repository<SystemSetting>;
@@ -34,9 +40,7 @@ describe('GeneralSettingsService', () => {
   });
 
   it('returns a compatible default for missing or malformed values', async () => {
-    await expect(service.getSettings()).resolves.toEqual({
-      watermarkEnabled: true,
-    });
+    await expect(service.getSettings()).resolves.toEqual(DEFAULT_SETTINGS);
 
     await repository.save([
       repository.create({
@@ -46,9 +50,7 @@ describe('GeneralSettingsService', () => {
       }),
     ]);
 
-    await expect(service.getSettings()).resolves.toEqual({
-      watermarkEnabled: true,
-    });
+    await expect(service.getSettings()).resolves.toEqual(DEFAULT_SETTINGS);
   });
 
   it('stores the watermark setting and returns its effective value', async () => {
@@ -57,13 +59,48 @@ describe('GeneralSettingsService', () => {
         watermarkEnabled: false,
       }),
     ).resolves.toEqual({
+      ...DEFAULT_SETTINGS,
       watermarkEnabled: false,
     });
 
     await expect(service.getSettings()).resolves.toEqual({
+      ...DEFAULT_SETTINGS,
       watermarkEnabled: false,
     });
-    await expect(repository.count()).resolves.toBe(1);
+    await expect(repository.count()).resolves.toBe(5);
+  });
+
+  it('persists site and webauthn settings and reads them back', async () => {
+    await service.updateSettings({
+      watermarkEnabled: true,
+      site: { frontendUrl: 'https://admin.example.com', backendUrl: '' },
+      webauthn: { enabled: false, rpName: 'Custom RP' },
+    });
+
+    const settings = await service.getSettings();
+    expect(settings.site.frontendUrl).toBe('https://admin.example.com');
+    expect(settings.site.backendUrl).toBe('');
+    expect(settings.webauthn.enabled).toBe(false);
+    expect(settings.webauthn.rpName).toBe('Custom RP');
+  });
+
+  it('resolves effective backend url with fallback chain', async () => {
+    await service.updateSettings({
+      watermarkEnabled: true,
+      site: { frontendUrl: 'https://front.example.com', backendUrl: '' },
+    });
+    const site = await service.getSiteSettings();
+    expect(site.effectiveBackendUrl).toBe('https://front.example.com');
+
+    await service.updateSettings({
+      watermarkEnabled: true,
+      site: {
+        frontendUrl: 'https://front.example.com',
+        backendUrl: 'https://back.example.com',
+      },
+    });
+    const site2 = await service.getSiteSettings();
+    expect(site2.effectiveBackendUrl).toBe('https://back.example.com');
   });
 });
 
@@ -78,6 +115,21 @@ describe('general settings HTTP contract', () => {
 
     await expect(validate(valid)).resolves.toHaveLength(0);
     await expect(validate(invalid)).resolves.not.toHaveLength(0);
+  });
+
+  it('validates nested site and webauthn payloads', async () => {
+    const valid = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      site: { frontendUrl: 'https://a.example.com', backendUrl: '' },
+      webauthn: { enabled: true, rpName: 'RP' },
+    });
+    await expect(validate(valid)).resolves.toHaveLength(0);
+
+    const invalidWebauthn = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      webauthn: { enabled: 'yes' },
+    });
+    await expect(validate(invalidWebauthn)).resolves.not.toHaveLength(0);
   });
 
   it('keeps reads public and updates administrator-only', () => {

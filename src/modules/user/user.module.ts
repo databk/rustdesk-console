@@ -16,6 +16,7 @@ import { UserUserPermission } from '../device-group/entities/user-user-permissio
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { UserGroupModule } from '../user-group/user-group.module';
 import { EmailModule } from '../email/email.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { EmailModule } from '../email/email.module';
     AuthModule,
     UserGroupModule,
     EmailModule,
+    SettingsModule,
   ],
   controllers: [UserController, AvatarController, AdminUserController],
   providers: [UserService, AdminUserService],

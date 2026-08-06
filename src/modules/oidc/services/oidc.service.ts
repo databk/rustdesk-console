@@ -4,7 +4,7 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -23,6 +23,7 @@ import { LoginResponse } from '../../../common/interfaces';
 import { AuthTokenService } from '../../auth/services/auth-token.service';
 import { AuthDeviceService } from '../../auth/services/auth-device.service';
 import { UserGroupService } from '../../user-group/user-group.service';
+import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 /**
  * OIDC配置接口
@@ -121,44 +122,34 @@ export class OidcService {
     private userRepository: Repository<User>,
     private authTokenService: AuthTokenService,
     private deviceService: AuthDeviceService,
-    private configService: ConfigService,
+    private readonly generalSettingsService: GeneralSettingsService,
     private readonly userGroupService: UserGroupService,
   ) {}
 
   /**
-   * 验证前端回调URL是否在白名单中
-   * 通过环境变量 WEB_FRONTEND_URLS 配置白名单（逗号分隔）
+   * 验证前端回调URL是否在允许的站点地址范围内
+   * 通过 general settings 的 site.frontendUrl 配置允许的前端地址
    *
    * @param callbackUrl 前端回调URL
-   * @returns 是否在白名单中
+   * @returns 是否允许
    */
-  private isCallbackUrlAllowed(callbackUrl: string): boolean {
-    const allowedUrls = this.configService
-      .get<string>('WEB_FRONTEND_URLS', '')
-      .split(',')
-      .map((url) => url.trim())
-      .filter((url) => url.length > 0);
+  private async isCallbackUrlAllowed(callbackUrl: string): Promise<boolean> {
+    const { frontendUrl } = await this.generalSettingsService.getSiteSettings();
 
-    if (allowedUrls.length === 0) {
+    if (!frontendUrl) {
       this.logger.warn(
-        'WEB_FRONTEND_URLS environment variable is not configured or empty',
+        'site.frontendUrl is not configured, OIDC callback URL validation rejected all callbacks',
       );
       return false;
     }
 
     try {
       const callbackUrlObj = new URL(callbackUrl);
-      return allowedUrls.some((allowedUrl) => {
-        try {
-          const allowedUrlObj = new URL(allowedUrl);
-          return (
-            callbackUrlObj.origin === allowedUrlObj.origin &&
-            callbackUrlObj.pathname.startsWith(allowedUrlObj.pathname)
-          );
-        } catch {
-          return false;
-        }
-      });
+      const allowedUrlObj = new URL(frontendUrl);
+      return (
+        callbackUrlObj.origin === allowedUrlObj.origin &&
+        callbackUrlObj.pathname.startsWith(allowedUrlObj.pathname)
+      );
     } catch {
       return false;
     }
@@ -213,9 +204,9 @@ export class OidcService {
     // 验证并保存前端回调URL
     let frontendRedirectUrl: string | null = null;
     if (callbackUrl) {
-      if (!this.isCallbackUrlAllowed(callbackUrl)) {
+      if (!(await this.isCallbackUrlAllowed(callbackUrl))) {
         throw new BadRequestException(
-          'callbackUrl 不在允许的白名单中，请检查 WEB_FRONTEND_URLS 环境变量配置',
+          'callbackUrl 不在允许的站点地址范围内，请检查 general settings 中的 site.frontendUrl 配置',
         );
       }
       frontendRedirectUrl = callbackUrl;
@@ -240,7 +231,9 @@ export class OidcService {
     );
 
     // 构建回调URL
-    const redirectUri = `${this.configService.get<string>('OIDC_REDIRECT_URI', 'http://localhost:3000')}/api/oidc/callback`;
+    const { effectiveBackendUrl } =
+      await this.generalSettingsService.getSiteSettings();
+    const redirectUri = `${effectiveBackendUrl}/api/oidc/callback`;
 
     // 保存授权状态
     const authState = this.authStateRepository.create({

@@ -1,9 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { UpdateCheckService } from './update-check.service';
 
