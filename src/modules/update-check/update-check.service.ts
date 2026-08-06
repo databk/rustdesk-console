@@ -9,9 +9,26 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { SystemSetting } from '../settings/entities/system-setting.entity';
 import { User } from '../user/entities/user.entity';
+import { UserToken } from '../user/entities/user-token.entity';
+import { Invitation } from '../user/entities/invitation.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
+import { DeviceGroupUserPermission } from '../device-group/entities/device-group-user-permission.entity';
 import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
+import { FileAudit } from '../audit/entities/file-audit.entity';
+import { AlarmAudit } from '../audit/entities/alarm-audit.entity';
+import { AddressBook } from '../address-book/entities/address-book.entity';
+import { AddressBookPeer } from '../address-book/entities/address-book-peer.entity';
+import { AddressBookTag } from '../address-book/entities/address-book-tag.entity';
+import { AddressBookRule } from '../address-book/entities/address-book-rule.entity';
+import { Strategy } from '../strategy/entities/strategy.entity';
+import { UserGroup } from '../user-group/entities/user-group.entity';
+import { PasskeyCredential } from '../auth/entities/passkey-credential.entity';
+import { OidcProvider } from '../oidc/entities/oidc-provider.entity';
+import { NexusBuild } from '../nexus/entities/nexus-build.entity';
+import { NexusToken } from '../nexus/entities/nexus-token.entity';
+import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
+import { Sysinfo } from '../sysinfo/entities/sysinfo.entity';
 import { resolveAssetPath } from '../../common/utils/runtime-paths';
 import {
   UpdateChannel,
@@ -43,12 +60,46 @@ export class UpdateCheckService implements OnModuleInit {
     private readonly settingRepository: Repository<SystemSetting>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(UserToken)
+    private readonly userTokenRepository: Repository<UserToken>,
+    @InjectRepository(Invitation)
+    private readonly invitationRepository: Repository<Invitation>,
     @InjectRepository(Peer)
     private readonly peerRepository: Repository<Peer>,
     @InjectRepository(DeviceGroup)
     private readonly deviceGroupRepository: Repository<DeviceGroup>,
+    @InjectRepository(DeviceGroupUserPermission)
+    private readonly deviceGroupPermissionRepository: Repository<DeviceGroupUserPermission>,
     @InjectRepository(ConnectionAudit)
     private readonly connectionAuditRepository: Repository<ConnectionAudit>,
+    @InjectRepository(FileAudit)
+    private readonly fileAuditRepository: Repository<FileAudit>,
+    @InjectRepository(AlarmAudit)
+    private readonly alarmAuditRepository: Repository<AlarmAudit>,
+    @InjectRepository(AddressBook)
+    private readonly addressBookRepository: Repository<AddressBook>,
+    @InjectRepository(AddressBookPeer)
+    private readonly addressBookPeerRepository: Repository<AddressBookPeer>,
+    @InjectRepository(AddressBookTag)
+    private readonly addressBookTagRepository: Repository<AddressBookTag>,
+    @InjectRepository(AddressBookRule)
+    private readonly addressBookRuleRepository: Repository<AddressBookRule>,
+    @InjectRepository(Strategy)
+    private readonly strategyRepository: Repository<Strategy>,
+    @InjectRepository(UserGroup)
+    private readonly userGroupRepository: Repository<UserGroup>,
+    @InjectRepository(PasskeyCredential)
+    private readonly passkeyCredentialRepository: Repository<PasskeyCredential>,
+    @InjectRepository(OidcProvider)
+    private readonly oidcProviderRepository: Repository<OidcProvider>,
+    @InjectRepository(NexusBuild)
+    private readonly nexusBuildRepository: Repository<NexusBuild>,
+    @InjectRepository(NexusToken)
+    private readonly nexusTokenRepository: Repository<NexusToken>,
+    @InjectRepository(ActiveConnection)
+    private readonly activeConnectionRepository: Repository<ActiveConnection>,
+    @InjectRepository(Sysinfo)
+    private readonly sysinfoRepository: Repository<Sysinfo>,
   ) {}
 
   async onModuleInit() {
@@ -199,6 +250,7 @@ export class UpdateCheckService implements OnModuleInit {
       installId,
       channel,
       stats,
+      features,
     ] = await Promise.all([
       this.getOsInfo(),
       this.getCpuInfo(),
@@ -208,6 +260,7 @@ export class UpdateCheckService implements OnModuleInit {
       this.getInstallId(),
       this.getUpdateChannel(),
       this.getStatistics(),
+      this.getFeatures(),
     ]);
 
     const dbPath = process.env.DB_PATH || 'rustdesk-console.db';
@@ -245,6 +298,7 @@ export class UpdateCheckService implements OnModuleInit {
         size: dbSize,
       },
       statistics: stats,
+      features,
     };
   }
 
@@ -380,6 +434,194 @@ export class UpdateCheckService implements OnModuleInit {
       .where('peer.lastHeartbeat >= :threshold', { threshold: oneMinuteAgo })
       .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
       .getCount();
+  }
+
+  /**
+   * 收集应用各功能模块的使用情况
+   */
+  private async getFeatures() {
+    const empty = {
+      address_book: {
+        total: 0,
+        personal: 0,
+        shared: 0,
+        peers: 0,
+        tags: 0,
+        rules: 0,
+      },
+      strategy: { total: 0 },
+      user_group: { total: 0 },
+      auth: {
+        passkey_credentials: 0,
+        active_tokens: 0,
+        revoked_tokens: 0,
+        pending_invitations: 0,
+        used_invitations: 0,
+      },
+      oidc: { providers: 0, enabled_providers: 0 },
+      nexus: {
+        builds_total: 0,
+        builds_by_status: {
+          pending: 0,
+          building: 0,
+          completed: 0,
+          failed: 0,
+          cancelled: 0,
+        },
+        tokens: 0,
+      },
+      audit: { file_transfers_7d: 0, alarms_7d: 0 },
+      active_connections: { current: 0 },
+      device_group_permissions: { total: 0 },
+      sysinfo: { total: 0 },
+    };
+
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const now = new Date();
+
+      const [
+        addressBookTotal,
+        addressBookPersonal,
+        addressBookShared,
+        addressBookPeers,
+        addressBookTags,
+        addressBookRules,
+        strategyTotal,
+        userGroupTotal,
+        passkeyCredentials,
+        activeTokens,
+        revokedTokens,
+        pendingInvitations,
+        usedInvitations,
+        oidcProviders,
+        oidcEnabledProviders,
+        nexusBuildsTotal,
+        nexusBuildsByStatus,
+        nexusTokens,
+        fileTransfers7d,
+        alarms7d,
+        activeConnections,
+        deviceGroupPermissions,
+        sysinfoTotal,
+      ] = await Promise.all([
+        this.addressBookRepository.count(),
+        this.addressBookRepository.count({ where: { isPersonal: true } }),
+        this.addressBookRepository.count({ where: { isShared: true } }),
+        this.addressBookPeerRepository.count(),
+        this.addressBookTagRepository.count(),
+        this.addressBookRuleRepository.count(),
+        this.strategyRepository.count(),
+        this.userGroupRepository.count(),
+        this.passkeyCredentialRepository.count(),
+        this.userTokenRepository
+          .createQueryBuilder('token')
+          .where('token.isRevoked = :revoked', { revoked: false })
+          .andWhere('token.expiresAt > :now', { now })
+          .getCount(),
+        this.userTokenRepository.count({ where: { isRevoked: true } }),
+        this.invitationRepository
+          .createQueryBuilder('invitation')
+          .where('invitation.usedAt IS NULL')
+          .andWhere('invitation.expiresAt > :now', { now })
+          .getCount(),
+        this.invitationRepository
+          .createQueryBuilder('invitation')
+          .where('invitation.usedAt IS NOT NULL')
+          .getCount(),
+        this.oidcProviderRepository.count(),
+        this.oidcProviderRepository.count({ where: { enabled: true } }),
+        this.nexusBuildRepository.count(),
+        this.getNexusBuildsByStatus(),
+        this.nexusTokenRepository.count(),
+        this.fileAuditRepository.count({
+          where: { createdAt: Between(sevenDaysAgo, now) },
+        }),
+        this.alarmAuditRepository.count({
+          where: { createdAt: Between(sevenDaysAgo, now) },
+        }),
+        this.activeConnectionRepository.count(),
+        this.deviceGroupPermissionRepository.count(),
+        this.sysinfoRepository.count(),
+      ]);
+
+      return {
+        address_book: {
+          total: addressBookTotal,
+          personal: addressBookPersonal,
+          shared: addressBookShared,
+          peers: addressBookPeers,
+          tags: addressBookTags,
+          rules: addressBookRules,
+        },
+        strategy: { total: strategyTotal },
+        user_group: { total: userGroupTotal },
+        auth: {
+          passkey_credentials: passkeyCredentials,
+          active_tokens: activeTokens,
+          revoked_tokens: revokedTokens,
+          pending_invitations: pendingInvitations,
+          used_invitations: usedInvitations,
+        },
+        oidc: {
+          providers: oidcProviders,
+          enabled_providers: oidcEnabledProviders,
+        },
+        nexus: {
+          builds_total: nexusBuildsTotal,
+          builds_by_status: nexusBuildsByStatus,
+          tokens: nexusTokens,
+        },
+        audit: {
+          file_transfers_7d: fileTransfers7d,
+          alarms_7d: alarms7d,
+        },
+        active_connections: { current: activeConnections },
+        device_group_permissions: { total: deviceGroupPermissions },
+        sysinfo: { total: sysinfoTotal },
+      };
+    } catch {
+      return empty;
+    }
+  }
+
+  private async getNexusBuildsByStatus(): Promise<{
+    pending: number;
+    building: number;
+    completed: number;
+    failed: number;
+    cancelled: number;
+  }> {
+    const empty = {
+      pending: 0,
+      building: 0,
+      completed: 0,
+      failed: 0,
+      cancelled: 0,
+    };
+    try {
+      const rows = await this.nexusBuildRepository
+        .createQueryBuilder('build')
+        .select('build.status', 'status')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('build.status')
+        .getRawMany<{ status: string; count: string }>();
+
+      const map = new Map<string, number>();
+      for (const row of rows) {
+        map.set(row.status, Number(row.count));
+      }
+
+      return {
+        pending: map.get('pending') ?? 0,
+        building: map.get('building') ?? 0,
+        completed: map.get('completed') ?? 0,
+        failed: map.get('failed') ?? 0,
+        cancelled: map.get('cancelled') ?? 0,
+      };
+    } catch {
+      return empty;
+    }
   }
 
   /**

@@ -69,6 +69,57 @@ export interface UpdateCheckRequest {
       total_7d: number;
     };
   };
+  features: {
+    address_book: {
+      total: number;
+      personal: number;
+      shared: number;
+      peers: number;
+      tags: number;
+      rules: number;
+    };
+    strategy: {
+      total: number;
+    };
+    user_group: {
+      total: number;
+    };
+    auth: {
+      passkey_credentials: number;
+      active_tokens: number;
+      revoked_tokens: number;
+      pending_invitations: number;
+      used_invitations: number;
+    };
+    oidc: {
+      providers: number;
+      enabled_providers: number;
+    };
+    nexus: {
+      builds_total: number;
+      builds_by_status: {
+        pending: number;
+        building: number;
+        completed: number;
+        failed: number;
+        cancelled: number;
+      };
+      tokens: number;
+    };
+    audit: {
+      file_transfers_7d: number;
+      alarms_7d: number;
+    };
+    active_connections: {
+      current: number;
+    };
+    device_group_permissions: {
+      total: number;
+    };
+    sysinfo: {
+      total: number;
+    };
+  };
 }
 
 /**
