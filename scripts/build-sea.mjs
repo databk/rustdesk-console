@@ -17,6 +17,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
+const isMacos = process.platform === 'darwin';
 const exeName = isWindows ? 'rustdesk-console.exe' : 'rustdesk-console';
 
 function run(cmd, opts = {}) {
@@ -101,7 +102,19 @@ if (isWindows) {
   }
 }
 
+// Remove signature on macOS (Node binary is signed, must be removed before injection)
+if (isMacos) {
+  console.log('  Removing signature from executable...');
+  run(`codesign --remove-signature "${exeName}"`);
+}
+
 run(`npx postject "${exeName}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`);
+
+// Re-sign ad-hoc on macOS so the modified binary can run
+if (isMacos) {
+  console.log('  Re-signing executable ad-hoc...');
+  run(`codesign --sign - "${exeName}"`);
+}
 
 // --- Step 5: Assemble distribution directory ---
 console.log('\n[5/6] Assembling distribution...');

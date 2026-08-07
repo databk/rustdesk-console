@@ -158,6 +158,10 @@ jobs:
             os: ubuntu-24.04-arm
           - target: win-x64
             os: windows-latest
+          - target: macos-x64
+            os: macos-13
+          - target: macos-arm64
+            os: macos-latest
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -191,6 +195,12 @@ jobs:
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist-sea/* -DestinationPath rustdesk-console-${{ matrix.target }}.zip
+
+      - name: Create archive (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd dist-sea
+          tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .
 
       - name: Upload to release
         uses: softprops/action-gh-release@v3
