@@ -109,7 +109,7 @@ jobs:
           - target: win-x64
             os: windows-latest
           - target: macos-x64
-            os: macos-13
+            os: macos-26-intel
           - target: macos-arm64
             os: macos-latest
     runs-on: ${{ matrix.os }}
