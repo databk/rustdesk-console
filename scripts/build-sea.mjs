@@ -140,21 +140,17 @@ copyDir(
   path.join(templatesDir, 'oidc'),
 );
 
-// Copy minimal package.json (for version info)
+// --- Step 6: Install native modules ---
+console.log('\n[6/6] Installing native modules (sqlite3, sharp)...');
 const pkgJson = JSON.parse(
   fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8'),
 );
-fs.writeFileSync(
-  path.join(distDir, 'package.json'),
-  JSON.stringify({ name: pkgJson.name, version: pkgJson.version }, null, 2) + '\n',
-);
-console.log('  Wrote dist-sea/package.json');
-
-// --- Step 6: Install native modules ---
-console.log('\n[6/6] Installing native modules (sqlite3, sharp)...');
 const nativePkg = {
-  name: 'rustdesk-console-sea',
+  name: pkgJson.name,
   version: pkgJson.version,
+  description: pkgJson.description,
+  author: pkgJson.author,
+  license: pkgJson.license,
   private: true,
   dependencies: {
     sqlite3: pkgJson.dependencies.sqlite3,
@@ -165,6 +161,7 @@ fs.writeFileSync(
   path.join(distDir, 'package.json'),
   JSON.stringify(nativePkg, null, 2) + '\n',
 );
+console.log('  Wrote dist-sea/package.json');
 
 run('npm install --omit=dev', { cwd: distDir });
 
