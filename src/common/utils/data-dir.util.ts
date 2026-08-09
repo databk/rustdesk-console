@@ -3,6 +3,7 @@ import * as path from 'path';
 const DEFAULT_DATA_DIR = './data';
 const DB_FILENAME = 'rustdesk-console.db';
 const NEXUS_BUILD_SUBDIR = 'nexus-builds';
+const AVATAR_SUBDIR = 'avatars';
 
 /**
  * Get the unified data directory.
@@ -24,4 +25,11 @@ export function getDbPath(): string {
  */
 export function getNexusStoragePath(): string {
   return path.join(getDataDir(), NEXUS_BUILD_SUBDIR);
+}
+
+/**
+ * Get the avatar storage directory.
+ */
+export function getAvatarDir(): string {
+  return path.join(getDataDir(), AVATAR_SUBDIR);
 }

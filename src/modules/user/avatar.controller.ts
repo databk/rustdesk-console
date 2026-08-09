@@ -4,8 +4,9 @@ import { Public } from '../auth/decorators/public.decorator';
 import type { Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getAvatarDir } from '../../common/utils/data-dir.util';
 
-const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
+const AVATAR_DIR = getAvatarDir();
 
 @Public()
 @Controller('avatars')

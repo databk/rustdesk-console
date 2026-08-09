@@ -31,8 +31,9 @@ import {
 import { UserGroupService } from '../user-group/user-group.service';
 import { EmailService } from '../email/email.service';
 import { GeneralSettingsService } from '../settings/services/general-settings.service';
+import { getAvatarDir } from '../../common/utils/data-dir.util';
 
-const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
+const AVATAR_DIR = getAvatarDir();
 const AVATAR_SIZE = 256;
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
