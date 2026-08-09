@@ -26,12 +26,8 @@ export function getDbPath(): string {
 
 /**
  * Get the Nexus build artifact storage directory.
- * Uses NEXUS_STORAGE_PATH env var if set (backward compatibility),
- * otherwise derives it from DATA_DIR.
+ * Always derived from DATA_DIR.
  */
 export function getNexusStoragePath(): string {
-  if (process.env.NEXUS_STORAGE_PATH) {
-    return process.env.NEXUS_STORAGE_PATH;
-  }
   return path.join(getDataDir(), NEXUS_BUILD_SUBDIR);
 }
