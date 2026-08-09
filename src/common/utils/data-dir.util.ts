@@ -14,19 +14,13 @@ export function getDataDir(): string {
 
 /**
  * Get the SQLite database file path.
- * Uses DB_PATH env var if set (backward compatibility),
- * otherwise derives it from DATA_DIR.
  */
 export function getDbPath(): string {
-  if (process.env.DB_PATH) {
-    return process.env.DB_PATH;
-  }
   return path.join(getDataDir(), DB_FILENAME);
 }
 
 /**
  * Get the Nexus build artifact storage directory.
- * Always derived from DATA_DIR.
  */
 export function getNexusStoragePath(): string {
   return path.join(getDataDir(), NEXUS_BUILD_SUBDIR);

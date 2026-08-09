@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as path from 'path';
 import * as si from 'systeminformation';
 import { Repository } from 'typeorm';
 import { Peer } from '../../common/entities/peer.entity';
@@ -56,13 +57,13 @@ const readSystemStatus = (service: DashboardService) =>
   ).getSystemStatus();
 
 describe('DashboardService system status', () => {
-  const originalDbPath = process.env.DB_PATH;
+  const originalDataDir = process.env.DATA_DIR;
 
   afterEach(() => {
-    if (originalDbPath === undefined) {
-      delete process.env.DB_PATH;
+    if (originalDataDir === undefined) {
+      delete process.env.DATA_DIR;
     } else {
-      process.env.DB_PATH = originalDbPath;
+      process.env.DATA_DIR = originalDataDir;
     }
     currentLoadMock.mockReset();
     memMock.mockReset();
@@ -70,8 +71,8 @@ describe('DashboardService system status', () => {
     uptimeMock.mockReset();
   });
 
-  it('uses available memory, a Windows database path, and OS uptime', async () => {
-    process.env.DB_PATH = 'D:\\data\\rustdesk-console.db';
+  it('uses available memory, the configured data dir, and OS uptime', async () => {
+    process.env.DATA_DIR = '/data';
     currentLoadMock.mockResolvedValue({
       currentLoad: 64.44,
     } as Awaited<ReturnType<typeof si.currentLoad>>);
@@ -92,11 +93,13 @@ describe('DashboardService system status', () => {
       disk: 17.5,
       uptime: 90061,
     });
-    expect(statfsMock).toHaveBeenCalledWith('D:\\data\\rustdesk-console.db');
+    expect(statfsMock).toHaveBeenCalledWith(
+      path.join('/data', 'rustdesk-console.db'),
+    );
   });
 
-  it('queries the Linux database filesystem directly', async () => {
-    process.env.DB_PATH = '/data/rustdesk-console.db';
+  it('queries the database filesystem directly', async () => {
+    process.env.DATA_DIR = '/data';
     currentLoadMock.mockResolvedValue({
       currentLoad: 10,
     } as Awaited<ReturnType<typeof si.currentLoad>>);
@@ -117,7 +120,9 @@ describe('DashboardService system status', () => {
       disk: 20,
       uptime: 3600,
     });
-    expect(statfsMock).toHaveBeenCalledWith('/data/rustdesk-console.db');
+    expect(statfsMock).toHaveBeenCalledWith(
+      path.join('/data', 'rustdesk-console.db'),
+    );
   });
 
   it('keeps successful metrics when one collector fails', async () => {
