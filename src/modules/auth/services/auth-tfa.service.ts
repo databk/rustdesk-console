@@ -165,7 +165,7 @@ export class AuthTfaService {
 
     user.tfaSecret = '';
 
-    const userInfo = user.getUserInfo();
+
     userInfo.has_totp = false;
     user.setUserInfo(userInfo);
 
