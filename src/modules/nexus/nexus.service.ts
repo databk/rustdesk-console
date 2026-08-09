@@ -8,7 +8,6 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -35,7 +34,6 @@ import {
 } from './dto/nexus-client.dto';
 
 const NEXUS_BASE_URL = 'https://api.databk.top';
-
 const POLL_INTERVAL_MS = 10_000;
 
 @Injectable()
