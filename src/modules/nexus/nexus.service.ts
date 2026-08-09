@@ -8,7 +8,7 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -19,6 +19,7 @@ import {
   mkdirSync,
 } from 'fs';
 import { resolve, relative } from 'path';
+import { getNexusStoragePath } from '../../common/utils/data-dir.util';
 import { NexusToken } from './entities/nexus-token.entity';
 import { NexusBuild } from './entities/nexus-build.entity';
 import { UpdateCheckService } from '../update-check/update-check.service';
@@ -34,7 +35,7 @@ import {
 } from './dto/nexus-client.dto';
 
 const NEXUS_BASE_URL = 'https://api.databk.top';
-const DEFAULT_STORAGE_PATH = './data/nexus-builds';
+
 const POLL_INTERVAL_MS = 10_000;
 
 @Injectable()
@@ -55,12 +56,8 @@ export class NexusService implements OnModuleInit {
     @InjectRepository(NexusBuild)
     private nexusBuildRepository: Repository<NexusBuild>,
     private updateCheckService: UpdateCheckService,
-    private configService: ConfigService,
   ) {
-    this.storagePath = this.configService.get<string>(
-      'NEXUS_STORAGE_PATH',
-      DEFAULT_STORAGE_PATH,
-    );
+    this.storagePath = getNexusStoragePath();
   }
 
   async onModuleInit() {

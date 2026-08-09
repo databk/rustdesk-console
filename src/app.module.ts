@@ -15,6 +15,7 @@ import { OidcModule } from './modules/oidc/oidc.module';
 import { SysinfoModule } from './modules/sysinfo/sysinfo.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
+import { getDbPath } from './common/utils/data-dir.util';
 import { Sysinfo, Peer } from './common/entities';
 import { ConnectionAudit } from './modules/audit/entities/connection-audit.entity';
 import { FileAudit } from './modules/audit/entities/file-audit.entity';
@@ -83,7 +84,7 @@ import { UserGroup } from './modules/user-group/entities/user-group.entity';
     ]),
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: process.env.DB_PATH || 'rustdesk-console.db',
+      database: getDbPath(),
       entities: [
         Sysinfo,
         Peer,

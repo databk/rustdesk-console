@@ -11,6 +11,7 @@ import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
 import { FileAudit } from '../audit/entities/file-audit.entity';
 import { AlarmAudit } from '../audit/entities/alarm-audit.entity';
 import { Sysinfo } from '../../common/entities/sysinfo.entity';
+import { getDbPath } from '../../common/utils/data-dir.util';
 import {
   DashboardOverviewDto,
   DashboardStatisticsDto,
@@ -616,7 +617,7 @@ export class DashboardService {
   }
 
   private async getSystemStatus(): Promise<SystemStatusDto> {
-    const databasePath = process.env.DB_PATH || 'rustdesk-console.db';
+    const databasePath = getDbPath();
     const [cpuResult, memoryResult, filesystemResult] =
       await Promise.allSettled([
         si.currentLoad(),

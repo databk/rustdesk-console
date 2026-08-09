@@ -13,6 +13,7 @@ import { UserToken } from '../user/entities/user-token.entity';
 import { Invitation } from '../user/entities/invitation.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
+import { getDbPath } from '../../common/utils/data-dir.util';
 import { DeviceGroupUserPermission } from '../device-group/entities/device-group-user-permission.entity';
 import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
 import { FileAudit } from '../audit/entities/file-audit.entity';
@@ -292,7 +293,7 @@ export class UpdateCheckService implements OnModuleInit {
       this.getStatistics(),
     ]);
 
-    const dbPath = process.env.DB_PATH || 'rustdesk-console.db';
+    const dbPath = getDbPath();
     let dbSize = 0;
     try {
       const stat = fs.statSync(dbPath);
