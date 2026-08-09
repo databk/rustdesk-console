@@ -35,6 +35,10 @@ export interface LoginResponse {
     info?: UserInfo;
     /** 是否为管理员 */
     is_admin: boolean;
+    /** 是否设置了密码 */
+    has_password: boolean;
+    /** 是否启用了 TOTP 双因素认证 */
+    has_totp: boolean;
     /** 第三方认证类型 */
     third_auth_type?: string;
   };

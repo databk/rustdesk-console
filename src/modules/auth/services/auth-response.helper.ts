@@ -24,6 +24,8 @@ export class AuthResponseHelper {
       status: user.status,
       info: user.getUserInfo(),
       is_admin: user.isAdmin,
+      has_password: !!user.password,
+      has_totp: !!user.tfaSecret,
       third_auth_type: user.thirdAuthType || undefined,
       ...(user.avatar ? { avatar: user.avatar } : {}),
     };

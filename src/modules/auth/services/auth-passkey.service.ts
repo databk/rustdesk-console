@@ -279,8 +279,9 @@ export class AuthPasskeyService {
       throw new UnauthorizedException({ error: '凭证与用户不匹配' });
     }
 
-    const user = await this.userRepository.findOne({
-      where: { guid: credential.userGuid },
+    const user = await this.authUserHelper.findByGuid(credential.userGuid, {
+      withPassword: true,
+      withTfaSecret: true,
     });
 
     if (!user) {
