@@ -121,7 +121,10 @@ export class AuthEmailService {
       throw new UnauthorizedException({ error: '验证码错误' });
     }
 
-    const user = await this.authUserHelper.findByUsernameOrEmail(username);
+    const user = await this.authUserHelper.findByUsernameOrEmail(username, {
+      withPassword: true,
+      withTfaSecret: true,
+    });
 
     if (!user || user.guid !== session.userGuid) {
       throw new UnauthorizedException({ error: '用户信息不匹配' });

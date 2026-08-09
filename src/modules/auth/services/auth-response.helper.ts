@@ -22,7 +22,11 @@ export class AuthResponseHelper {
       email: user.email || undefined,
       note: user.note || undefined,
       status: user.status,
-      info: user.getUserInfo(),
+      info: {
+        ...user.getUserInfo(),
+        has_password: !!user.password,
+        has_totp: !!user.tfaSecret,
+      },
       is_admin: user.isAdmin,
       third_auth_type: user.thirdAuthType || undefined,
       ...(user.avatar ? { avatar: user.avatar } : {}),

@@ -31,6 +31,8 @@ export enum UserStatus {
 export interface UserInfo {
   email_verification?: boolean;
   email_alarm_notification?: boolean;
+  has_password?: boolean;
+  has_totp?: boolean;
   other?: Record<string, any>;
 }
 

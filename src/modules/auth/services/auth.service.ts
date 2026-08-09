@@ -180,7 +180,16 @@ export class AuthService {
 
     const ldapUser = await this.tryLdapAuthentication(username, password);
     if (ldapUser) {
-      return this.buildLoginResponse(ldapUser, id, uuid, deviceInfo);
+      const user = await this.authUserHelper.findByGuid(ldapUser.guid, {
+        withPassword: true,
+        withTfaSecret: true,
+      });
+      return this.buildLoginResponse(
+        user ?? ldapUser,
+        id,
+        uuid,
+        deviceInfo,
+      );
     }
 
     return this.localLogin(username, password, id, uuid, deviceInfo);
@@ -363,7 +372,10 @@ export class AuthService {
     userGuid: string,
     _currentUserDto?: CurrentUserDto,
   ): Promise<Record<string, unknown>> {
-    const user = await this.authUserHelper.findByGuid(userGuid);
+    const user = await this.authUserHelper.findByGuid(userGuid, {
+      withPassword: true,
+      withTfaSecret: true,
+    });
 
     if (!user) {
       throw new UnauthorizedException('用户不存在');
