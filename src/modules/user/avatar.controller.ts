@@ -1,7 +1,14 @@
-import { Controller, Get, Param, Res, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Req,
+  Res,
+  NotFoundException,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAvatarDir } from '../../common/utils/data-dir.util';
@@ -13,7 +20,11 @@ const AVATAR_DIR = getAvatarDir();
 export class AvatarController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Get(':filename')
-  getAvatar(@Param('filename') filename: string, @Res() res: Response) {
+  getAvatar(
+    @Param('filename') filename: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     if (!filename.match(/^[a-f0-9-]+\.webp$/)) {
       throw new NotFoundException();
     }
@@ -28,8 +39,18 @@ export class AvatarController {
       throw new NotFoundException();
     }
 
+    const stat = fs.statSync(filePath);
+    const etag = `"${stat.size.toString(16)}-${stat.mtime.getTime().toString(16)}"`;
+
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'no-cache');
+
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+
     res.setHeader('Content-Type', 'image/webp');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
   }
