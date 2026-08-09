@@ -21,6 +21,8 @@ import { OidcAuthRequestDto } from '../dto/oidc.dto';
 import { LoginResponse } from '../../../common/interfaces';
 import { AuthTokenService } from '../../auth/services/auth-token.service';
 import { AuthDeviceService } from '../../auth/services/auth-device.service';
+import { AuthResponseHelper } from '../../auth/services/auth-response.helper';
+import { AuthUserHelper } from '../../auth/services/auth-user.helper';
 import { UserGroupService } from '../../user-group/user-group.service';
 import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
@@ -121,6 +123,8 @@ export class OidcService {
     private userRepository: Repository<User>,
     private authTokenService: AuthTokenService,
     private deviceService: AuthDeviceService,
+    private readonly authResponseHelper: AuthResponseHelper,
+    private readonly authUserHelper: AuthUserHelper,
     private readonly generalSettingsService: GeneralSettingsService,
     private readonly userGroupService: UserGroupService,
   ) {}
@@ -623,8 +627,9 @@ export class OidcService {
       throw new UnauthorizedException({ error: 'No authed oidc is found' });
     }
 
-    const user = await this.userRepository.findOne({
-      where: { guid: authState.userGuid },
+    const user = await this.authUserHelper.findByGuid(authState.userGuid, {
+      withPassword: true,
+      withTfaSecret: true,
     });
 
     if (!user) {
@@ -637,15 +642,7 @@ export class OidcService {
     return {
       access_token: authState.accessToken,
       type: 'access_token',
-      user: {
-        name: user.username,
-        email: user.email || undefined,
-        note: user.note || undefined,
-        status: user.status,
-        info: user.getUserInfo(),
-        is_admin: user.isAdmin,
-        third_auth_type: user.thirdAuthType || undefined,
-      },
+      user: this.authResponseHelper.buildUserPayload(user),
     };
   }
 

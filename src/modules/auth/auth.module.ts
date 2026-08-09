@@ -85,6 +85,13 @@ import { JWT_DEFAULT_SECRET } from './auth.constants';
     AuthLoginHelper,
     JwtStrategy,
   ],
-  exports: [AuthService, AuthTokenService, AuthDeviceService, JwtModule],
+  exports: [
+    AuthService,
+    AuthTokenService,
+    AuthDeviceService,
+    AuthResponseHelper,
+    AuthUserHelper,
+    JwtModule,
+  ],
 })
 export class AuthModule {}
