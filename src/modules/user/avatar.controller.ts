@@ -29,7 +29,7 @@ export class AvatarController {
     }
 
     res.setHeader('Content-Type', 'image/webp');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'no-cache');
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
   }
