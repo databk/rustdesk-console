@@ -197,6 +197,10 @@ export class UserService {
     user.isAdmin = false;
     user.userGroupGuid = userGroupGuid;
 
+    const userInfo = user.getUserInfo();
+    userInfo.has_password = true;
+    user.setUserInfo(userInfo);
+
     await this.userRepository.save(user);
 
     return { message: '用户创建成功' };
@@ -233,6 +237,10 @@ export class UserService {
     user.status = UserStatus.UNVERIFIED;
     user.isAdmin = false;
     user.userGroupGuid = userGroupGuid;
+
+    const userInfo = user.getUserInfo();
+    userInfo.has_password = false;
+    user.setUserInfo(userInfo);
 
     await this.userRepository.save(user);
 
@@ -346,6 +354,10 @@ export class UserService {
     // 设置密码并激活用户
     user.password = await bcrypt.hash(dto.password, 10);
     user.status = UserStatus.ACTIVE;
+
+    const userInfo = user.getUserInfo();
+    userInfo.has_password = true;
+    user.setUserInfo(userInfo);
 
     await this.userRepository.save(user);
 
@@ -504,6 +516,11 @@ export class UserService {
     }
 
     user.password = await bcrypt.hash(dto.new_password, 10);
+
+    const userInfo = user.getUserInfo();
+    userInfo.has_password = true;
+    user.setUserInfo(userInfo);
+
     await this.userRepository.save(user);
 
     return { message: '密码修改成功' };

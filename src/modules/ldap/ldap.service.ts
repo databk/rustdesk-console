@@ -406,6 +406,10 @@ export class LdapService {
         user.oidcSubject = ldapSubject;
         user.userGroupGuid = userGroupGuid;
 
+        const userInfo = user.getUserInfo();
+        userInfo.has_password = false;
+        user.setUserInfo(userInfo);
+
         await this.userRepository.save(user);
         this.logger.log(`LDAP 用户已创建: ${finalUsername}`);
         return user;
