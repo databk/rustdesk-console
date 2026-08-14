@@ -204,3 +204,60 @@ jobs:
             rustdesk-console-${{ matrix.target }}.tar.gz
             rustdesk-console-${{ matrix.target }}.zip
           fail_on_unmatched_files: false
+
+  musl-build:
+    name: Build musl SEA + ipk (${{ matrix.arch }})
+    needs: nightly
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            platform: linux/amd64
+            os: ubuntu-latest
+            sea_target: linux-x64-musl
+          - arch: aarch64
+            platform: linux/arm64
+            os: ubuntu-24.04-arm
+            sea_target: linux-arm64-musl
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Set nightly version in package.json
+        shell: bash
+        run: |
+          VERSION=${{ needs.nightly.outputs.version }}
+          node -e "const pkg = require('./package.json'); pkg.version = '${VERSION}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
+
+      - name: Build SEA in Alpine (musl)
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v "$PWD":/work -w /work \
+            node:24-alpine sh -c "apk add --no-cache build-base python3 && npm ci && npm run build:sea"
+
+      - name: Build ipk
+        run: |
+          VERSION=${{ needs.nightly.outputs.version }}
+          bash scripts/build-openwrt-ipk.sh dist-sea "$VERSION" ${{ matrix.arch }} .
+
+      - name: Create musl SEA tarball
+        run: |
+          cd dist-sea
+          tar czf ../rustdesk-console-${{ matrix.sea_target }}.tar.gz .
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: nightly
+          files: |
+            rustdesk-console-${{ matrix.sea_target }}.tar.gz
+            rustdesk-console_${{ needs.nightly.outputs.version }}_${{ matrix.arch }}.ipk
+          fail_on_unmatched_files: false

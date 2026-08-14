@@ -134,6 +134,24 @@ npm run start:prod
 
 </details>
 
+<details>
+<summary>📦 OpenWrt / ImmortalWrt (soft router)</summary>
+
+Prebuilt `.ipk` packages are available for **x86_64** and **aarch64** (musl)
+soft routers from [GitHub Releases](https://github.com/databk/rustdesk-console/releases).
+
+```sh
+opkg install rustdesk-console_<version>_x86_64.ipk
+/etc/init.d/rustdesk-console enable
+/etc/init.d/rustdesk-console start
+```
+
+The backend API runs at `http://<router-ip>:3000/api`. Configure it via
+`/etc/rustdesk-console/rustdesk-console.env`. See [`openwrt/README.md`](openwrt/README.md)
+for feed integration and details.
+
+</details>
+
 ## 🛠️ Tech Stack
 
 `NestJS 11` · `TypeScript` · `TypeORM 0.3` · `SQLite` · `JWT` · `Passport.js` · `bcryptjs` · `otplib` · `Nodemailer` · `sharp` · `openid-client`
