@@ -137,11 +137,24 @@ npm run start:prod
 <details>
 <summary>📦 OpenWrt / ImmortalWrt (soft router)</summary>
 
-Prebuilt `.ipk` packages are available for **x86_64** and **aarch64** (musl)
-soft routers from [GitHub Releases](https://github.com/databk/rustdesk-console/releases).
+Prebuilt `.ipk` and `.apk` packages are available for **x86_64** and **aarch64**
+(musl) soft routers from [GitHub Releases](https://github.com/databk/rustdesk-console/releases).
+
+**OpenWrt < 24.10** (opkg / `.ipk`):
 
 ```sh
 opkg install rustdesk-console_<version>_x86_64.ipk
+```
+
+**OpenWrt >= 24.10** (apk / `.apk`):
+
+```sh
+apk add --allow-untrusted rustdesk-console_<version>_x86_64.apk
+```
+
+Then enable and start the service:
+
+```sh
 /etc/init.d/rustdesk-console enable
 /etc/init.d/rustdesk-console start
 ```

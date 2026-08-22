@@ -206,7 +206,7 @@ jobs:
           fail_on_unmatched_files: false
 
   musl-build:
-    name: Build musl SEA + ipk (${{ matrix.arch }})
+    name: Build musl SEA + ipk + apk (${{ matrix.arch }})
     needs: nightly
     strategy:
       fail-fast: false
@@ -248,6 +248,11 @@ jobs:
           VERSION=${{ needs.nightly.outputs.version }}
           bash scripts/build-openwrt-ipk.sh dist-sea "$VERSION" ${{ matrix.arch }} .
 
+      - name: Build apk
+        run: |
+          VERSION=${{ needs.nightly.outputs.version }}
+          bash scripts/build-openwrt-apk.sh dist-sea "$VERSION" ${{ matrix.arch }} .
+
       - name: Create musl SEA tarball
         run: |
           cd dist-sea
@@ -260,4 +265,5 @@ jobs:
           files: |
             rustdesk-console-${{ matrix.sea_target }}.tar.gz
             rustdesk-console_${{ needs.nightly.outputs.version }}_${{ matrix.arch }}.ipk
+            rustdesk-console_${{ needs.nightly.outputs.version }}_${{ matrix.arch }}.apk
           fail_on_unmatched_files: false

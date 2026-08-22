@@ -2,8 +2,8 @@
 
 This directory contains the OpenWrt/ImmortalWrt package definition for RustDesk
 Console. It ships **prebuilt musl binaries** (Node.js SEA single executable +
-`sqlite3` + `sharp` native modules) and wraps them in an `.ipk` package managed
-by `procd`.
+`sqlite3` + `sharp` native modules) and wraps them in `.ipk` and `.apk`
+packages managed by `procd`.
 
 ## Supported targets
 
@@ -15,14 +15,26 @@ by `procd`.
 Only **musl** libc builds of OpenWrt/ImmortalWrt are supported (the default).
 glibc-based OpenWrt builds are not supported.
 
-## Install a prebuilt .ipk
+## Install a prebuilt package
 
-Download the `.ipk` for your architecture from the
-[GitHub Releases](https://github.com/databk/rustdesk-console/releases) page and:
+Download the package for your architecture from the
+[GitHub Releases](https://github.com/databk/rustdesk-console/releases) page.
+
+### OpenWrt < 24.10 (opkg / `.ipk`)
 
 ```sh
 opkg install rustdesk-console_<version>_x86_64.ipk
 ```
+
+### OpenWrt >= 24.10 (apk / `.apk`)
+
+```sh
+apk add --allow-untrusted rustdesk-console_<version>_x86_64.apk
+```
+
+> The `--allow-untrusted` flag is needed because the `.apk` is not signed with
+> a build key. For production feeds, sign the package with your own key and
+> configure `apk` trust accordingly.
 
 Then enable and start the service:
 
@@ -80,7 +92,7 @@ it at `http://<router-ip>:3000`, e.g. with an external nginx reverse proxy.
 
 ## How the prebuilt tarballs are produced
 
-The musl SEA tarballs and `.ipk` files are built in CI (see
+The musl SEA tarballs, `.ipk` and `.apk` files are built in CI (see
 `.github/workflows/release.yml` and `nightly.yml`):
 
 1. `node:24-alpine` container runs `npm ci && npm run build:sea` → musl SEA
@@ -88,6 +100,8 @@ The musl SEA tarballs and `.ipk` files are built in CI (see
    prebuilds).
 2. `scripts/build-openwrt-ipk.sh` assembles the `.ipk` (data + control archive)
    with the procd init script and default config.
+3. `scripts/build-openwrt-apk.sh` assembles the `.apk` (concatenated control +
+   data tar.gz streams with `.PKGINFO`) for OpenWrt 24.10+ (apk-tools 3.x).
 
 ## File layout (installed)
 
