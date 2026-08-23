@@ -6,6 +6,7 @@ import { SmtpSettingsService } from './services/smtp-settings.service';
 import { AuditSettingsService } from './services/audit-settings.service';
 import { GeneralSettingsController } from './general-settings.controller';
 import { FrontendSettingsController } from './frontend-settings.controller';
+import { AuditSettingsController } from './audit-settings.controller';
 import { GeneralSettingsService } from './services/general-settings.service';
 
 /**
@@ -24,6 +25,7 @@ import { GeneralSettingsService } from './services/general-settings.service';
     SettingsController,
     GeneralSettingsController,
     FrontendSettingsController,
+    AuditSettingsController,
   ],
   providers: [
     SmtpSettingsService,
