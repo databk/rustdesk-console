@@ -34,6 +34,7 @@ export class GeneralSettingsDto {
   watermarkEnabled: boolean;
   defaultLanguage: string;
   jwtExpiryDays: number;
+  auditRetentionDays: number;
   site: SiteSettingsDto;
   webauthn: WebAuthnSettingsDto;
 }
@@ -59,6 +60,11 @@ export class UpdateGeneralSettingsDto {
   @IsInt()
   @Min(1)
   jwtExpiryDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  auditRetentionDays?: number;
 
   @IsOptional()
   @ValidateNested()

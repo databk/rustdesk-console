@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   watermarkEnabled: true,
   defaultLanguage: 'en-US',
   jwtExpiryDays: 30,
+  auditRetentionDays: 0,
   site: { frontendUrl: '', backendUrl: '' },
   webauthn: { enabled: true, rpName: 'RustDesk Console' },
 };
@@ -70,7 +71,7 @@ describe('GeneralSettingsService', () => {
       ...DEFAULT_SETTINGS,
       watermarkEnabled: false,
     });
-    await expect(repository.count()).resolves.toBe(7);
+    await expect(repository.count()).resolves.toBe(8);
   });
 
   it('persists jwtExpiryDays and reads it back', async () => {
@@ -102,6 +103,37 @@ describe('GeneralSettingsService', () => {
       }),
     ]);
     await expect(service.getJwtExpiryDays()).resolves.toBe(30);
+  });
+
+  it('persists auditRetentionDays and reads it back', async () => {
+    await service.updateSettings({
+      watermarkEnabled: true,
+      auditRetentionDays: 30,
+    });
+    await expect(service.getSettings()).resolves.toMatchObject({
+      auditRetentionDays: 30,
+    });
+    await expect(service.getAuditRetentionDays()).resolves.toBe(30);
+  });
+
+  it('falls back to default auditRetentionDays for invalid values', async () => {
+    await repository.save([
+      repository.create({
+        key: 'general.auditRetentionDays',
+        value: 'not-a-number',
+        category: 'general',
+      }),
+    ]);
+    await expect(service.getAuditRetentionDays()).resolves.toBe(0);
+
+    await repository.save([
+      repository.create({
+        key: 'general.auditRetentionDays',
+        value: '-5',
+        category: 'general',
+      }),
+    ]);
+    await expect(service.getAuditRetentionDays()).resolves.toBe(0);
   });
 
   it('persists defaultLanguage and validates the format', async () => {
@@ -223,6 +255,38 @@ describe('general settings HTTP contract', () => {
     const invalidString = plainToInstance(UpdateGeneralSettingsDto, {
       watermarkEnabled: true,
       jwtExpiryDays: '30',
+    });
+    await expect(validate(invalidString)).resolves.not.toHaveLength(0);
+  });
+
+  it('validates auditRetentionDays must be a non-negative integer', async () => {
+    const valid = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      auditRetentionDays: 30,
+    });
+    await expect(validate(valid)).resolves.toHaveLength(0);
+
+    const validZero = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      auditRetentionDays: 0,
+    });
+    await expect(validate(validZero)).resolves.toHaveLength(0);
+
+    const invalidNegative = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      auditRetentionDays: -1,
+    });
+    await expect(validate(invalidNegative)).resolves.not.toHaveLength(0);
+
+    const invalidFloat = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      auditRetentionDays: 3.5,
+    });
+    await expect(validate(invalidFloat)).resolves.not.toHaveLength(0);
+
+    const invalidString = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      auditRetentionDays: '30',
     });
     await expect(validate(invalidString)).resolves.not.toHaveLength(0);
   });

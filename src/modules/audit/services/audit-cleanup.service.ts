@@ -5,7 +5,7 @@ import { Repository, LessThan } from 'typeorm';
 import { ConnectionAudit } from '../entities/connection-audit.entity';
 import { FileAudit } from '../entities/file-audit.entity';
 import { AlarmAudit } from '../entities/alarm-audit.entity';
-import { AuditSettingsService } from '../../settings/services/audit-settings.service';
+import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 /**
  * 审计日志自动清理服务
@@ -23,13 +23,14 @@ export class AuditCleanupService {
     private fileAuditRepository: Repository<FileAudit>,
     @InjectRepository(AlarmAudit)
     private alarmAuditRepository: Repository<AlarmAudit>,
-    private readonly auditSettingsService: AuditSettingsService,
+    private readonly generalSettingsService: GeneralSettingsService,
   ) {}
 
   @Cron('0 0 * * *')
   async handleCleanupExpiredAudits() {
     try {
-      const retentionDays = await this.auditSettingsService.getRetentionDays();
+      const retentionDays =
+        await this.generalSettingsService.getAuditRetentionDays();
 
       if (retentionDays <= 0) {
         return;
