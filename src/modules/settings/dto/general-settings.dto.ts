@@ -1,9 +1,11 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsInt,
   IsOptional,
   IsString,
   Matches,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -31,6 +33,7 @@ export class WebAuthnSettingsDto {
 export class GeneralSettingsDto {
   watermarkEnabled: boolean;
   defaultLanguage: string;
+  jwtExpiryDays: number;
   site: SiteSettingsDto;
   webauthn: WebAuthnSettingsDto;
 }
@@ -51,6 +54,11 @@ export class UpdateGeneralSettingsDto {
       'defaultLanguage must be a BCP 47 region tag like en-US, pt-BR, zh-CN',
   })
   defaultLanguage?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  jwtExpiryDays?: number;
 
   @IsOptional()
   @ValidateNested()

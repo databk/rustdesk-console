@@ -11,6 +11,7 @@ import { SystemSetting } from '../entities/system-setting.entity';
 const CATEGORY = 'general';
 const WATERMARK_ENABLED_KEY = 'general.watermarkEnabled';
 const DEFAULT_LANGUAGE_KEY = 'general.defaultLanguage';
+const JWT_EXPIRY_DAYS_KEY = 'general.jwtExpiryDays';
 const SITE_FRONTEND_URL_KEY = 'general.siteFrontendUrl';
 const SITE_BACKEND_URL_KEY = 'general.siteBackendUrl';
 const WEBAUTHN_ENABLED_KEY = 'general.webauthnEnabled';
@@ -20,11 +21,13 @@ const DEFAULT_FRONTEND_URL = '';
 const DEFAULT_BACKEND_URL = '';
 const DEFAULT_RP_NAME = 'RustDesk Console';
 const DEFAULT_LANGUAGE = 'en-US';
+const DEFAULT_JWT_EXPIRY_DAYS = 30;
 const FALLBACK_URL = 'http://localhost:3000';
 
 const ALL_KEYS = [
   WATERMARK_ENABLED_KEY,
   DEFAULT_LANGUAGE_KEY,
+  JWT_EXPIRY_DAYS_KEY,
   SITE_FRONTEND_URL_KEY,
   SITE_BACKEND_URL_KEY,
   WEBAUTHN_ENABLED_KEY,
@@ -47,6 +50,7 @@ export class GeneralSettingsService {
         values.get(WATERMARK_ENABLED_KEY),
       ),
       defaultLanguage: values.get(DEFAULT_LANGUAGE_KEY) ?? DEFAULT_LANGUAGE,
+      jwtExpiryDays: this.readJwtExpiryDays(values.get(JWT_EXPIRY_DAYS_KEY)),
       site: {
         frontendUrl: values.get(SITE_FRONTEND_URL_KEY) ?? DEFAULT_FRONTEND_URL,
         backendUrl: values.get(SITE_BACKEND_URL_KEY) ?? DEFAULT_BACKEND_URL,
@@ -117,6 +121,15 @@ export class GeneralSettingsService {
     };
   }
 
+  /**
+   * 获取 JWT Token 有效期天数（供 AuthTokenService 消费）
+   * 默认 30 天，可通过 settings/general 接口修改
+   */
+  async getJwtExpiryDays(): Promise<number> {
+    const values = await this.readValues([JWT_EXPIRY_DAYS_KEY]);
+    return this.readJwtExpiryDays(values.get(JWT_EXPIRY_DAYS_KEY));
+  }
+
   async updateSettings(
     dto: UpdateGeneralSettingsDto,
   ): Promise<GeneralSettingsDto> {
@@ -124,6 +137,7 @@ export class GeneralSettingsService {
     const merged: GeneralSettingsDto = {
       watermarkEnabled: dto.watermarkEnabled,
       defaultLanguage: dto.defaultLanguage ?? current.defaultLanguage,
+      jwtExpiryDays: dto.jwtExpiryDays ?? current.jwtExpiryDays,
       site: {
         frontendUrl: dto.site?.frontendUrl ?? current.site.frontendUrl,
         backendUrl: dto.site?.backendUrl ?? current.site.backendUrl,
@@ -137,6 +151,7 @@ export class GeneralSettingsService {
     const values = new Map<string, string>([
       [WATERMARK_ENABLED_KEY, String(merged.watermarkEnabled)],
       [DEFAULT_LANGUAGE_KEY, merged.defaultLanguage ?? DEFAULT_LANGUAGE],
+      [JWT_EXPIRY_DAYS_KEY, String(merged.jwtExpiryDays)],
       [SITE_FRONTEND_URL_KEY, merged.site.frontendUrl ?? ''],
       [SITE_BACKEND_URL_KEY, merged.site.backendUrl ?? ''],
       [WEBAUTHN_ENABLED_KEY, String(merged.webauthn.enabled)],
@@ -179,5 +194,11 @@ export class GeneralSettingsService {
   private readWebAuthnEnabled(value: string | undefined): boolean {
     if (value === 'false') return false;
     return true;
+  }
+
+  private readJwtExpiryDays(value: string | undefined): number {
+    const parsed = parseInt(value ?? '', 10);
+    if (Number.isNaN(parsed) || parsed < 1) return DEFAULT_JWT_EXPIRY_DAYS;
+    return parsed;
   }
 }

@@ -14,6 +14,7 @@ import { GeneralSettingsService } from './services/general-settings.service';
 const DEFAULT_SETTINGS = {
   watermarkEnabled: true,
   defaultLanguage: 'en-US',
+  jwtExpiryDays: 30,
   site: { frontendUrl: '', backendUrl: '' },
   webauthn: { enabled: true, rpName: 'RustDesk Console' },
 };
@@ -69,7 +70,38 @@ describe('GeneralSettingsService', () => {
       ...DEFAULT_SETTINGS,
       watermarkEnabled: false,
     });
-    await expect(repository.count()).resolves.toBe(6);
+    await expect(repository.count()).resolves.toBe(7);
+  });
+
+  it('persists jwtExpiryDays and reads it back', async () => {
+    await service.updateSettings({
+      watermarkEnabled: true,
+      jwtExpiryDays: 7,
+    });
+    await expect(service.getSettings()).resolves.toMatchObject({
+      jwtExpiryDays: 7,
+    });
+    await expect(service.getJwtExpiryDays()).resolves.toBe(7);
+  });
+
+  it('falls back to default jwtExpiryDays for invalid values', async () => {
+    await repository.save([
+      repository.create({
+        key: 'general.jwtExpiryDays',
+        value: 'not-a-number',
+        category: 'general',
+      }),
+    ]);
+    await expect(service.getJwtExpiryDays()).resolves.toBe(30);
+
+    await repository.save([
+      repository.create({
+        key: 'general.jwtExpiryDays',
+        value: '0',
+        category: 'general',
+      }),
+    ]);
+    await expect(service.getJwtExpiryDays()).resolves.toBe(30);
   });
 
   it('persists defaultLanguage and validates the format', async () => {
@@ -167,6 +199,32 @@ describe('general settings HTTP contract', () => {
       webauthn: { enabled: 'yes' },
     });
     await expect(validate(invalidWebauthn)).resolves.not.toHaveLength(0);
+  });
+
+  it('validates jwtExpiryDays must be a positive integer', async () => {
+    const valid = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      jwtExpiryDays: 14,
+    });
+    await expect(validate(valid)).resolves.toHaveLength(0);
+
+    const invalidFloat = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      jwtExpiryDays: 3.5,
+    });
+    await expect(validate(invalidFloat)).resolves.not.toHaveLength(0);
+
+    const invalidZero = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      jwtExpiryDays: 0,
+    });
+    await expect(validate(invalidZero)).resolves.not.toHaveLength(0);
+
+    const invalidString = plainToInstance(UpdateGeneralSettingsDto, {
+      watermarkEnabled: true,
+      jwtExpiryDays: '30',
+    });
+    await expect(validate(invalidString)).resolves.not.toHaveLength(0);
   });
 
   it('restricts general reads and updates to administrators', () => {
