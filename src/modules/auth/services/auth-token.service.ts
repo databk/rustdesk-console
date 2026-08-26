@@ -7,7 +7,8 @@ import { User } from '../../user/entities/user.entity';
 import { UserToken } from '../../user/entities/user-token.entity';
 import { JwtPayload } from '../../../common/services/token.service';
 import { DeviceInfoDto } from '../dto/auth.dto';
-import { TOKEN_EXPIRY_DAYS } from '../auth.constants';
+
+import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 export interface SessionInfo {
   jti: string;
@@ -36,6 +37,7 @@ export class AuthTokenService {
     @InjectRepository(UserToken)
     private tokenRepository: Repository<UserToken>,
     private jwtService: JwtService,
+    private readonly generalSettingsService: GeneralSettingsService,
   ) {}
 
   /**
@@ -65,10 +67,14 @@ export class AuthTokenService {
       jti,
     };
 
-    const token = this.jwtService.sign(payload);
+    const expiryDays = await this.generalSettingsService.getJwtExpiryDays();
+
+    const token = this.jwtService.sign(payload, {
+      expiresIn: `${expiryDays}d`,
+    });
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + TOKEN_EXPIRY_DAYS);
+    expiresAt.setDate(expiresAt.getDate() + expiryDays);
 
     const userToken = this.tokenRepository.create({
       guid: jti,
