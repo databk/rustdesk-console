@@ -1,3 +1,14 @@
+## [1.8.1](https://github.com/databk/rustdesk-console/compare/1.8.0...1.8.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **avatar:** bust browser cache with timestamp query parameter ([#282](https://github.com/databk/rustdesk-console/issues/282)) ([5780528](https://github.com/databk/rustdesk-console/commit/5780528e18863d02943e172bc4cb8fcb37b87278))
+* **avatar:** persist user avatars across Docker updates via DATA_DIR ([#279](https://github.com/databk/rustdesk-console/issues/279)) ([ee70b40](https://github.com/databk/rustdesk-console/commit/ee70b401fef27ed2d8dc2d2cb3503bbb51f11077))
+* **nexus:** persist build artifacts across Docker updates via unified DATA_DIR ([#276](https://github.com/databk/rustdesk-console/issues/276)) ([6df09fe](https://github.com/databk/rustdesk-console/commit/6df09fe32e135210fea6046cabb91e520af94d47))
+
+
+
 # [1.8.0](https://github.com/databk/rustdesk-console/compare/1.7.0...1.8.0) (2026-08-07)
 
 
@@ -78,21 +89,6 @@
 * merge saved LDAP config when testing connection ([#180](https://github.com/databk/rustdesk-console/issues/180)) ([7390ca5](https://github.com/databk/rustdesk-console/commit/7390ca54a364c7f91933239ac72aeed6b68774d8))
 * specify varchar type for User.email column ([#181](https://github.com/databk/rustdesk-console/issues/181)) ([924bcda](https://github.com/databk/rustdesk-console/commit/924bcdaf6834b7face280e931db0070878767069))
 * store null instead of empty string for user email to avoid unique constraint violation ([#176](https://github.com/databk/rustdesk-console/issues/176)) ([cff06b7](https://github.com/databk/rustdesk-console/commit/cff06b77fbf009eab533730935f542ee8bc83395)), closes [#173](https://github.com/databk/rustdesk-console/issues/173)
-
-
-
-# [1.5.0](https://github.com/databk/rustdesk-console/compare/1.4.1...1.5.0) (2026-06-14)
-
-
-### Bug Fixes
-
-* align alarm audit query interface with file/connection audit ([#138](https://github.com/databk/rustdesk-console/issues/138)) ([825af6a](https://github.com/databk/rustdesk-console/commit/825af6a4dddb4fc02d1f37353d616dfb90072a99))
-
-
-### Features
-
-* add audit log auto-cleanup with configurable retention ([#143](https://github.com/databk/rustdesk-console/issues/143)) ([e83545a](https://github.com/databk/rustdesk-console/commit/e83545a0e13f4c097a2d24ba52a4b3a4fc52a143))
-* add LDAP authentication support ([#148](https://github.com/databk/rustdesk-console/issues/148)) ([efa90ec](https://github.com/databk/rustdesk-console/commit/efa90ecbf3766c7825f1a2f2a0f0d91814afb410)), closes [#135](https://github.com/databk/rustdesk-console/issues/135)
 
 
 

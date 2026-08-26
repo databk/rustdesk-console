@@ -27,7 +27,7 @@ import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
 import { SettingsModule } from '../settings/settings.module';
-import { JWT_DEFAULT_SECRET } from './auth.constants';
+import { JWT_DEFAULT_SECRET, TOKEN_EXPIRY_DAYS } from './auth.constants';
 
 /**
  * 认证模块
@@ -65,7 +65,7 @@ import { JWT_DEFAULT_SECRET } from './auth.constants';
     JwtModule.register({
       secret: process.env.JWT_SECRET || JWT_DEFAULT_SECRET,
       signOptions: {
-        expiresIn: '30d',
+        expiresIn: `${TOKEN_EXPIRY_DAYS}d`,
       },
     }),
   ],

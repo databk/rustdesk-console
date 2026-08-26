@@ -1,6 +1,6 @@
 {
   "name": "rustdesk-console",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Remote Desktop Management Console for RustDesk - An open-source console designed for self-hosting, as an alternative to RustDesk Server Pro.",
   "author": "databk",
   "private": false,
