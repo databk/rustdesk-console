@@ -12,6 +12,7 @@ const CATEGORY = 'general';
 const WATERMARK_ENABLED_KEY = 'general.watermarkEnabled';
 const DEFAULT_LANGUAGE_KEY = 'general.defaultLanguage';
 const JWT_EXPIRY_DAYS_KEY = 'general.jwtExpiryDays';
+const AUDIT_RETENTION_DAYS_KEY = 'general.auditRetentionDays';
 const SITE_FRONTEND_URL_KEY = 'general.siteFrontendUrl';
 const SITE_BACKEND_URL_KEY = 'general.siteBackendUrl';
 const WEBAUTHN_ENABLED_KEY = 'general.webauthnEnabled';
@@ -22,12 +23,14 @@ const DEFAULT_BACKEND_URL = '';
 const DEFAULT_RP_NAME = 'RustDesk Console';
 const DEFAULT_LANGUAGE = 'en-US';
 const DEFAULT_JWT_EXPIRY_DAYS = 30;
+const DEFAULT_AUDIT_RETENTION_DAYS = 0;
 const FALLBACK_URL = 'http://localhost:3000';
 
 const ALL_KEYS = [
   WATERMARK_ENABLED_KEY,
   DEFAULT_LANGUAGE_KEY,
   JWT_EXPIRY_DAYS_KEY,
+  AUDIT_RETENTION_DAYS_KEY,
   SITE_FRONTEND_URL_KEY,
   SITE_BACKEND_URL_KEY,
   WEBAUTHN_ENABLED_KEY,
@@ -51,6 +54,9 @@ export class GeneralSettingsService {
       ),
       defaultLanguage: values.get(DEFAULT_LANGUAGE_KEY) ?? DEFAULT_LANGUAGE,
       jwtExpiryDays: this.readJwtExpiryDays(values.get(JWT_EXPIRY_DAYS_KEY)),
+      auditRetentionDays: this.readAuditRetentionDays(
+        values.get(AUDIT_RETENTION_DAYS_KEY),
+      ),
       site: {
         frontendUrl: values.get(SITE_FRONTEND_URL_KEY) ?? DEFAULT_FRONTEND_URL,
         backendUrl: values.get(SITE_BACKEND_URL_KEY) ?? DEFAULT_BACKEND_URL,
@@ -130,6 +136,15 @@ export class GeneralSettingsService {
     return this.readJwtExpiryDays(values.get(JWT_EXPIRY_DAYS_KEY));
   }
 
+  /**
+   * 获取审计日志保留天数（供 AuditCleanupService 消费）
+   * 默认 0 表示不自动清理，可通过 settings/general 接口修改
+   */
+  async getAuditRetentionDays(): Promise<number> {
+    const values = await this.readValues([AUDIT_RETENTION_DAYS_KEY]);
+    return this.readAuditRetentionDays(values.get(AUDIT_RETENTION_DAYS_KEY));
+  }
+
   async updateSettings(
     dto: UpdateGeneralSettingsDto,
   ): Promise<GeneralSettingsDto> {
@@ -138,6 +153,8 @@ export class GeneralSettingsService {
       watermarkEnabled: dto.watermarkEnabled,
       defaultLanguage: dto.defaultLanguage ?? current.defaultLanguage,
       jwtExpiryDays: dto.jwtExpiryDays ?? current.jwtExpiryDays,
+      auditRetentionDays:
+        dto.auditRetentionDays ?? current.auditRetentionDays,
       site: {
         frontendUrl: dto.site?.frontendUrl ?? current.site.frontendUrl,
         backendUrl: dto.site?.backendUrl ?? current.site.backendUrl,
@@ -152,6 +169,7 @@ export class GeneralSettingsService {
       [WATERMARK_ENABLED_KEY, String(merged.watermarkEnabled)],
       [DEFAULT_LANGUAGE_KEY, merged.defaultLanguage ?? DEFAULT_LANGUAGE],
       [JWT_EXPIRY_DAYS_KEY, String(merged.jwtExpiryDays)],
+      [AUDIT_RETENTION_DAYS_KEY, String(merged.auditRetentionDays)],
       [SITE_FRONTEND_URL_KEY, merged.site.frontendUrl ?? ''],
       [SITE_BACKEND_URL_KEY, merged.site.backendUrl ?? ''],
       [WEBAUTHN_ENABLED_KEY, String(merged.webauthn.enabled)],
@@ -199,6 +217,12 @@ export class GeneralSettingsService {
   private readJwtExpiryDays(value: string | undefined): number {
     const parsed = parseInt(value ?? '', 10);
     if (Number.isNaN(parsed) || parsed < 1) return DEFAULT_JWT_EXPIRY_DAYS;
+    return parsed;
+  }
+
+  private readAuditRetentionDays(value: string | undefined): number {
+    const parsed = parseInt(value ?? '', 10);
+    if (Number.isNaN(parsed) || parsed < 0) return DEFAULT_AUDIT_RETENTION_DAYS;
     return parsed;
   }
 }
