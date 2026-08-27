@@ -251,7 +251,9 @@ jobs:
       - name: Build apk
         run: |
           VERSION=${{ needs.nightly.outputs.version }}
-          bash scripts/build-openwrt-apk.sh dist-sea "$VERSION" ${{ matrix.arch }} .
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v "$PWD":/work -w /work \
+            alpine:edge sh -c "apk add --no-cache bash && bash scripts/build-openwrt-apk.sh dist-sea \"$VERSION\" ${{ matrix.arch }} ."
 
       - name: Create musl SEA tarball
         run: |

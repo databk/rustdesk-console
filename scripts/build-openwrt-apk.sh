@@ -17,76 +17,73 @@ if [ ! -x "$SEA_DIR/rustdesk-console" ]; then
   exit 1
 fi
 
+if ! command -v apk >/dev/null 2>&1; then
+  echo "ERROR: 'apk' command not found. This script must run inside Alpine (apk-tools 3.x)." >&2
+  exit 1
+fi
+
+APK_VERSION="${VERSION//-nightly./_p}"
+APK_VERSION="${APK_VERSION}-r1"
+
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-DATA="$WORK/data"
-mkdir -p "$DATA/usr/lib/rustdesk-console" "$DATA/usr/bin" \
-         "$DATA/etc/init.d" "$DATA/etc/rustdesk-console"
+PKGROOT="$WORK/pkgroot"
+mkdir -p "$PKGROOT/usr/lib/rustdesk-console" "$PKGROOT/usr/bin" \
+         "$PKGROOT/etc/init.d" "$PKGROOT/etc/rustdesk-console"
 
-cp "$SEA_DIR/rustdesk-console" "$DATA/usr/lib/rustdesk-console/rustdesk-console"
-chmod 0755 "$DATA/usr/lib/rustdesk-console/rustdesk-console"
+cp "$SEA_DIR/rustdesk-console" "$PKGROOT/usr/lib/rustdesk-console/rustdesk-console"
+chmod 0755 "$PKGROOT/usr/lib/rustdesk-console/rustdesk-console"
 
 if [ -d "$SEA_DIR/templates" ]; then
-  cp -a "$SEA_DIR/templates" "$DATA/usr/lib/rustdesk-console/templates"
+  cp -a "$SEA_DIR/templates" "$PKGROOT/usr/lib/rustdesk-console/templates"
 fi
 if [ -d "$SEA_DIR/node_modules" ]; then
-  cp -a "$SEA_DIR/node_modules" "$DATA/usr/lib/rustdesk-console/node_modules"
+  cp -a "$SEA_DIR/node_modules" "$PKGROOT/usr/lib/rustdesk-console/node_modules"
 fi
 
-cat > "$DATA/usr/bin/rustdesk-console" <<'WRAPPER'
+cat > "$PKGROOT/usr/bin/rustdesk-console" <<'WRAPPER'
 #!/bin/sh
 exec /usr/lib/rustdesk-console/rustdesk-console "$@"
 WRAPPER
-chmod 0755 "$DATA/usr/bin/rustdesk-console"
+chmod 0755 "$PKGROOT/usr/bin/rustdesk-console"
 
-cp "$FILES_DIR/rustdesk-console.init" "$DATA/etc/init.d/rustdesk-console"
-chmod 0755 "$DATA/etc/init.d/rustdesk-console"
+cp "$FILES_DIR/rustdesk-console.init" "$PKGROOT/etc/init.d/rustdesk-console"
+chmod 0755 "$PKGROOT/etc/init.d/rustdesk-console"
 
-cp "$FILES_DIR/rustdesk-console.env" "$DATA/etc/rustdesk-console/rustdesk-console.env"
-chmod 0644 "$DATA/etc/rustdesk-console/rustdesk-console.env"
+cp "$FILES_DIR/rustdesk-console.env" "$PKGROOT/etc/rustdesk-console/rustdesk-console.env"
+chmod 0644 "$PKGROOT/etc/rustdesk-console/rustdesk-console.env"
 
-DATA_SIZE="$(du -sb "$DATA" | cut -f1)"
-BUILD_DATE="$(date +%s)"
-
-CTRL="$WORK/control"
-mkdir -p "$CTRL"
-
-cat > "$CTRL/.PKGINFO" <<EOF
-pkgname = rustdesk-console
-pkgver = $VERSION-1
-pkgdesc = Enterprise-grade management platform for the RustDesk ecosystem.
-url = https://github.com/databk/rustdesk-console
-builddate = $BUILD_DATE
-packager = databk <databk@users.noreply.github.com>
-size = $DATA_SIZE
-arch = $ARCH
-origin = rustdesk-console
-maintainer = databk <databk@users.noreply.github.com>
-depend = libc
-depend = libstdcpp
-depend = libgcc
-EOF
-
-cat > "$CTRL/.post-install" <<'EOF'
+cat > "$WORK/post-install.sh" <<'EOF'
 #!/bin/sh
 mkdir -p /var/lib/rustdesk-console
 exit 0
 EOF
-chmod 0755 "$CTRL/.post-install"
+chmod 0755 "$WORK/post-install.sh"
 
-cat > "$CTRL/.pre-deinstall" <<'EOF'
+cat > "$WORK/pre-deinstall.sh" <<'EOF'
 #!/bin/sh
 /etc/init.d/rustdesk-console stop 2>/dev/null || true
 exit 0
 EOF
-chmod 0755 "$CTRL/.pre-deinstall"
+chmod 0755 "$WORK/pre-deinstall.sh"
 
 OUT="$OUT_DIR/rustdesk-console_${VERSION}_${ARCH}.apk"
 
-( cd "$CTRL" && tar czf "$WORK/control.tar.gz" --owner=0 --group=0 --mtime=@0 . )
-( cd "$DATA" && tar czf "$WORK/data.tar.gz" --owner=0 --group=0 --mtime=@0 . )
-
-cat "$WORK/control.tar.gz" "$WORK/data.tar.gz" > "$OUT"
+apk mkpkg \
+  -I name:rustdesk-console \
+  -I "version:$APK_VERSION" \
+  -I "description:Enterprise-grade management platform for the RustDesk ecosystem." \
+  -I "arch:$ARCH" \
+  -I origin:rustdesk-console \
+  -I "maintainer:databk <databk@users.noreply.github.com>" \
+  -I url:https://github.com/databk/rustdesk-console \
+  -I "depends:libc" \
+  -I "depends:libstdcpp" \
+  -I "depends:libgcc" \
+  -s "post-install:$WORK/post-install.sh" \
+  -s "pre-deinstall:$WORK/pre-deinstall.sh" \
+  -F "$PKGROOT" \
+  -o "$OUT"
 
 echo "Built $OUT ($(du -h "$OUT" | cut -f1))"

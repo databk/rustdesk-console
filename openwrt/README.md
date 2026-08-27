@@ -100,8 +100,8 @@ The musl SEA tarballs, `.ipk` and `.apk` files are built in CI (see
    prebuilds).
 2. `scripts/build-openwrt-ipk.sh` assembles the `.ipk` (data + control archive)
    with the procd init script and default config.
-3. `scripts/build-openwrt-apk.sh` assembles the `.apk` (concatenated control +
-   data tar.gz streams with `.PKGINFO`) for OpenWrt 24.10+ (apk-tools 3.x).
+3. `scripts/build-openwrt-apk.sh` assembles the `.apk` using `apk mkpkg`
+   (apk-tools 3.x ADB format) for OpenWrt 24.10+ snapshots and newer.
 
 ## File layout (installed)
 
