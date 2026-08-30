@@ -38,12 +38,13 @@ export class StrategyController {
   }
 
   @Get('strategies/:guid/assignments')
-  @RequirePermission('strategies.view')
+  @RequirePermission('strategies.assign')
   async getStrategyAssignments(
     @Param('guid') guid: string,
     @Query() query: AssignmentQueryDto,
+    @CurrentUser('id') userId: string,
   ) {
-    return this.strategyService.getStrategyAssignments(guid, query);
+    return this.strategyService.getStrategyAssignments(guid, query, userId);
   }
 
   @Post('strategies')

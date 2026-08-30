@@ -371,7 +371,11 @@ export class StrategyService {
     return { success, errors };
   }
 
-  async getStrategyAssignments(guid: string, query: AssignmentQueryDto) {
+  async getStrategyAssignments(
+    guid: string,
+    query: AssignmentQueryDto,
+    actorGuid: string,
+  ) {
     const strategy = await this.strategyRepository.findOne({
       where: { guid },
     });
@@ -381,16 +385,30 @@ export class StrategyService {
 
     const { target_type, current, pageSize } = query;
     const skip = (current - 1) * pageSize;
+    const scope = await this.rbacAuthorizationService.requirePermission(
+      actorGuid,
+      'strategies.assign',
+    );
 
     switch (target_type) {
       case 'device': {
-        const [peers, total] = await this.peerRepository.findAndCount({
-          where: { strategyGuid: guid },
-          select: ['uuid', 'id', 'status'],
-          skip,
-          take: pageSize,
-          order: { id: 'ASC' },
-        });
+        let queryBuilder = this.peerRepository
+          .createQueryBuilder('peer')
+          .where('peer.strategyGuid = :strategyGuid', { strategyGuid: guid })
+          .select(['peer.uuid', 'peer.id', 'peer.status']);
+        if (!scope.global) {
+          queryBuilder = scope.deviceGroupGuids.size
+            ? queryBuilder.andWhere(
+                'peer.deviceGroupGuid IN (:...deviceGroupGuids)',
+                { deviceGroupGuids: [...scope.deviceGroupGuids] },
+              )
+            : queryBuilder.andWhere('1 = 0');
+        }
+        const [peers, total] = await queryBuilder
+          .orderBy('peer.id', 'ASC')
+          .skip(skip)
+          .take(pageSize)
+          .getManyAndCount();
         return {
           data: peers.map((p) => ({
             uuid: p.uuid,
@@ -401,6 +419,11 @@ export class StrategyService {
         };
       }
       case 'user': {
+        await this.rbacAuthorizationService.assertStrategyTargets(
+          actorGuid,
+          'user',
+          [],
+        );
         const [users, total] = await this.userRepository.findAndCount({
           where: { strategyGuid: guid },
           select: ['guid', 'username', 'email', 'status', 'isAdmin'],
@@ -420,13 +443,25 @@ export class StrategyService {
         };
       }
       case 'device_group': {
-        const [groups, total] = await this.deviceGroupRepository.findAndCount({
-          where: { strategyGuid: guid },
-          select: ['guid', 'name', 'note'],
-          skip,
-          take: pageSize,
-          order: { name: 'ASC' },
-        });
+        let queryBuilder = this.deviceGroupRepository
+          .createQueryBuilder('deviceGroup')
+          .where('deviceGroup.strategyGuid = :strategyGuid', {
+            strategyGuid: guid,
+          })
+          .select(['deviceGroup.guid', 'deviceGroup.name', 'deviceGroup.note']);
+        if (!scope.global) {
+          queryBuilder = scope.deviceGroupGuids.size
+            ? queryBuilder.andWhere(
+                'deviceGroup.guid IN (:...deviceGroupGuids)',
+                { deviceGroupGuids: [...scope.deviceGroupGuids] },
+              )
+            : queryBuilder.andWhere('1 = 0');
+        }
+        const [groups, total] = await queryBuilder
+          .orderBy('deviceGroup.name', 'ASC')
+          .skip(skip)
+          .take(pageSize)
+          .getManyAndCount();
         return {
           data: groups.map((g) => ({
             guid: g.guid,

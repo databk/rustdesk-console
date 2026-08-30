@@ -67,6 +67,7 @@ export class DeviceGroupService {
     userGuid: string,
     query: { current: number; pageSize: number; name?: string },
     isAdmin: boolean = false,
+    rbacScope?: PermissionScope,
   ): Promise<{
     data: { guid: string; name: string; note?: string }[];
     total: number;
@@ -75,13 +76,24 @@ export class DeviceGroupService {
     const skip = (current - 1) * pageSize;
 
     // 管理员可以看到所有设备组
-    if (isAdmin) {
+    if (isAdmin || rbacScope) {
       let queryBuilder = this.deviceGroupRepository
         .createQueryBuilder('dg')
         .select(['dg.guid', 'dg.name', 'dg.note'])
         .orderBy('dg.name', 'ASC')
         .skip(skip)
         .take(pageSize);
+
+      if (rbacScope && !rbacScope.global) {
+        if (rbacScope.deviceGroupGuids.size === 0) {
+          queryBuilder = queryBuilder.andWhere('1 = 0');
+        } else {
+          queryBuilder = queryBuilder.andWhere(
+            'dg.guid IN (:...rbacDeviceGroups)',
+            { rbacDeviceGroups: [...rbacScope.deviceGroupGuids] },
+          );
+        }
+      }
 
       if (name) {
         queryBuilder = queryBuilder.andWhere('dg.name LIKE :name', {

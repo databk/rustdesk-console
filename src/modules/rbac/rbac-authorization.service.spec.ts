@@ -464,17 +464,19 @@ describe('DeviceGroupController current-state authorization', () => {
     };
   };
 
-  it('uses the current database admin flag for the protected group list', async () => {
+  it('uses the current strategy-assignment scope for the group list', async () => {
     const { controller, deviceGroupService, authorizationService } =
       createController();
 
     await controller.getDeviceGroups('actor', query);
 
-    expect(authorizationService.getCurrentUser).toHaveBeenCalledWith('actor');
+    const scope =
+      await authorizationService.getPermissionScope.mock.results[0].value;
     expect(deviceGroupService.getAccessibleDeviceGroups).toHaveBeenCalledWith(
       'actor',
       query,
       true,
+      scope,
     );
   });
 

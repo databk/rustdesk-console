@@ -125,17 +125,20 @@ export class DeviceGroupController {
    * @returns 设备组列表（分页）
    */
   @Get('device-groups')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.assign')
   async getDeviceGroups(
     @CurrentUser('id') userId: string,
     @Query() query: DeviceGroupQueryDto,
   ) {
-    const currentUser =
-      await this.rbacAuthorizationService.getCurrentUser(userId);
+    const scope = await this.rbacAuthorizationService.getPermissionScope(
+      userId,
+      'strategies.assign',
+    );
     return this.deviceGroupService.getAccessibleDeviceGroups(
       userId,
       query,
-      currentUser.isAdmin,
+      scope.global,
+      scope,
     );
   }
 
