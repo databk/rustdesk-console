@@ -6,6 +6,7 @@ import { LdapController } from './ldap.controller';
 import { LdapService } from './ldap.service';
 import { LdapSettingsService } from './ldap-settings.service';
 import { UserGroupModule } from '../user-group/user-group.module';
+import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
  * LDAP 认证模块
@@ -21,7 +22,7 @@ import { UserGroupModule } from '../user-group/user-group.module';
 @Module({
   imports: [TypeOrmModule.forFeature([SystemSetting, User]), UserGroupModule],
   controllers: [LdapController],
-  providers: [LdapService, LdapSettingsService],
+  providers: [LdapService, LdapSettingsService, AdminGuard],
   exports: [LdapService, LdapSettingsService],
 })
 export class LdapModule {}

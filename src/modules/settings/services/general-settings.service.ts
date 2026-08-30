@@ -153,8 +153,7 @@ export class GeneralSettingsService {
       watermarkEnabled: dto.watermarkEnabled,
       defaultLanguage: dto.defaultLanguage ?? current.defaultLanguage,
       jwtExpiryDays: dto.jwtExpiryDays ?? current.jwtExpiryDays,
-      auditRetentionDays:
-        dto.auditRetentionDays ?? current.auditRetentionDays,
+      auditRetentionDays: dto.auditRetentionDays ?? current.auditRetentionDays,
       site: {
         frontendUrl: dto.site?.frontendUrl ?? current.site.frontendUrl,
         backendUrl: dto.site?.backendUrl ?? current.site.backendUrl,

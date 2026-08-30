@@ -1,14 +1,14 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { AdminUserService } from './admin-user.service';
-import { AdminGuard } from '../../common/guards/admin.guard';
 import { AdminUserQueryDto } from './dto/admin-user.dto';
+import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 
 @Controller('admin/users')
-@UseGuards(AdminGuard)
 export class AdminUserController {
   constructor(private readonly adminUserService: AdminUserService) {}
 
   @Get()
+  @RequirePermission('users.view')
   async getAdminUsers(@Query() query: AdminUserQueryDto) {
     return this.adminUserService.getAdminUsers(query);
   }

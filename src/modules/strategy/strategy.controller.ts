@@ -7,7 +7,6 @@ import {
   Body,
   Param,
   Query,
-  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -19,26 +18,27 @@ import {
   StrategyQueryDto,
   AssignmentQueryDto,
 } from './dto/strategy.dto';
-import { AdminGuard } from '../../common/guards/admin.guard';
+import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller()
 export class StrategyController {
   constructor(private readonly strategyService: StrategyService) {}
 
   @Get('strategies')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.view')
   async getStrategies(@Query() query: StrategyQueryDto) {
     return this.strategyService.getStrategies(query);
   }
 
   @Get('strategies/:guid')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.view')
   async getStrategy(@Param('guid') guid: string) {
     return this.strategyService.getStrategy(guid);
   }
 
   @Get('strategies/:guid/assignments')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.view')
   async getStrategyAssignments(
     @Param('guid') guid: string,
     @Query() query: AssignmentQueryDto,
@@ -47,14 +47,14 @@ export class StrategyController {
   }
 
   @Post('strategies')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.create')
   @HttpCode(HttpStatus.OK)
   async createStrategy(@Body() dto: CreateStrategyDto) {
     return this.strategyService.createStrategy(dto);
   }
 
   @Patch('strategies/:guid')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.edit')
   @HttpCode(HttpStatus.OK)
   async updateStrategy(
     @Param('guid') guid: string,
@@ -64,7 +64,7 @@ export class StrategyController {
   }
 
   @Delete('strategies/:guid')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.delete')
   @HttpCode(HttpStatus.OK)
   async deleteStrategy(@Param('guid') guid: string) {
     await this.strategyService.deleteStrategy(guid);
@@ -72,26 +72,34 @@ export class StrategyController {
   }
 
   @Post('strategies/:guid/assign')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.assign')
   @HttpCode(HttpStatus.OK)
   async assignStrategy(
     @Param('guid') guid: string,
     @Body() dto: AssignStrategyDto,
+    @CurrentUser('id') userId: string,
   ) {
     return this.strategyService.assignStrategy(
       guid,
       dto.target_type,
       dto.target_guids,
+      userId,
     );
   }
 
   @Post('strategies/:guid/unassign')
-  @UseGuards(AdminGuard)
+  @RequirePermission('strategies.assign')
   @HttpCode(HttpStatus.OK)
-  async unassignStrategy(@Body() dto: AssignStrategyDto) {
+  async unassignStrategy(
+    @Param('guid') strategyGuid: string,
+    @Body() dto: AssignStrategyDto,
+    @CurrentUser('id') userId: string,
+  ) {
     return this.strategyService.unassignStrategy(
+      strategyGuid,
       dto.target_type,
       dto.target_guids,
+      userId,
     );
   }
 }

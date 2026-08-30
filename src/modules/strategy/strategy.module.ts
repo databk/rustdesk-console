@@ -6,9 +6,13 @@ import { Strategy } from './entities/strategy.entity';
 import { Peer } from '../../common/entities/peer.entity';
 import { User } from '../user/entities/user.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
+import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Strategy, Peer, User, DeviceGroup])],
+  imports: [
+    TypeOrmModule.forFeature([Strategy, Peer, User, DeviceGroup]),
+    RbacModule,
+  ],
   controllers: [StrategyController],
   providers: [StrategyService],
   exports: [StrategyService],

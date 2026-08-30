@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { DataSource, Repository, In } from 'typeorm';
 import * as uuid from 'uuid';
 import { DeviceGroup } from './entities/device-group.entity';
 import { User, UserStatus } from '../user/entities/user.entity';
@@ -17,6 +17,9 @@ import {
   DeviceOperationFailure,
 } from './dto/device-status.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
+import type { PermissionScope } from '../rbac/services/rbac-authorization.service';
+import { UserRoleAssignmentDeviceGroup } from '../rbac/entities/user-role-assignment-device-group.entity';
+import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
 @Injectable()
 /**
@@ -44,6 +47,8 @@ export class DeviceGroupService {
     private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
     @InjectRepository(Strategy)
     private strategyRepository: Repository<Strategy>,
+    private readonly dataSource: DataSource,
+    private readonly rbacAuthorizationService: RbacAuthorizationService,
   ) {}
 
   /**
@@ -261,9 +266,11 @@ export class DeviceGroupService {
    */
   async createDeviceGroup(
     name: string,
-    note?: string,
-    _allowedIncomings?: unknown[],
+    note: string | undefined,
+    _allowedIncomings: unknown[] | undefined,
+    actorGuid: string,
   ) {
+    await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
     // 检查设备组名称是否已存在
     const existingGroup = await this.deviceGroupRepository.findOne({
       where: { name },
@@ -292,10 +299,12 @@ export class DeviceGroupService {
    */
   async updateDeviceGroup(
     guid: string,
-    name?: string,
-    note?: string,
-    _allowedIncomings?: unknown[],
+    name: string | undefined,
+    note: string | undefined,
+    _allowedIncomings: unknown[] | undefined,
+    actorGuid: string,
   ) {
+    await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
     const deviceGroup = await this.deviceGroupRepository.findOne({
       where: { guid },
     });
@@ -327,15 +336,28 @@ export class DeviceGroupService {
    * 删除设备组
    * @param guid 设备组GUID
    */
-  async deleteDeviceGroup(guid: string) {
-    const deviceGroup = await this.deviceGroupRepository.findOne({
-      where: { guid },
-    });
-    if (!deviceGroup) {
-      throw new NotFoundException('设备组不存在');
-    }
+  async deleteDeviceGroup(guid: string, actorGuid: string) {
+    await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
+    await this.dataSource.transaction(async (manager) => {
+      const deviceGroupRepository = manager.getRepository(DeviceGroup);
+      const deviceGroup = await deviceGroupRepository.findOne({
+        where: { guid },
+      });
+      if (!deviceGroup) {
+        throw new NotFoundException('设备组不存在');
+      }
 
-    await this.deviceGroupRepository.remove(deviceGroup);
+      const scopedAssignments = await manager
+        .getRepository(UserRoleAssignmentDeviceGroup)
+        .count({ where: { deviceGroupGuid: guid } });
+      if (scopedAssignments > 0) {
+        throw new BadRequestException(
+          '设备组仍被角色授权引用，不能删除，请先移除相关授权',
+        );
+      }
+
+      await deviceGroupRepository.remove(deviceGroup);
+    });
   }
 
   /**
@@ -343,7 +365,12 @@ export class DeviceGroupService {
    * @param guid 设备组GUID
    * @param deviceIds 设备ID列表
    */
-  async addDevicesToGroup(guid: string, deviceIds: string[]) {
+  async addDevicesToGroup(
+    guid: string,
+    deviceIds: string[],
+    actorGuid: string,
+  ) {
+    await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
     const deviceGroup = await this.deviceGroupRepository.findOne({
       where: { guid },
     });
@@ -376,7 +403,12 @@ export class DeviceGroupService {
    * @param guid 设备组GUID
    * @param deviceIds 设备ID列表
    */
-  async removeDevicesFromGroup(guid: string, deviceIds: string[]) {
+  async removeDevicesFromGroup(
+    guid: string,
+    deviceIds: string[],
+    actorGuid: string,
+  ) {
+    await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
     const deviceGroup = await this.deviceGroupRepository.findOne({
       where: { guid },
     });
@@ -424,6 +456,7 @@ export class DeviceGroupService {
       group_name?: string;
     },
     isAdmin: boolean = false,
+    rbacScope?: PermissionScope,
   ): Promise<{ data: any[]; total: number }> {
     const {
       current,
@@ -452,7 +485,7 @@ export class DeviceGroupService {
       ]);
 
     // 管理员可以看到所有设备
-    if (!isAdmin) {
+    if (!isAdmin && !rbacScope) {
       // 普通用户只能看到自己有权限访问的设备
       queryBuilder = queryBuilder.andWhere(
         `(peer.userGuid = :userGuid
@@ -463,6 +496,19 @@ export class DeviceGroupService {
         )`,
         { userGuid },
       );
+    }
+
+    // RBAC scope is an additional administrative boundary. It is applied
+    // before pagination/count and intentionally excludes ungrouped devices.
+    if (rbacScope && !rbacScope.global) {
+      if (!rbacScope.deviceGroupGuids.size) {
+        queryBuilder = queryBuilder.andWhere('1 = 0');
+      } else {
+        queryBuilder = queryBuilder.andWhere(
+          'peer.deviceGroupGuid IN (:...rbacDeviceGroups)',
+          { rbacDeviceGroups: [...rbacScope.deviceGroupGuids] },
+        );
+      }
     }
 
     // 按设备ID过滤
@@ -542,7 +588,19 @@ export class DeviceGroupService {
    * @param guid 设备GUID
    * @param dto 更新数据
    */
-  async updateDevice(guid: string, dto: UpdateDeviceDto) {
+  async updateDevice(guid: string, dto: UpdateDeviceDto, actorGuid: string) {
+    await this.rbacAuthorizationService.assertDeviceAccess(
+      actorGuid,
+      'devices.edit',
+      guid,
+    );
+    if (
+      dto.userName !== undefined ||
+      dto.deviceGroupName !== undefined ||
+      dto.strategyName !== undefined
+    ) {
+      await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
+    }
     const peer = await this.peerRepository.findOne({
       where: { uuid: guid },
     });
@@ -614,7 +672,13 @@ export class DeviceGroupService {
   async updateDeviceStatus(
     guids: string[],
     status: DeviceStatus,
+    actorGuid: string,
   ): Promise<DeviceOperationResult> {
+    await this.rbacAuthorizationService.assertDevicesAccess(
+      actorGuid,
+      'devices.status',
+      guids,
+    );
     const uniqueGuids = [...new Set(guids)];
     const succeeded: string[] = [];
     const failed: DeviceOperationFailure[] = [];
@@ -663,7 +727,12 @@ export class DeviceGroupService {
    * 删除设备
    * @param guid 设备GUID
    */
-  async deleteDevice(guid: string) {
+  async deleteDevice(guid: string, actorGuid: string) {
+    await this.rbacAuthorizationService.assertDeviceAccess(
+      actorGuid,
+      'devices.delete',
+      guid,
+    );
     const peer = await this.peerRepository.findOne({
       where: { uuid: guid },
     });

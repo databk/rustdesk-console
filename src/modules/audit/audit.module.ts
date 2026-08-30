@@ -7,6 +7,7 @@ import { ConnectionAudit } from './entities/connection-audit.entity';
 import { FileAudit } from './entities/file-audit.entity';
 import { AlarmAudit } from './entities/alarm-audit.entity';
 import { SettingsModule } from '../settings/settings.module';
+import { RbacModule } from '../rbac/rbac.module';
 
 /**
  * 审计模块
@@ -27,6 +28,7 @@ import { SettingsModule } from '../settings/settings.module';
   imports: [
     TypeOrmModule.forFeature([ConnectionAudit, FileAudit, AlarmAudit]),
     SettingsModule,
+    RbacModule,
   ],
   controllers: [AuditController, AuditsController],
   providers: [AuditService, AuditCleanupService],

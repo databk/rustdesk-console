@@ -16,6 +16,7 @@ import {
   UserGroupQueryDto,
 } from './dto/user-group.dto';
 import { UserGroup } from './entities/user-group.entity';
+import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
 const DEFAULT_USER_GROUP_NAME = 'Default';
 
@@ -33,6 +34,7 @@ export class UserGroupService {
     @InjectRepository(AddressBookRule)
     private readonly ruleRepository: Repository<AddressBookRule>,
     private readonly dataSource: DataSource,
+    private readonly authorizationService: RbacAuthorizationService,
   ) {}
 
   async initializeStorage(): Promise<UserGroup> {
@@ -223,7 +225,18 @@ export class UserGroupService {
     }
   }
 
-  async deleteGroup(guid: string) {
+  async deleteGroup(guid: string, actorGuid: string) {
+    const protectedUsers = await this.userRepository.find({
+      where: { userGroupGuid: guid, isAdmin: true },
+      select: ['guid'],
+    });
+    if (protectedUsers.length) {
+      await this.authorizationService.assertUsersMutation(
+        actorGuid,
+        protectedUsers.map((user) => user.guid),
+        'user_groups.delete',
+      );
+    }
     return this.dataSource.transaction(async (manager) => {
       const groupRepository = manager.getRepository(UserGroup);
       const userRepository = manager.getRepository(User);
@@ -298,7 +311,12 @@ export class UserGroupService {
     };
   }
 
-  async moveUsers(guid: string, userGuids: string[]) {
+  async moveUsers(guid: string, userGuids: string[], actorGuid: string) {
+    await this.authorizationService.assertUsersMutation(
+      actorGuid,
+      userGuids,
+      'user_groups.membership',
+    );
     const uniqueGuids = [...new Set(userGuids)];
 
     return this.dataSource.transaction(async (manager) => {

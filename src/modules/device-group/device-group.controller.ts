@@ -10,7 +10,6 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
-  NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { DeviceGroupService } from './device-group.service';
@@ -28,6 +27,8 @@ import { DisconnectStoreService } from '../heartbeat/services/disconnect-store.s
 import { HeartbeatService } from '../heartbeat/heartbeat.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
 /**
  * 设备组控制器
@@ -45,6 +46,7 @@ export class DeviceGroupController {
     private readonly peerService: PeerService,
     private readonly disconnectStoreService: DisconnectStoreService,
     private readonly heartbeatService: HeartbeatService,
+    private readonly rbacAuthorizationService: RbacAuthorizationService,
   ) {}
 
   // ============ 客户端 API 接口 ============
@@ -67,13 +69,14 @@ export class DeviceGroupController {
   @Get('device-group/accessible')
   async getAccessibleDeviceGroups(
     @CurrentUser('id') userId: string,
-    @CurrentUser('isAdmin') isAdmin: boolean,
     @Query() query: DeviceGroupQueryDto,
   ) {
+    const currentUser =
+      await this.rbacAuthorizationService.getCurrentUser(userId);
     return this.deviceGroupService.getAccessibleDeviceGroups(
       userId,
       query,
-      isAdmin,
+      currentUser.isAdmin,
     );
   }
 
@@ -100,10 +103,15 @@ export class DeviceGroupController {
   @Get('peers')
   async getAccessiblePeers(
     @CurrentUser('id') userId: string,
-    @CurrentUser('isAdmin') isAdmin: boolean,
     @Query() query: PeerQueryDto,
   ) {
-    return this.peerService.getAccessiblePeers(userId, query, isAdmin);
+    const currentUser =
+      await this.rbacAuthorizationService.getCurrentUser(userId);
+    return this.peerService.getAccessiblePeers(
+      userId,
+      query,
+      currentUser.isAdmin,
+    );
   }
 
   // ============ 管理员 API 接口 ============
@@ -113,7 +121,6 @@ export class DeviceGroupController {
    * 管理员可以查看所有设备组
    *
    * @param userId 当前用户ID（从JWT令牌中提取）
-   * @param isAdmin 是否为管理员（从JWT令牌中提取）
    * @param query 查询参数（分页、名称过滤）
    * @returns 设备组列表（分页）
    */
@@ -121,13 +128,14 @@ export class DeviceGroupController {
   @UseGuards(AdminGuard)
   async getDeviceGroups(
     @CurrentUser('id') userId: string,
-    @CurrentUser('isAdmin') isAdmin: boolean,
     @Query() query: DeviceGroupQueryDto,
   ) {
+    const currentUser =
+      await this.rbacAuthorizationService.getCurrentUser(userId);
     return this.deviceGroupService.getAccessibleDeviceGroups(
       userId,
       query,
-      isAdmin,
+      currentUser.isAdmin,
     );
   }
 
@@ -143,11 +151,13 @@ export class DeviceGroupController {
   @HttpCode(HttpStatus.OK)
   async createDeviceGroup(
     @Body() body: { name: string; note?: string; allowed_incomings?: any[] },
+    @CurrentUser('id') userId: string,
   ) {
     return this.deviceGroupService.createDeviceGroup(
       body.name,
       body.note,
       body.allowed_incomings,
+      userId,
     );
   }
 
@@ -170,12 +180,14 @@ export class DeviceGroupController {
       note?: string;
       allowed_incomings?: any[];
     },
+    @CurrentUser('id') userId: string,
   ) {
     return this.deviceGroupService.updateDeviceGroup(
       guid,
       body.name,
       body.note,
       body.allowed_incomings,
+      userId,
     );
   }
 
@@ -189,8 +201,11 @@ export class DeviceGroupController {
   @Delete('device-groups/:guid')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
-  async deleteDeviceGroup(@Param('guid') guid: string) {
-    await this.deviceGroupService.deleteDeviceGroup(guid);
+  async deleteDeviceGroup(
+    @Param('guid') guid: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    await this.deviceGroupService.deleteDeviceGroup(guid, userId);
     return { message: '设备组删除成功' };
   }
 
@@ -205,8 +220,12 @@ export class DeviceGroupController {
   @Post('device-groups/:guid')
   @UseGuards(AdminGuard)
   @HttpCode(HttpStatus.OK)
-  async addDevicesToGroup(@Param('guid') guid: string, @Body() body: string[]) {
-    return this.deviceGroupService.addDevicesToGroup(guid, body);
+  async addDevicesToGroup(
+    @Param('guid') guid: string,
+    @Body() body: string[],
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.deviceGroupService.addDevicesToGroup(guid, body, userId);
   }
 
   /**
@@ -223,8 +242,9 @@ export class DeviceGroupController {
   async removeDevicesFromGroup(
     @Param('guid') guid: string,
     @Body() body: string[],
+    @CurrentUser('id') userId: string,
   ) {
-    return this.deviceGroupService.removeDevicesFromGroup(guid, body);
+    return this.deviceGroupService.removeDevicesFromGroup(guid, body, userId);
   }
 
   /**
@@ -232,17 +252,25 @@ export class DeviceGroupController {
    * 管理员可以查看所有设备
    *
    * @param userId 当前用户ID（从JWT令牌中提取）
-   * @param isAdmin 是否为管理员（从JWT令牌中提取）
    * @param query 查询参数（分页、过滤）
    * @returns 设备列表（分页）
    */
   @Get('devices')
+  @RequirePermission('devices.view')
   async getDevices(
     @CurrentUser('id') userId: string,
-    @CurrentUser('isAdmin') isAdmin: boolean,
     @Query() query: DeviceQueryDto,
   ) {
-    return this.deviceGroupService.getDevices(userId, query, isAdmin);
+    const scope = await this.rbacAuthorizationService.getPermissionScope(
+      userId,
+      'devices.view',
+    );
+    return this.deviceGroupService.getDevices(
+      userId,
+      query,
+      scope.global,
+      scope,
+    );
   }
 
   /**
@@ -253,13 +281,15 @@ export class DeviceGroupController {
    * @returns 操作结果
    */
   @Patch('devices/status')
-  @UseGuards(AdminGuard)
+  @RequirePermission('devices.status')
   async updateDeviceStatus(
+    @CurrentUser('id') userId: string,
     @Body() dto: UpdateDeviceStatusDto,
   ): Promise<{ success: boolean; data: DeviceOperationResult }> {
     const result = await this.deviceGroupService.updateDeviceStatus(
       dto.guids,
       dto.status,
+      userId,
     );
     return {
       success: result.failedCount === 0,
@@ -279,12 +309,13 @@ export class DeviceGroupController {
    * @returns 更新结果
    */
   @Patch('devices/:guid')
-  @UseGuards(AdminGuard)
+  @RequirePermission('devices.edit')
   async updateDevice(
     @Param('guid') guid: string,
     @Body() dto: UpdateDeviceDto,
+    @CurrentUser('id') userId: string,
   ) {
-    await this.deviceGroupService.updateDevice(guid, dto);
+    await this.deviceGroupService.updateDevice(guid, dto, userId);
     return { message: '设备更新成功' };
   }
 
@@ -296,10 +327,13 @@ export class DeviceGroupController {
    * @returns 删除结果
    */
   @Delete('devices/:guid')
-  @UseGuards(AdminGuard)
+  @RequirePermission('devices.delete')
   @HttpCode(HttpStatus.OK)
-  async deleteDevice(@Param('guid') guid: string) {
-    await this.deviceGroupService.deleteDevice(guid);
+  async deleteDevice(
+    @Param('guid') guid: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    await this.deviceGroupService.deleteDevice(guid, userId);
     return { message: '设备已删除' };
   }
 
@@ -313,16 +347,21 @@ export class DeviceGroupController {
    * @returns 操作结果
    */
   @Post('devices/:uuid/disconnect')
-  @UseGuards(AdminGuard)
+  @RequirePermission('devices.disconnect')
   @HttpCode(HttpStatus.OK)
   async disconnectDevice(
     @Param('uuid') uuid: string,
     @Body() dto: DisconnectDto,
+    @CurrentUser('id') userId: string,
   ) {
-    const peer = await this.peerService.findByUuid(uuid);
-    if (!peer) {
-      throw new NotFoundException('设备不存在');
-    }
+    // Check the current device-group scope before inspecting connections or
+    // enqueueing a disconnect command. A scoped operator must not be able to
+    // act on an out-of-scope device by supplying its UUID directly.
+    await this.rbacAuthorizationService.assertDeviceAccess(
+      userId,
+      'devices.disconnect',
+      uuid,
+    );
 
     // 验证请求断开的连接ID是否为该设备的活跃连接
     const activeConnIds =
