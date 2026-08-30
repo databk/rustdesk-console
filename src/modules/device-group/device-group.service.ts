@@ -9,6 +9,7 @@ import * as uuid from 'uuid';
 import { DeviceGroup } from './entities/device-group.entity';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
+import { Sysinfo } from '../../common/entities/sysinfo.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
 import {
@@ -43,6 +44,8 @@ export class DeviceGroupService {
     private userRepository: Repository<User>,
     @InjectRepository(Peer)
     private peerRepository: Repository<Peer>,
+    @InjectRepository(Sysinfo)
+    private sysinfoRepository: Repository<Sysinfo>,
     @InjectRepository(DeviceGroupUserPermission)
     private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
     @InjectRepository(Strategy)
@@ -478,8 +481,12 @@ export class DeviceGroupService {
         'peer.uuid',
         'peer.userGuid',
         'peer.deviceGroupGuid',
+        'peer.strategyGuid',
+        'peer.note',
+        'peer.status',
         'peer.ver',
         'peer.modifiedAt',
+        'peer.lastHeartbeat',
         'peer.updatedAt',
         'dg.name',
       ]);
@@ -520,9 +527,13 @@ export class DeviceGroupService {
 
     // 按设备名称过滤
     if (device_name) {
-      queryBuilder = queryBuilder.andWhere('peer.name LIKE :deviceName', {
-        deviceName: `%${device_name}%`,
-      });
+      queryBuilder = queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1 FROM sysinfos si
+          WHERE si.uuid = peer.uuid AND si.hostname LIKE :deviceName
+        )`,
+        { deviceName: `%${device_name}%` },
+      );
     }
 
     // 按用户名过滤
@@ -539,7 +550,10 @@ export class DeviceGroupService {
     // 按设备用户名过滤
     if (device_username) {
       queryBuilder = queryBuilder.andWhere(
-        'peer.deviceUsername LIKE :deviceUsername',
+        `EXISTS (
+          SELECT 1 FROM sysinfos si
+          WHERE si.uuid = peer.uuid AND si.username LIKE :deviceUsername
+        )`,
         { deviceUsername: `%${device_username}%` },
       );
     }
@@ -564,18 +578,84 @@ export class DeviceGroupService {
       .take(pageSize)
       .getManyAndCount();
 
-    return {
-      data: peers.map((p) => ({
-        guid: p.uuid,
-        id: p.id,
-        userGuid: p.userGuid,
-        deviceGroupGuid: p.deviceGroupGuid,
-        device_group_name:
-          (p.deviceGroup as { name?: string } | null)?.name || '',
-        last_online: p.updatedAt,
-      })),
-      total,
+    const uuids = peers.map((peer) => peer.uuid);
+    const userGuids = [
+      ...new Set(
+        peers
+          .map((peer) => peer.userGuid)
+          .filter((guid): guid is string => guid !== null),
+      ),
+    ];
+    const strategyGuids = [
+      ...new Set(
+        peers
+          .map((peer) => peer.strategyGuid)
+          .filter((guid): guid is string => guid !== null),
+      ),
+    ];
+    const [sysinfos, users, strategies]: [Sysinfo[], User[], Strategy[]] =
+      await Promise.all([
+        uuids.length
+          ? this.sysinfoRepository.find({ where: { uuid: In(uuids) } })
+          : [],
+        userGuids.length
+          ? this.userRepository.find({ where: { guid: In(userGuids) } })
+          : [],
+        strategyGuids.length
+          ? this.strategyRepository.find({
+              where: { guid: In(strategyGuids) },
+            })
+          : [],
+      ]);
+    const sysinfoByUuid = new Map(sysinfos.map((item) => [item.uuid, item]));
+    const userByGuid = new Map(users.map((item) => [item.guid, item]));
+    const strategyByGuid = new Map(strategies.map((item) => [item.guid, item]));
+    const onlineAfter = new Date(Date.now() - 60_000);
+
+    const formatVersion = (version: number): string => {
+      if (!version) return '';
+      const major = Math.floor(version / 1_000_000);
+      const minor = Math.floor((version % 1_000_000) / 1_000);
+      const patch = Math.floor((version % 1_000) / 10);
+      const suffix = version % 10;
+      return `${major}.${minor}.${patch}${suffix ? `-${suffix}` : ''}`;
     };
+
+    const data = peers.map((peer) => {
+      const sysinfo = sysinfoByUuid.get(peer.uuid);
+      return {
+        guid: peer.uuid,
+        id: peer.id,
+        userGuid: peer.userGuid,
+        user: peer.userGuid || '',
+        user_name: peer.userGuid
+          ? userByGuid.get(peer.userGuid)?.username || ''
+          : '',
+        deviceGroupGuid: peer.deviceGroupGuid,
+        device_group_name:
+          (peer.deviceGroup as { name?: string } | null)?.name || '',
+        strategy_name: peer.strategyGuid
+          ? strategyByGuid.get(peer.strategyGuid)?.name || ''
+          : '',
+        note: peer.note || '',
+        status: peer.status,
+        is_online: peer.lastHeartbeat
+          ? peer.lastHeartbeat > onlineAfter
+          : false,
+        last_online: peer.lastHeartbeat?.toISOString() || null,
+        info: {
+          device_name: sysinfo?.hostname || '',
+          username: sysinfo?.username || '',
+          os: sysinfo?.os || '',
+          version: formatVersion(peer.ver),
+          cpu: sysinfo?.cpu || '',
+          memory: sysinfo?.memory || '',
+          ip: '',
+        },
+      };
+    });
+
+    return { data, total };
   }
 
   /**
