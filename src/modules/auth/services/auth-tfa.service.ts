@@ -127,6 +127,7 @@ export class AuthTfaService {
 
     delete other.tfa_pending_secret;
     userInfo.other = other;
+    userInfo.has_totp = true;
     user.setUserInfo(userInfo);
 
     await this.userRepository.save(user);
@@ -163,6 +164,11 @@ export class AuthTfaService {
     }
 
     user.tfaSecret = '';
+
+
+    userInfo.has_totp = false;
+    user.setUserInfo(userInfo);
+
     await this.userRepository.save(user);
 
     return { message: '2FA已禁用' };

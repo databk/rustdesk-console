@@ -815,6 +815,10 @@ export class OidcService {
         user.oidcSubject = oidcSubject;
         user.userGroupGuid = userGroupGuid;
 
+        const userInfo = user.getUserInfo();
+        userInfo.has_password = false;
+        user.setUserInfo(userInfo);
+
         await this.userRepository.save(user);
         this.logger.log(
           `OIDC user created: ${finalUsername} via ${providerName}`,

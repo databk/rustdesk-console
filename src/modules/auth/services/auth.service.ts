@@ -96,6 +96,10 @@ export class AuthService {
       userGroupGuid,
     });
 
+    const userInfo = user.getUserInfo();
+    userInfo.has_password = true;
+    user.setUserInfo(userInfo);
+
     await this.userRepository.save(user);
 
     this.logger.log(`新用户注册成功: ${username}`);
