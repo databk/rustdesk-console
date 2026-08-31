@@ -86,7 +86,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    */
   async validate(
     req: Request,
-    payload: JwtPayload,
+    _payload: JwtPayload,
   ): Promise<Record<string, unknown>> {
     const token = extractToken(req);
 
@@ -101,7 +101,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token 已失效或被撤销');
     }
 
-    const { sub, username, email, isAdmin, jti } = payload;
+    const { sub, username, email, isAdmin, jti } = validPayload;
 
     // 保持原有字段名 id，实际值是用户的 guid
     return {

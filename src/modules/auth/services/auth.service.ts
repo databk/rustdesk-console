@@ -415,6 +415,16 @@ export class AuthService {
    * @returns 令牌负载，验证失败返回null
    */
   async validateToken(token: string): Promise<JwtPayload | null> {
-    return this.tokenService.validateToken(token);
+    const payload = await this.tokenService.validateToken(token);
+    if (!payload) return null;
+
+    // A valid signature and token row do not prove that the account is still
+    // active. Check the current user row so legacy/client routes cannot keep
+    // working after an administrator disables or deletes the account.
+    const user = await this.userRepository.findOne({
+      where: { guid: payload.sub },
+      select: ['guid', 'status'],
+    });
+    return user?.status === UserStatus.ACTIVE ? payload : null;
   }
 }

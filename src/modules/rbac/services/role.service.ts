@@ -158,20 +158,68 @@ export class RoleService {
 
   async deleteRole(guid: string, actorGuid: string): Promise<void> {
     await this.authorizationService.requireSuperAdmin(actorGuid);
-    const role = await this.requireRole(guid);
-    const assignments = await this.assignmentRepository.find({
-      where: { roleGuid: guid },
-      select: ['guid'],
-    });
     await this.dataSource.transaction(async (manager) => {
+      const roleRepository = manager.getRepository(Role);
+      const permissionRepository = manager.getRepository(RolePermission);
+      const assignmentRepository = manager.getRepository(UserRoleAssignment);
+      const assignmentGroupRepository = manager.getRepository(
+        UserRoleAssignmentDeviceGroup,
+      );
+      const role = await roleRepository.findOne({ where: { guid } });
+      if (!role) throw new NotFoundException('角色不存在');
+
+      // Take the complete pre-delete snapshot in the same transaction as the
+      // destructive writes so the audit record explains exactly which grants
+      // and scopes were revoked.
+      const [permissionRows, assignments] = await Promise.all([
+        permissionRepository.find({
+          where: { roleGuid: guid },
+          select: ['permissionCode'],
+        }),
+        assignmentRepository.find({
+          where: { roleGuid: guid },
+          select: ['guid', 'userGuid', 'scopeType'],
+        }),
+      ]);
+      const assignmentGuids = assignments.map((assignment) => assignment.guid);
+      const assignmentGroups = assignmentGuids.length
+        ? await assignmentGroupRepository.find({
+            where: { assignmentGuid: In(assignmentGuids) },
+            select: ['assignmentGuid', 'deviceGroupGuid'],
+          })
+        : [];
+      const groupsByAssignment = new Map<string, string[]>();
+      for (const group of assignmentGroups) {
+        const groups = groupsByAssignment.get(group.assignmentGuid) || [];
+        groups.push(group.deviceGroupGuid);
+        groupsByAssignment.set(group.assignmentGuid, groups);
+      }
+      const beforeState = {
+        name: role.name,
+        note: role.note,
+        permissions: permissionRows
+          .map((permission) => permission.permissionCode)
+          .sort(),
+        assignments: assignments
+          .map((assignment) => ({
+            guid: assignment.guid,
+            user_guid: assignment.userGuid,
+            scope_type: assignment.scopeType,
+            device_group_guids: [
+              ...(groupsByAssignment.get(assignment.guid) || []),
+            ].sort(),
+          }))
+          .sort((left, right) => left.guid.localeCompare(right.guid)),
+      };
+
       if (assignments.length) {
-        await manager.delete(UserRoleAssignmentDeviceGroup, {
+        await assignmentGroupRepository.delete({
           assignmentGuid: In(assignments.map((assignment) => assignment.guid)),
         });
-        await manager.delete(UserRoleAssignment, { roleGuid: guid });
+        await assignmentRepository.delete({ roleGuid: guid });
       }
-      await manager.delete(RolePermission, { roleGuid: guid });
-      await manager.delete(Role, { guid });
+      await permissionRepository.delete({ roleGuid: guid });
+      await roleRepository.delete({ guid });
       await this.auditService.record(
         {
           actorUserGuid: actorGuid,
@@ -179,7 +227,7 @@ export class RoleService {
           targetGuid: guid,
           action: 'role.delete',
           result: 'allowed',
-          beforeState: { name: role.name },
+          beforeState,
         },
         manager,
       );
