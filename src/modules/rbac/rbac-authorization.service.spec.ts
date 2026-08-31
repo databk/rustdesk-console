@@ -3,6 +3,7 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { Peer } from '../../common/entities/peer.entity';
 import { AuditsController } from '../audit/audit.controller';
+import { DashboardController } from '../dashboard/dashboard.controller';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { DeviceGroupController } from '../device-group/device-group.controller';
 import { User, UserStatus } from '../user/entities/user.entity';
@@ -433,6 +434,12 @@ describe('RbacAuditService', () => {
         PermissionController.prototype.getMyPermissions,
       ),
     ).toBeUndefined();
+  });
+
+  it('keeps global dashboard aggregates super-administrator-only', () => {
+    expect(
+      Reflect.getMetadata(REQUIRE_SUPER_ADMIN_KEY, DashboardController),
+    ).toBe(true);
   });
 });
 
