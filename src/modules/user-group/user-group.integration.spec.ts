@@ -7,12 +7,14 @@ import {
   INestApplication,
   ValidationPipe,
 } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { DataSource, Repository } from 'typeorm';
 import request from 'supertest';
 import { DatabaseInitService } from '../../database/database-init.service';
+import { AdminGuard } from '../../common/guards/admin.guard';
 import { AddressBookPeerTag } from '../address-book/entities/address-book-peer-tag.entity';
 import { AddressBookPeer } from '../address-book/entities/address-book-peer.entity';
 import {
@@ -876,6 +878,22 @@ describe('User group integration', () => {
           ],
         ),
       ).toEqual(permissions);
+    }
+
+    const ownerSelfServiceMethods = [
+      'getCustomAddressBooks',
+      'addCustomAddressBook',
+      'updateCustomAddressBook',
+      'deleteCustomAddressBooks',
+    ] as const;
+    for (const methodName of ownerSelfServiceMethods) {
+      const handler = AddressBookController.prototype[methodName];
+      expect(
+        Reflect.getMetadata(REQUIRE_PERMISSION_KEY, handler),
+      ).toBeUndefined();
+      expect(Reflect.getMetadata(GUARDS_METADATA, handler) ?? []).not.toContain(
+        AdminGuard,
+      );
     }
   });
 
