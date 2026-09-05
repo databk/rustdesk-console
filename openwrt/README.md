@@ -36,6 +36,11 @@ apk add --allow-untrusted rustdesk-console_<version>_x86_64.apk
 > a build key. For production feeds, sign the package with your own key and
 > configure `apk` trust accordingly.
 
+> **Note:** The `.apk` uses `arch: noarch` so it installs on any OpenWrt apk
+> target (e.g. `aarch64_generic`, `aarch64_cortex-a72`, `x86_64`). Make sure
+> to download the file matching your CPU architecture (`x86_64` or `aarch64`)
+> — the package itself does not enforce the CPU architecture.
+
 Then enable and start the service:
 
 ```sh

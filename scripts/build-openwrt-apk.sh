@@ -73,8 +73,8 @@ OUT="$OUT_DIR/rustdesk-console_${VERSION}_${ARCH}.apk"
 apk mkpkg \
   -I name:rustdesk-console \
   -I "version:$APK_VERSION" \
-  -I "description:Enterprise-grade management platform for the RustDesk ecosystem." \
-  -I "arch:$ARCH" \
+  -I "description:Enterprise-grade management platform for the RustDesk ecosystem. (musl $ARCH binary)" \
+  -I arch:noarch \
   -I origin:rustdesk-console \
   -I "maintainer:databk <databk@users.noreply.github.com>" \
   -I url:https://github.com/databk/rustdesk-console \
