@@ -86,6 +86,6 @@ printf '2.0\n' > "$WORK/debian-binary"
 ( cd "$CTRL" && tar czf "$WORK/control.tar.gz" --owner=0 --group=0 --mtime=@0 . )
 
 OUT="$OUT_DIR/rustdesk-console_${VERSION}_${ARCH}.ipk"
-ar rcD "$OUT" "$WORK/debian-binary" "$WORK/control.tar.gz" "$WORK/data.tar.gz"
+( cd "$WORK" && tar czf "$OUT" --owner=0 --group=0 --mtime=@0 debian-binary control.tar.gz data.tar.gz )
 
 echo "Built $OUT ($(du -h "$OUT" | cut -f1))"
