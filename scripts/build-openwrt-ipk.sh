@@ -56,7 +56,7 @@ Architecture: $ARCH
 Maintainer: databk <databk@users.noreply.github.com>
 Section: net
 Priority: optional
-Depends: libc, libstdcpp, libgcc
+Depends: libc, libstdcpp6, libgcc1
 Description: Enterprise-grade management platform for the RustDesk ecosystem.
  Self-hosted console as an alternative to RustDesk Server Pro.
  Ships prebuilt musl binaries (Node.js SEA + sqlite3 + sharp).

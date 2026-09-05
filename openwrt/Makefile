@@ -25,7 +25,7 @@ define Package/rustdesk-console
   CATEGORY:=Network
   SUBMENU:=RustDesk
   TITLE:=RustDesk Console management platform
-  DEPENDS:=+libc +libstdcpp +libgcc
+  DEPENDS:=+libc +libstdcpp6 +libgcc1
   MAINTAINER:=databk
 endef
 

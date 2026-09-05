@@ -79,8 +79,8 @@ apk mkpkg \
   -I "maintainer:databk <databk@users.noreply.github.com>" \
   -I url:https://github.com/databk/rustdesk-console \
   -I "depends:libc" \
-  -I "depends:libstdcpp" \
-  -I "depends:libgcc" \
+  -I "depends:libstdcpp6" \
+  -I "depends:libgcc1" \
   -s "post-install:$WORK/post-install.sh" \
   -s "pre-deinstall:$WORK/pre-deinstall.sh" \
   -F "$PKGROOT" \
