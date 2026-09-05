@@ -6,6 +6,7 @@ import { SmtpSettingsService } from './services/smtp-settings.service';
 import { GeneralSettingsController } from './general-settings.controller';
 import { FrontendSettingsController } from './frontend-settings.controller';
 import { GeneralSettingsService } from './services/general-settings.service';
+import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
  * 系统设置模块
@@ -24,7 +25,7 @@ import { GeneralSettingsService } from './services/general-settings.service';
     GeneralSettingsController,
     FrontendSettingsController,
   ],
-  providers: [SmtpSettingsService, GeneralSettingsService],
+  providers: [SmtpSettingsService, GeneralSettingsService, AdminGuard],
   exports: [SmtpSettingsService, GeneralSettingsService],
 })
 export class SettingsModule {}

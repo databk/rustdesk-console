@@ -8,6 +8,7 @@ import { ConnectionAuditDto } from './dto/connection-audit.dto';
 import { UpdateConnectionAuditDto } from './dto/connection-audit.dto';
 import { FileAuditDto } from './dto/file-audit.dto';
 import { AlarmAuditDto } from './dto/alarm-audit.dto';
+import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 
 @Injectable()
 /**
@@ -32,6 +33,7 @@ export class AuditService {
     private readonly fileAuditRepository: Repository<FileAudit>,
     @InjectRepository(AlarmAudit)
     private readonly alarmAuditRepository: Repository<AlarmAudit>,
+    private readonly rbacAuditService: RbacAuditService,
   ) {}
 
   /**
@@ -491,16 +493,12 @@ export class AuditService {
    * @param filters 过滤条件
    * @returns 控制台审计列表
    */
-  queryConsoleAudits(_filters: {
+  queryConsoleAudits(filters: {
     operator?: string;
     pageSize?: number;
     current?: number;
     created_at?: string;
   }) {
-    // 控制台审计暂时没有实体，返回空列表
-    return {
-      data: [],
-      total: 0,
-    };
+    return this.rbacAuditService.query(filters);
   }
 }

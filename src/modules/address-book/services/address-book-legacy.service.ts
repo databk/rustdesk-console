@@ -213,8 +213,17 @@ export class AddressBookLegacyService {
       }
     }
 
-    // 删除所有现有标签和设备
-    await this.addressBookPeerTagRepository.delete({});
+    // Remove only this address book's peer-tag links. The legacy endpoint is
+    // user-scoped; an empty delete criteria would erase every user's tags.
+    const existingPeers = await this.addressBookPeerRepository.find({
+      where: { addressBookGuid },
+      select: ['guid'],
+    });
+    if (existingPeers.length > 0) {
+      await this.addressBookPeerTagRepository.delete({
+        peerGuid: In(existingPeers.map((peer) => peer.guid)),
+      });
+    }
     await this.addressBookTagRepository.delete({ addressBookGuid });
     await this.addressBookPeerRepository.delete({ addressBookGuid });
 

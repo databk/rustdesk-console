@@ -392,6 +392,8 @@ export class UserService {
     if (!user) {
       throw new NotFoundException('用户不存在');
     }
+    const previousStatus = user.status;
+    const previousIsAdmin = user.isAdmin;
 
     if (dto.name !== undefined) {
       const existingUser = await this.userRepository.findOne({
@@ -438,6 +440,13 @@ export class UserService {
     }
 
     await this.userRepository.save(user);
+
+    if (
+      (dto.status !== undefined && dto.status !== previousStatus) ||
+      (dto.is_admin !== undefined && dto.is_admin !== previousIsAdmin)
+    ) {
+      await this.revokeActiveTokens([guid]);
+    }
 
     return { message: '用户已更新' };
   }
@@ -560,6 +569,16 @@ export class UserService {
     return { message: '强制登出成功' };
   }
 
+  private async revokeActiveTokens(userGuids: string[]): Promise<void> {
+    const uniqueGuids = [...new Set(userGuids)];
+    if (uniqueGuids.length === 0) return;
+
+    await this.userTokenRepository.update(
+      { userGuid: In(uniqueGuids), isRevoked: false },
+      { isRevoked: true },
+    );
+  }
+
   async batchUpdateStatus(dto: BatchStatusDto) {
     const { user_guids, status } = dto;
     const users = await this.userRepository.find({
@@ -591,6 +610,10 @@ export class UserService {
         .execute();
 
       succeeded.push(...guidsToUpdate);
+    }
+
+    if (status !== UserStatus.ACTIVE && guidsToUpdate.length > 0) {
+      await this.revokeActiveTokens(guidsToUpdate);
     }
 
     return {

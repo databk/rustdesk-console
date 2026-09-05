@@ -11,6 +11,8 @@ import { User } from '../user/entities/user.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { AuthModule } from '../auth/auth.module';
 import { HeartbeatModule } from '../heartbeat/heartbeat.module';
+import { RbacModule } from '../rbac/rbac.module';
+import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
  * 设备组模块
@@ -42,9 +44,10 @@ import { HeartbeatModule } from '../heartbeat/heartbeat.module';
     ]),
     AuthModule,
     HeartbeatModule,
+    RbacModule,
   ],
   controllers: [DeviceGroupController],
-  providers: [DeviceGroupService, PeerService],
+  providers: [DeviceGroupService, PeerService, AdminGuard],
   exports: [DeviceGroupService, PeerService],
 })
 export class DeviceGroupModule {}

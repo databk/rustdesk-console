@@ -104,8 +104,24 @@ export class AuthTokenService {
     try {
       const payload = this.jwtService.verify<JwtPayload>(token);
 
+      // JWT types are compile-time only. Reject malformed signed payloads
+      // before they reach a TypeORM where clause, where undefined values may
+      // otherwise be ignored.
+      if (
+        typeof payload.sub !== 'string' ||
+        payload.sub.length === 0 ||
+        typeof payload.jti !== 'string' ||
+        payload.jti.length === 0
+      ) {
+        return null;
+      }
+
       const tokenRecord = await this.tokenRepository.findOne({
-        where: { jti: payload.jti, isRevoked: false },
+        where: {
+          userGuid: payload.sub,
+          jti: payload.jti,
+          isRevoked: false,
+        },
       });
 
       if (!tokenRecord) {

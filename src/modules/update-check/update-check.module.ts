@@ -23,6 +23,7 @@ import { NexusToken } from '../nexus/entities/nexus-token.entity';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
 import { UpdateCheckController } from './update-check.controller';
 import { UpdateCheckService } from './update-check.service';
+import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
  * 更新检查模块
@@ -55,7 +56,7 @@ import { UpdateCheckService } from './update-check.service';
     ]),
   ],
   controllers: [UpdateCheckController],
-  providers: [UpdateCheckService],
+  providers: [UpdateCheckService, AdminGuard],
   exports: [UpdateCheckService],
 })
 export class UpdateCheckModule {}

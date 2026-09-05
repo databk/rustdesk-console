@@ -17,6 +17,7 @@ import {
   StrategyQueryDto,
   AssignmentQueryDto,
 } from './dto/strategy.dto';
+import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
 @Injectable()
 export class StrategyService {
@@ -31,6 +32,7 @@ export class StrategyService {
     private userRepository: Repository<User>,
     @InjectRepository(DeviceGroup)
     private deviceGroupRepository: Repository<DeviceGroup>,
+    private readonly rbacAuthorizationService: RbacAuthorizationService,
   ) {}
 
   async createStrategy(dto: CreateStrategyDto) {
@@ -165,7 +167,13 @@ export class StrategyService {
     strategyGuid: string,
     targetType: string,
     targetGuids: string[],
+    actorGuid: string,
   ) {
+    await this.rbacAuthorizationService.assertStrategyTargets(
+      actorGuid,
+      targetType as 'device' | 'user' | 'device_group',
+      targetGuids,
+    );
     const strategy = await this.strategyRepository.findOne({
       where: { guid: strategyGuid },
     });
@@ -243,24 +251,47 @@ export class StrategyService {
     return { success, errors };
   }
 
-  async unassignStrategy(targetType: string, targetGuids: string[]) {
+  async unassignStrategy(
+    strategyGuid: string,
+    targetType: string,
+    targetGuids: string[],
+    actorGuid: string,
+  ) {
+    await this.rbacAuthorizationService.assertStrategyTargets(
+      actorGuid,
+      targetType as 'device' | 'user' | 'device_group',
+      targetGuids,
+    );
     const success: string[] = [];
     const errors: { target_guid: string; reason: string }[] = [];
 
     switch (targetType) {
       case 'device': {
         const peers = await this.peerRepository.find({
-          where: { uuid: In(targetGuids) },
+          where: { uuid: In(targetGuids), strategyGuid },
         });
         const foundUuids = new Set(peers.map((p) => p.uuid));
+        const allPeers =
+          targetGuids.length > 0
+            ? await this.peerRepository.find({
+                where: { uuid: In(targetGuids) },
+                select: ['uuid'],
+              })
+            : [];
+        const existingUuids = new Set(allPeers.map((p) => p.uuid));
         for (const targetGuid of targetGuids) {
-          if (!foundUuids.has(targetGuid)) {
+          if (!existingUuids.has(targetGuid)) {
             errors.push({ target_guid: targetGuid, reason: '设备不存在' });
+          } else if (!foundUuids.has(targetGuid)) {
+            errors.push({
+              target_guid: targetGuid,
+              reason: '设备未绑定该策略',
+            });
           }
         }
         if (peers.length > 0) {
           await this.peerRepository.update(
-            { uuid: In(peers.map((p) => p.uuid)) },
+            { uuid: In(peers.map((p) => p.uuid)), strategyGuid },
             { strategyGuid: null },
           );
           success.push(...peers.map((p) => p.uuid));
@@ -269,17 +300,30 @@ export class StrategyService {
       }
       case 'user': {
         const users = await this.userRepository.find({
-          where: { guid: In(targetGuids) },
+          where: { guid: In(targetGuids), strategyGuid },
         });
         const foundGuids = new Set(users.map((u) => u.guid));
+        const allUsers =
+          targetGuids.length > 0
+            ? await this.userRepository.find({
+                where: { guid: In(targetGuids) },
+                select: ['guid'],
+              })
+            : [];
+        const existingGuids = new Set(allUsers.map((u) => u.guid));
         for (const targetGuid of targetGuids) {
-          if (!foundGuids.has(targetGuid)) {
+          if (!existingGuids.has(targetGuid)) {
             errors.push({ target_guid: targetGuid, reason: '用户不存在' });
+          } else if (!foundGuids.has(targetGuid)) {
+            errors.push({
+              target_guid: targetGuid,
+              reason: '用户未绑定该策略',
+            });
           }
         }
         if (users.length > 0) {
           await this.userRepository.update(
-            { guid: In(users.map((u) => u.guid)) },
+            { guid: In(users.map((u) => u.guid)), strategyGuid },
             { strategyGuid: null },
           );
           success.push(...users.map((u) => u.guid));
@@ -288,17 +332,30 @@ export class StrategyService {
       }
       case 'device_group': {
         const groups = await this.deviceGroupRepository.find({
-          where: { guid: In(targetGuids) },
+          where: { guid: In(targetGuids), strategyGuid },
         });
         const foundGuids = new Set(groups.map((g) => g.guid));
+        const allGroups =
+          targetGuids.length > 0
+            ? await this.deviceGroupRepository.find({
+                where: { guid: In(targetGuids) },
+                select: ['guid'],
+              })
+            : [];
+        const existingGuids = new Set(allGroups.map((g) => g.guid));
         for (const targetGuid of targetGuids) {
-          if (!foundGuids.has(targetGuid)) {
+          if (!existingGuids.has(targetGuid)) {
             errors.push({ target_guid: targetGuid, reason: '设备组不存在' });
+          } else if (!foundGuids.has(targetGuid)) {
+            errors.push({
+              target_guid: targetGuid,
+              reason: '设备组未绑定该策略',
+            });
           }
         }
         if (groups.length > 0) {
           await this.deviceGroupRepository.update(
-            { guid: In(groups.map((g) => g.guid)) },
+            { guid: In(groups.map((g) => g.guid)), strategyGuid },
             { strategyGuid: null },
           );
           success.push(...groups.map((g) => g.guid));
@@ -314,7 +371,11 @@ export class StrategyService {
     return { success, errors };
   }
 
-  async getStrategyAssignments(guid: string, query: AssignmentQueryDto) {
+  async getStrategyAssignments(
+    guid: string,
+    query: AssignmentQueryDto,
+    actorGuid: string,
+  ) {
     const strategy = await this.strategyRepository.findOne({
       where: { guid },
     });
@@ -324,16 +385,30 @@ export class StrategyService {
 
     const { target_type, current, pageSize } = query;
     const skip = (current - 1) * pageSize;
+    const scope = await this.rbacAuthorizationService.requirePermission(
+      actorGuid,
+      'strategies.assign',
+    );
 
     switch (target_type) {
       case 'device': {
-        const [peers, total] = await this.peerRepository.findAndCount({
-          where: { strategyGuid: guid },
-          select: ['uuid', 'id', 'status'],
-          skip,
-          take: pageSize,
-          order: { id: 'ASC' },
-        });
+        let queryBuilder = this.peerRepository
+          .createQueryBuilder('peer')
+          .where('peer.strategyGuid = :strategyGuid', { strategyGuid: guid })
+          .select(['peer.uuid', 'peer.id', 'peer.status']);
+        if (!scope.global) {
+          queryBuilder = scope.deviceGroupGuids.size
+            ? queryBuilder.andWhere(
+                'peer.deviceGroupGuid IN (:...deviceGroupGuids)',
+                { deviceGroupGuids: [...scope.deviceGroupGuids] },
+              )
+            : queryBuilder.andWhere('1 = 0');
+        }
+        const [peers, total] = await queryBuilder
+          .orderBy('peer.id', 'ASC')
+          .skip(skip)
+          .take(pageSize)
+          .getManyAndCount();
         return {
           data: peers.map((p) => ({
             uuid: p.uuid,
@@ -344,6 +419,11 @@ export class StrategyService {
         };
       }
       case 'user': {
+        await this.rbacAuthorizationService.assertStrategyTargets(
+          actorGuid,
+          'user',
+          [],
+        );
         const [users, total] = await this.userRepository.findAndCount({
           where: { strategyGuid: guid },
           select: ['guid', 'username', 'email', 'status', 'isAdmin'],
@@ -363,13 +443,25 @@ export class StrategyService {
         };
       }
       case 'device_group': {
-        const [groups, total] = await this.deviceGroupRepository.findAndCount({
-          where: { strategyGuid: guid },
-          select: ['guid', 'name', 'note'],
-          skip,
-          take: pageSize,
-          order: { name: 'ASC' },
-        });
+        let queryBuilder = this.deviceGroupRepository
+          .createQueryBuilder('deviceGroup')
+          .where('deviceGroup.strategyGuid = :strategyGuid', {
+            strategyGuid: guid,
+          })
+          .select(['deviceGroup.guid', 'deviceGroup.name', 'deviceGroup.note']);
+        if (!scope.global) {
+          queryBuilder = scope.deviceGroupGuids.size
+            ? queryBuilder.andWhere(
+                'deviceGroup.guid IN (:...deviceGroupGuids)',
+                { deviceGroupGuids: [...scope.deviceGroupGuids] },
+              )
+            : queryBuilder.andWhere('1 = 0');
+        }
+        const [groups, total] = await queryBuilder
+          .orderBy('deviceGroup.name', 'ASC')
+          .skip(skip)
+          .take(pageSize)
+          .getManyAndCount();
         return {
           data: groups.map((g) => ({
             guid: g.guid,

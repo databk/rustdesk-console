@@ -48,6 +48,13 @@ import { NexusToken } from './modules/nexus/entities/nexus-token.entity';
 import { NexusBuild } from './modules/nexus/entities/nexus-build.entity';
 import { UserGroupModule } from './modules/user-group/user-group.module';
 import { UserGroup } from './modules/user-group/entities/user-group.entity';
+import { RbacModule } from './modules/rbac/rbac.module';
+import { Role } from './modules/rbac/entities/role.entity';
+import { RolePermission } from './modules/rbac/entities/role-permission.entity';
+import { UserRoleAssignment } from './modules/rbac/entities/user-role-assignment.entity';
+import { UserRoleAssignmentDeviceGroup } from './modules/rbac/entities/user-role-assignment-device-group.entity';
+import { ConsoleAudit } from './modules/rbac/entities/console-audit.entity';
+import { RbacGuard } from './modules/rbac/guards/rbac.guard';
 
 /**
  * 应用根模块
@@ -112,6 +119,11 @@ import { UserGroup } from './modules/user-group/entities/user-group.entity';
         NexusToken,
         NexusBuild,
         UserGroup,
+        Role,
+        RolePermission,
+        UserRoleAssignment,
+        UserRoleAssignmentDeviceGroup,
+        ConsoleAudit,
       ],
       synchronize: true,
       logging: false,
@@ -132,6 +144,7 @@ import { UserGroup } from './modules/user-group/entities/user-group.entity';
     UpdateCheckModule,
     NexusModule,
     UserGroupModule,
+    RbacModule,
   ],
   providers: [
     {
@@ -141,6 +154,10 @@ import { UserGroup } from './modules/user-group/entities/user-group.entity';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RbacGuard,
     },
   ],
 })

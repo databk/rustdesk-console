@@ -11,6 +11,7 @@ import { User } from '../user/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { UserGroupModule } from '../user-group/user-group.module';
 import { SettingsModule } from '../settings/settings.module';
+import { AdminGuard } from '../../common/guards/admin.guard';
 
 @Module({
   imports: [
@@ -20,7 +21,12 @@ import { SettingsModule } from '../settings/settings.module';
     SettingsModule,
   ],
   controllers: [OidcController, OidcAdminController],
-  providers: [OidcService, OidcAdminService, OidcAuthStateCleanupService],
+  providers: [
+    OidcService,
+    OidcAdminService,
+    OidcAuthStateCleanupService,
+    AdminGuard,
+  ],
   exports: [OidcService],
 })
 export class OidcModule {}

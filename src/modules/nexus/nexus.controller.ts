@@ -18,8 +18,10 @@ import { NexusService } from './nexus.service';
 import { NexusLoginDto } from './dto/nexus-auth.dto';
 import { NexusGenerateDto } from './dto/nexus-client.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireSuperAdmin } from '../rbac/decorators/require-permission.decorator';
 
 @Controller('nexus')
+@RequireSuperAdmin()
 export class NexusController {
   constructor(private readonly nexusService: NexusService) {}
 
