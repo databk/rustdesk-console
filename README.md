@@ -94,7 +94,7 @@ docker compose up -d
 
 That's it. The frontend is accessible at `http://localhost:21114`.
 
-Images are published to both Docker Hub (`databk/rustdesk-console`) and GitHub Container Registry (`ghcr.io/databk/rustdesk-console`) for `linux/amd64` and `linux/arm64`.
+Images are published to both Docker Hub (`databk/rustdesk-console`) and GitHub Container Registry (`ghcr.io/databk/rustdesk-console`) for `linux/amd64` and `linux/arm64`. To use the GitHub Container Registry mirror, replace `databk/rustdesk-console` with `ghcr.io/databk/rustdesk-console`.
 
 <details>
 <summary>📋 Docker CLI (without Compose)</summary>
@@ -116,8 +116,6 @@ docker run -d \
   -e BACKEND_URL=http://rustdesk-console:3000 \
   databk/rustdesk-console-web:latest
 ```
-
-To use the GitHub Container Registry mirror, replace `databk/rustdesk-console` with `ghcr.io/databk/rustdesk-console`.
 
 </details>
 
