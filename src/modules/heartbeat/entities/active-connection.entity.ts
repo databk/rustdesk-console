@@ -29,7 +29,7 @@ export class ActiveConnection {
    * 设备UUID
    * 关联到 peers 表的 uuid 字段
    */
-  @Column({ type: 'text' })
+  @Column({ type: 'varchar', length: 255 })
   @Index()
   deviceUuid: string;
 

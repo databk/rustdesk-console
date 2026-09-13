@@ -44,30 +44,30 @@ export class UserGroupService {
       .createQueryBuilder()
       .update(User)
       .set({ userGroupGuid: defaultGroup.guid })
-      .where('"userGroupGuid" IS NULL')
-      .orWhere('"userGroupGuid" NOT IN (SELECT "guid" FROM "user_groups")')
+      .where('userGroupGuid IS NULL')
+      .orWhere('userGroupGuid NOT IN (SELECT guid FROM user_groups)')
       .execute();
 
     const emptyUserTargets = await this.ruleRepository
       .createQueryBuilder()
       .update(AddressBookRule)
       .set({ targetUserId: null })
-      .where('"targetUserId" = :empty', { empty: '' })
+      .where('targetUserId = :empty', { empty: '' })
       .execute();
 
     const emptyGroupTargets = await this.ruleRepository
       .createQueryBuilder()
       .update(AddressBookRule)
       .set({ targetGroupId: null })
-      .where('"targetGroupId" = :empty', { empty: '' })
+      .where('targetGroupId = :empty', { empty: '' })
       .execute();
 
     const invalidGroupTargets = await this.ruleRepository
       .createQueryBuilder()
       .delete()
       .from(AddressBookRule)
-      .where('"targetGroupId" IS NOT NULL')
-      .andWhere('"targetGroupId" NOT IN (SELECT "guid" FROM "user_groups")')
+      .where('targetGroupId IS NOT NULL')
+      .andWhere('targetGroupId NOT IN (SELECT guid FROM user_groups)')
       .execute();
 
     if (backfillResult.affected) {

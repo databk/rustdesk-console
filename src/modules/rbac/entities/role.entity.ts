@@ -14,7 +14,7 @@ export class Role {
   @PrimaryColumn()
   guid: string;
 
-  @Column({ type: 'varchar', unique: true, collation: 'NOCASE' })
+  @Column({ type: 'varchar', unique: true })
   name: string;
 
   @Column({ type: 'text', nullable: true })

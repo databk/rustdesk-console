@@ -22,11 +22,11 @@ export function getDataDir(): string {
  * the embedded SQLite file.
  */
 export function getDbType(): DbType {
-  const raw = (process.env.DB_TYPE || 'sqlite').toLowerCase();
-  if (raw === 'mysql') {
-    return 'mysql';
+  const raw = process.env.DB_TYPE?.trim().toLowerCase() || 'sqlite';
+  if (raw === 'sqlite' || raw === 'mysql') {
+    return raw;
   }
-  return 'sqlite';
+  throw new Error(`Unsupported DB_TYPE: ${raw}`);
 }
 
 /**
