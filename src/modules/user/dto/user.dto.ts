@@ -118,6 +118,11 @@ export class UpdateUserSecurityDto {
   @IsBoolean()
   @IsOptional()
   email_verification?: boolean;
+
+  @IsString()
+  @IsOptional()
+  @MinLength(6)
+  new_password?: string;
 }
 
 export class UpdateCurrentUserDto {

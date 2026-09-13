@@ -572,6 +572,12 @@ export class UserService {
       if (dto.email_verification !== undefined) {
         userInfo.email_verification = dto.email_verification;
       }
+      if (dto.new_password !== undefined) {
+        if (user.thirdAuthType) {
+          throw new BadRequestException('第三方登录用户不支持修改密码');
+        }
+        user.password = await bcrypt.hash(dto.new_password, 10);
+      }
       user.setUserInfo(userInfo);
       await users.save(user);
       await this.revokeActiveTokens([guid], manager);
