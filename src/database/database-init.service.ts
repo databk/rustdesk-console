@@ -43,22 +43,26 @@ export class DatabaseInitService implements OnModuleInit {
     // The partial unique index is the database-level owner boundary. Creating
     // it after the explicit legacy check keeps duplicate historical owners
     // readable and reports them with the actionable error above.
-    try {
-      await this.dataSource.query(
-        'CREATE UNIQUE INDEX IF NOT EXISTS UQ_users_single_owner ON users (isAdmin) WHERE isAdmin = 1',
-      );
-    } catch (error: unknown) {
-      if (error instanceof QueryFailedError) {
-        const currentOwners = await this.userRepository.count({
-          where: { isAdmin: true },
-        });
-        if (currentOwners > 1) {
-          throw new Error(
-            `Database contains ${currentOwners} system owners; resolve the duplicate isAdmin rows offline before starting the server`,
-          );
+    // SQLite supports partial indexes (`WHERE` clause); MySQL does not, so we
+    // rely on the application-level check above for MySQL deployments.
+    if (this.dataSource.options.type === 'sqlite') {
+      try {
+        await this.dataSource.query(
+          'CREATE UNIQUE INDEX IF NOT EXISTS UQ_users_single_owner ON users (isAdmin) WHERE isAdmin = 1',
+        );
+      } catch (error: unknown) {
+        if (error instanceof QueryFailedError) {
+          const currentOwners = await this.userRepository.count({
+            where: { isAdmin: true },
+          });
+          if (currentOwners > 1) {
+            throw new Error(
+              `Database contains ${currentOwners} system owners; resolve the duplicate isAdmin rows offline before starting the server`,
+            );
+          }
         }
+        throw error;
       }
-      throw error;
     }
     await this.createDefaultAdmin(defaultGroup.guid);
     await this.createDefaultOidcProviders();

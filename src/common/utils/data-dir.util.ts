@@ -5,6 +5,8 @@ const DB_FILENAME = 'rustdesk-console.db';
 const NEXUS_BUILD_SUBDIR = 'nexus-builds';
 const AVATAR_SUBDIR = 'avatars';
 
+export type DbType = 'sqlite' | 'mysql';
+
 /**
  * Get the unified data directory.
  * Controlled by the DATA_DIR env var (default: ./data).
@@ -14,7 +16,22 @@ export function getDataDir(): string {
 }
 
 /**
+ * Get the configured database type.
+ * Controlled by the DB_TYPE env var (default: sqlite).
+ * When set to 'mysql', the app connects to a MySQL server instead of using
+ * the embedded SQLite file.
+ */
+export function getDbType(): DbType {
+  const raw = (process.env.DB_TYPE || 'sqlite').toLowerCase();
+  if (raw === 'mysql') {
+    return 'mysql';
+  }
+  return 'sqlite';
+}
+
+/**
  * Get the SQLite database file path.
+ * Only meaningful when getDbType() === 'sqlite'.
  */
 export function getDbPath(): string {
   return path.join(getDataDir(), DB_FILENAME);

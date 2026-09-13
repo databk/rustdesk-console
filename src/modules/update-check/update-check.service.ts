@@ -13,7 +13,7 @@ import { UserToken } from '../user/entities/user-token.entity';
 import { Invitation } from '../user/entities/invitation.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
-import { getDbPath } from '../../common/utils/data-dir.util';
+import { getDbPath, getDbType } from '../../common/utils/data-dir.util';
 import { DeviceGroupUserPermission } from '../device-group/entities/device-group-user-permission.entity';
 import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
 import { FileAudit } from '../audit/entities/file-audit.entity';
@@ -293,11 +293,14 @@ export class UpdateCheckService implements OnModuleInit {
       this.getStatistics(),
     ]);
 
-    const dbPath = getDbPath();
+    const dbType = getDbType();
     let dbSize = 0;
     try {
-      const stat = fs.statSync(dbPath);
-      dbSize = stat.size;
+      if (dbType === 'sqlite') {
+        const dbPath = getDbPath();
+        const stat = fs.statSync(dbPath);
+        dbSize = stat.size;
+      }
     } catch {
       // 数据库文件不存在或无法访问
     }
@@ -324,7 +327,7 @@ export class UpdateCheckService implements OnModuleInit {
         process_memory: process.memoryUsage().rss,
       },
       database: {
-        type: 'sqlite',
+        type: dbType,
         size: dbSize,
       },
       statistics: stats,

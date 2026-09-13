@@ -14,6 +14,7 @@ describe('DatabaseInitService owner startup guard', () => {
     };
     const dataSource = {
       query: jest.fn().mockResolvedValue(undefined),
+      options: { type: 'sqlite' as const },
     };
     const service = new DatabaseInitService(
       userRepository as never,

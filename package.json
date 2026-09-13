@@ -63,6 +63,7 @@
     "dotenv": "^17.4.2",
     "handlebars": "^4.7.9",
     "ldapts": "^8.2.0",
+    "mysql2": "^3.24.4",
     "nodemailer": "^9.0.4",
     "openid-client": "^6.8.4",
     "otplib": "^12.0.1",
