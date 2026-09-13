@@ -10,7 +10,7 @@
 **Enterprise-grade management platform for the RustDesk ecosystem**
 
 [![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
 [![Docker Pulls](https://img.shields.io/docker/pulls/databk/rustdesk-console.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/databk/rustdesk-console)
 
@@ -123,17 +123,7 @@ To use the GitHub Container Registry mirror, replace `databk/rustdesk-console` w
 
 ### Pre-built Binaries
 
-Each release ships standalone Single Executable Application (SEA) archives for the following targets, downloadable from the [Releases page](https://github.com/databk/rustdesk-console/releases):
-
-| Target | Archive |
-| --- | --- |
-| Linux x64 | `rustdesk-console-linux-x64.tar.gz` |
-| Linux arm64 | `rustdesk-console-linux-arm64.tar.gz` |
-| Windows x64 | `rustdesk-console-win-x64.zip` |
-| macOS x64 | `rustdesk-console-macos-x64.tar.gz` |
-| macOS arm64 | `rustdesk-console-macos-arm64.tar.gz` |
-
-Extract the archive and run the executable directly — no Node.js runtime required.
+Each release ships standalone Single Executable Application (SEA) archives for Linux (x64/arm64), Windows (x64), and macOS (x64/arm64). Download the archive matching your platform from the [Releases page](https://github.com/databk/rustdesk-console/releases), extract it, and run the executable directly — no Node.js runtime required.
 
 <details>
 <summary>🔧 Build from Source</summary>
@@ -148,7 +138,7 @@ npm run build
 npm run start:prod
 ```
 
-**Requirements**: Node.js ≥ 24.0.0, npm ≥ 9.0.0
+**Requirements**: Node.js ≥ 20.0.0, npm ≥ 9.0.0
 
 </details>
 
