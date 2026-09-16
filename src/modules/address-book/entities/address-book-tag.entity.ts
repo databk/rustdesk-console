@@ -54,7 +54,7 @@ export class AddressBookTag {
    * 十六进制颜色值，用于前端显示
    * 例如: 0xFF5733 表示红色
    */
-  @Column({ type: 'bigint', default: 0 })
+  @Column({ type: 'int', unsigned: true, default: 0 })
   color: number;
 
   /**
