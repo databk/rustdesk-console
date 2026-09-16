@@ -32,12 +32,12 @@ interface SharedAddressBookRow {
 
 const EXTERNAL_GRANT_EXISTS = `EXISTS (
   SELECT 1
-  FROM "address_book_rules" "externalRule"
-  WHERE "externalRule"."addressBookGuid" = "addressBook"."guid"
+  FROM address_book_rules externalRule
+  WHERE externalRule.addressBookGuid = addressBook.guid
     AND (
-      "externalRule"."targetGroupId" IS NOT NULL
-      OR "externalRule"."targetUserId" IS NULL
-      OR "externalRule"."targetUserId" <> "addressBook"."owner"
+      externalRule.targetGroupId IS NOT NULL
+      OR externalRule.targetUserId IS NULL
+      OR externalRule.targetUserId <> addressBook.owner
     )
 )`;
 
