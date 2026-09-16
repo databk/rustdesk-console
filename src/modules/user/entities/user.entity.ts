@@ -59,8 +59,8 @@ export class User {
    * 用户名
    * 用于登录的唯一标识
    */
-  @Column({ unique: true })
-  @Index()
+  @Column()
+  @Index({ unique: true })
   username: string;
 
   /**
@@ -74,8 +74,8 @@ export class User {
    * 邮箱地址
    * 用于邮箱验证和通知
    */
-  @Column({ type: 'varchar', unique: true, nullable: true })
-  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  @Index({ unique: true })
   email: string | null;
 
   /**
@@ -150,8 +150,8 @@ export class User {
    * 格式: oidc:{providerName}:{sub}
    * 用于关联OIDC提供商中的用户身份，防止账户接管
    */
-  @Column({ unique: true, nullable: true })
-  @Index()
+  @Column({ nullable: true })
+  @Index({ unique: true })
   oidcSubject: string;
 
   @Column({ type: 'varchar', nullable: true })

@@ -21,8 +21,8 @@ export class UserGroup {
   @Column()
   name: string;
 
-  @Column({ unique: true })
-  @Index()
+  @Column()
+  @Index({ unique: true })
   normalizedName: string;
 
   @Column({ type: 'text', nullable: true })

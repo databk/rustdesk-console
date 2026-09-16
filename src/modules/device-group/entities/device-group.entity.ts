@@ -29,8 +29,8 @@ export class DeviceGroup {
    * 设备组名称
    * 用于显示和区分不同的设备组
    */
-  @Column({ unique: true })
-  @Index()
+  @Column()
+  @Index({ unique: true })
   name: string;
 
   /**

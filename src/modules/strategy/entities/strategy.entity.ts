@@ -12,8 +12,8 @@ export class Strategy {
   @PrimaryColumn()
   guid: string;
 
-  @Column({ unique: true })
-  @Index()
+  @Column()
+  @Index({ unique: true })
   name: string;
 
   @Column({ type: 'text', nullable: true })
