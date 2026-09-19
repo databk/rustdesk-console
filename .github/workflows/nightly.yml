@@ -213,36 +213,35 @@ jobs:
       matrix:
         include:
           - target: linux-x64-musl
-            os: ubuntu-latest
+            platform: linux/amd64
           - target: linux-arm64-musl
-            os: ubuntu-24.04-arm
-    runs-on: ${{ matrix.os }}
-    container:
-      image: node:24-alpine
+            platform: linux/arm64
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Install build dependencies
-        run: apk add --no-cache python3 make g++ bash tar
-
-      - name: Install dependencies
-        run: npm ci
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
 
       - name: Set nightly version in package.json
-        shell: bash
         run: |
           VERSION=${{ needs.nightly.outputs.version }}
-          # Update version in package.json for SEA build
           node -e "const pkg = require('./package.json'); pkg.version = '${VERSION}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
 
-      - name: Build SEA executable
-        run: npm run build:sea
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Create archive (tar.gz)
+      - name: Build SEA in Alpine container
         run: |
-          cd dist-sea
-          tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .
+          docker run --rm \
+            --platform ${{ matrix.platform }} \
+            -v "$PWD":/workspace \
+            -w /workspace \
+            node:24-alpine \
+            sh -c 'apk add --no-cache python3 make g++ bash tar && npm ci && npm run build:sea && cd dist-sea && tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .'
 
       - name: Upload to release
         uses: softprops/action-gh-release@v3

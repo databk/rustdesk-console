@@ -159,31 +159,27 @@ jobs:
       matrix:
         include:
           - target: linux-x64-musl
-            os: ubuntu-latest
+            platform: linux/amd64
           - target: linux-arm64-musl
-            os: ubuntu-24.04-arm
-    runs-on: ${{ matrix.os }}
-    container:
-      image: node:24-alpine
+            platform: linux/arm64
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.release.outputs.version }}
 
-      - name: Install build dependencies
-        run: apk add --no-cache python3 make g++ bash tar
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build SEA executable
-        run: npm run build:sea
-
-      - name: Create archive (tar.gz)
+      - name: Build SEA in Alpine container
         run: |
-          cd dist-sea
-          tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .
+          docker run --rm \
+            --platform ${{ matrix.platform }} \
+            -v "$PWD":/workspace \
+            -w /workspace \
+            node:24-alpine \
+            sh -c 'apk add --no-cache python3 make g++ bash tar && npm ci && npm run build:sea && cd dist-sea && tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .'
 
       - name: Upload to release
         uses: softprops/action-gh-release@v3
