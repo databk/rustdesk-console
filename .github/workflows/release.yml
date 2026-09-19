@@ -159,23 +159,19 @@ jobs:
       matrix:
         include:
           - target: linux-x64-musl
-            platform: linux/amd64
+            os: ubuntu-latest
           - target: linux-arm64-musl
-            platform: linux/arm64
-    runs-on: ubuntu-latest
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.release.outputs.version }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Build SEA in Alpine container
         run: |
           docker run --rm \
-            --platform ${{ matrix.platform }} \
             -v "$PWD":/workspace \
             -w /workspace \
             node:24-alpine \
