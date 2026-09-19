@@ -96,6 +96,14 @@ export class OidcProvider {
   jwksUri: string;
 
   /**
+   * 提供商图标
+   * 自定义 OIDC 提供商的 SVG 图标字符串，用于客户端展示
+   * 内置提供商此字段为 null，客户端使用内置 SVG
+   */
+  @Column({ type: 'text', nullable: true })
+  icon: string;
+
+  /**
    * 是否启用
    * true - 提供商可用
    * false - 提供商禁用

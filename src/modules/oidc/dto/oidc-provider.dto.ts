@@ -58,6 +58,10 @@ export class CreateOidcProviderDto {
   @IsUrl({ require_tld: false, require_protocol: true })
   jwksUri?: string;
 
+  @IsString()
+  @IsOptional()
+  icon?: string;
+
   @IsBoolean()
   @IsOptional()
   enabled?: boolean;
@@ -111,6 +115,10 @@ export class UpdateOidcProviderDto {
   @IsOptional()
   @IsUrl({ require_tld: false, require_protocol: true })
   jwksUri?: string;
+
+  @IsString()
+  @IsOptional()
+  icon?: string;
 
   @IsBoolean()
   @IsOptional()

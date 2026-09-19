@@ -90,6 +90,7 @@ export class OidcAdminService {
     provider.tokenEndpoint = (dto.tokenEndpoint || null) as string;
     provider.userinfoEndpoint = (dto.userinfoEndpoint || null) as string;
     provider.jwksUri = (dto.jwksUri || null) as string;
+    provider.icon = (dto.icon || null) as string;
     provider.enabled = dto.enabled !== undefined ? dto.enabled : true;
 
     await this.providerRepository.save(provider);
@@ -137,6 +138,7 @@ export class OidcAdminService {
         userinfoEndpoint: dto.userinfoEndpoint,
       }),
       ...(dto.jwksUri !== undefined && { jwksUri: dto.jwksUri }),
+      ...(dto.icon !== undefined && { icon: dto.icon }),
       ...(dto.enabled !== undefined && { enabled: dto.enabled }),
     });
 
