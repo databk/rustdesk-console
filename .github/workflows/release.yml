@@ -149,3 +149,46 @@ jobs:
             rustdesk-console-${{ matrix.target }}.tar.gz
             rustdesk-console-${{ matrix.target }}.zip
           fail_on_unmatched_files: false
+
+  sea-build-musl:
+    name: Build SEA (${{ matrix.target }})
+    needs: release
+    if: ${{ needs.release.outputs.skipped == 'false' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64-musl
+            os: ubuntu-latest
+          - target: linux-arm64-musl
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    container:
+      image: node:24-alpine
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.version }}
+
+      - name: Install build dependencies
+        run: apk add --no-cache python3 make g++ bash tar
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SEA executable
+        run: npm run build:sea
+
+      - name: Create archive (tar.gz)
+        run: |
+          cd dist-sea
+          tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.release.outputs.version }}
+          files: |
+            rustdesk-console-${{ matrix.target }}.tar.gz
+          fail_on_unmatched_files: false
