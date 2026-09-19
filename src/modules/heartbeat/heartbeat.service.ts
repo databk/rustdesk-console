@@ -68,10 +68,7 @@ export class HeartbeatService {
       ...(disconnect.length > 0 ? { disconnect } : {}),
       ...(strategyResult
         ? {
-            strategy: {
-              config_options: strategyResult.config_options,
-              extra: {} as Record<string, string>,
-            },
+            strategy: { config_options: strategyResult.config_options },
             modified_at: strategyResult.modified_at,
           }
         : {}),
