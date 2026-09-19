@@ -65,19 +65,16 @@ export class HeartbeatService {
     );
 
     return {
-      code: 200,
-      message: '心跳接收成功',
       ...(disconnect.length > 0 ? { disconnect } : {}),
       ...(strategyResult
         ? {
-            strategy: { config_options: strategyResult.config_options },
+            strategy: {
+              config_options: strategyResult.config_options,
+              extra: {} as Record<string, string>,
+            },
             modified_at: strategyResult.modified_at,
           }
         : {}),
-      data: {
-        timestamp: Date.now(),
-        device_id: data.id,
-      },
     };
   }
 
