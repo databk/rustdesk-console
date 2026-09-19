@@ -158,17 +158,23 @@ export class OidcService {
    * 获取所有启用的OIDC提供商
    * 返回可供用户选择的OIDC登录选项列表
    *
-   * 使用 common-oidc/ 前缀格式，包含提供商名称和图标信息
-   * 内置提供商 icon 为 null，客户端使用内置 SVG 图标
-   * 自定义提供商 icon 为 SVG 字符串，客户端使用 SvgPicture.string 渲染
+   * 当所有提供商均为内置（无自定义 icon）时，使用简单的 oidc/{name} 格式
+   * 当存在自定义提供商（有 icon）时，使用 common-oidc/{json} 格式包含图标信息
+   * 客户端优先查找 common-oidc/ 前缀，未找到时回退到 oidc/ 前缀
    *
-   * @returns OIDC配置选项列表，格式为 ["common-oidc/{json}"]
+   * @returns OIDC配置选项列表
    */
   async getLoginOptions(): Promise<string[]> {
     const providers = await this.providerRepository.find({
       where: { enabled: true },
       order: { priority: 'ASC' },
     });
+
+    const hasCustomIcon = providers.some((p) => p.icon);
+
+    if (!hasCustomIcon) {
+      return providers.map((provider) => `oidc/${provider.name}`);
+    }
 
     const options = providers.map((provider) => ({
       name: provider.name,
