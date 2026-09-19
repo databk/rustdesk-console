@@ -214,8 +214,6 @@ jobs:
         include:
           - target: linux-x64-musl
             os: ubuntu-latest
-          - target: linux-arm64-musl
-            os: ubuntu-24.04-arm
     runs-on: ${{ matrix.os }}
     container:
       image: node:24-alpine
