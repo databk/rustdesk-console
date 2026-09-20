@@ -27,11 +27,11 @@ describe('DatabaseInitService owner startup guard', () => {
     );
     const internals = service as unknown as {
       createDefaultAdmin: jest.Mock;
-      createDefaultOidcProviders: jest.Mock;
+      cleanupUnusedDefaultOidcProviders: jest.Mock;
       cleanupExpiredAuthStates: jest.Mock;
     };
     const createDefaultAdmin = (internals.createDefaultAdmin = jest.fn());
-    const createDefaultOidcProviders = (internals.createDefaultOidcProviders =
+    const cleanupUnusedDefaultOidcProviders = (internals.cleanupUnusedDefaultOidcProviders =
       jest.fn());
     const cleanupExpiredAuthStates = (internals.cleanupExpiredAuthStates =
       jest.fn());
@@ -40,7 +40,7 @@ describe('DatabaseInitService owner startup guard', () => {
       userRepository,
       dataSource,
       createDefaultAdmin,
-      createDefaultOidcProviders,
+      cleanupUnusedDefaultOidcProviders,
       cleanupExpiredAuthStates,
     };
   }
@@ -55,7 +55,7 @@ describe('DatabaseInitService owner startup guard', () => {
     expect(context.dataSource.query).toHaveBeenCalledWith(
       'CREATE UNIQUE INDEX IF NOT EXISTS UQ_users_single_owner ON users (isAdmin) WHERE isAdmin = 1',
     );
-    expect(context.createDefaultOidcProviders).toHaveBeenCalledTimes(1);
+    expect(context.cleanupUnusedDefaultOidcProviders).toHaveBeenCalledTimes(1);
     expect(context.cleanupExpiredAuthStates).toHaveBeenCalledTimes(1);
   });
 
@@ -68,7 +68,7 @@ describe('DatabaseInitService owner startup guard', () => {
     );
     expect(context.createDefaultAdmin).not.toHaveBeenCalled();
     expect(context.dataSource.query).not.toHaveBeenCalled();
-    expect(context.createDefaultOidcProviders).not.toHaveBeenCalled();
+    expect(context.cleanupUnusedDefaultOidcProviders).not.toHaveBeenCalled();
     expect(context.cleanupExpiredAuthStates).not.toHaveBeenCalled();
   });
 });

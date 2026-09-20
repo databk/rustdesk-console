@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, Like, QueryFailedError, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserStatus } from '../modules/user/entities/user.entity';
@@ -65,7 +65,7 @@ export class DatabaseInitService implements OnModuleInit {
       }
     }
     await this.createDefaultAdmin(defaultGroup.guid);
-    await this.createDefaultOidcProviders();
+    await this.cleanupUnusedDefaultOidcProviders();
     await this.cleanupExpiredAuthStates();
   }
 
@@ -122,48 +122,43 @@ export class DatabaseInitService implements OnModuleInit {
   }
 
   /**
-   * 创建默认 OIDC 提供商配置
+   * 清理未使用的默认 OIDC 提供商
+   *
+   * 早期版本会在初始化时自动插入 google 与 github 两个默认 OIDC 提供商。
+   * 现已移除该自动添加行为，这里负责清理历史遗留的默认提供商：
+   * 仅当提供商名称为 google/github、未配置 clientId、未启用且无用户通过
+   * 该提供商登录时才删除，避免误删用户已配置或正在使用的提供商。
    */
-  private async createDefaultOidcProviders() {
-    const defaultProviders = [
-      {
-        guid: uuidv4(),
-        name: 'google',
-        issuer: 'https://accounts.google.com',
-        clientId: '',
-        clientSecret: '',
-        scope: 'openid email profile',
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        tokenEndpoint: 'https://oauth2.googleapis.com/token',
-        userinfoEndpoint: 'https://openidconnect.googleapis.com/v1/userinfo',
-        enabled: false,
-        priority: 1,
-      },
-      {
-        guid: uuidv4(),
-        name: 'github',
-        issuer: 'https://github.com',
-        clientId: '',
-        clientSecret: '',
-        scope: 'read:user user:email',
-        authorizationEndpoint: 'https://github.com/login/oauth/authorize',
-        tokenEndpoint: 'https://github.com/login/oauth/access_token',
-        userinfoEndpoint: 'https://api.github.com/user',
-        enabled: false,
-        priority: 2,
-      },
-    ];
+  private async cleanupUnusedDefaultOidcProviders() {
+    const defaultProviderNames = ['google', 'github'];
 
-    for (const providerData of defaultProviders) {
-      const existing = await this.oidcProviderRepository.findOne({
-        where: { name: providerData.name },
+    for (const name of defaultProviderNames) {
+      const provider = await this.oidcProviderRepository.findOne({
+        where: { name },
       });
 
-      if (!existing) {
-        const provider = this.oidcProviderRepository.create(providerData);
-        await this.oidcProviderRepository.save(provider);
-        this.logger.log(`Default OIDC provider created: ${providerData.name}`);
+      if (!provider) {
+        continue;
       }
+
+      if (provider.clientId !== '') {
+        continue;
+      }
+
+      if (provider.enabled) {
+        continue;
+      }
+
+      const linkedUserCount = await this.userRepository.count({
+        where: { oidcSubject: Like(`oidc:${name}:%`) },
+      });
+
+      if (linkedUserCount > 0) {
+        continue;
+      }
+
+      await this.oidcProviderRepository.delete({ guid: provider.guid });
+      this.logger.log(`Removed unused default OIDC provider: ${name}`);
     }
   }
 
