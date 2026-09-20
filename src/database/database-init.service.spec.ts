@@ -31,8 +31,8 @@ describe('DatabaseInitService owner startup guard', () => {
       cleanupExpiredAuthStates: jest.Mock;
     };
     const createDefaultAdmin = (internals.createDefaultAdmin = jest.fn());
-    const cleanupUnusedDefaultOidcProviders = (internals.cleanupUnusedDefaultOidcProviders =
-      jest.fn());
+    const cleanupUnusedDefaultOidcProviders =
+      (internals.cleanupUnusedDefaultOidcProviders = jest.fn());
     const cleanupExpiredAuthStates = (internals.cleanupExpiredAuthStates =
       jest.fn());
     return {
