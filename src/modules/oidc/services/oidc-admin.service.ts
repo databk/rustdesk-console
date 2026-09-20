@@ -30,23 +30,17 @@ export class OidcAdminService {
   ) {}
 
   async findAll(query: OidcProviderQueryDto) {
-    const { current, pageSize, name } = query;
+    const { current, pageSize } = query;
     const skip = (current - 1) * pageSize;
 
-    const queryBuilder = this.providerRepository
+    const [data, total] = await this.providerRepository
       .createQueryBuilder('provider')
       .orderBy('provider.priority', 'ASC')
       .addOrderBy('provider.name', 'ASC')
       .skip(skip)
-      .take(pageSize);
+      .take(pageSize)
+      .getManyAndCount();
 
-    if (name) {
-      queryBuilder.andWhere('provider.name LIKE :name', {
-        name: `%${name}%`,
-      });
-    }
-
-    const [data, total] = await queryBuilder.getManyAndCount();
     return { data, total };
   }
 
