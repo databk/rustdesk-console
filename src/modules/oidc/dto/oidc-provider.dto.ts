@@ -143,5 +143,4 @@ export class OidcProviderQueryDto {
   @IsInt()
   @Type(() => Number)
   pageSize: number;
-
 }
