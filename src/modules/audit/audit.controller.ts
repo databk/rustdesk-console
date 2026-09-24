@@ -251,7 +251,7 @@ export class AuditsController {
    * - 支持分页查询
    * - 支持按被控端设备ID过滤（deviceId模糊匹配）
    * - 支持按时间段过滤（startTime/endTime范围查询）
-   * - 支持按告警类型过滤（type: 0-IP白名单, 1-超30次尝试, 2-1分钟6次尝试, 6-IPv6前缀超限, 7-终端OS登录backoff, 8-终端OS登录并发超限）
+   * - 支持按告警类型过滤（type: 0-IP白名单, 1-超30次尝试, 2-1分钟6次尝试, 6-IPv6前缀超限, 7-终端OS登录backoff, 8-终端OS登录并发超限, 9-会话范围违规, 10-ID白名单违规）
    *
    * 安全措施：
    * - 需要 audit.view 权限

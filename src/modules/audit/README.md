@@ -39,12 +39,17 @@
 - `requestedAt`: 连接发起时间（action = 'open'）
 - `establishedAt`: 连接建立时间（action = 'established'）
 - `closedAt`: 连接关闭时间（action = 'close'）
+- `nonce`: 去重唯一标识 (可选，客户端重试时携带相同值，服务器据此去重)
+- `connAuditRef`: 控制端用户归因引用 (可选)
+- `primaryAuth`: 主认证方式 (可选，0=None, 1=Click, 2=TemporaryPassword, 3=PermanentPassword, 4=SwitchSides)
+- `twoFactor`: 二因素认证方式 (可选，0=None, 1=Totp, 2=TrustedDevice)
 
 ### file_audits (文件审计表)
 - `id`: 主键
 - `deviceId`: 设备ID
 - `deviceUuid`: 设备UUID (base64编码)
 - `peerId`: 对端设备ID
+- `connId`: 连接ID (可选)
 - `type`: 传输类型 (0: 发送 | 1: 接收)
 - `path`: 文件路径 (可选)
 - `isFile`: 是否为文件 (true/false)
@@ -53,20 +58,28 @@
 - `fileCount`: 文件总数
 - `files`: 文件列表 (最多10个，按大小排序) - JSON格式: [['文件名', 大小], ...]
 - `createdAt`: 创建时间
+- `nonce`: 去重唯一标识 (可选，客户端重试时携带相同值，服务器据此去重)
 
 ### alarm_audits (告警审计表)
 - `id`: 主键
 - `deviceId`: 设备ID
 - `deviceUuid`: 设备UUID (base64编码)
-- `typ`: 告警类型 (0-6)
+- `typ`: 告警类型 (0-10)
   - 0: IP白名单违规
   - 1: 超过30次尝试
   - 2: 1分钟内6次尝试
   - 6: IPv6前缀尝试过多
+  - 7: 终端OS登录backoff
+  - 8: 终端OS登录并发超限
+  - 9: 会话范围违规
+  - 10: ID白名单违规
 - `infoId`: 告警信息中的设备ID (可选)
 - `infoIp`: 告警信息中的IP地址
 - `infoName`: 告警信息中的设备名称 (可选)
 - `createdAt`: 创建时间
+- `connId`: 连接ID (可选)
+- `nonce`: 去重唯一标识 (可选，客户端重试时携带相同值，服务器据此去重)
+- `connAuditRef`: 控制端用户归因引用 (可选，仅 IP白名单和ID白名单告警携带)
 
 ## API 接口
 
@@ -84,7 +97,11 @@
   "ip": "客户端IP地址",
   "action": "new",
   "peer": ["对端ID", "对端名称"],
-  "type": 0
+  "type": 0,
+  "nonce": "去重唯一标识(UUID)",
+  "conn_audit_ref": "控制端用户归因引用",
+  "primary_auth": 0,
+  "two_factor": 0
 }
 ```
 
@@ -195,12 +212,19 @@
 - `1`: 超过30次尝试
 - `2`: 1分钟内6次尝试
 - `6`: IPv6前缀尝试过多
+- `7`: 终端OS登录backoff
+- `8`: 终端OS登录并发超限
+- `9`: 会话范围违规
+- `10`: ID白名单违规
 
 **触发场景**:
 - IP白名单违规检测
 - 登录尝试次数超限
 - 短时间内多次尝试
 - IPv6前缀异常访问
+- 终端OS登录异常
+- 会话范围权限违规
+- ID白名单违规检测
 
 **响应**:
 ```json

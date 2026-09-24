@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  Index,
 } from 'typeorm';
 
 /**
@@ -15,6 +16,8 @@ export enum AlarmType {
   EXCEED_IPV6_PREFIX_ATTEMPTS = 6,
   TERMINAL_OS_LOGIN_BACKOFF = 7,
   TERMINAL_OS_LOGIN_CONCURRENCY = 8,
+  SESSION_SCOPE_VIOLATION = 9,
+  ID_WHITELIST = 10,
 }
 
 @Entity('alarm_audits')
@@ -42,4 +45,14 @@ export class AlarmAudit {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  connId: string | null;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Index({ unique: true })
+  nonce: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  connAuditRef: string | null;
 }

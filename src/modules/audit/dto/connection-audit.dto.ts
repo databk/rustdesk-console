@@ -54,6 +54,27 @@ export class ConnectionAuditDto {
   @IsOptional()
   @MaxLength(256)
   note?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(36)
+  nonce?: string;
+
+  @IsString()
+  @IsOptional()
+  conn_audit_ref?: string;
+
+  @IsInt()
+  @Min(0)
+  @Max(4)
+  @IsOptional()
+  primary_auth?: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(2)
+  @IsOptional()
+  two_factor?: number;
 }
 
 /**

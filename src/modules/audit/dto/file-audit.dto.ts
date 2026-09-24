@@ -5,6 +5,8 @@ import {
   Min,
   Max,
   IsOptional,
+  IsNumber,
+  MaxLength,
 } from 'class-validator';
 import { FileAuditType } from '../entities/file-audit.entity';
 
@@ -22,6 +24,10 @@ export class FileAuditDto {
   @IsString()
   peer_id: string;
 
+  @IsNumber()
+  @IsOptional()
+  conn_id?: number;
+
   @IsInt()
   @Min(0)
   @Max(1)
@@ -36,4 +42,9 @@ export class FileAuditDto {
 
   @IsString()
   info: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(36)
+  nonce?: string;
 }

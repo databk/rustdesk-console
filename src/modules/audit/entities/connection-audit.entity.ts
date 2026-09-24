@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  Index,
 } from 'typeorm';
 
 /**
@@ -15,6 +16,26 @@ export enum ConnType {
   PORT_FORWARD = 2,
   CAMERA = 3,
   TERMINAL = 4,
+}
+
+/**
+ * 主认证方式枚举
+ */
+export enum PrimaryAuth {
+  NONE = 0,
+  CLICK = 1,
+  TEMPORARY_PASSWORD = 2,
+  PERMANENT_PASSWORD = 3,
+  SWITCH_SIDES = 4,
+}
+
+/**
+ * 二因素认证方式枚举
+ */
+export enum TwoFactor {
+  NONE = 0,
+  TOTP = 1,
+  TRUSTED_DEVICE = 2,
 }
 
 @Entity('connection_audits')
@@ -63,4 +84,17 @@ export class ConnectionAudit {
 
   @Column({ type: 'varchar', length: 256, nullable: true })
   note: string | null;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Index({ unique: true })
+  nonce: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  connAuditRef: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  primaryAuth: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  twoFactor: number | null;
 }
