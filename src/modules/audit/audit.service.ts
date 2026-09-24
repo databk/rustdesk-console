@@ -709,9 +709,25 @@ export class AuditService {
   }
 
   private isUniqueConstraintError(error: unknown): boolean {
-    return (
-      error instanceof QueryFailedError &&
-      error.message.toUpperCase().includes('UNIQUE')
-    );
+    if (!(error instanceof QueryFailedError)) {
+      return false;
+    }
+    // SQLite: "UNIQUE constraint failed: ..."
+    if (error.message.toUpperCase().includes('UNIQUE')) {
+      return true;
+    }
+    const driverError = error as QueryFailedError & {
+      code?: string;
+      errno?: number;
+    };
+    // MySQL: ER_DUP_ENTRY (errno 1062)
+    if (driverError.code === 'ER_DUP_ENTRY' || driverError.errno === 1062) {
+      return true;
+    }
+    // PostgreSQL: unique_violation (SQLSTATE 23505)
+    if (driverError.code === '23505') {
+      return true;
+    }
+    return false;
   }
 }
