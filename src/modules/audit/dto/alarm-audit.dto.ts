@@ -1,4 +1,12 @@
-import { IsString, IsInt, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  Min,
+  Max,
+  IsOptional,
+  IsNumber,
+  MaxLength,
+} from 'class-validator';
 
 /**
  * AlarmAuditDto
@@ -13,9 +21,22 @@ export class AlarmAuditDto {
 
   @IsInt()
   @Min(0)
-  @Max(8)
+  @Max(10)
   typ: number;
 
   @IsString()
   info: string;
+
+  @IsNumber()
+  @IsOptional()
+  conn_id?: number;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(36)
+  nonce?: string;
+
+  @IsString()
+  @IsOptional()
+  conn_audit_ref?: string;
 }

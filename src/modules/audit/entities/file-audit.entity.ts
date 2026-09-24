@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  Index,
 } from 'typeorm';
 
 // SQLite 不支持 ENUM，所以使用整数代替
@@ -29,6 +30,9 @@ export class FileAudit {
   @Column({ type: 'varchar', length: 255 })
   peerId: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  connId: string | null;
+
   @Column({ type: 'int' }) // SQLite 使用 int，其他数据库可以用 enum
   type: number;
 
@@ -52,4 +56,8 @@ export class FileAudit {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Index({ unique: true })
+  nonce: string | null;
 }
