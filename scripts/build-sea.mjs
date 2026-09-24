@@ -62,7 +62,7 @@ await build({
       'require = function(id) {',
       '  try { return __origRequire(id); }',
       '  catch (e) {',
-      '    if (e.code === "ERR_UNKNOWN_BUILTIN_MODULE") return __seaRequire(id);',
+      '    if (e.code === "MODULE_NOT_FOUND" || e.code === "ERR_UNKNOWN_BUILTIN_MODULE") return __seaRequire(id);',
       '    throw e;',
       '  }',
       '};',
