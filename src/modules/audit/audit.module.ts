@@ -10,6 +10,7 @@ import { SettingsModule } from '../settings/settings.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
 import { Peer } from '../../common/entities/peer.entity';
+import { ConsoleAudit } from '../rbac/entities/console-audit.entity';
 
 /**
  * 审计模块
@@ -32,6 +33,7 @@ import { Peer } from '../../common/entities/peer.entity';
       ConnectionAudit,
       FileAudit,
       AlarmAudit,
+      ConsoleAudit,
       ActiveConnection,
       Peer,
     ]),

@@ -28,6 +28,7 @@ import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
 import { SettingsModule } from '../settings/settings.module';
 import { JWT_DEFAULT_SECRET, TOKEN_EXPIRY_DAYS } from './auth.constants';
+import { RbacModule } from '../rbac/rbac.module';
 
 /**
  * 认证模块
@@ -61,6 +62,7 @@ import { JWT_DEFAULT_SECRET, TOKEN_EXPIRY_DAYS } from './auth.constants';
     LdapModule,
     UserGroupModule,
     SettingsModule,
+    RbacModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || JWT_DEFAULT_SECRET,

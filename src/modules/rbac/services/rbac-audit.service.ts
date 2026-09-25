@@ -63,9 +63,13 @@ export class RbacAuditService {
 
   async query(filters: {
     operator?: string;
+    action?: string;
+    targetType?: string;
+    result?: 'allowed' | 'denied';
     pageSize?: number;
     current?: number;
-    created_at?: string;
+    startTime?: string;
+    endTime?: string;
   }): Promise<{ data: Record<string, unknown>[]; total: number }> {
     const pageSize = this.boundPageSize(filters.pageSize);
     const current = this.boundCurrent(filters.current);
@@ -78,12 +82,26 @@ export class RbacAuditService {
         operator: `%${filters.operator}%`,
       });
     }
-    if (filters.created_at) {
-      const createdAt = new Date(filters.created_at);
-      if (Number.isNaN(createdAt.getTime())) {
-        throw new BadRequestException('created_at 不是有效的日期字符串');
-      }
-      query.andWhere('audit.createdAt >= :createdAt', { createdAt });
+    if (filters.action) {
+      query.andWhere('audit.action LIKE :action', {
+        action: `%${filters.action}%`,
+      });
+    }
+    if (filters.targetType) {
+      query.andWhere('audit.targetType = :targetType', {
+        targetType: filters.targetType,
+      });
+    }
+    if (filters.result) {
+      query.andWhere('audit.result = :result', { result: filters.result });
+    }
+    const startTime = this.parseDate(filters.startTime, 'start_time');
+    const endTime = this.parseDate(filters.endTime, 'end_time');
+    if (startTime) {
+      query.andWhere('audit.createdAt >= :startTime', { startTime });
+    }
+    if (endTime) {
+      query.andWhere('audit.createdAt <= :endTime', { endTime });
     }
     const total = await query.getCount();
     const { entities: rows, raw } = await query
@@ -161,5 +179,17 @@ export class RbacAuditService {
     if (value === undefined || value === null) return DEFAULT_CURRENT;
     if (!Number.isFinite(value) || value <= 0) return DEFAULT_CURRENT;
     return Math.floor(value);
+  }
+
+  private parseDate(
+    value: string | undefined,
+    field: string,
+  ): Date | undefined {
+    if (!value) return undefined;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`${field} 不是有效的日期字符串`);
+    }
+    return parsed;
   }
 }

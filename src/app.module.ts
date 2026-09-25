@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { DeviceThrottlerGuard } from './common/guards/device-throttler.guard';
 import { HeartbeatModule } from './modules/heartbeat/heartbeat.module';
@@ -55,6 +55,7 @@ import { UserRoleAssignment } from './modules/rbac/entities/user-role-assignment
 import { UserRoleAssignmentDeviceGroup } from './modules/rbac/entities/user-role-assignment-device-group.entity';
 import { ConsoleAudit } from './modules/rbac/entities/console-audit.entity';
 import { RbacGuard } from './modules/rbac/guards/rbac.guard';
+import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-audit.interceptor';
 
 /**
  * 应用根模块
@@ -205,6 +206,10 @@ import { RbacGuard } from './modules/rbac/guards/rbac.guard';
     {
       provide: APP_GUARD,
       useClass: RbacGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ConsoleAuditInterceptor,
     },
   ],
 })

@@ -5,6 +5,7 @@ import { Repository, LessThan } from 'typeorm';
 import { ConnectionAudit } from '../entities/connection-audit.entity';
 import { FileAudit } from '../entities/file-audit.entity';
 import { AlarmAudit } from '../entities/alarm-audit.entity';
+import { ConsoleAudit } from '../../rbac/entities/console-audit.entity';
 import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 /**
@@ -23,6 +24,8 @@ export class AuditCleanupService {
     private fileAuditRepository: Repository<FileAudit>,
     @InjectRepository(AlarmAudit)
     private alarmAuditRepository: Repository<AlarmAudit>,
+    @InjectRepository(ConsoleAudit)
+    private consoleAuditRepository: Repository<ConsoleAudit>,
     private readonly generalSettingsService: GeneralSettingsService,
   ) {}
 
@@ -56,10 +59,15 @@ export class AuditCleanupService {
       });
       totalDeleted += alarmResult.affected || 0;
 
+      const consoleResult = await this.consoleAuditRepository.delete({
+        createdAt: LessThan(cutoffDate),
+      });
+      totalDeleted += consoleResult.affected || 0;
+
       if (totalDeleted > 0) {
         this.logger.log(
           `Cleaned up ${totalDeleted} audit records older than ${retentionDays} days ` +
-            `(connection: ${connectionResult.affected || 0}, file: ${fileResult.affected || 0}, alarm: ${alarmResult.affected || 0})`,
+            `(connection: ${connectionResult.affected || 0}, file: ${fileResult.affected || 0}, alarm: ${alarmResult.affected || 0}, console: ${consoleResult.affected || 0})`,
         );
       }
     } catch (error: unknown) {

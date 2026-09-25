@@ -18,8 +18,10 @@ import {
 } from './decorators/require-permission.decorator';
 import { CreateRoleDto, RoleQueryDto, UpdateRoleDto } from './dto/role.dto';
 import { RoleService } from './services/role.service';
+import { SkipConsoleAudit } from './decorators/skip-console-audit.decorator';
 
 @Controller('roles')
+@SkipConsoleAudit()
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
 

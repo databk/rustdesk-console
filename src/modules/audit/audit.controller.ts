@@ -301,22 +301,31 @@ export class AuditsController {
    * @param operator 操作人（模糊匹配）
    * @param pageSize 每页记录数
    * @param current 当前页码
-   * @param created_at 创建时间（UTC时间字符串）
+   * @param start_time 开始时间（UTC时间字符串）
+   * @param end_time 结束时间（UTC时间字符串）
    * @returns 控制台审计列表
    */
   @RequirePermission('audit.view')
   @Get('console')
   queryConsoleAudits(
     @Query('operator') operator?: string,
+    @Query('action') action?: string,
+    @Query('target_type') targetType?: string,
+    @Query('result') result?: 'allowed' | 'denied',
     @Query('pageSize') pageSize?: number,
     @Query('current') current?: number,
-    @Query('created_at') created_at?: string,
+    @Query('start_time') startTime?: string,
+    @Query('end_time') endTime?: string,
   ) {
     return this.auditService.queryConsoleAudits({
       operator,
+      action,
+      targetType,
+      result,
       pageSize,
       current,
-      created_at,
+      startTime,
+      endTime,
     });
   }
 }

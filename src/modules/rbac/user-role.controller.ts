@@ -12,8 +12,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermission } from './decorators/require-permission.decorator';
 import { ReplaceUserRolesDto } from './dto/user-role.dto';
 import { UserRoleService } from './services/user-role.service';
+import { SkipConsoleAudit } from './decorators/skip-console-audit.decorator';
 
 @Controller('users')
+@SkipConsoleAudit()
 export class UserRoleController {
   constructor(private readonly userRoleService: UserRoleService) {}
 

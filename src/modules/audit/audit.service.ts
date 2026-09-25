@@ -701,9 +701,13 @@ export class AuditService {
    */
   queryConsoleAudits(filters: {
     operator?: string;
+    action?: string;
+    targetType?: string;
+    result?: 'allowed' | 'denied';
     pageSize?: number;
     current?: number;
-    created_at?: string;
+    startTime?: string;
+    endTime?: string;
   }) {
     return this.rbacAuditService.query(filters);
   }

@@ -31,6 +31,7 @@ import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { extractBearerToken } from './auth.utils';
 import type { Request } from 'express';
+import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 
 @Controller()
 export class AuthController {
@@ -39,6 +40,7 @@ export class AuthController {
     private readonly tfaService: AuthTfaService,
     private readonly passkeyService: AuthPasskeyService,
     private readonly tokenService: AuthTokenService,
+    private readonly auditService: RbacAuditService,
   ) {}
 
   @Public()
@@ -46,7 +48,26 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+    try {
+      const response = await this.authService.login(loginDto);
+      await this.auditService.record({
+        actorUserGuid: response.user?.guid ?? null,
+        targetType: 'auth',
+        targetGuid: response.user?.guid ?? null,
+        action: 'auth.login',
+        result: 'allowed',
+        afterState: { username: loginDto.username, login_type: loginDto.type },
+      });
+      return response;
+    } catch (error: unknown) {
+      await this.auditService.recordDenied({
+        targetType: 'auth',
+        action: 'auth.login',
+        reason: error instanceof Error ? error.message : String(error),
+        afterState: { username: loginDto.username, login_type: loginDto.type },
+      });
+      throw error;
+    }
   }
 
   @Post('logout')
