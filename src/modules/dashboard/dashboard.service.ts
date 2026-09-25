@@ -4,7 +4,7 @@ import { Repository, Between } from 'typeorm';
 import { promises as fs, type StatsFs } from 'fs';
 import * as os from 'os';
 import * as si from 'systeminformation';
-import { User, UserStatus } from '../user/entities/user.entity';
+import { User } from '../user/entities/user.entity';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
