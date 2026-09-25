@@ -11,6 +11,10 @@ import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
 import { FileAudit } from '../audit/entities/file-audit.entity';
 import { AlarmAudit } from '../audit/entities/alarm-audit.entity';
 import { Sysinfo } from '../../common/entities/sysinfo.entity';
+import { AddressBook } from '../address-book/entities/address-book.entity';
+import { UserGroup } from '../user-group/entities/user-group.entity';
+import { Role } from '../rbac/entities/role.entity';
+import { Strategy } from '../strategy/entities/strategy.entity';
 import { getDbPath } from '../../common/utils/data-dir.util';
 import { DashboardDataDto, DashboardTrendsDto } from './dto/dashboard-overview.dto';
 
@@ -31,6 +35,14 @@ export class DashboardService {
     private readonly alarmAuditRepository: Repository<AlarmAudit>,
     @InjectRepository(Sysinfo)
     private readonly sysinfoRepository: Repository<Sysinfo>,
+    @InjectRepository(AddressBook)
+    private readonly addressBookRepository: Repository<AddressBook>,
+    @InjectRepository(UserGroup)
+    private readonly userGroupRepository: Repository<UserGroup>,
+    @InjectRepository(Role)
+    private readonly roleRepository: Repository<Role>,
+    @InjectRepository(Strategy)
+    private readonly strategyRepository: Repository<Strategy>,
   ) {}
 
   async getDashboard(): Promise<DashboardDataDto> {
@@ -39,18 +51,20 @@ export class DashboardService {
 
     const [
       userTotal,
-      userActive,
+      adminCount,
       newUsersToday,
       deviceTotal,
       deviceOnline,
-      deviceGroups,
       connectionsToday,
-      totalAlarms,
-      alarmsToday,
       fileTransfersToday,
+      addressBooksCount,
+      userGroupsCount,
+      deviceGroupsCount,
+      rolesCount,
+      strategiesCount,
     ] = await Promise.all([
       this.userRepository.count(),
-      this.userRepository.count({ where: { status: UserStatus.ACTIVE } }),
+      this.userRepository.count({ where: { isAdmin: true } }),
       this.userRepository.count({ where: { createdAt: Between(today, new Date()) } }),
       this.peerRepository.count(),
       this.peerRepository
@@ -58,11 +72,13 @@ export class DashboardService {
         .where('peer.lastHeartbeat >= :threshold', { threshold: new Date(Date.now() - 60 * 1000) })
         .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
         .getCount(),
-      this.deviceGroupRepository.count(),
       this.connectionAuditRepository.count({ where: { createdAt: Between(today, new Date()) } }),
-      this.alarmAuditRepository.count(),
-      this.alarmAuditRepository.count({ where: { createdAt: Between(today, new Date()) } }),
       this.fileAuditRepository.count({ where: { createdAt: Between(today, new Date()) } }),
+      this.addressBookRepository.count(),
+      this.userGroupRepository.count(),
+      this.deviceGroupRepository.count(),
+      this.roleRepository.count(),
+      this.strategyRepository.count(),
     ]);
 
     const todayConnections = await this.connectionAuditRepository
@@ -72,49 +88,24 @@ export class DashboardService {
       .andWhere('conn.establishedAt IS NOT NULL')
       .getMany();
 
-    let totalDuration = 0;
     let successCount = 0;
     todayConnections.forEach((conn) => {
       if (conn.closedAt && conn.establishedAt) {
-        totalDuration += (conn.closedAt.getTime() - conn.establishedAt.getTime()) / 1000 / 60;
         successCount++;
       }
     });
 
-    const failedConnections = await this.connectionAuditRepository
+    const failureCount = await this.connectionAuditRepository
       .createQueryBuilder('conn')
       .where('conn.establishedAt IS NULL')
       .getCount();
 
-    const totalConnForRate = successCount + failedConnections;
-    const successRate = totalConnForRate > 0 ? Math.round((successCount / totalConnForRate) * 1000) / 10 : 0;
-    const avgDuration = successCount > 0 ? Math.round((totalDuration / successCount) * 10) / 10 : 0;
-
     const todayFileTransfers = await this.fileAuditRepository.find({
       where: { createdAt: Between(today, new Date()) },
     });
-    let totalFileSizeToday = 0;
     let uploadToday = 0;
     let downloadToday = 0;
     todayFileTransfers.forEach((file) => {
-      try {
-        if (file.files) {
-          let filesArray: unknown = file.files;
-          if (typeof file.files ==='string') {
-            filesArray = JSON.parse(file.files) as unknown[];
-          }
-          if (Array.isArray(filesArray)) {
-            filesArray.forEach((item: unknown) => {
-              if (Array.isArray(item) && item.length >= 2) {
-                const size: unknown = item[1];
-                totalFileSizeToday += typeof size === 'number' ? size : 0;
-              }
-            });
-          }
-        }
-      } catch {
-        // skip
-      }
       if (file.type === 0) uploadToday++;
       else if (file.type === 1) downloadToday++;
     });
@@ -124,29 +115,31 @@ export class DashboardService {
     return {
       users: {
         total: userTotal,
-        active: userActive,
+        admin: adminCount,
+        normal: userTotal - adminCount,
         newToday: newUsersToday,
       },
       devices: {
         total: deviceTotal,
         online: deviceOnline,
         offline: deviceTotal - deviceOnline,
-        groups: deviceGroups,
       },
       connections: {
         today: connectionsToday,
-        successRate,
-        avgDuration,
-      },
-      alarms: {
-        total: totalAlarms,
-        today: alarmsToday,
+        successCount,
+        failureCount,
       },
       files: {
         transferredToday: fileTransfersToday,
-        totalSizeToday: this.formatFileSize(totalFileSizeToday),
         uploadToday,
         downloadToday,
+      },
+      counts: {
+        addressBooks: addressBooksCount,
+        userGroups: userGroupsCount,
+        deviceGroups: deviceGroupsCount,
+        roles: rolesCount,
+        strategies: strategiesCount,
       },
       systemStatus,
     };
@@ -168,7 +161,7 @@ export class DashboardService {
   }
 
   private async getConnectionTrend(startDate: Date, days: number) {
-    const trend: Array<{ date: string; count: number; avgDuration: number }> = [];
+    const trend: Array<{ date: string; count: number }> = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -179,25 +172,9 @@ export class DashboardService {
         where: { createdAt: Between(date, nextDate) },
       });
 
-      const connections = await this.connectionAuditRepository
-        .createQueryBuilder('conn')
-        .where('conn.createdAt >= :start', { start: date })
-        .andWhere('conn.createdAt < :end', { end: nextDate })
-        .andWhere('conn.closedAt IS NOT NULL')
-        .andWhere('conn.establishedAt IS NOT NULL')
-        .getMany();
-
-      let totalDuration = 0;
-      connections.forEach((conn) => {
-        if (conn.closedAt && conn.establishedAt) {
-          totalDuration += (conn.closedAt.getTime() - conn.establishedAt.getTime()) / 1000 / 60;
-        }
-      });
-
       trend.push({
         date: date.toISOString().split('T')[0],
         count,
-        avgDuration: connections.length > 0 ? Math.round((totalDuration / connections.length) * 10) / 10 : 0,
       });
     }
     return trend;
@@ -254,14 +231,6 @@ export class DashboardService {
       default:
         return 7;
     }
-  }
-
-  private formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 
   private async getSystemStatus() {

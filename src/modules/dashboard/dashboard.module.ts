@@ -10,19 +10,12 @@ import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
 import { FileAudit } from '../audit/entities/file-audit.entity';
 import { AlarmAudit } from '../audit/entities/alarm-audit.entity';
 import { Sysinfo } from '../../common/entities/sysinfo.entity';
+import { AddressBook } from '../address-book/entities/address-book.entity';
+import { UserGroup } from '../user-group/entities/user-group.entity';
+import { Role } from '../rbac/entities/role.entity';
+import { Strategy } from '../strategy/entities/strategy.entity';
 import { AuthModule } from '../auth/auth.module';
 
-/**
- * Dashboard 模块
- * 提供数据统计和分析功能
- *
- * 导入模块：
- * - TypeOrmModule
- * - AuthModule
- *
- * 提供服务：
- * - DashboardService
- */
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -34,6 +27,10 @@ import { AuthModule } from '../auth/auth.module';
       FileAudit,
       AlarmAudit,
       Sysinfo,
+      AddressBook,
+      UserGroup,
+      Role,
+      Strategy,
     ]),
     AuthModule,
   ],
