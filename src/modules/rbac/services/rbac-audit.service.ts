@@ -23,6 +23,9 @@ interface ConsoleAuditQueryRaw {
   actor_user_name?: string | null;
 }
 
+const SENSITIVE_STATE_KEY =
+  /(password|pass(word)?|token|secret|verifier|credential|authorization|api[_-]?key|private[_-]?key|current[_-]?code|tfa[_-]?code|verification[_-]?code|^code$)/i;
+
 @Injectable()
 export class RbacAuditService {
   private readonly logger = new Logger(RbacAuditService.name);
@@ -155,9 +158,7 @@ export class RbacAuditService {
     if (value instanceof Date) return value.toJSON();
     const result: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
-      if (
-        /(password|token|secret|verifier|credential|authorization)/i.test(key)
-      ) {
+      if (SENSITIVE_STATE_KEY.test(key)) {
         result[key] = '[REDACTED]';
       } else {
         result[key] = this.redact(item);
@@ -186,7 +187,16 @@ export class RbacAuditService {
     field: string,
   ): Date | undefined {
     if (!value) return undefined;
-    const parsed = new Date(value);
+    const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+    if (
+      !isDateOnly &&
+      !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+    ) {
+      throw new BadRequestException(
+        `${field} 必须包含 UTC 标识（Z）或时区偏移量`,
+      );
+    }
+    const parsed = new Date(isDateOnly ? `${value}T00:00:00.000Z` : value);
     if (Number.isNaN(parsed.getTime())) {
       throw new BadRequestException(`${field} 不是有效的日期字符串`);
     }

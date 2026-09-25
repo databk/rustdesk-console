@@ -46,9 +46,13 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
           const route = request.route as { path?: string } | undefined;
           const routePath = route?.path || request.path;
           const basePath = request.baseUrl || '';
-          const targetType = basePath.replace(/^\/api\/?/, '').split('/')[0] || 'route';
+          const targetType =
+            basePath.replace(/^\/api\/?/, '').split('/')[0] || 'route';
           const targetGuid =
-            request.params?.guid || request.params?.uuid || request.params?.id || null;
+            request.params?.guid ||
+            request.params?.uuid ||
+            request.params?.id ||
+            null;
           await this.auditService.record({
             actorUserGuid: request.user?.id,
             targetType,
@@ -58,7 +62,8 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
             afterState: request.body,
           });
         } catch (error: unknown) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message =
+            error instanceof Error ? error.message : String(error);
           this.logger.warn(`Unable to persist console audit: ${message}`);
         }
         return response;
