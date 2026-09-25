@@ -117,7 +117,6 @@ export class DashboardService {
         total: userTotal,
         admin: adminCount,
         normal: userTotal - adminCount,
-
       },
       devices: {
         total: deviceTotal,
