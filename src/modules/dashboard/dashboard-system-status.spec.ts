@@ -11,7 +11,7 @@ import { ConnectionAudit } from '../audit/entities/connection-audit.entity';
 import { FileAudit } from '../audit/entities/file-audit.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { User } from '../user/entities/user.entity';
-import { SystemStatusDto } from './dto/dashboard-overview.dto';
+
 import { DashboardService } from './dashboard.service';
 
 jest.mock('os', () => ({
@@ -52,7 +52,12 @@ const createService = () =>
 const readSystemStatus = (service: DashboardService) =>
   (
     service as unknown as {
-      getSystemStatus: () => Promise<SystemStatusDto>;
+      getSystemStatus: () => Promise<{
+        cpu: number | null;
+        memory: number | null;
+        disk: number | null;
+        uptime: number | null;
+      }>;
     }
   ).getSystemStatus();
 
