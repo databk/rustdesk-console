@@ -12,6 +12,10 @@ import { FileAudit } from '../audit/entities/file-audit.entity';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { User } from '../user/entities/user.entity';
 
+import { AddressBook } from '../address-book/entities/address-book.entity';
+import { UserGroup } from '../user-group/entities/user-group.entity';
+import { Role } from '../rbac/entities/role.entity';
+import { Strategy } from '../strategy/entities/strategy.entity';
 import { DashboardService } from './dashboard.service';
 
 jest.mock('os', () => ({
@@ -47,6 +51,10 @@ const createService = () =>
     {} as Repository<FileAudit>,
     {} as Repository<AlarmAudit>,
     {} as Repository<Sysinfo>,
+    {} as Repository<AddressBook>,
+    {} as Repository<UserGroup>,
+    {} as Repository<Role>,
+    {} as Repository<Strategy>,
   );
 
 const readSystemStatus = (service: DashboardService) =>
