@@ -97,7 +97,9 @@ export class DashboardService {
 
     const failureCount = await this.connectionAuditRepository
       .createQueryBuilder('conn')
-      .where('conn.establishedAt IS NULL')
+      .where('conn.createdAt >= :today', { today })
+      .andWhere('conn.establishedAt IS NULL')
+      .andWhere('conn.closedAt IS NOT NULL')
       .getCount();
 
     const todayFileTransfers = await this.fileAuditRepository.find({
