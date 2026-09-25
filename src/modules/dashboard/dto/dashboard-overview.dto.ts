@@ -25,9 +25,9 @@ export class DashboardDataDto {
 
   files: {
     transferredToday: number;
-    totalSize: string;
-    uploadCount: number;
-    downloadCount: number;
+    totalSizeToday: string;
+    uploadToday: number;
+    downloadToday: number;
   };
 
   systemStatus: {

@@ -90,22 +90,24 @@ export class DashboardService {
     const successRate = totalConnForRate > 0 ? Math.round((successCount / totalConnForRate) * 1000) / 10 : 0;
     const avgDuration = successCount > 0 ? Math.round((totalDuration / successCount) * 10) / 10 : 0;
 
-    const allFileTransfers = await this.fileAuditRepository.find();
-    let totalFileSize = 0;
-    let uploadCount = 0;
-    let downloadCount = 0;
-    allFileTransfers.forEach((file) => {
+    const todayFileTransfers = await this.fileAuditRepository.find({
+      where: { createdAt: Between(today, new Date()) },
+    });
+    let totalFileSizeToday = 0;
+    let uploadToday = 0;
+    let downloadToday = 0;
+    todayFileTransfers.forEach((file) => {
       try {
         if (file.files) {
           let filesArray: unknown = file.files;
-          if (typeof file.files === 'string') {
+          if (typeof file.files ==='string') {
             filesArray = JSON.parse(file.files) as unknown[];
           }
           if (Array.isArray(filesArray)) {
             filesArray.forEach((item: unknown) => {
               if (Array.isArray(item) && item.length >= 2) {
                 const size: unknown = item[1];
-                totalFileSize += typeof size === 'number' ? size : 0;
+                totalFileSizeToday += typeof size === 'number' ? size : 0;
               }
             });
           }
@@ -113,8 +115,8 @@ export class DashboardService {
       } catch {
         // skip
       }
-      if (file.type === 0) uploadCount++;
-      else if (file.type === 1) downloadCount++;
+      if (file.type === 0) uploadToday++;
+      else if (file.type === 1) downloadToday++;
     });
 
     const systemStatus = await this.getSystemStatus();
@@ -142,9 +144,9 @@ export class DashboardService {
       },
       files: {
         transferredToday: fileTransfersToday,
-        totalSize: this.formatFileSize(totalFileSize),
-        uploadCount,
-        downloadCount,
+        totalSizeToday: this.formatFileSize(totalFileSizeToday),
+        uploadToday,
+        downloadToday,
       },
       systemStatus,
     };
