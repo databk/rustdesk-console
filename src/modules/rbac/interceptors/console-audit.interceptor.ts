@@ -41,9 +41,10 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
     }
 
     return next.handle().pipe(
-      mergeMap(async (response) => {
+      mergeMap(async (response: unknown): Promise<unknown> => {
         try {
-          const routePath = request.route?.path || request.path;
+          const route = request.route as { path?: string } | undefined;
+          const routePath = route?.path || request.path;
           const basePath = request.baseUrl || '';
           const targetType = basePath.replace(/^\/api\/?/, '').split('/')[0] || 'route';
           const targetGuid =
