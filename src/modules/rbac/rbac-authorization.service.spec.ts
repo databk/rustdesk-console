@@ -1059,6 +1059,8 @@ describe('RbacAuditService', () => {
       result: 'allowed',
       afterState: {
         password: 'secret',
+        otpCode: '123456',
+        recoveryCode: 'recovery-code',
         nested: { token: 'jwt', visible: true },
       },
     });
@@ -1067,10 +1069,22 @@ describe('RbacAuditService', () => {
       expect.objectContaining({
         afterState: JSON.stringify({
           password: '[REDACTED]',
+          otpCode: '[REDACTED]',
+          recoveryCode: '[REDACTED]',
           nested: { token: '[REDACTED]', visible: true },
         }),
       }),
     );
+  });
+
+  it('rejects date-only values normalized to a different calendar date', () => {
+    const service = new RbacAuditService({} as Repository<ConsoleAudit>);
+
+    expect(() =>
+      (
+        service as unknown as { parseDate(value: string, field: string): Date }
+      ).parseDate('2026-02-30', 'start_time'),
+    ).toThrow(BadRequestException);
   });
 
   it('keeps connection-audit mutation super-admin-only', () => {
