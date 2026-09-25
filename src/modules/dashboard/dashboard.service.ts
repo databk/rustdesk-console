@@ -48,10 +48,6 @@ export class DashboardService {
       totalAlarms,
       alarmsToday,
       fileTransfersToday,
-      recentConnections,
-      recentConnectionEvents,
-      recentFileEvents,
-      recentAlarmEvents,
     ] = await Promise.all([
       this.userRepository.count(),
       this.userRepository.count({ where: { status: UserStatus.ACTIVE } }),
@@ -67,10 +63,6 @@ export class DashboardService {
       this.alarmAuditRepository.count(),
       this.alarmAuditRepository.count({ where: { createdAt: Between(today, new Date()) } }),
       this.fileAuditRepository.count({ where: { createdAt: Between(today, new Date()) } }),
-      this.connectionAuditRepository.find({ order: { createdAt: 'DESC' }, take: 10 }),
-      this.connectionAuditRepository.find({ order: { createdAt: 'DESC' }, take: 5 }),
-      this.fileAuditRepository.find({ order: { createdAt: 'DESC' }, take: 5 }),
-      this.alarmAuditRepository.find({ order: { createdAt: 'DESC' }, take: 5 }),
     ]);
 
     const todayConnections = await this.connectionAuditRepository
@@ -125,69 +117,6 @@ export class DashboardService {
       else if (file.type === 1) downloadCount++;
     });
 
-    const allDeviceUuids = new Set<string>();
-    recentConnections.forEach((conn) => allDeviceUuids.add(conn.deviceUuid));
-    recentConnectionEvents.forEach((e) => allDeviceUuids.add(e.deviceUuid));
-    recentAlarmEvents.forEach((e) => allDeviceUuids.add(e.deviceUuid));
-
-    const uuidToIdMap = new Map<string, string>();
-    const uuidToHostnameMap = new Map<string, string>();
-    if (allDeviceUuids.size > 0) {
-      const peers = await this.peerRepository
-        .createQueryBuilder('peer')
-        .where('peer.uuid IN (:...uuids)', { uuids: Array.from(allDeviceUuids) })
-        .getMany();
-      peers.forEach((peer) => uuidToIdMap.set(peer.uuid, peer.id));
-
-      const sysinfos = await this.sysinfoRepository
-        .createQueryBuilder('sysinfo')
-        .where('sysinfo.uuid IN (:...uuids)', { uuids: Array.from(allDeviceUuids) })
-        .getMany();
-      sysinfos.forEach((s) => {
-        if (s.hostname) uuidToHostnameMap.set(s.uuid, s.hostname);
-      });
-    }
-
-    const activeConnections = recentConnections.map((conn) => ({
-      id: conn.id.toString(),
-      userName: conn.peerName || 'unknown',
-      deviceName: uuidToHostnameMap.get(conn.deviceUuid) || conn.deviceUuid,
-      startTime: conn.establishedAt || conn.createdAt,
-      duration:
-        conn.closedAt && conn.establishedAt
-          ? Math.round((conn.closedAt.getTime() - conn.establishedAt.getTime()) / 1000 / 60)
-          : 0,
-    }));
-
-    const recentEvents = [
-      ...recentConnectionEvents.map((e) => ({
-        type: 'connection' as const,
-        action: e.action,
-        user: e.peerName || 'unknown',
-        target: uuidToIdMap.get(e.deviceUuid) || e.deviceId,
-        timestamp: e.createdAt,
-        status: 'success' as const,
-      })),
-      ...recentFileEvents.map((e) => ({
-        type: 'file' as const,
-        action: e.type === 0 ? 'send' : 'receive',
-        user: e.clientName || 'unknown',
-        target: e.path || 'unknown',
-        timestamp: e.createdAt,
-        status: 'success' as const,
-      })),
-      ...recentAlarmEvents.map((e) => ({
-        type: 'alarm' as const,
-        action: 'alarm',
-        user: uuidToIdMap.get(e.deviceUuid) || e.deviceId || 'system',
-        target: e.infoName || 'alarm',
-        timestamp: e.createdAt,
-        status: 'warning' as const,
-      })),
-    ]
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, 10);
-
     const systemStatus = await this.getSystemStatus();
 
     return {
@@ -217,8 +146,6 @@ export class DashboardService {
         uploadCount,
         downloadCount,
       },
-      activeConnections,
-      recentEvents,
       systemStatus,
     };
   }
@@ -231,7 +158,7 @@ export class DashboardService {
 
     const [connectionTrend, userActiveTrend, alarmTrend] = await Promise.all([
       this.getConnectionTrend(startDate, days),
-      this.getUserActiveTrend(startDate, days),
+      this.getUserNewTrend(startDate, days),
       this.getAlarmTrend(startDate, days),
     ]);
 
@@ -274,8 +201,8 @@ export class DashboardService {
     return trend;
   }
 
-  private async getUserActiveTrend(startDate: Date, days: number) {
-    const trend: Array<{ date: string; newUsers: number; activeUsers: number }> = [];
+  private async getUserNewTrend(startDate: Date, days: number) {
+    const trend: Array<{ date: string; newUsers: number }> = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -286,21 +213,16 @@ export class DashboardService {
         where: { createdAt: Between(date, nextDate) },
       });
 
-      const activeUsers = await this.userRepository.count({
-        where: { status: UserStatus.ACTIVE },
-      });
-
       trend.push({
         date: date.toISOString().split('T')[0],
         newUsers,
-        activeUsers,
       });
     }
     return trend;
   }
 
   private async getAlarmTrend(startDate: Date, days: number) {
-    const trend: Array<{ date: string; critical: number; warning: number; info: number }> = [];
+    const trend: Array<{ date: string; info: number }> = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -313,8 +235,6 @@ export class DashboardService {
 
       trend.push({
         date: date.toISOString().split('T')[0],
-        critical: 0,
-        warning: 0,
         info: total,
       });
     }

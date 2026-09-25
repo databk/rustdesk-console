@@ -30,23 +30,6 @@ export class DashboardDataDto {
     downloadCount: number;
   };
 
-  activeConnections: Array<{
-    id: string;
-    userName: string;
-    deviceName: string;
-    startTime: Date;
-    duration: number;
-  }>;
-
-  recentEvents: Array<{
-    type: 'connection' | 'file' | 'alarm';
-    action: string;
-    user: string;
-    target: string;
-    timestamp: Date;
-    status: 'success' | 'failed' | 'warning';
-  }>;
-
   systemStatus: {
     cpu: number | null;
     memory: number | null;
@@ -65,13 +48,10 @@ export class DashboardTrendsDto {
   userActiveTrend?: Array<{
     date: string;
     newUsers: number;
-    activeUsers: number;
   }>;
 
   alarmTrend?: Array<{
     date: string;
-    critical: number;
-    warning: number;
     info: number;
   }>;
 }
