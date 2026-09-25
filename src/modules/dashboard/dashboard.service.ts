@@ -52,7 +52,6 @@ export class DashboardService {
     const [
       userTotal,
       adminCount,
-      newUsersToday,
       deviceTotal,
       deviceOnline,
       connectionsToday,
@@ -65,7 +64,6 @@ export class DashboardService {
     ] = await Promise.all([
       this.userRepository.count(),
       this.userRepository.count({ where: { isAdmin: true } }),
-      this.userRepository.count({ where: { createdAt: Between(today, new Date()) } }),
       this.peerRepository.count(),
       this.peerRepository
         .createQueryBuilder('peer')
@@ -119,7 +117,7 @@ export class DashboardService {
         total: userTotal,
         admin: adminCount,
         normal: userTotal - adminCount,
-        newToday: newUsersToday,
+
       },
       devices: {
         total: deviceTotal,
@@ -152,13 +150,13 @@ export class DashboardService {
     startDate.setDate(startDate.getDate() - days);
     startDate.setHours(0, 0, 0, 0);
 
-    const [connectionTrend, userActiveTrend, alarmTrend] = await Promise.all([
+    const [connectionTrend, newUserTrend, alarmTrend] = await Promise.all([
       this.getConnectionTrend(startDate, days),
       this.getUserNewTrend(startDate, days),
       this.getAlarmTrend(startDate, days),
     ]);
 
-    return { connectionTrend, userActiveTrend, alarmTrend };
+    return { connectionTrend, newUserTrend, alarmTrend };
   }
 
   private async getConnectionTrend(startDate: Date, days: number) {
@@ -202,7 +200,7 @@ export class DashboardService {
   }
 
   private async getAlarmTrend(startDate: Date, days: number) {
-    const trend: Array<{ date: string; info: number }> = [];
+    const trend: Array<{ date: string; count: number }> = [];
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -215,7 +213,7 @@ export class DashboardService {
 
       trend.push({
         date: date.toISOString().split('T')[0],
-        info: total,
+        count: total,
       });
     }
     return trend;
