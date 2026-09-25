@@ -138,8 +138,7 @@ export class DashboardService {
       },
       counts: {
         addressBooks: addressBooksCount,
-        userGroups: userGroupsCount,
-        deviceGroups: deviceGroupsCount,
+        groups: userGroupsCount + deviceGroupsCount,
         roles: rolesCount,
         strategies: strategiesCount,
       },

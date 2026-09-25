@@ -26,8 +26,7 @@ export class DashboardDataDto {
 
   counts: {
     addressBooks: number;
-    userGroups: number;
-    deviceGroups: number;
+    groups: number;
     roles: number;
     strategies: number;
   };
