@@ -3,7 +3,6 @@ export class DashboardDataDto {
     total: number;
     admin: number;
     normal: number;
-
   };
 
   devices: {
