@@ -145,6 +145,16 @@ console.log('\n[6/6] Installing native modules (sqlite3, sharp)...');
 const pkgJson = JSON.parse(
   fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8'),
 );
+
+// On musl-based systems (e.g. Alpine, OpenWrt), sharp's prebuilt native .node
+// binary directly references Node-API C symbols (e.g. napi_set_named_property)
+// that must be resolved from the host Node.js executable at dlopen time.
+// Some musl dynamic linkers (notably OpenWrt's) cannot resolve these symbols
+// from a PIE executable, causing ERR_DLOPEN_FAILED. Fall back to the wasm
+// build of sharp on musl to avoid native module loading issues entirely.
+const { familySync } = require('detect-libc');
+const isMusl = familySync() === 'musl';
+
 const nativePkg = {
   name: pkgJson.name,
   version: pkgJson.version,
@@ -157,6 +167,12 @@ const nativePkg = {
     sharp: pkgJson.dependencies.sharp,
   },
 };
+
+if (isMusl) {
+  nativePkg.dependencies['@img/sharp-wasm32'] = pkgJson.dependencies.sharp;
+  console.log('  musl detected: will use wasm build of sharp');
+}
+
 fs.writeFileSync(
   path.join(distDir, 'package.json'),
   JSON.stringify(nativePkg, null, 2) + '\n',
@@ -164,6 +180,23 @@ fs.writeFileSync(
 console.log('  Wrote dist-sea/package.json');
 
 run('npm install --omit=dev', { cwd: distDir });
+
+if (isMusl) {
+  // Remove native sharp packages so sharp falls back to the wasm build
+  const nativeSharpDirs = [
+    '@img/sharp-linuxmusl-arm64',
+    '@img/sharp-libvips-linuxmusl-arm64',
+    '@img/sharp-linuxmusl-x64',
+    '@img/sharp-libvips-linuxmusl-x64',
+  ];
+  for (const dir of nativeSharpDirs) {
+    const dirPath = path.join(distDir, 'node_modules', dir);
+    if (fs.existsSync(dirPath)) {
+      fs.rmSync(dirPath, { recursive: true, force: true });
+      console.log(`  Removed native ${dir}`);
+    }
+  }
+}
 
 // Remove the temporary package-lock.json to keep the dist clean
 fs.rmSync(path.join(distDir, 'package-lock.json'), { force: true });
