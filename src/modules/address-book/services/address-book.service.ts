@@ -20,19 +20,19 @@ import { AddressBookRuleService } from './address-book-rule.service';
 import { AddressBookPermissionService } from './address-book-permission.service';
 
 /**
- * 地址簿服务
- * 地址簿模块的核心服务，负责协调各个子服务的功能
+ * Address book service
+ * Core service of the address book module, responsible for coordinating the sub-services
  *
- * 功能：
- * - 地址簿基础管理（创建、获取、权限检查）
- * - 设备管理（委托给 PeerService）
- * - 标签管理（委托给 TagService）
- * - 共享管理（委托给 RuleService）
- * - 旧版 API 兼容（委托给 LegacyService）
+ * Features:
+ * - Basic address book management (create, get, permission checks)
+ * - Device management (delegated to PeerService)
+ * - Tag management (delegated to TagService)
+ * - Share management (delegated to RuleService)
+ * - Legacy API compatibility (delegated to LegacyService)
  *
- * 架构说明：
- * 采用服务委托模式，将具体功能委托给专门的子服务处理
- * 主服务负责权限检查、协调和路由
+ * Architecture:
+ * Uses a service delegation pattern, delegating specific functionality to dedicated sub-services
+ * The main service handles permission checks, coordination, and routing
  */
 @Injectable()
 export class AddressBookService {
@@ -48,24 +48,24 @@ export class AddressBookService {
     private readonly permissionService: AddressBookPermissionService,
   ) {}
 
-  // ============ 地址簿基础管理 ============
+  // ============ Basic address book management ============
 
   /**
-   * 获取地址簿设置
-   * 获取地址簿的全局配置参数
+   * Get the address book settings
+   * Get the global configuration parameters of the address book
    *
-   * @returns 地址簿设置对象
+   * @returns Address book settings object
    */
   getSettings() {
     return { max_peer_one_ab: 0 };
   }
 
   /**
-   * 获取个人地址簿 GUID
-   * 获取或创建用户的个人地址簿
+   * Get the personal address book GUID
+   * Get or create the user's personal address book
    *
-   * @param userId 用户 ID
-   * @returns 包含地址簿 GUID 的对象
+   * @param userId User ID
+   * @returns Object containing the address book GUID
    */
   async getPersonalAddressBook(userId: string) {
     let addressBook = await this.addressBookRepository.findOne({
@@ -73,7 +73,7 @@ export class AddressBookService {
     });
 
     if (!addressBook) {
-      // 如果个人地址簿不存在，自动创建
+      // If the personal address book does not exist, create it automatically
       addressBook = this.addressBookRepository.create({
         guid: uuidv4(),
         owner: userId,
@@ -112,15 +112,15 @@ export class AddressBookService {
     return this.ruleService.deleteCustomAddressBooks(guids, userId);
   }
 
-  // ============ 设备管理（委托给 PeerService） ============
+  // ============ Device management (delegated to PeerService) ============
 
   /**
-   * 获取地址簿中的设备列表
-   * 委托给 PeerService 处理，自动进行权限验证
+   * Get the device list of the address book
+   * Delegated to PeerService, which performs permission verification automatically
    *
-   * @param query 查询参数，包含分页和过滤条件
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 设备列表和总数
+   * @param query Query parameters, including pagination and filter conditions
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Device list and total count
    */
   async getPeers(query: PeersQueryDto, userId?: string) {
     return this.peerService.getPeers(
@@ -132,13 +132,13 @@ export class AddressBookService {
   }
 
   /**
-   * 添加设备到地址簿
-   * 委托给 PeerService 处理，自动进行权限验证
+   * Add a device to the address book
+   * Delegated to PeerService, which performs permission verification automatically
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param dto 设备信息 DTO
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 操作结果
+   * @param addressBookGuid Address book GUID
+   * @param dto Device information DTO
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Operation result
    */
   async addPeer(addressBookGuid: string, dto: AddPeerDto, userId?: string) {
     return this.peerService.addPeer(
@@ -153,13 +153,13 @@ export class AddressBookService {
   }
 
   /**
-   * 更新地址簿中的设备信息
-   * 委托给 PeerService 处理，自动进行权限验证
+   * Update device information in the address book
+   * Delegated to PeerService, which performs permission verification automatically
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param dto 设备更新信息 DTO
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 操作结果
+   * @param addressBookGuid Address book GUID
+   * @param dto Device update information DTO
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Operation result
    */
   async updatePeer(
     addressBookGuid: string,
@@ -178,13 +178,13 @@ export class AddressBookService {
   }
 
   /**
-   * 从地址簿中删除设备
-   * 委托给 PeerService 处理，自动进行权限验证
+   * Delete devices from the address book
+   * Delegated to PeerService, which performs permission verification automatically
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param ids 要删除的设备 ID 列表
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 操作结果
+   * @param addressBookGuid Address book GUID
+   * @param ids List of device IDs to delete
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Operation result
    */
   async deletePeers(addressBookGuid: string, ids: string[], userId?: string) {
     return this.peerService.deletePeers(
@@ -196,15 +196,15 @@ export class AddressBookService {
     );
   }
 
-  // ============ 标签管理（委托给 TagService） ============
+  // ============ Tag management (delegated to TagService) ============
 
   /**
-   * 获取地址簿标签列表
-   * 委托给 TagService 处理，自动进行权限验证
+   * Get the address book tag list
+   * Delegated to TagService, which performs permission verification automatically
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 标签列表
+   * @param addressBookGuid Address book GUID
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Tag list
    */
   async getTags(addressBookGuid: string, userId?: string) {
     return this.tagService.getTags(
@@ -216,13 +216,13 @@ export class AddressBookService {
   }
 
   /**
-   * 添加标签到地址簿
-   * 委托给 TagService 处理，自动进行权限验证
+   * Add a tag to the address book
+   * Delegated to TagService, which performs permission verification automatically
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param dto 标签信息 DTO
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 操作结果
+   * @param addressBookGuid Address book GUID
+   * @param dto Tag information DTO
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Operation result
    */
   async addTag(addressBookGuid: string, dto: AddTagDto, userId?: string) {
     return this.tagService.addTag(
@@ -235,13 +235,13 @@ export class AddressBookService {
   }
 
   /**
-   * 重命名标签
-   * 委托给 TagService 处理，自动进行权限验证
+   * Rename a tag
+   * Delegated to TagService, which performs permission verification automatically
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param dto 重命名信息 DTO
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 操作结果
+   * @param addressBookGuid Address book GUID
+   * @param dto Rename information DTO
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Operation result
    */
   async renameTag(addressBookGuid: string, dto: RenameTagDto, userId?: string) {
     return this.tagService.renameTag(
@@ -254,13 +254,13 @@ export class AddressBookService {
   }
 
   /**
-   * 更新标签颜色
-   * 委托给 TagService 处理，自动进行权限验证
+   * Update the tag color
+   * Delegated to TagService, which performs permission verification automatically
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param dto 标签更新信息 DTO
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 操作结果
+   * @param addressBookGuid Address book GUID
+   * @param dto Tag update information DTO
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Operation result
    */
   async updateTag(addressBookGuid: string, dto: UpdateTagDto, userId?: string) {
     return this.tagService.updateTag(
@@ -273,13 +273,13 @@ export class AddressBookService {
   }
 
   /**
-   * 删除标签
-   * 委托给 TagService 处理，自动进行权限验证
+   * Delete the tags
+   * Delegated to TagService, which performs permission verification automatically
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param names 要删除的标签名称列表
-   * @param userId 用户 ID（可选，用于权限验证）
-   * @returns 操作结果
+   * @param addressBookGuid Address book GUID
+   * @param names List of tag names to delete
+   * @param userId User ID (optional, used for permission verification)
+   * @returns Operation result
    */
   async deleteTags(addressBookGuid: string, names: string[], userId?: string) {
     return this.tagService.deleteTags(
@@ -291,15 +291,15 @@ export class AddressBookService {
     );
   }
 
-  // ============ 共享管理（委托给 RuleService） ============
+  // ============ Share management (delegated to RuleService) ============
 
   /**
-   * 获取共享给用户的地址簿列表
-   * 委托给 RuleService 处理
+   * Get the list of address books shared with the user
+   * Delegated to RuleService
    *
-   * @param userId 用户 ID
-   * @param query 分页查询参数
-   * @returns 共享地址簿列表
+   * @param userId User ID
+   * @param query Pagination query parameters
+   * @returns Shared address book list
    */
   async getSharedAddressBooks(userId: string, query: PaginationDto) {
     return this.ruleService.getSharedAddressBooks(userId, query);
@@ -314,14 +314,14 @@ export class AddressBookService {
   }
 
   /**
-   * 添加共享地址簿
-   * 委托给 RuleService 处理
+   * Add a shared address book
+   * Delegated to RuleService
    *
-   * @param name 地址簿名称
-   * @param userId 用户 ID
-   * @param note 备注
-   * @param password 密码
-   * @returns 新创建的地址簿 GUID
+   * @param name Address book name
+   * @param userId User ID
+   * @param note Remarks
+   * @param password Password
+   * @returns GUID of the newly created address book
    */
   async addSharedAddressBook(
     name: string,
@@ -338,15 +338,15 @@ export class AddressBookService {
   }
 
   /**
-   * 更新共享地址簿
-   * 委托给 RuleService 处理
+   * Update a shared address book
+   * Delegated to RuleService
    *
-   * @param guid 地址簿 GUID
-   * @param name 新名称
-   * @param note 新备注
-   * @param owner 新所有者
-   * @param password 新密码
-   * @param userId 当前用户 ID
+   * @param guid Address book GUID
+   * @param name New name
+   * @param note New note
+   * @param owner New owner
+   * @param password New password
+   * @param userId Current user ID
    */
   async updateSharedAddressBook(
     guid: string,
@@ -367,36 +367,36 @@ export class AddressBookService {
   }
 
   /**
-   * 删除共享地址簿
-   * 委托给 RuleService 处理
+   * Delete shared address books
+   * Delegated to RuleService
    *
-   * @param guids 地址簿 GUID 数组
-   * @param userId 用户 ID
+   * @param guids Array of address book GUIDs
+   * @param userId User ID
    */
   async deleteSharedAddressBooks(guids: string[], userId: string) {
     return this.ruleService.deleteSharedAddressBooks(guids, userId);
   }
 
-  // ============ 旧版（Legacy）API（委托给 LegacyService） ============
+  // ============ Legacy API (delegated to LegacyService) ============
 
   /**
-   * 获取旧版地址簿数据
-   * 委托给 LegacyService 处理，用于兼容旧版本客户端
+   * Get legacy address book data
+   * Delegated to LegacyService, for compatibility with older clients
    *
-   * @param userId 用户 ID
-   * @returns 旧版地址簿数据
+   * @param userId User ID
+   * @returns Legacy address book data
    */
   async getLegacyAddressBook(userId: string) {
     return this.legacyService.getLegacyAddressBook(userId);
   }
 
   /**
-   * 更新旧版地址簿数据
-   * 委托给 LegacyService 处理，用于兼容旧版本客户端
+   * Update legacy address book data
+   * Delegated to LegacyService, for compatibility with older clients
    *
-   * @param userId 用户 ID
-   * @param data 地址簿数据字符串
-   * @returns 操作结果
+   * @param userId User ID
+   * @param data Address book data string
+   * @returns Operation result
    */
   async updateLegacyAddressBook(userId: string, data: string) {
     return this.legacyService.updateLegacyAddressBook(userId, data);

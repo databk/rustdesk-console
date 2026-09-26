@@ -50,8 +50,8 @@ const EMPTY_RESPONSE: UpdateCheckResponse = {
 };
 
 /**
- * 更新检查服务
- * 每1小时自动检查更新并缓存结果，前端请求时直接返回缓存
+ * Update check service
+ * Automatically checks for updates every hour and caches the result; the frontend request returns the cache directly
  */
 @Injectable()
 export class UpdateCheckService implements OnModuleInit {
@@ -171,7 +171,7 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   /**
-   * 获取更新通道
+   * Get update channel
    */
   async getUpdateChannel(): Promise<UpdateChannel> {
     const setting = await this.settingRepository.findOne({
@@ -183,18 +183,18 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   /**
-   * 设置更新通道
+   * Set update channel
    */
   async setUpdateChannel(channel: UpdateChannel): Promise<void> {
     await this.setSetting('update_check', 'update_channel', channel);
   }
 
   /**
-   * 获取 install_id，首次生成并持久化
+   * Get install_id; generated and persisted on first use
    *
-   * 存储在 system.installId（category=system），与统一 key 格式一致。
-   * 兼容从旧键 (install_id, category=update_check) 的自动迁移，
-   * 迁移在单事务内完成，保留原值避免实例标识变化。
+   * Stored in system.installId (category=system), consistent with the unified key format.
+   * Supports automatic migration from the legacy key (install_id, category=update_check),
+   * The migration completes in a single transaction and preserves the original value so the instance identifier does not change.
    */
   async getInstallId(): Promise<string> {
     const setting = await this.settingRepository.findOne({
@@ -233,8 +233,8 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   /**
-   * 获取后端版本号
-   * 优先读取 APP_VERSION 环境变量，回退到 package.json
+   * Get backend version
+   * Prefers the APP_VERSION environment variable, falls back to package.json
    */
   getBackendVersion(): string {
     if (process.env.APP_VERSION) return process.env.APP_VERSION;
@@ -255,7 +255,7 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   /**
-   * 检测是否运行在 Docker 容器中
+   * Detect whether running inside a Docker container
    */
   isDocker(): boolean {
     try {
@@ -268,7 +268,7 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   /**
-   * 构建完整的请求负载
+   * Build the complete request payload
    */
   private async buildRequestPayload(
     frontendVersion?: string,
@@ -302,7 +302,7 @@ export class UpdateCheckService implements OnModuleInit {
         dbSize = stat.size;
       }
     } catch {
-      // 数据库文件不存在或无法访问
+      // Database file does not exist or is inaccessible
     }
 
     return {
@@ -573,7 +573,7 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   /**
-   * 通用设置存储（upsert）
+   * Generic settings storage (upsert)
    */
   private async setSetting(
     category: string,

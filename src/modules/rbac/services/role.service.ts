@@ -105,7 +105,7 @@ export class RoleService {
         await manager.getRepository(Role).save(role);
       } catch (error: unknown) {
         if (this.isUniqueError(error))
-          throw new ConflictException('角色名称已存在');
+          throw new ConflictException('Role name already exists');
         throw error;
       }
       await this.replacePermissionsWithManager(manager, role.guid, permissions);
@@ -144,7 +144,7 @@ export class RoleService {
       const role = await roleRepository.findOne({
         where: { guid },
       });
-      if (!role) throw new NotFoundException('角色不存在');
+      if (!role) throw new NotFoundException('Role not found');
       const beforePermissions = (
         await permissionRepository.find({
           where: { roleGuid: guid },
@@ -164,7 +164,7 @@ export class RoleService {
           .where('LOWER(role.name) = LOWER(:name)', { name })
           .getOne();
         if (existing && existing.guid !== guid) {
-          throw new ConflictException('角色名称已存在');
+          throw new ConflictException('Role name already exists');
         }
       }
       const permissions =
@@ -195,7 +195,7 @@ export class RoleService {
           dto.confirm_protected_account_change !== true
         ) {
           throw new BadRequestException(
-            `取消角色保护将影响 ${affectedCount} 个账号，请确认后重试`,
+            `Removing role protection will affect ${affectedCount} accounts, please confirm and retry`,
           );
         }
         role.protectedAccount = nextProtected;
@@ -249,7 +249,7 @@ export class RoleService {
         UserRoleAssignmentDeviceGroup,
       );
       const role = await roleRepository.findOne({ where: { guid } });
-      if (!role) throw new NotFoundException('角色不存在');
+      if (!role) throw new NotFoundException('Role not found');
 
       // Take the complete pre-delete snapshot in the same transaction as the
       // destructive writes so the audit record explains exactly which grants
@@ -331,13 +331,13 @@ export class RoleService {
 
   private async requireRole(guid: string): Promise<Role> {
     const role = await this.roleRepository.findOne({ where: { guid } });
-    if (!role) throw new NotFoundException('角色不存在');
+    if (!role) throw new NotFoundException('Role not found');
     return role;
   }
 
   private normalizeName(value: string): string {
     const name = value.trim();
-    if (!name) throw new BadRequestException('角色名称不能为空');
+    if (!name) throw new BadRequestException('Role name cannot be empty');
     return name;
   }
 
@@ -347,7 +347,7 @@ export class RoleService {
       .where('LOWER(role.name) = LOWER(:name)', { name })
       .getOne();
     if (existing && existing.guid !== ignoredGuid) {
-      throw new ConflictException('角色名称已存在');
+      throw new ConflictException('Role name already exists');
     }
   }
 
@@ -357,7 +357,9 @@ export class RoleService {
       (permission) => !isAssignablePermissionCode(permission),
     );
     if (systemOnly.length) {
-      throw new BadRequestException(`权限码不可分配: ${systemOnly.join(', ')}`);
+      throw new BadRequestException(
+        `Permission code cannot be assigned: ${systemOnly.join(', ')}`,
+      );
     }
     const validated = unique.filter(isAssignablePermissionCode).sort();
     const granted = new Set(validated);
@@ -367,7 +369,9 @@ export class RoleService {
         .map((required) => `${permission} requires ${required}`),
     );
     if (missing.length) {
-      throw new BadRequestException(`权限依赖缺失: ${missing.join(', ')}`);
+      throw new BadRequestException(
+        `Missing permission dependencies: ${missing.join(', ')}`,
+      );
     }
     return validated;
   }
@@ -392,7 +396,7 @@ export class RoleService {
     });
     if (hasScopedAssignment) {
       throw new BadRequestException(
-        '已有高级范围授权的角色只能包含设备操作和 strategies.assign',
+        'Roles with advanced scope grants can only contain device operations and strategies.assign',
       );
     }
   }

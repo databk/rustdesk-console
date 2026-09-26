@@ -12,14 +12,14 @@ import {
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 
 /**
- * 系统信息服务
- * 负责处理设备的系统信息提交和管理
+ * System info service
+ * Handles submission and management of device system information
  *
- * 功能：
- * - 接收和存储设备系统信息
- * - 处理预设地址簿配置
- * - 处理预设设备组配置
- * - 自动添加设备到预设地址簿和设备组
+ * Features:
+ * - Receive and store device system information
+ * - Handle preset address book configuration
+ * - Handle preset device group configuration
+ * - Automatically add devices to the preset address book and device group
  */
 @Injectable()
 export class SysinfoService {
@@ -41,29 +41,29 @@ export class SysinfoService {
   ) {}
 
   /**
-   * 创建或更新系统信息
-   * 接收设备上报的系统信息，存储或更新到数据库
-   * 仅处理在 peers 表中已注册的设备，未注册设备返回 ID_NOT_FOUND
+   * Create or update system info
+   * Receives system info reported by devices and stores or updates it in the database
+   * Only devices registered in the peers table are processed; unregistered devices return ID_NOT_FOUND
    *
-   * @param sysinfoDto 系统信息数据
-   * @returns 更新结果，found 为 false 表示设备在 peers 表中不存在
+   * @param sysinfoDto system info data
+   * @returns update result; found being false means the device does not exist in the peers table
    */
   async createSysinfo(
     sysinfoDto: SysinfoDto,
   ): Promise<{ found: boolean; sysinfo?: Sysinfo }> {
-    // 先校验设备是否在 peers 表中已注册
+    // First check whether the device is registered in the peers table
     const peer = await this.peerRepository.findOne({
       where: { uuid: sysinfoDto.uuid },
     });
 
     if (!peer) {
       this.logger.debug(
-        `设备 ${sysinfoDto.uuid} 在 peers 表中不存在，返回 ID_NOT_FOUND`,
+        `Device ${sysinfoDto.uuid} does not exist in the peers table, returning ID_NOT_FOUND`,
       );
       return { found: false };
     }
 
-    // 根据uuid查找 sysinfos 表是否已存在记录
+    // Look up the sysinfos table by uuid to see whether a record already exists
     const existingSysinfo = await this.sysinfoRepository.findOne({
       where: { uuid: sysinfoDto.uuid },
     });
@@ -71,10 +71,12 @@ export class SysinfoService {
     let sysinfo: Sysinfo;
 
     if (existingSysinfo) {
-      // 已存在，更新记录
-      this.logger.debug(`设备 ${sysinfoDto.uuid} 已存在，更新系统信息`);
+      // Exists, update the record
+      this.logger.debug(
+        `Device ${sysinfoDto.uuid} already exists, updating system info`,
+      );
 
-      // 更新字段（只更新有值的字段）
+      // Update fields (only fields with values)
       if (sysinfoDto.hostname !== undefined)
         existingSysinfo.hostname = sysinfoDto.hostname;
       if (sysinfoDto.username !== undefined)
@@ -84,7 +86,7 @@ export class SysinfoService {
       if (sysinfoDto.memory !== undefined)
         existingSysinfo.memory = sysinfoDto.memory;
 
-      // 更新预设字段（如果提供了新值）
+      // Update preset fields (if new values are provided)
       if (sysinfoDto['preset-username']) {
         existingSysinfo.presetUsername = sysinfoDto['preset-username'];
       }
@@ -98,8 +100,10 @@ export class SysinfoService {
 
       sysinfo = existingSysinfo;
     } else {
-      // 不存在，创建新记录
-      this.logger.debug(`设备 ${sysinfoDto.uuid} 不存在，创建新系统信息`);
+      // Does not exist, create a new record
+      this.logger.debug(
+        `Device ${sysinfoDto.uuid} does not exist, creating new system info`,
+      );
       sysinfo = this.sysinfoRepository.create({
         uuid: sysinfoDto.uuid,
         hostname: sysinfoDto.hostname,
@@ -115,18 +119,18 @@ export class SysinfoService {
 
     const savedSysinfo = await this.sysinfoRepository.save(sysinfo);
 
-    // 处理预设功能
+    // Handle preset features
     await this.processPresetSettings(savedSysinfo, sysinfoDto);
 
     return { found: true, sysinfo: savedSysinfo };
   }
 
   /**
-   * 处理预设设置
-   * 根据预设配置自动添加设备到地址簿和设备组
+   * Handle preset settings
+   * Automatically adds the device to the address book and device group according to the preset configuration
    *
-   * @param sysinfo 系统信息对象
-   * @param dto 系统信息DTO
+   * @param sysinfo system info object
+   * @param dto system info DTO
    * @private
    */
   private async processPresetSettings(
@@ -134,7 +138,7 @@ export class SysinfoService {
     dto: SysinfoDto,
   ): Promise<void> {
     try {
-      // 处理预设地址簿
+      // Handle the preset address book
       if (dto['preset-address-book-name']) {
         await this.addToAddressBook(
           sysinfo.uuid,
@@ -147,35 +151,35 @@ export class SysinfoService {
         );
       }
 
-      // 处理预设设备组
+      // Handle the preset device group
       if (sysinfo.presetDeviceGroupName) {
         await this.addToDeviceGroup(sysinfo);
       }
 
-      // 处理预设备注（直接写入 Peer.note）
+      // Handle the preset note (written directly to Peer.note)
       if (dto['preset-note']) {
         await this.setPresetNote(sysinfo.uuid, dto['preset-note']);
       }
     } catch (error: unknown) {
       const err = error as { message?: string; stack?: string };
       this.logger.error(
-        `处理预设设置失败: ${err.message ?? String(error)}`,
+        `Failed to process preset settings: ${err.message ?? String(error)}`,
         err.stack,
       );
     }
   }
 
   /**
-   * 将设备添加到预设地址簿
-   * 根据预设配置自动将设备添加到指定的地址簿
+   * Add the device to the preset address book
+   * Automatically adds the device to the specified address book according to the preset configuration
    *
-   * @param deviceId 设备ID
-   * @param hostname 主机名
-   * @param addressBookName 地址簿名称
-   * @param tag 标签（可选）
-   * @param alias 别名（可选）
-   * @param password 密码（可选）
-   * @param note 备注（可选）
+   * @param deviceId Device ID
+   * @param hostname hostname
+   * @param addressBookName address book name
+   * @param tag tag (optional)
+   * @param alias alias (optional)
+   * @param password password (optional)
+   * @param note note (optional)
    * @private
    */
   private async addToAddressBook(
@@ -187,28 +191,32 @@ export class SysinfoService {
     password?: string,
     note?: string,
   ): Promise<void> {
-    // 查找或创建地址簿
+    // Find or create the address book
     const addressBook = await this.addressBookRepository.findOne({
       where: { name: addressBookName },
     });
 
     if (!addressBook) {
-      // 如果地址簿不存在，跳过添加
-      this.logger.warn(`预设地址簿 "${addressBookName}" 不存在，跳过添加设备`);
+      // If the address book does not exist, skip the addition
+      this.logger.warn(
+        `Preset address book "${addressBookName}" does not exist, skipping device addition`,
+      );
       return;
     }
 
-    // 检查设备是否已存在于地址簿
+    // Check whether the device already exists in the address book
     const existingPeer = await this.addressBookPeerRepository.findOne({
       where: { deviceId: deviceId, addressBookGuid: addressBook.guid },
     });
 
     if (existingPeer) {
-      this.logger.debug(`设备 ${deviceId} 已存在于地址簿 ${addressBook.name}`);
+      this.logger.debug(
+        `Device ${deviceId} already exists in address book ${addressBook.name}`,
+      );
       return;
     }
 
-    // 处理预设标签（收集已存在的标签，不自动创建）
+    // Handle preset tags (collect existing tags, do not create automatically)
     const existingTags: AddressBookTag[] = [];
     if (tag) {
       const tagNames = tag
@@ -216,7 +224,7 @@ export class SysinfoService {
         .map((t) => t.trim())
         .filter((t) => t);
 
-      // 查找已存在的标签
+      // Find existing tags
       for (const tagName of tagNames) {
         const existingTag = await this.addressBookTagRepository.findOne({
           where: { name: tagName, addressBookGuid: addressBook.guid },
@@ -226,13 +234,13 @@ export class SysinfoService {
           existingTags.push(existingTag);
         } else {
           this.logger.warn(
-            `标签 "${tagName}" 在地址簿 ${addressBook.name} 中不存在，跳过`,
+            `Tag "${tagName}" does not exist in address book ${addressBook.name}, skipping`,
           );
         }
       }
     }
 
-    // 创建设备记录并绑定标签
+    // Create the device record and bind tags
     const peerGuid = uuidv4();
     const peer = this.addressBookPeerRepository.create({
       guid: peerGuid,
@@ -246,56 +254,58 @@ export class SysinfoService {
 
     await this.addressBookPeerRepository.save(peer);
     this.logger.log(
-      `设备 ${deviceId} 已添加到地址簿 ${addressBook.name}${existingTags.length > 0 ? `，绑定标签: ${existingTags.map((t) => t.name).join(', ')}` : ''}`,
+      `Device ${deviceId} added to address book ${addressBook.name}${existingTags.length > 0 ? `, bound tags: ${existingTags.map((t) => t.name).join(', ')}` : ''}`,
     );
   }
 
   /**
-   * 将设备添加到预设设备组
-   * 根据预设配置自动将设备关联到指定的设备组
+   * Add the device to the preset device group
+   * Automatically links the device to the specified device group according to the preset configuration
    *
-   * @param sysinfo 系统信息对象
+   * @param sysinfo system info object
    * @private
    */
   private async addToDeviceGroup(sysinfo: Sysinfo): Promise<void> {
-    // 查找设备组
+    // Find the device group
     const deviceGroup = await this.deviceGroupRepository.findOne({
       where: { name: sysinfo.presetDeviceGroupName },
     });
 
     if (!deviceGroup) {
       this.logger.warn(
-        `预设设备组 "${sysinfo.presetDeviceGroupName}" 不存在，跳过添加设备`,
+        `Preset device group "${sysinfo.presetDeviceGroupName}" does not exist, skipping device addition`,
       );
       return;
     }
 
-    // 查找设备记录
+    // Find the device record
     const peer = await this.peerRepository.findOne({
       where: { uuid: sysinfo.uuid },
     });
 
     if (peer) {
-      // 更新设备的设备组
+      // Update the device device group
       await this.peerRepository.update(
         { uuid: sysinfo.uuid },
         { deviceGroupGuid: deviceGroup.guid },
       );
       this.logger.log(
-        `设备 ${sysinfo.uuid} 已关联到设备组 ${deviceGroup.name}`,
+        `Device ${sysinfo.uuid} linked to device group ${deviceGroup.name}`,
       );
     } else {
-      this.logger.warn(`设备 ${sysinfo.uuid} 不存在，无法关联到设备组`);
+      this.logger.warn(
+        `Device ${sysinfo.uuid} does not exist, cannot link to device group`,
+      );
     }
   }
 
   /**
-   * 设置预设备注
-   * 将客户端传入的预设备注写入 Peer.note
-   * 仅在设备尚未设置备注时写入，不覆盖已有备注
+   * Set the preset note
+   * Writes the preset note provided by the client to Peer.note
+   * Only written when the device has no note yet; existing notes are not overwritten
    *
-   * @param uuid 设备UUID
-   * @param presetNote 预设备注
+   * @param uuid Device UUID
+   * @param presetNote preset note
    * @private
    */
   private async setPresetNote(uuid: string, presetNote: string): Promise<void> {
@@ -306,12 +316,14 @@ export class SysinfoService {
     if (peer) {
       if (!peer.note) {
         await this.peerRepository.update({ uuid }, { note: presetNote });
-        this.logger.log(`设备 ${uuid} 已设置预设备注: ${presetNote}`);
+        this.logger.log(`Device ${uuid} preset note set: ${presetNote}`);
       } else {
-        this.logger.debug(`设备 ${uuid} 已有备注，跳过预设备注`);
+        this.logger.debug(
+          `Device ${uuid} already has a note, skipping preset note`,
+        );
       }
     } else {
-      this.logger.warn(`设备 ${uuid} 不存在，无法设置预设备注`);
+      this.logger.warn(`Device ${uuid} does not exist, cannot set preset note`);
     }
   }
 }

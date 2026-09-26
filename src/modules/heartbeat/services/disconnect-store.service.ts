@@ -1,20 +1,20 @@
 import { Injectable } from '@nestjs/common';
 
 /**
- * 断开连接内存存储服务
- * 暂存需要强制断开的连接ID，持续下发给客户端直到连接确实断开
+ * Disconnect in-memory store service
+ * Temporarily stores connection IDs that must be forcibly disconnected and keeps sending them to the client until the connection is actually closed
  */
 @Injectable()
 export class DisconnectStoreService {
   /**
-   * key: 设备UUID, value: 需要断开的连接ID集合
+   * key: device UUID, value: set of connection IDs to disconnect
    */
   private store = new Map<string, Set<number>>();
 
   /**
-   * 添加待断开连接
-   * @param deviceUuid 设备UUID
-   * @param connIds 需要断开的连接ID列表
+   * Add connections pending disconnect
+   * @param deviceUuid Device UUID
+   * @param connIds List of connection IDs to disconnect
    */
   addPendingDisconnects(deviceUuid: string, connIds: number[]): void {
     if (connIds.length === 0) return;
@@ -30,10 +30,10 @@ export class DisconnectStoreService {
   }
 
   /**
-   * 获取待断开连接列表（不清除）
-   * 每次心跳时调用，持续返回直到客户端确认断开（不再上报该connId）
-   * @param deviceUuid 设备UUID
-   * @returns 需要断开的连接ID列表，无则返回空数组
+   * Get the list of connections pending disconnect (without clearing)
+   * Called on every heartbeat; keeps returning until the client confirms the disconnect (no longer reports the connId)
+   * @param deviceUuid Device UUID
+   * @returns List of connection IDs to disconnect, or an empty array if none
    */
   getPendingDisconnects(deviceUuid: string): number[] {
     const pending = this.store.get(deviceUuid);
@@ -41,10 +41,10 @@ export class DisconnectStoreService {
   }
 
   /**
-   * 移除已断开的连接
-   * 客户端心跳上报的 conns 中不再包含的 connId，说明已成功断开，从待断开列表中移除
-   * @param deviceUuid 设备UUID
-   * @param currentConns 客户端当前上报的活跃连接ID列表
+   * Remove disconnected connections
+   * A connId no longer present in the conns reported by the client heartbeat has been disconnected successfully and is removed from the pending list
+   * @param deviceUuid Device UUID
+   * @param currentConns List of active connection IDs currently reported by the client
    */
   removeDisconnected(deviceUuid: string, currentConns: number[]): void {
     const pending = this.store.get(deviceUuid);
@@ -52,13 +52,13 @@ export class DisconnectStoreService {
 
     const currentSet = new Set(currentConns);
     for (const connId of pending) {
-      // 客户端不再上报该连接，说明已断开
+      // The client no longer reports this connection, so it has been disconnected
       if (!currentSet.has(connId)) {
         pending.delete(connId);
       }
     }
 
-    // 如果待断开列表为空，清理 Map 条目
+    // If the pending list is empty, clean up the Map entry
     if (pending.size === 0) {
       this.store.delete(deviceUuid);
     }

@@ -2,18 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { User } from '../../user/entities/user.entity';
 import { LoginResponse } from '../../../common/interfaces';
 
-/** 登录响应中的用户载荷类型（去除可选性，保证字段完整） */
+/** User payload type in the login response (optionality removed to guarantee complete fields) */
 export type UserPayload = NonNullable<LoginResponse['user']>;
 
 /**
- * 认证响应构建助手
- * 统一构建登录响应中的用户信息载荷，消除多处重复实现
+ * Auth response builder helper
+ * Builds the user info payload in login responses in one place, eliminating duplicated implementations
  */
 @Injectable()
 export class AuthResponseHelper {
   /**
-   * 构建登录响应中的用户信息载荷
-   * 用于 login / TFA / 邮箱验证码 / Passkey 等所有登录流程
+   * builds the user info payload in the login response
+   * Used by all login flows: login / TFA / email verification code / Passkey, etc.
    */
   buildUserPayload(user: User): UserPayload {
     return {
@@ -31,8 +31,8 @@ export class AuthResponseHelper {
   }
 
   /**
-   * 构建 currentUser 接口的响应载荷
-   * 在 buildUserPayload 基础上额外包含 verifier 字段
+   * Build the response payload for the currentUser endpoint
+   * Extends buildUserPayload with an additional verifier field
    */
   buildCurrentUserPayload(user: User): Record<string, unknown> {
     return {

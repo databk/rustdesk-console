@@ -11,13 +11,13 @@ import { Type } from 'class-transformer';
 import { PaginationDto } from './query.dto';
 
 /**
- * 地址簿规则分页查询参数
- * 用于查询地址簿规则列表
+ * Address book rule pagination query parameters
+ * Used to query the address book rule list
  */
 export class RuleQueryDto extends PaginationDto {
   /**
-   * 地址簿 GUID
-   * 指定要查询规则的地址簿
+   * Address book GUID
+   * Specifies the address book whose rules are queried
    */
   @IsString()
   @IsNotEmpty()
@@ -25,22 +25,22 @@ export class RuleQueryDto extends PaginationDto {
 }
 
 /**
- * 创建规则请求体
- * 用于添加新的地址簿规则
+ * Create rule request body
+ * Used to add a new address book rule
  */
 export class CreateRuleDto {
   /**
-   * 地址簿 GUID
-   * 指定规则所属的地址簿
+   * Address book GUID
+   * Specifies the address book the rule belongs to
    */
   @IsString()
   @IsNotEmpty()
   guid: string;
 
   /**
-   * 目标用户 GUID
-   * 规则类型为 "user" 时必需
-   * 与 group 互斥
+   * Target user GUID
+   * Required when the rule type is "user"
+   * Mutually exclusive with group
    */
   @IsOptional()
   @IsString()
@@ -48,20 +48,20 @@ export class CreateRuleDto {
   user?: string;
 
   /**
-   * 目标组 GUID
-   * 规则类型为 "group" 时必需
-   * 与 user 互斥
+   * Target group GUID
+   * Required when the rule type is "group"
+   * Mutually exclusive with user
    */
   @IsOptional()
   @IsUUID('4')
   group?: string;
 
   /**
-   * 权限级别
-   * 1 - 只读权限 (ro)
-   * 2 - 读写权限 (rw)
-   * 3 - 完全控制 (full)
-   * 默认值：1
+   * Permission level
+   * 1 - Read-only permission (ro)
+   * 2 - Read-write permission (rw)
+   * 3 - Full control (full)
+   * Default value: 1
    */
   @IsOptional()
   @Type(() => Number)
@@ -72,23 +72,23 @@ export class CreateRuleDto {
 }
 
 /**
- * 更新规则请求体
- * 用于修改现有规则
+ * Update rule request body
+ * Used to modify an existing rule
  */
 export class UpdateRuleDto {
   /**
-   * 规则 GUID
-   * 指定要更新的规则
+   * Rule GUID
+   * Specifies the rule to update
    */
   @IsString()
   @IsNotEmpty()
   guid: string;
 
   /**
-   * 新的权限级别
-   * 1 - 只读权限 (ro)
-   * 2 - 读写权限 (rw)
-   * 3 - 完全控制 (full)
+   * New permission level
+   * 1 - Read-only permission (ro)
+   * 2 - Read-write permission (rw)
+   * 3 - Full control (full)
    */
   @IsInt()
   @Min(1)

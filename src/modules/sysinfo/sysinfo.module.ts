@@ -11,16 +11,16 @@ import {
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 
 /**
- * 系统信息模块
- * 负责设备系统信息的收集和管理
+ * System info module
+ * Responsible for collecting and managing device system information
  *
- * 导入模块：
+ * Imported modules:
  * - TypeOrmModule
  *
- * 导出服务：
+ * Exported services:
  * - SysinfoService
  *
- * 提供服务：
+ * Provided services:
  * - SysinfoService
  */
 @Module({

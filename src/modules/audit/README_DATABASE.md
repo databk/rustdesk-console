@@ -1,23 +1,23 @@
-# 数据库适配说明
+# Database Adaptation Notes
 
-## 当前实现
+## Current Implementation
 
-为了确保在 SQLite 数据库上正常工作，审计模块使用了 SQLite 兼容的数据类型：
+To ensure it works correctly on SQLite, the audit module uses SQLite-compatible data types:
 
-### 连接审计 (ConnectionAudit)
-- `action`: 使用 `varchar(10)` 存储 ('new' | 'close')
-- `type`: 使用 `int` 存储 (0-4)
+### Connection Audit (ConnectionAudit)
+- `action`: Uses `varchar(10)` to store ('new' | 'close')
+- `type`: Uses `int` to store (0-4)
 
-### 文件审计 (FileAudit)
-- `type`: 使用 `int` 存储 (0: 发送 | 1: 接收)
+### File Audit (FileAudit)
+- `type`: Uses `int` to store (0: send | 1: receive)
 
-## 为不同数据库配置
+## Configuring for Different Databases
 
-如果您使用支持 ENUM 类型的数据库（如 PostgreSQL 或 MySQL），可以修改实体定义以使用原生 ENUM 类型。
+If you use a database that supports the ENUM type (such as PostgreSQL or MySQL), you can modify the entity definitions to use native ENUM types.
 
-### PostgreSQL 配置示例
+### PostgreSQL Configuration Example
 
-修改 `src/audit/entities/connection-audit.entity.ts`:
+Modify `src/audit/entities/connection-audit.entity.ts`:
 
 ```typescript
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
@@ -79,7 +79,7 @@ export class ConnectionAudit {
 }
 ```
 
-修改 `src/audit/entities/file-audit.entity.ts`:
+Modify `src/audit/entities/file-audit.entity.ts`:
 
 ```typescript
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
@@ -132,11 +132,11 @@ export class FileAudit {
 }
 ```
 
-### 更新 DTO 验证
+### Updating DTO Validation
 
-如果使用 enum，需要更新 DTO 文件：
+If you use enum, the DTO files need to be updated:
 
-修改 `src/audit/dto/connection-audit.dto.ts`:
+Modify `src/audit/dto/connection-audit.dto.ts`:
 
 ```typescript
 import { IsString, IsEnum, IsOptional, IsArray, IsInt, Min, Max } from 'class-validator';
@@ -176,7 +176,7 @@ export class ConnectionAuditDto {
 }
 ```
 
-修改 `src/audit/dto/file-audit.dto.ts`:
+Modify `src/audit/dto/file-audit.dto.ts`:
 
 ```typescript
 import { IsString, IsInt, IsBoolean, IsArray, ValidateNested, Min, Max, IsOptional, Type } from 'class-validator';
@@ -225,10 +225,10 @@ export class FileAuditDto {
 }
 ```
 
-## 总结
+## Summary
 
-- **当前实现**: 使用 SQLite 兼容的类型，确保在所有数据库上都能工作
-- **PostgreSQL/MySQL**: 可以使用原生 ENUM 类型获得更好的类型安全性和性能
-- **迁移**: 如果需要切换数据库，只需修改实体定义和相应的 DTO
+- **Current implementation**: Uses SQLite-compatible types, ensuring it works on all databases
+- **PostgreSQL/MySQL**: Can use native ENUM types for better type safety and performance
+- **Migration**: To switch databases, only the entity definitions and the corresponding DTOs need to be changed
 
-当前实现已经过充分测试，可以直接在 SQLite 环境中使用。
+The current implementation has been thoroughly tested and can be used directly in a SQLite environment.

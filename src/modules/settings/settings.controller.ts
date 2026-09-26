@@ -14,15 +14,15 @@ import { SmtpSettingsService } from './services/smtp-settings.service';
 import { UpdateSmtpConfigDto, TestSmtpConfigDto } from './dto/smtp-config.dto';
 
 /**
- * 系统设置控制器
- * 管理系统配置相关的 API 接口
+ * System settings controller
+ * Manages system configuration related API endpoints
  *
- * 端点数量：3个
- * - GET  /api/settings/smtp      - 获取 SMTP 配置
- * - PUT  /api/settings/smtp      - 创建或更新 SMTP 配置（Upsert）
- * - POST /api/settings/smtp/test - 测试 SMTP 连接
+ * Number of endpoints: 3
+ * - GET  /api/settings/smtp      - Get SMTP configuration
+ * - PUT  /api/settings/smtp      - Create or update SMTP configuration (Upsert)
+ * - POST /api/settings/smtp/test - Test SMTP connection
  *
- * 所有端点需要管理员权限
+ * All endpoints require administrator permission
  */
 @UseGuards(AdminGuard)
 @Controller('settings')
@@ -30,9 +30,9 @@ export class SettingsController {
   constructor(private readonly smtpSettingsService: SmtpSettingsService) {}
 
   /**
-   * 获取 SMTP 配置
-   * 返回当前生效的 SMTP 配置，密码字段脱敏
-   * 如果配置不存在，返回 404
+   * Get SMTP configuration
+   * Returns the currently active SMTP configuration with the password field masked
+   * Returns 404 if the configuration does not exist
    */
   @Get('smtp')
   async getSmtpConfig() {
@@ -40,9 +40,9 @@ export class SettingsController {
   }
 
   /**
-   * 创建或更新 SMTP 配置（Upsert语义）
-   * 配置不存在时创建，存在时更新
-   * 仅更新传入的字段，密码字段传入占位符时不更新
+   * Create or update SMTP configuration (Upsert semantics)
+   * Creates the configuration if it does not exist, updates it otherwise
+   * Only updates the provided fields; the password is not updated when the placeholder is passed
    */
   @Put('smtp')
   @HttpCode(HttpStatus.OK)
@@ -51,10 +51,10 @@ export class SettingsController {
   }
 
   /**
-   * 测试 SMTP 连接
-   * 可传入配置进行测试，不传则测试当前生效配置
+   * Test SMTP connection
+   * A configuration may be provided for testing; if omitted, the currently active configuration is tested
    *
-   * 限流：每分钟最多5次，防止滥用
+   * Rate limit: at most 5 requests per minute to prevent abuse
    */
   @Post('smtp/test')
   @HttpCode(HttpStatus.OK)

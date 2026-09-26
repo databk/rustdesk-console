@@ -147,7 +147,7 @@ export class UserGroupService {
   async requireGroup(guid: string): Promise<UserGroup> {
     const group = await this.userGroupRepository.findOne({ where: { guid } });
     if (!group) {
-      throw new NotFoundException('用户组不存在');
+      throw new NotFoundException('User group does not exist');
     }
     return group;
   }
@@ -244,17 +244,19 @@ export class UserGroupService {
 
       const group = await groupRepository.findOne({ where: { guid } });
       if (!group) {
-        throw new NotFoundException('用户组不存在');
+        throw new NotFoundException('User group does not exist');
       }
       if (group.isDefault) {
-        throw new BadRequestException('默认用户组不能删除');
+        throw new BadRequestException(
+          'The default user group cannot be deleted',
+        );
       }
 
       const defaultGroup = await groupRepository.findOne({
         where: { isDefault: true },
       });
       if (!defaultGroup) {
-        throw new BadRequestException('默认用户组不存在');
+        throw new BadRequestException('The default user group does not exist');
       }
 
       const currentUsers = await userRepository.find({
@@ -278,7 +280,7 @@ export class UserGroupService {
       await groupRepository.delete({ guid });
 
       return {
-        message: '用户组删除成功',
+        message: 'User group deleted successfully',
         moved_user_count: movedUsers.affected || 0,
         deleted_rule_count: deletedRules.affected || 0,
       };
@@ -341,7 +343,7 @@ export class UserGroupService {
 
       const group = await groupRepository.findOne({ where: { guid } });
       if (!group) {
-        throw new NotFoundException('用户组不存在');
+        throw new NotFoundException('User group does not exist');
       }
 
       const users = await userRepository.find({
@@ -349,7 +351,7 @@ export class UserGroupService {
         select: ['guid', 'userGroupGuid'],
       });
       if (users.length !== uniqueGuids.length) {
-        throw new NotFoundException('一个或多个用户不存在');
+        throw new NotFoundException('One or more users do not exist');
       }
 
       // Re-check immediately before the conditional writes so a role-based
@@ -373,7 +375,7 @@ export class UserGroupService {
       }
 
       return {
-        message: '用户组成员已更新',
+        message: 'User group members updated',
         moved_user_count: guidsToMove.length,
       };
     });
@@ -382,7 +384,7 @@ export class UserGroupService {
   private normalizeName(value: string) {
     const name = value.trim();
     if (!name) {
-      throw new BadRequestException('用户组名称不能为空');
+      throw new BadRequestException('User group name cannot be empty');
     }
     return { name, normalizedName: name.toLowerCase() };
   }
@@ -403,7 +405,7 @@ export class UserGroupService {
       where: { normalizedName },
     });
     if (existing && existing.guid !== ignoredGuid) {
-      throw new ConflictException('用户组名称已存在');
+      throw new ConflictException('User group name already exists');
     }
   }
 
@@ -416,7 +418,7 @@ export class UserGroupService {
 
   private rethrowUniqueName(error: unknown): never {
     if (this.isUniqueConstraintError(error)) {
-      throw new ConflictException('用户组名称已存在');
+      throw new ConflictException('User group name already exists');
     }
     throw error;
   }

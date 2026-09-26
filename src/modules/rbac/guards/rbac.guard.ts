@@ -41,7 +41,7 @@ export class RbacGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const userGuid = request.user?.id;
     if (!userGuid) {
-      throw new ForbiddenException('请先登录');
+      throw new ForbiddenException('Please log in first');
     }
 
     try {

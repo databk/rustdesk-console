@@ -20,13 +20,13 @@ import { isIpDevice } from '../../../common/utils/ip.util';
 @Injectable()
 /**
  * AddressBookPeerService
- * 负责地址簿中设备管理的子服务
+ * Sub-service responsible for device management in the address book
  *
- * 与主服务关系：
- * 被AddressBookService委托处理设备相关操作
+ * Relationship with the main service:
+ * Delegated by AddressBookService to handle device-related operations
  *
- * 调用上下文：
- * 包括设备的添加、更新、删除和查询
+ * Call context:
+ * Includes adding, updating, deleting, and querying devices
  */
 export class AddressBookPeerService {
   constructor(
@@ -43,14 +43,14 @@ export class AddressBookPeerService {
   ) {}
 
   /**
-   * 获取地址簿中的设备列表
-   * 查询指定地址簿中的所有设备，并关联查询设备详细信息和系统信息
+   * Get the device list of the address book
+   * Query all devices in the specified address book, joining device details and system information
    *
-   * @param query 查询参数，包含分页和地址簿GUID
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @returns 设备列表和总数
-   * @throws NotFoundException 当地址簿不存在时抛出
+   * @param query Query parameters, including pagination and the address book GUID
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @returns Device list and total count
+   * @throws NotFoundException Thrown when the address book does not exist
    */
   async getPeers(
     query: PeersQueryDto,
@@ -77,10 +77,10 @@ export class AddressBookPeerService {
     });
 
     if (!addressBook) {
-      throw new NotFoundException('地址簿不存在');
+      throw new NotFoundException('Address book does not exist');
     }
 
-    // 如果提供了用户ID，验证访问权限
+    // If a user ID is provided, verify access permission
     if (userId && checkAccess) {
       await checkAccess(ab, userId, ShareRule.READ);
     }
@@ -90,12 +90,12 @@ export class AddressBookPeerService {
       .leftJoinAndSelect('abp.tags', 'tags')
       .where('abp.addressBookGuid = :addressBookGuid', { addressBookGuid: ab });
 
-    // 按别名过滤（模糊匹配）
+    // Filter by alias (fuzzy match)
     if (alias) {
       queryBuilder.andWhere('abp.alias LIKE :alias', { alias: `%${alias}%` });
     }
 
-    // 按设备ID过滤（模糊匹配）- 使用子查询
+    // Filter by device ID (fuzzy match) - using a subquery
     if (id) {
       queryBuilder.andWhere(
         `abp.deviceId IN (
@@ -105,10 +105,10 @@ export class AddressBookPeerService {
       );
     }
 
-    // 按标签过滤（精确匹配）
+    // Filter by tag (exact match)
     if (tags && tags.length > 0) {
       if (tagMode === TagMatchMode.INTERSECTION) {
-        // 交集模式：必须包含所有标签
+        // Intersection mode: must contain all tags
         queryBuilder.andWhere(
           `abp.guid IN (
             SELECT apt.peerGuid 
@@ -121,7 +121,7 @@ export class AddressBookPeerService {
           { tagNames: tags, tagCount: tags.length },
         );
       } else {
-        // 并集模式（默认）：匹配任意一个标签即可
+        // Union mode (default): matching any one tag is sufficient
         queryBuilder.andWhere(
           `abp.guid IN (
             SELECT DISTINCT apt.peerGuid 
@@ -139,10 +139,10 @@ export class AddressBookPeerService {
       .take(pageSize)
       .getManyAndCount();
 
-    // 获取所有设备ID (uuid)，用于从 peers 表和 sysinfos 表获取信息
+    // Get all device IDs (uuid), used to fetch info from the peers and sysinfos tables
     const deviceIds = peers.map((p) => p.deviceId);
 
-    // 从 peers 表获取 RustDesk ID
+    // Get the RustDesk ID from the peers table
     const peerRecords =
       deviceIds.length > 0
         ? await this.peerRepository.find({
@@ -151,7 +151,7 @@ export class AddressBookPeerService {
         : [];
     const peerMap = new Map(peerRecords.map((p) => [p.uuid, p]));
 
-    // 从 sysinfos 表获取设备信息
+    // Get device info from the sysinfos table
     const sysinfos =
       deviceIds.length > 0
         ? await this.sysinfoRepository.find({
@@ -160,12 +160,12 @@ export class AddressBookPeerService {
         : [];
     const sysinfoMap = new Map(sysinfos.map((s) => [s.uuid, s]));
 
-    // 组装返回数据
+    // Assemble the response data
     const data = peers.map((p) => {
       const peerRecord = peerMap.get(p.deviceId);
       const sysinfo = sysinfoMap.get(p.deviceId);
       return {
-        id: peerRecord?.id || '', // 返回 RustDesk ID
+        id: peerRecord?.id || '', // Return the RustDesk ID
         hash: p.hash,
         password: p.password,
         username: sysinfo?.username || '',
@@ -181,17 +181,17 @@ export class AddressBookPeerService {
   }
 
   /**
-   * 添加设备到地址簿
-   * 将设备添加到指定地址簿，支持关联标签
+   * Add a device to the address book
+   * Add a device to the specified address book, with optional tag association
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param dto 设备信息DTO，包含设备ID、密码、别名、标签等
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @param getOrCreateTag 获取或创建标签的函数（可选）
-   * @returns 操作结果
-   * @throws NotFoundException 当地址簿或设备不存在时抛出
-   * @throws BadRequestException 当设备已存在于地址簿中时抛出
+   * @param addressBookGuid Address book GUID
+   * @param dto Device information DTO, containing device ID, password, alias, tags, etc.
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @param getOrCreateTag Function to get or create a tag (optional)
+   * @returns Operation result
+   * @throws NotFoundException Thrown when the address book or device does not exist
+   * @throws BadRequestException Thrown when the device already exists in the address book
    */
   async addPeer(
     addressBookGuid: string,
@@ -207,7 +207,7 @@ export class AddressBookPeerService {
       tagName: string,
     ) => Promise<string>,
   ) {
-    // 如果提供了用户ID，验证写权限
+    // If a user ID is provided, verify write permission
     if (userId && checkAccess) {
       await checkAccess(addressBookGuid, userId, ShareRule.READ_WRITE);
     }
@@ -217,25 +217,27 @@ export class AddressBookPeerService {
     });
 
     if (!addressBook) {
-      throw new NotFoundException('地址簿不存在');
+      throw new NotFoundException('Address book does not exist');
     }
 
-    // 通过客户端发送的 id 查找 peers 表获取 uuid (deviceId)
-    // 对于 IP 格式的设备，如果不在 peers 表中则自动创建记录
+    // Look up the peers table by the id sent by the client to get the uuid (deviceId)
+    // For IP-format devices, create the record automatically if it is not in the peers table
     const peerRecord = await this.findOrCreatePeer(dto.id);
 
     const deviceId = peerRecord.uuid;
 
-    // 检查设备是否已存在于地址簿
+    // Check whether the device already exists in the address book
     const existingPeer = await this.addressBookPeerRepository.findOne({
       where: { deviceId, addressBookGuid },
     });
 
     if (existingPeer) {
-      throw new BadRequestException('设备已存在于地址簿中');
+      throw new BadRequestException(
+        'Device already exists in the address book',
+      );
     }
 
-    // 创建设备记录
+    // Create the device record
     const peerGuid = uuidv4();
     const peer = this.addressBookPeerRepository.create({
       guid: peerGuid,
@@ -249,7 +251,7 @@ export class AddressBookPeerService {
 
     await this.addressBookPeerRepository.save(peer);
 
-    // 处理标签关联 - dto.tags 是标签名称数组
+    // Handle tag associations - dto.tags is an array of tag names
     if (dto.tags && dto.tags.length > 0 && getOrCreateTag) {
       for (const tagName of dto.tags) {
         const tagGuid = await getOrCreateTag(addressBookGuid, tagName);
@@ -265,16 +267,16 @@ export class AddressBookPeerService {
   }
 
   /**
-   * 更新地址簿中的设备信息
-   * 更新设备的密码、别名、备注和标签关联
+   * Update device information in the address book
+   * Update the device's password, alias, remarks, and tag associations
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param dto 设备更新信息DTO
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @param getOrCreateTag 获取或创建标签的函数（可选）
-   * @returns 操作结果
-   * @throws NotFoundException 当设备不存在时抛出
+   * @param addressBookGuid Address book GUID
+   * @param dto Device update information DTO
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @param getOrCreateTag Function to get or create a tag (optional)
+   * @returns Operation result
+   * @throws NotFoundException Thrown when the device does not exist
    */
   async updatePeer(
     addressBookGuid: string,
@@ -290,27 +292,27 @@ export class AddressBookPeerService {
       tagName: string,
     ) => Promise<string>,
   ) {
-    // 如果提供了用户ID，验证写权限
+    // If a user ID is provided, verify write permission
     if (userId && checkAccess) {
       await checkAccess(addressBookGuid, userId, ShareRule.READ_WRITE);
     }
 
-    // 通过客户端发送的 id 查找 peers 表获取 uuid (deviceId)
-    // 对于 IP 格式的设备，如果不在 peers 表中则自动创建记录
+    // Look up the peers table by the id sent by the client to get the uuid (deviceId)
+    // For IP-format devices, create the record automatically if it is not in the peers table
     const peerRecord = await this.findOrCreatePeer(dto.id);
 
     const deviceId = peerRecord.uuid;
 
-    // 根据 deviceId 查找地址簿中的设备
+    // Look up the device in the address book by deviceId
     const peer = await this.addressBookPeerRepository.findOne({
       where: { deviceId, addressBookGuid },
     });
 
     if (!peer) {
-      throw new NotFoundException('设备不存在于此地址簿');
+      throw new NotFoundException('Device does not exist in this address book');
     }
 
-    // 构建更新数据
+    // Build the update data
     const updateData: Partial<AddressBookPeer> = {};
 
     if (dto.hash !== undefined) updateData.hash = dto.hash;
@@ -323,12 +325,12 @@ export class AddressBookPeerService {
       updateData,
     );
 
-    // 更新标签关联 - dto.tags 是标签名称数组
+    // Update tag associations - dto.tags is an array of tag names
     if (dto.tags !== undefined) {
-      // 删除旧的标签关联
+      // Delete the old tag associations
       await this.addressBookPeerTagRepository.delete({ peerGuid: peer.guid });
 
-      // 添加新的标签关联
+      // Add the new tag associations
       if (dto.tags.length > 0 && getOrCreateTag) {
         for (const tagName of dto.tags) {
           const tagGuid = await getOrCreateTag(addressBookGuid, tagName);
@@ -345,15 +347,15 @@ export class AddressBookPeerService {
   }
 
   /**
-   * 从地址簿中删除设备
-   * 批量删除指定地址簿中的设备，同时删除标签关联
+   * Delete devices from the address book
+   * Batch delete devices from the specified address book, also removing tag associations
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param ids 要删除的设备ID列表（RustDesk ID）
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @returns 操作结果
-   * @throws BadRequestException 当未提供设备ID时抛出
+   * @param addressBookGuid Address book GUID
+   * @param ids List of device IDs to delete (RustDesk IDs)
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @returns Operation result
+   * @throws BadRequestException Thrown when no device IDs are provided
    */
   async deletePeers(
     addressBookGuid: string,
@@ -365,16 +367,16 @@ export class AddressBookPeerService {
       rule: ShareRule,
     ) => Promise<AddressBook>,
   ) {
-    // 如果提供了用户ID，验证写权限
+    // If a user ID is provided, verify write permission
     if (userId && checkAccess) {
       await checkAccess(addressBookGuid, userId, ShareRule.READ_WRITE);
     }
 
     if (!ids || ids.length === 0) {
-      throw new BadRequestException('请提供要删除的设备ID');
+      throw new BadRequestException('Please provide the device IDs to delete');
     }
 
-    // ids 是 RustDesk ID 数组，需要先查找对应的 uuid
+    // ids is an array of RustDesk IDs; the corresponding uuids need to be looked up first
     const peerRecords = await this.peerRepository.find({
       where: { id: In(ids) },
     });
@@ -382,7 +384,7 @@ export class AddressBookPeerService {
     const deviceIds = peerRecords.map((p) => p.uuid);
 
     if (deviceIds.length > 0) {
-      // 根据 deviceId 删除（会自动级联删除标签关联）
+      // Delete by deviceId (tag associations are cascade-deleted automatically)
       await this.addressBookPeerRepository.delete({
         deviceId: In(deviceIds),
         addressBookGuid,
@@ -393,12 +395,12 @@ export class AddressBookPeerService {
   }
 
   /**
-   * 查找或创建设备记录
-   * 在 peers 表中查找指定 id 的设备，如果找不到且 id 为 IP 格式则自动创建
+   * Find or create a device record
+   * Look up the device with the given id in the peers table; if not found and the id is in IP format, create it automatically
    *
-   * @param id 设备ID（RustDesk 数字 ID 或 IP 地址）
-   * @returns Peer 记录
-   * @throws NotFoundException 当设备不存在且 id 不为 IP 格式时抛出
+   * @param id Device ID (RustDesk numeric ID or IP address)
+   * @returns Peer record
+   * @throws NotFoundException Thrown when the device does not exist and the id is not in IP format
    */
   private async findOrCreatePeer(id: string): Promise<Peer> {
     const peerRecord = await this.peerRepository.findOne({
@@ -409,8 +411,8 @@ export class AddressBookPeerService {
       return peerRecord;
     }
 
-    // 对于 IP 格式的设备（如 192.168.1.94 或 192.168.1.94:21118），
-    // 自动创建 peer 记录，因为这些设备通过直连 IP 访问，不会通过心跳注册
+    // For IP-format devices (such as 192.168.1.94 or 192.168.1.94:21118),
+    // create a peer record automatically, since these devices are reached via direct IP and do not register through heartbeats
     if (isIpDevice(id)) {
       const newPeer = this.peerRepository.create({
         uuid: uuidv4(),
@@ -423,6 +425,6 @@ export class AddressBookPeerService {
       return newPeer;
     }
 
-    throw new NotFoundException('设备不存在');
+    throw new NotFoundException('Device does not exist');
   }
 }

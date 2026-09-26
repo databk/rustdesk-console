@@ -3,8 +3,8 @@ import { Public } from '../auth/decorators/public.decorator';
 import { GeneralSettingsService } from './services/general-settings.service';
 
 /**
- * 前端页面配置控制器
- * 仅返回前端渲染所需的精简配置，公开可读
+ * Frontend page settings controller
+ * Returns only the minimal settings needed for frontend rendering; publicly readable
  */
 @Controller('settings/frontend')
 export class FrontendSettingsController {

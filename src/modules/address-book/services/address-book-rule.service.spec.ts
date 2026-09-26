@@ -116,7 +116,7 @@ describe('Address-book share candidates', () => {
 
   it('does not load candidates after an object-ACL denial', async () => {
     permissionService.checkAddressBookAccess.mockRejectedValue(
-      new ForbiddenException('需要完全控制权限'),
+      new ForbiddenException('Full control permission required'),
     );
 
     await expect(

@@ -72,6 +72,6 @@ export class RoleController {
     @CurrentUser('id') actorGuid: string,
   ) {
     await this.roleService.deleteRole(guid, actorGuid);
-    return { message: '角色已删除' };
+    return { message: 'Role deleted' };
   }
 }

@@ -193,7 +193,7 @@ export class UserService {
       where: { username: name },
     });
     if (existingUser) {
-      throw new BadRequestException('用户名已存在');
+      throw new BadRequestException('Username already exists');
     }
 
     if (email) {
@@ -201,7 +201,7 @@ export class UserService {
         where: { email },
       });
       if (existingEmail) {
-        throw new BadRequestException('邮箱已存在');
+        throw new BadRequestException('Email already exists');
       }
     }
 
@@ -218,7 +218,7 @@ export class UserService {
 
     await this.userRepository.save(user);
 
-    return { message: '用户创建成功' };
+    return { message: 'User created successfully' };
   }
 
   async inviteUser(dto: InviteUserDto) {
@@ -231,17 +231,17 @@ export class UserService {
       where: { email },
     });
     if (existingUser) {
-      throw new BadRequestException('邮箱已存在');
+      throw new BadRequestException('Email already exists');
     }
 
     const existingUsername = await this.userRepository.findOne({
       where: { username: name },
     });
     if (existingUsername) {
-      throw new BadRequestException('用户名已存在');
+      throw new BadRequestException('Username already exists');
     }
 
-    // 创建用户（UNVERIFIED 状态，空密码）
+    // Create user (UNVERIFIED status, empty password)
     const user = new User();
     user.guid = uuidv4();
     user.username = name;
@@ -255,12 +255,12 @@ export class UserService {
 
     await this.userRepository.save(user);
 
-    // 生成邀请令牌
+    // Generate invitation token
     const token = crypto.randomBytes(INVITATION_TOKEN_BYTES).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + INVITATION_EXPIRY_DAYS);
 
-    // 保存邀请记录
+    // Save invitation record
     const invitation = new Invitation();
     invitation.guid = uuidv4();
     invitation.token = token;
@@ -275,7 +275,7 @@ export class UserService {
 
     await this.invitationRepository.save(invitation);
 
-    // 发送邀请邮件
+    // Send invitation email
     const { effectiveFrontendUrl } =
       await this.generalSettingsService.getSiteSettings();
     const consoleUrl = effectiveFrontendUrl;
@@ -283,26 +283,26 @@ export class UserService {
     const emailSent = await this.emailService.sendInvitation(
       email,
       inviteUrl,
-      `${INVITATION_EXPIRY_DAYS}天`,
+      `${INVITATION_EXPIRY_DAYS} days`,
     );
 
     if (!emailSent) {
       this.logger.warn(
-        `邀请邮件发送失败，但用户已创建: ${email}。邀请令牌: ${token}`,
+        `Failed to send invitation email, but the user was created: ${email}. Invitation token: ${token}`,
       );
     }
 
     return {
       message: emailSent
-        ? '邀请发送成功'
-        : '用户已创建，但邀请邮件发送失败，请检查SMTP配置',
+        ? 'Invitation sent successfully'
+        : 'User created, but sending the invitation email failed; please check the SMTP configuration',
       token: emailSent ? undefined : token,
     };
   }
 
   /**
-   * 验证邀请令牌
-   * 返回邀请信息，用于前端展示邀请页面
+   * Verify invitation token
+   * Returns invitation info for the frontend to display the invitation page
    */
   async verifyInvitation(token: string) {
     const invitation = await this.invitationRepository.findOne({
@@ -310,15 +310,15 @@ export class UserService {
     });
 
     if (!invitation) {
-      throw new BadRequestException('邀请令牌无效');
+      throw new BadRequestException('Invalid invitation token');
     }
 
     if (invitation.usedAt) {
-      throw new BadRequestException('邀请已被使用');
+      throw new BadRequestException('Invitation has already been used');
     }
 
     if (new Date() > invitation.expiresAt) {
-      throw new BadRequestException('邀请已过期');
+      throw new BadRequestException('Invitation has expired');
     }
 
     return {
@@ -329,8 +329,8 @@ export class UserService {
   }
 
   /**
-   * 接受邀请
-   * 验证令牌、设置密码、激活用户
+   * Accept invitation
+   * Verifies the token, sets the password, and activates the user
    */
   async acceptInvitation(dto: AcceptInvitationDto) {
     const invitation = await this.invitationRepository.findOne({
@@ -338,20 +338,20 @@ export class UserService {
     });
 
     if (!invitation) {
-      throw new BadRequestException('邀请令牌无效');
+      throw new BadRequestException('Invalid invitation token');
     }
 
     if (invitation.usedAt) {
-      throw new BadRequestException('邀请已被使用');
+      throw new BadRequestException('Invitation has already been used');
     }
 
     if (new Date() > invitation.expiresAt) {
-      throw new BadRequestException('邀请已过期');
+      throw new BadRequestException('Invitation has expired');
     }
 
-    // 查找关联用户
+    // Find the associated user
     if (!invitation.userGuid) {
-      throw new NotFoundException('邀请未关联用户');
+      throw new NotFoundException('Invitation is not linked to a user');
     }
 
     const user = await this.userRepository.findOne({
@@ -359,22 +359,22 @@ export class UserService {
     });
 
     if (!user) {
-      throw new NotFoundException('关联用户不存在');
+      throw new NotFoundException('Associated user does not exist');
     }
 
-    // 设置密码并激活用户
+    // Set the password and activate the user
     user.password = await bcrypt.hash(dto.password, 10);
     user.status = UserStatus.ACTIVE;
 
     await this.userRepository.save(user);
 
-    // 标记邀请已使用
+    // Mark the invitation as used
     invitation.usedAt = new Date();
     await this.invitationRepository.save(invitation);
 
-    this.logger.log(`用户 ${user.username} 已通过邀请激活`);
+    this.logger.log(`User ${user.username} activated via invitation`);
 
-    return { message: '账户已激活，请登录' };
+    return { message: 'Account activated, please log in' };
   }
 
   async getUser(guid: string) {
@@ -383,7 +383,7 @@ export class UserService {
       relations: ['userGroup'],
     });
     if (!user) {
-      throw new NotFoundException('用户不存在');
+      throw new NotFoundException('User does not exist');
     }
 
     return {
@@ -408,9 +408,11 @@ export class UserService {
     return this.dataSource.transaction(async (manager) => {
       const users = manager.getRepository(User);
       const user = await users.findOne({ where: { guid } });
-      if (!user) throw new NotFoundException('用户不存在');
+      if (!user) throw new NotFoundException('User does not exist');
       if (dto.is_admin !== undefined) {
-        throw new BadRequestException('系统所有者身份不可修改');
+        throw new BadRequestException(
+          'The system owner identity cannot be modified',
+        );
       }
       if (
         dto.name !== undefined ||
@@ -450,7 +452,7 @@ export class UserService {
           where: { username: dto.name },
         });
         if (existingUser && existingUser.guid !== guid) {
-          throw new BadRequestException('用户名已存在');
+          throw new BadRequestException('Username already exists');
         }
         user.username = dto.name;
       }
@@ -462,7 +464,7 @@ export class UserService {
             where: { email: dto.email },
           });
           if (existingEmail && existingEmail.guid !== guid) {
-            throw new BadRequestException('邮箱已存在');
+            throw new BadRequestException('Email already exists');
           }
         }
         user.email = dto.email || null;
@@ -478,7 +480,7 @@ export class UserService {
       if (dto.status !== undefined && dto.status !== previousStatus) {
         await this.revokeActiveTokens([guid], manager);
       }
-      return { message: '用户已更新' };
+      return { message: 'User updated' };
     });
   }
 
@@ -487,7 +489,7 @@ export class UserService {
       where: { guid: userId },
     });
     if (!user) {
-      throw new NotFoundException('用户不存在');
+      throw new NotFoundException('User does not exist');
     }
 
     if (dto.display_name !== undefined) {
@@ -500,7 +502,7 @@ export class UserService {
           where: { email: dto.email },
         });
         if (existingEmail && existingEmail.guid !== userId) {
-          throw new BadRequestException('邮箱已存在');
+          throw new BadRequestException('Email already exists');
         }
       }
       user.email = dto.email || null;
@@ -512,7 +514,7 @@ export class UserService {
 
     await this.userRepository.save(user);
 
-    return { message: '用户信息已更新' };
+    return { message: 'User info updated' };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
@@ -525,27 +527,32 @@ export class UserService {
         .addSelect('user.thirdAuthType')
         .getOne();
 
-      if (!user) throw new NotFoundException('用户不存在');
+      if (!user) throw new NotFoundException('User does not exist');
 
       if (user.thirdAuthType) {
-        throw new BadRequestException('第三方登录用户不支持修改密码');
+        throw new BadRequestException(
+          'Third-party login users cannot change the password',
+        );
       }
 
       if (!user.password) {
-        throw new BadRequestException('当前账户未设置密码，请联系管理员');
+        throw new BadRequestException(
+          'No password is set for the current account, please contact an administrator',
+        );
       }
 
       const isPasswordValid = await bcrypt.compare(
         dto.current_password,
         user.password,
       );
-      if (!isPasswordValid) throw new BadRequestException('当前密码错误');
+      if (!isPasswordValid)
+        throw new BadRequestException('Current password is incorrect');
 
       user.password = await bcrypt.hash(dto.new_password, 10);
       await manager.getRepository(User).save(user);
       await this.revokeActiveTokens([userId], manager);
 
-      return { message: '密码修改成功' };
+      return { message: 'Password changed successfully' };
     });
   }
 
@@ -557,7 +564,7 @@ export class UserService {
     await this.dataSource.transaction(async (manager) => {
       const users = manager.getRepository(User);
       const user = await users.findOne({ where: { guid } });
-      if (!user) throw new NotFoundException('用户不存在');
+      if (!user) throw new NotFoundException('User does not exist');
       await this.authorizationService.assertUserMutation(
         actorGuid,
         guid,
@@ -574,7 +581,9 @@ export class UserService {
       }
       if (dto.new_password !== undefined) {
         if (user.thirdAuthType) {
-          throw new BadRequestException('第三方登录用户不支持修改密码');
+          throw new BadRequestException(
+            'Third-party login users cannot change the password',
+          );
         }
         user.password = await bcrypt.hash(dto.new_password, 10);
       }
@@ -588,7 +597,7 @@ export class UserService {
     await this.dataSource.transaction(async (manager) => {
       const users = manager.getRepository(User);
       const user = await users.findOne({ where: { guid } });
-      if (!user) throw new NotFoundException('用户不存在');
+      if (!user) throw new NotFoundException('User does not exist');
       await this.authorizationService.assertUserMutation(
         actorGuid,
         guid,
@@ -608,7 +617,7 @@ export class UserService {
         where: { guid: In(uniqueGuids) },
       });
       if (users.length !== uniqueGuids.length) {
-        throw new NotFoundException('一个或多个用户不存在');
+        throw new NotFoundException('One or more users do not exist');
       }
       for (const user of users) {
         await this.authorizationService.assertUserMutation(
@@ -621,7 +630,7 @@ export class UserService {
       }
       await this.revokeActiveTokens(uniqueGuids, manager);
     });
-    return { message: '强制登出成功' };
+    return { message: 'Forced logout successful' };
   }
 
   private async revokeActiveTokens(
@@ -651,7 +660,8 @@ export class UserService {
       const users = await manager.getRepository(User).find({
         where: { guid: In(user_guids) },
       });
-      if (users.length === 0) throw new NotFoundException('用户不存在');
+      if (users.length === 0)
+        throw new NotFoundException('User does not exist');
       const foundGuids = new Set(users.map((u) => u.guid));
       for (const guid of user_guids) {
         if (!foundGuids.has(guid))
@@ -669,7 +679,9 @@ export class UserService {
           .getRepository(User)
           .update({ guid: In(guidsToUpdate) }, { status });
         if (updateResult.affected !== new Set(guidsToUpdate).size) {
-          throw new ConflictException('用户信息已发生变化，请重试');
+          throw new ConflictException(
+            'User info has changed, please try again',
+          );
         }
         succeeded.push(...guidsToUpdate);
         if (status !== UserStatus.ACTIVE) {
@@ -698,7 +710,7 @@ export class UserService {
       });
 
       if (!users.length || users.length !== uniqueGuids.length) {
-        throw new NotFoundException('用户不存在');
+        throw new NotFoundException('User does not exist');
       }
 
       await this.authorizationService.assertUsersMutation(
@@ -728,7 +740,7 @@ export class UserService {
       await this.revokeActiveTokens(uniqueGuids, manager);
     });
 
-    return { message: '批量安全设置已更新' };
+    return { message: 'Bulk security settings updated' };
   }
 
   private ensureAvatarDir() {
@@ -766,18 +778,20 @@ export class UserService {
 
   async uploadAvatar(userGuid: string, file: Express.Multer.File) {
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException('不支持的图片格式，仅支持 JPG、PNG、WebP');
+      throw new BadRequestException(
+        'Unsupported image format; only JPG, PNG and WebP are supported',
+      );
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      throw new BadRequestException('图片大小不能超过 2MB');
+      throw new BadRequestException('Image size cannot exceed 2MB');
     }
 
     const user = await this.userRepository.findOne({
       where: { guid: userGuid },
     });
     if (!user) {
-      throw new NotFoundException('用户不存在');
+      throw new NotFoundException('User does not exist');
     }
 
     if (user.avatar) {
@@ -806,11 +820,11 @@ export class UserService {
       where: { guid: userGuid },
     });
     if (!user) {
-      throw new NotFoundException('用户不存在');
+      throw new NotFoundException('User does not exist');
     }
 
     if (!user.avatar) {
-      throw new NotFoundException('用户未设置头像');
+      throw new NotFoundException('User has no avatar set');
     }
 
     this.removeAvatarFile(user.avatar);

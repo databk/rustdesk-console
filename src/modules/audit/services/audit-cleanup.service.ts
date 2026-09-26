@@ -9,9 +9,9 @@ import { ConsoleAudit } from '../../rbac/entities/console-audit.entity';
 import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 /**
- * 审计日志自动清理服务
- * 每天零点根据保留天数自动清理过期的审计日志
- * 保留天数为 0 时不执行清理
+ * Automatic audit log cleanup service
+ * Automatically cleans up expired audit logs at midnight every day based on the retention days
+ * No cleanup is performed when the retention days is 0
  */
 @Injectable()
 export class AuditCleanupService {

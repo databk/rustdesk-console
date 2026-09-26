@@ -2,7 +2,7 @@ import { IsString, IsOptional, IsNotEmpty } from 'class-validator';
 
 /**
  * SysinfoDto
- * 用于设备系统信息上报
+ * Used for reporting device system information
  */
 export class SysinfoDto {
   @IsString()

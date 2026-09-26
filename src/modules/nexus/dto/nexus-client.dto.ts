@@ -7,7 +7,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-/** 定制配置对象 */
+/** Customization configuration object */
 export class NexusCustomDto {
   @IsOptional()
   @IsString()
@@ -54,7 +54,7 @@ export class NexusCustomDto {
   'default-settings'?: Record<string, unknown>;
 }
 
-/** 提交构建请求 DTO */
+/** Submit build request DTO */
 export class NexusGenerateDto {
   @IsIn(['windows'])
   os: string;
@@ -67,14 +67,14 @@ export class NexusGenerateDto {
   custom: NexusCustomDto;
 }
 
-/** 构建请求响应 */
+/** Build request response */
 export interface NexusGenerateResponse {
   uuid: string;
   status: string;
   message: string;
 }
 
-/** 构建状态响应 */
+/** Build status response */
 export interface NexusBuildStatusResponse {
   uuid: string;
   status: 'pending' | 'building' | 'completed' | 'failed' | 'cancelled';

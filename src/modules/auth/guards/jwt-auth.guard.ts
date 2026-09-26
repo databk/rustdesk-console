@@ -14,7 +14,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext) {
-    // 检查是否是公开接口
+    // Check whether this is a public endpoint
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -29,10 +29,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
   handleRequest<TUser = unknown>(err: unknown, user: TUser): TUser {
     if (err) {
-      throw err instanceof Error ? err : new UnauthorizedException('请先登录');
+      throw err instanceof Error
+        ? err
+        : new UnauthorizedException('Please log in first');
     }
     if (!user) {
-      throw new UnauthorizedException('请先登录');
+      throw new UnauthorizedException('Please log in first');
     }
     return user;
   }

@@ -26,16 +26,16 @@ import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.se
 @Injectable()
 /**
  * DeviceGroupService
- * 负责设备组管理和权限控制的核心服务
+ * Core service responsible for device group management and permission control
  *
- * 功能：
- * - 设备组创建和管理
- * - 设备组权限管理
- * - 用户权限管理
- * - 可访问资源查询
+ * Features:
+ * - Device group creation and management
+ * - Device group permission management
+ * - User permission management
+ * - Accessible resource queries
  *
- * 架构说明：
- * 管理设备组和用户之间的权限关系
+ * Architecture:
+ * Manages the permission relationships between device groups and users
  */
 export class DeviceGroupService {
   constructor(
@@ -56,13 +56,13 @@ export class DeviceGroupService {
   ) {}
 
   /**
-   * 获取用户可访问的设备组列表（分页）
-   * 管理员可以看到所有设备组，普通用户只能看到有权限的设备组
+   * Get the list of device groups accessible to a user (paginated)
+   * Administrators can see all device groups; regular users can only see device groups they have permission for
    *
-   * @param userGuid 用户GUID
-   * @param query 查询参数，包含分页信息
-   * @param isAdmin 是否为管理员
-   * @returns 设备组列表和总数
+   * @param userGuid User GUID
+   * @param query Query parameters, including pagination info
+   * @param isAdmin Whether the user is an administrator
+   * @returns Device group list and total count
    */
   async getAccessibleDeviceGroups(
     userGuid: string,
@@ -76,7 +76,7 @@ export class DeviceGroupService {
     const { current, pageSize, name } = query;
     const skip = (current - 1) * pageSize;
 
-    // 管理员可以看到所有设备组
+    // Administrators can see all device groups
     if (isAdmin || rbacScope) {
       let queryBuilder = this.deviceGroupRepository
         .createQueryBuilder('dg')
@@ -114,7 +114,7 @@ export class DeviceGroupService {
       };
     }
 
-    // 普通用户只能看到有权限的设备组
+    // Regular users can only see device groups they have permission for
     let queryBuilder = this.deviceGroupRepository
       .createQueryBuilder('dg')
       .innerJoin(
@@ -147,14 +147,14 @@ export class DeviceGroupService {
   }
 
   /**
-   * 获取可访问的用户列表
-   * 包括：自己 + 被授权访问的用户 + 通过设备组授权间接可访问的用户
-   * 管理员可以看到所有用户
+   * Get the list of accessible users
+   * Includes: oneself + users granted access + users indirectly accessible via device group authorization
+   * Administrators can see all users
    *
-   * @param userGuid 用户GUID
-   * @param query 查询参数，包含分页和状态过滤
-   * @param isAdmin 是否为管理员
-   * @returns 用户列表和总数
+   * @param userGuid User GUID
+   * @param query Query parameters, including pagination and status filtering
+   * @param isAdmin Whether the user is an administrator
+   * @returns User list and total count
    */
   async getAccessibleUsers(
     userGuid: string,
@@ -170,7 +170,7 @@ export class DeviceGroupService {
     const { current, pageSize, status, name, group_name } = query;
     const skip = (current - 1) * pageSize;
 
-    // 管理员可以看到所有用户
+    // Administrators can see all users
     if (isAdmin) {
       const queryBuilder = this.userRepository
         .createQueryBuilder('user')
@@ -178,14 +178,14 @@ export class DeviceGroupService {
           status: parseInt(status || '1') || UserStatus.ACTIVE,
         });
 
-      // 按用户名过滤
+      // Filter by user name
       if (name) {
         queryBuilder.andWhere('user.username LIKE :name', {
           name: `%${name}%`,
         });
       }
 
-      // 按组名过滤（通过设备组）
+      // Filter by group name (via device group)
       if (group_name) {
         queryBuilder.andWhere(
           `EXISTS (
@@ -216,7 +216,7 @@ export class DeviceGroupService {
       };
     }
 
-    // 普通用户只能看到有权限访问的用户
+    // Regular users can only see users they have permission to access
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
       .where('user.status = :status', {
@@ -237,12 +237,12 @@ export class DeviceGroupService {
         { userGuid },
       );
 
-    // 按用户名过滤
+    // Filter by user name
     if (name) {
       queryBuilder.andWhere('user.username LIKE :name', { name: `%${name}%` });
     }
 
-    // 按组名过滤（通过设备组）
+    // Filter by group name (via device group)
     if (group_name) {
       queryBuilder.andWhere(
         `EXISTS (
@@ -274,11 +274,11 @@ export class DeviceGroupService {
   }
 
   /**
-   * 创建设备组
-   * @param name 设备组名称
-   * @param note 备注
-   * @param allowedIncomings 允许访问的规则
-   * @returns 创建的设备组
+   * Create device group
+   * @param name Device group name
+   * @param note Remarks
+   * @param allowedIncomings Allowed access rules
+   * @returns The created device group
    */
   async createDeviceGroup(
     name: string,
@@ -287,12 +287,12 @@ export class DeviceGroupService {
     actorGuid: string,
   ) {
     await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
-    // 检查设备组名称是否已存在
+    // Check whether the device group name already exists
     const existingGroup = await this.deviceGroupRepository.findOne({
       where: { name },
     });
     if (existingGroup) {
-      throw new BadRequestException('设备组名称已存在');
+      throw new BadRequestException('Device group name already exists');
     }
 
     const deviceGroup = new DeviceGroup();
@@ -302,16 +302,16 @@ export class DeviceGroupService {
 
     await this.deviceGroupRepository.save(deviceGroup);
 
-    return { message: '设备组创建成功' };
+    return { message: 'Device group created successfully' };
   }
 
   /**
-   * 更新设备组
-   * @param guid 设备组GUID
-   * @param name 新名称
-   * @param note 新备注
-   * @param allowedIncomings 允许访问的规则
-   * @returns 更新结果
+   * Update device group
+   * @param guid Device group GUID
+   * @param name New name
+   * @param note New remarks
+   * @param allowedIncomings Allowed access rules
+   * @returns Update result
    */
   async updateDeviceGroup(
     guid: string,
@@ -325,16 +325,16 @@ export class DeviceGroupService {
       where: { guid },
     });
     if (!deviceGroup) {
-      throw new NotFoundException('设备组不存在');
+      throw new NotFoundException('Device group does not exist');
     }
 
     if (name !== undefined) {
-      // 检查新名称是否已存在
+      // Check whether the new name already exists
       const existingGroup = await this.deviceGroupRepository.findOne({
         where: { name },
       });
       if (existingGroup && existingGroup.guid !== guid) {
-        throw new BadRequestException('设备组名称已存在');
+        throw new BadRequestException('Device group name already exists');
       }
       deviceGroup.name = name;
     }
@@ -345,12 +345,12 @@ export class DeviceGroupService {
 
     await this.deviceGroupRepository.save(deviceGroup);
 
-    return { message: '设备组更新成功' };
+    return { message: 'Device group updated successfully' };
   }
 
   /**
-   * 删除设备组
-   * @param guid 设备组GUID
+   * Delete device group
+   * @param guid Device group GUID
    */
   async deleteDeviceGroup(guid: string, actorGuid: string) {
     await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
@@ -360,7 +360,7 @@ export class DeviceGroupService {
         where: { guid },
       });
       if (!deviceGroup) {
-        throw new NotFoundException('设备组不存在');
+        throw new NotFoundException('Device group does not exist');
       }
 
       const scopedAssignments = await manager
@@ -368,7 +368,7 @@ export class DeviceGroupService {
         .count({ where: { deviceGroupGuid: guid } });
       if (scopedAssignments > 0) {
         throw new BadRequestException(
-          '设备组仍被角色授权引用，不能删除，请先移除相关授权',
+          'The device group is still referenced by role authorizations and cannot be deleted; please remove the related authorizations first',
         );
       }
 
@@ -377,9 +377,9 @@ export class DeviceGroupService {
   }
 
   /**
-   * 添加设备到设备组
-   * @param guid 设备组GUID
-   * @param deviceIds 设备ID列表
+   * Add devices to device group
+   * @param guid Device group GUID
+   * @param deviceIds List of device IDs
    */
   async addDevicesToGroup(
     guid: string,
@@ -391,19 +391,19 @@ export class DeviceGroupService {
       where: { guid },
     });
     if (!deviceGroup) {
-      throw new NotFoundException('设备组不存在');
+      throw new NotFoundException('Device group does not exist');
     }
 
-    // 查找所有设备
+    // Look up all devices
     const peers = await this.peerRepository.find({
       where: { id: In(deviceIds) },
     });
 
     if (peers.length === 0) {
-      throw new NotFoundException('设备不存在');
+      throw new NotFoundException('Device does not exist');
     }
 
-    // 更新设备的设备组
+    // Update the devices' device group
     for (const peer of peers) {
       await this.peerRepository.update(
         { uuid: peer.uuid },
@@ -411,13 +411,13 @@ export class DeviceGroupService {
       );
     }
 
-    return { message: '设备添加成功' };
+    return { message: 'Devices added successfully' };
   }
 
   /**
-   * 从设备组中移除设备
-   * @param guid 设备组GUID
-   * @param deviceIds 设备ID列表
+   * Remove devices from device group
+   * @param guid Device group GUID
+   * @param deviceIds List of device IDs
    */
   async removeDevicesFromGroup(
     guid: string,
@@ -429,19 +429,21 @@ export class DeviceGroupService {
       where: { guid },
     });
     if (!deviceGroup) {
-      throw new NotFoundException('设备组不存在');
+      throw new NotFoundException('Device group does not exist');
     }
 
-    // 查找所有设备
+    // Look up all devices
     const peers = await this.peerRepository.find({
       where: { id: In(deviceIds), deviceGroupGuid: guid },
     });
 
     if (peers.length === 0) {
-      throw new NotFoundException('设备不存在或不在该设备组中');
+      throw new NotFoundException(
+        'Device does not exist or is not in this device group',
+      );
     }
 
-    // 移除设备的设备组
+    // Remove the devices' device group
     for (const peer of peers) {
       await this.peerRepository.update(
         { uuid: peer.uuid },
@@ -449,15 +451,15 @@ export class DeviceGroupService {
       );
     }
 
-    return { message: '设备移除成功' };
+    return { message: 'Devices removed successfully' };
   }
 
   /**
-   * 获取设备列表
-   * @param userGuid 用户GUID
-   * @param query 查询参数
-   * @param isAdmin 是否为管理员
-   * @returns 设备列表和总数
+   * Get device list
+   * @param userGuid User GUID
+   * @param query Query parameters
+   * @param isAdmin Whether the user is an administrator
+   * @returns Device list and total count
    */
   async getDevices(
     userGuid: string,
@@ -513,9 +515,9 @@ export class DeviceGroupService {
         'dg.name',
       ]);
 
-    // 管理员可以看到所有设备
+    // Administrators can see all devices
     if (!isAdmin && !rbacScope) {
-      // 普通用户只能看到自己有权限访问的设备
+      // Regular users can only see devices they have permission to access
       queryBuilder = queryBuilder.andWhere(
         `(peer.userGuid = :userGuid
           OR EXISTS (
@@ -540,7 +542,7 @@ export class DeviceGroupService {
       }
     }
 
-    // 按设备ID过滤
+    // Filter by device ID
     if (id) {
       queryBuilder = queryBuilder.andWhere('peer.id LIKE :id', {
         id: `%${id}%`,
@@ -565,7 +567,7 @@ export class DeviceGroupService {
       );
     }
 
-    // 按设备名称过滤
+    // Filter by device name
     if (device_name) {
       queryBuilder = queryBuilder.andWhere(
         `EXISTS (
@@ -576,7 +578,7 @@ export class DeviceGroupService {
       );
     }
 
-    // 按用户名过滤
+    // Filter by user name
     if (user_name) {
       queryBuilder = queryBuilder.andWhere(
         `EXISTS (
@@ -587,7 +589,7 @@ export class DeviceGroupService {
       );
     }
 
-    // 按设备用户名过滤
+    // Filter by device user name
     if (device_username) {
       queryBuilder = queryBuilder.andWhere(
         `EXISTS (
@@ -598,7 +600,7 @@ export class DeviceGroupService {
       );
     }
 
-    // 按设备组名过滤（精确匹配）
+    // Filter by device group name (exact match)
     if (device_group_name) {
       queryBuilder = queryBuilder.andWhere('dg.name = :deviceGroupName', {
         deviceGroupName: device_group_name,
@@ -622,7 +624,7 @@ export class DeviceGroupService {
       );
     }
 
-    // 按组名过滤（通过设备组）
+    // Filter by group name (via device group)
     if (group_name) {
       queryBuilder = queryBuilder.andWhere('dg.name LIKE :groupName', {
         groupName: `%${group_name}%`,
@@ -714,14 +716,14 @@ export class DeviceGroupService {
   }
 
   /**
-   * 更新设备属性
-   * 支持部分更新设备的用户、设备组、策略和备注
-   * 传字符串值 -> 按名称查找并关联
-   * 传 null -> 清除关联
-   * 不传某字段 -> 不修改该属性
+   * Update device properties
+   * Supports partially updating the device's user, device group, strategy and remarks
+   * Pass a string value -> look up by name and associate
+   * Pass null -> clear the association
+   * Omit a field -> that property is left unchanged
    *
-   * @param guid 设备GUID
-   * @param dto 更新数据
+   * @param guid Device GUID
+   * @param dto Update data
    */
   async updateDevice(guid: string, dto: UpdateDeviceDto, actorGuid: string) {
     const { scope } = await this.rbacAuthorizationService.assertDeviceAccess(
@@ -746,7 +748,7 @@ export class DeviceGroupService {
           where: { username: dto.userName },
         });
         if (!user) {
-          throw new NotFoundException('用户不存在');
+          throw new NotFoundException('User does not exist');
         }
         updateData.userGuid = user.guid;
       }
@@ -760,7 +762,7 @@ export class DeviceGroupService {
           where: { name: dto.deviceGroupName },
         });
         if (!deviceGroup) {
-          throw new NotFoundException('设备组不存在');
+          throw new NotFoundException('Device group does not exist');
         }
         updateData.deviceGroupGuid = deviceGroup.guid;
       }
@@ -774,7 +776,7 @@ export class DeviceGroupService {
           where: { name: dto.strategyName },
         });
         if (!strategy) {
-          throw new NotFoundException('策略不存在');
+          throw new NotFoundException('Strategy does not exist');
         }
         updateData.strategyGuid = strategy.guid;
       }
@@ -800,18 +802,20 @@ export class DeviceGroupService {
           'devices.edit',
           guid,
         );
-        throw new ConflictException('设备信息已发生变化，请重试');
+        throw new ConflictException(
+          'Device information has changed, please retry',
+        );
       }
     }
   }
 
   /**
-   * 批量更新设备状态
-   * 支持批量启用或禁用多个设备，返回详细的成功/失败信息
+   * Batch update device status
+   * Supports enabling or disabling multiple devices in batch, returning detailed success/failure information
    *
-   * @param guids 设备GUID列表
-   * @param status 目标状态
-   * @returns 操作结果，包含成功和失败的设备信息
+   * @param guids List of device GUIDs
+   * @param status Target status
+   * @returns Operation result, including information on successful and failed devices
    */
   async updateDeviceStatus(
     guids: string[],
@@ -845,7 +849,7 @@ export class DeviceGroupService {
           : PeerStatus.DISABLED;
 
       const concurrentChange = new ConflictException(
-        '设备信息已发生变化，请重试',
+        'Device information has changed, please retry',
       );
       try {
         await this.dataSource.transaction(async (manager) => {
@@ -887,8 +891,8 @@ export class DeviceGroupService {
   }
 
   /**
-   * 删除设备
-   * @param guid 设备GUID
+   * Delete device
+   * @param guid Device GUID
    */
   async deleteDevice(guid: string, actorGuid: string) {
     const { scope } = await this.rbacAuthorizationService.assertDeviceAccess(
@@ -910,7 +914,9 @@ export class DeviceGroupService {
         'devices.delete',
         guid,
       );
-      throw new ConflictException('设备信息已发生变化，请重试');
+      throw new ConflictException(
+        'Device information has changed, please retry',
+      );
     }
   }
 }

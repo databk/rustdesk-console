@@ -5,26 +5,26 @@ import { v4 as uuidv4 } from 'uuid';
 import { LoginSession } from '../entities/login-session.entity';
 import { PASSKEY_SESSION_EXPIRY_MINUTES } from '../auth.constants';
 
-/** 创建登录会话的参数 */
+/** Parameters for creating a login session */
 export interface CreateSessionParams {
-  /** 所属用户 GUID */
+  /** GUID of the owning user */
   userGuid: string;
-  /** 验证方式 */
+  /** Verification method */
   method: LoginSession['method'];
-  /** 验证码 / challenge（邮箱验证码或 WebAuthn challenge） */
+  /** Verification code / challenge (email verification code or WebAuthn challenge) */
   code?: string;
-  /** 待验证邮箱（仅邮箱验证方式） */
+  /** Email to verify (email verification method only) */
   email?: string;
-  /** 会话有效期（分钟），默认使用 Passkey 会话有效期常量 */
+  /** Session validity period (minutes); defaults to the Passkey session validity constant */
   expiryMinutes?: number;
-  /** 是否先删除该用户未使用的会话，默认 false */
+  /** Whether to first delete the user's unused sessions; defaults to false */
   deleteExisting?: boolean;
 }
 
 /**
- * 登录会话服务
- * 统一管理登录二次验证会话的创建、查找、标记和清理，
- * 消除 AuthTfaService / AuthEmailService / AuthPasskeyService 中的重复逻辑
+ * Login session service
+ * Centrally manages creation, lookup, marking, and cleanup of second-step login verification sessions,
+ * eliminating duplicated logic in AuthTfaService / AuthEmailService / AuthPasskeyService
  */
 @Injectable()
 export class LoginSessionService {
@@ -34,8 +34,8 @@ export class LoginSessionService {
   ) {}
 
   /**
-   * 创建登录会话
-   * 可选先清除该用户之前未使用的会话，避免会话堆积
+   * Create a login session
+   * Optionally clears the user's previously unused sessions first to avoid session buildup
    */
   async createSession(params: CreateSessionParams): Promise<LoginSession> {
     const {
@@ -68,7 +68,7 @@ export class LoginSessionService {
   }
 
   /**
-   * 查找用户指定方式下最新且有效的未使用会话
+   * Find the user's latest valid unused session for the given method
    */
   async findValidSession(
     userGuid: string,
@@ -86,8 +86,8 @@ export class LoginSessionService {
   }
 
   /**
-   * 通过会话 GUID 查找会话
-   * 可选按 method / used / 有效期 过滤
+   * Find a session by session GUID
+   * Can optionally filter by method / used / expiry
    */
   async findByGuid(
     guid: string,
@@ -113,7 +113,7 @@ export class LoginSessionService {
   }
 
   /**
-   * 标记会话为已使用，防止重放攻击
+   * Mark the session as used to prevent replay attacks
    */
   async markSessionUsed(session: LoginSession): Promise<void> {
     const result = await this.loginSessionRepository.update(
@@ -121,14 +121,14 @@ export class LoginSessionService {
       { used: true },
     );
     if (result.affected !== 1) {
-      throw new UnauthorizedException('登录会话已使用或已撤销');
+      throw new UnauthorizedException('Login session already used or revoked');
     }
     session.used = true;
   }
 
   /**
-   * 删除指定用户所有未使用的会话
-   * 在发起新的二次验证前调用，避免会话堆积
+   * Delete all of the given user's unused sessions
+   * Called before starting a new second-step verification to avoid session buildup
    */
   async deleteUserUnusedSessions(userGuid: string): Promise<void> {
     await this.loginSessionRepository.delete({

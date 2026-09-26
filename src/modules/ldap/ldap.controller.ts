@@ -15,15 +15,15 @@ import { LdapService } from './ldap.service';
 import { UpdateLdapConfigDto, TestLdapConfigDto } from './dto/ldap-config.dto';
 
 /**
- * LDAP 配置控制器
- * 管理 LDAP 配置相关的 API 接口
+ * LDAP configuration controller
+ * Manages LDAP configuration related API endpoints
  *
- * 端点：
- * - GET  /api/settings/ldap      - 获取 LDAP 配置
- * - PUT  /api/settings/ldap      - 创建或更新 LDAP 配置（Upsert）
- * - POST /api/settings/ldap/test - 测试 LDAP 连接
+ * Endpoints:
+ * - GET  /api/settings/ldap      - Get LDAP configuration
+ * - PUT  /api/settings/ldap      - Create or update LDAP configuration (Upsert)
+ * - POST /api/settings/ldap/test - Test LDAP connection
  *
- * 所有端点需要管理员权限
+ * All endpoints require administrator permission
  */
 @UseGuards(AdminGuard)
 @Controller('settings/ldap')
@@ -34,8 +34,8 @@ export class LdapController {
   ) {}
 
   /**
-   * 获取 LDAP 配置
-   * 返回当前生效的 LDAP 配置，密码字段脱敏
+   * Get LDAP configuration
+   * Returns the currently active LDAP configuration with the password field masked
    */
   @Get()
   async getLdapConfig() {
@@ -43,9 +43,9 @@ export class LdapController {
   }
 
   /**
-   * 创建或更新 LDAP 配置（Upsert 语义）
-   * 配置不存在时创建，存在时更新
-   * 仅更新传入的字段，密码字段传入占位符时不更新
+   * Create or update LDAP configuration (Upsert semantics)
+   * Creates the configuration if it does not exist, updates it otherwise
+   * Only updates the provided fields; the password is not updated when the placeholder is passed
    */
   @Put()
   @HttpCode(HttpStatus.OK)
@@ -54,10 +54,10 @@ export class LdapController {
   }
 
   /**
-   * 测试 LDAP 连接
-   * 可传入配置进行测试，不传则测试当前生效配置
+   * Test LDAP connection
+   * A configuration may be provided for testing; if omitted, the currently active configuration is tested
    *
-   * 限流：每分钟最多5次，防止滥用
+   * Rate limit: at most 5 requests per minute to prevent abuse
    */
   @Post('test')
   @HttpCode(HttpStatus.OK)

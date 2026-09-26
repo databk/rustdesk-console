@@ -65,7 +65,7 @@ export class UserRoleService {
       where: { guid: userGuid },
       select: ['guid', 'isAdmin'],
     });
-    if (!target) throw new NotFoundException('用户不存在');
+    if (!target) throw new NotFoundException('User does not exist');
     const actor = await this.authorizationService.getCurrentUser(actorGuid);
     const roles = await this.roleRepository.find({ order: { name: 'ASC' } });
     const assignments = await this.loadAssignments(userGuid);
@@ -213,7 +213,7 @@ export class UserRoleService {
     if (roles.length !== roleGuids.length) {
       const found = new Set(roles.map((role) => role.guid));
       throw new NotFoundException(
-        `角色不存在: ${roleGuids.filter((guid) => !found.has(guid)).join(', ')}`,
+        `Role not found: ${roleGuids.filter((guid) => !found.has(guid)).join(', ')}`,
       );
     }
     const rolePermissions = roles.length
@@ -248,9 +248,11 @@ export class UserRoleService {
       where: { guid: userGuid },
       select: ['guid', 'isAdmin'],
     });
-    if (!target && !owner) throw new NotFoundException('用户不存在');
+    if (!target && !owner) throw new NotFoundException('User does not exist');
     if (target?.isAdmin) {
-      throw new ForbiddenException('超级管理员不能分配普通角色');
+      throw new ForbiddenException(
+        'Super administrators cannot be assigned regular roles',
+      );
     }
     if (
       !owner &&
@@ -262,8 +264,8 @@ export class UserRoleService {
     ) {
       throw new ForbiddenException(
         userGuid === actorGuid
-          ? '不能修改自己的角色'
-          : '受保护账号只能由超级管理员修改',
+          ? 'You cannot modify your own roles'
+          : 'Protected accounts can only be modified by a super administrator',
       );
     }
     if (!owner) {
@@ -276,7 +278,9 @@ export class UserRoleService {
         (row) => !requestedRoleGuids.has(row.guid),
       );
       if (omitted)
-        throw new ForbiddenException(`不可移除受保护角色: ${omitted.guid}`);
+        throw new ForbiddenException(
+          `Cannot remove protected role: ${omitted.guid}`,
+        );
       const denied = normalized.find((assignment) => {
         const row = eligibility.data.find(
           (candidate) => candidate.guid === assignment.role_guid,
@@ -289,7 +293,9 @@ export class UserRoleService {
         );
       });
       if (denied)
-        throw new ForbiddenException(`角色不可分配: ${denied.role_guid}`);
+        throw new ForbiddenException(
+          `Role cannot be assigned: ${denied.role_guid}`,
+        );
       const caller =
         await this.authorizationService.getEffectivePermissions(actorGuid);
       const proposed = new Map<
@@ -321,7 +327,9 @@ export class UserRoleService {
               allowed.device_group_guids.includes(group),
             ))
         ) {
-          throw new ForbiddenException(`角色权限超出操作者范围: ${permission}`);
+          throw new ForbiddenException(
+            `Role permissions exceed the operator scope: ${permission}`,
+          );
         }
       }
     }
@@ -338,7 +346,7 @@ export class UserRoleService {
       if (groups.length !== groupGuids.length) {
         const found = new Set(groups.map((group) => group.guid));
         throw new BadRequestException(
-          `设备组不存在: ${groupGuids.filter((guid) => !found.has(guid)).join(', ')}`,
+          `Device group not found: ${groupGuids.filter((guid) => !found.has(guid)).join(', ')}`,
         );
       }
     }
@@ -358,9 +366,11 @@ export class UserRoleService {
       const currentTarget = await manager
         .getRepository(User)
         .findOne({ where: { guid: userGuid }, select: ['guid', 'isAdmin'] });
-      if (!currentTarget) throw new NotFoundException('用户不存在');
+      if (!currentTarget) throw new NotFoundException('User does not exist');
       if (currentTarget.isAdmin) {
-        throw new ForbiddenException('超级管理员不能分配普通角色');
+        throw new ForbiddenException(
+          'Super administrators cannot be assigned regular roles',
+        );
       }
       if (
         !currentOwner &&
@@ -370,10 +380,12 @@ export class UserRoleService {
           manager,
         ))
       ) {
-        throw new ForbiddenException('受保护账号只能由超级管理员修改');
+        throw new ForbiddenException(
+          'Protected accounts can only be modified by a super administrator',
+        );
       }
       if (!currentOwner && userGuid === actorGuid) {
-        throw new ForbiddenException('不能修改自己的角色');
+        throw new ForbiddenException('You cannot modify your own roles');
       }
       const currentRolesForWrite = roleGuids.length
         ? await manager
@@ -383,7 +395,7 @@ export class UserRoleService {
       if (currentRolesForWrite.length !== roleGuids.length) {
         const found = new Set(currentRolesForWrite.map((role) => role.guid));
         throw new NotFoundException(
-          `角色不存在: ${roleGuids.filter((roleGuid) => !found.has(roleGuid)).join(', ')}`,
+          `Role not found: ${roleGuids.filter((roleGuid) => !found.has(roleGuid)).join(', ')}`,
         );
       }
       if (!currentOwner) {
@@ -392,7 +404,7 @@ export class UserRoleService {
         );
         if (assignedProtectedRole) {
           throw new ForbiddenException(
-            `受保护角色只能由超级管理员分配: ${assignedProtectedRole.guid}`,
+            `Protected roles can only be assigned by a super administrator: ${assignedProtectedRole.guid}`,
           );
         }
       }
@@ -411,7 +423,7 @@ export class UserRoleService {
         )
       ) {
         throw new ForbiddenException(
-          '包含 roles.assign 的角色只能由超级管理员分配',
+          'Roles containing roles.assign can only be assigned by a super administrator',
         );
       }
       for (const assignment of normalized) {
@@ -435,7 +447,7 @@ export class UserRoleService {
         if (currentGroups.length !== groupGuids.length) {
           const found = new Set(currentGroups.map((group) => group.guid));
           throw new BadRequestException(
-            `设备组不存在: ${groupGuids.filter((groupGuid) => !found.has(groupGuid)).join(', ')}`,
+            `Device group not found: ${groupGuids.filter((groupGuid) => !found.has(groupGuid)).join(', ')}`,
           );
         }
       }
@@ -475,7 +487,7 @@ export class UserRoleService {
         );
         if (omitted)
           throw new ForbiddenException(
-            `不可移除受保护角色: ${omitted.roleGuid}`,
+            `Cannot remove protected role: ${omitted.roleGuid}`,
           );
         const finalRoleRows = roleGuids.length
           ? await manager
@@ -517,7 +529,7 @@ export class UserRoleService {
               ))
           ) {
             throw new ForbiddenException(
-              `角色权限超出操作者范围: ${permission}`,
+              `Role permissions exceed the operator scope: ${permission}`,
             );
           }
         }
@@ -673,7 +685,9 @@ export class UserRoleService {
     const seen = new Set<string>();
     return assignments.map((assignment) => {
       if (seen.has(assignment.role_guid)) {
-        throw new BadRequestException('同一用户不能重复分配角色');
+        throw new BadRequestException(
+          'The same user cannot be assigned duplicate roles',
+        );
       }
       seen.add(assignment.role_guid);
       const groups = [...new Set(assignment.device_group_guids || [])];
@@ -723,7 +737,7 @@ export class UserRoleService {
         where: { guid: userGuid },
       }))
     ) {
-      throw new NotFoundException('用户不存在');
+      throw new NotFoundException('User does not exist');
     }
   }
 }

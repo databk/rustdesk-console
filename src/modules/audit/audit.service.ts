@@ -17,17 +17,17 @@ import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.se
 @Injectable()
 /**
  * AuditService
- * 负责审计日志记录和查询的核心服务
+ * Core service responsible for recording and querying audit logs
  *
- * 功能：
- * - 连接审计记录
- * - 文件传输审计记录
- * - 告警审计记录
- * - 审计日志查询
- * - 审计统计
+ * Features:
+ * - Connection audit records
+ * - File transfer audit records
+ * - Alarm audit records
+ * - Audit log queries
+ * - Audit statistics
  *
- * 架构说明：
- * 处理三种类型的审计事件：连接、文件传输和告警
+ * Architecture:
+ * Handles three types of audit events: connection, file transfer and alarm
  */
 export class AuditService {
   constructor(
@@ -46,16 +46,15 @@ export class AuditService {
   ) {}
 
   /**
-   * 记录连接审计
-   * 记录远程桌面连接的详细信息，包括连接建立、断开等操作
-   * 也支持仅添加备注（note-only）的请求
+   * Record connection audit
+   * Records details of remote desktop connections, including connection establishment, disconnection and other operations
+   * Also supports note-only requests (adding a remark only)
    *
-   * @param dto 连接审计数据
-   * @returns 保存的连接审计记录
+   * @param dto Connection audit data
+   * @returns The saved connection audit record
    */
   async auditConnection(dto: ConnectionAuditDto): Promise<ConnectionAudit> {
-
-    // 判断是否为仅添加备注的请求（无 uuid 和 conn_id，有 session_id 和 note）
+    // Determine whether this is a note-only request (no uuid and conn_id, but has session_id and note)
     if (!dto.uuid && dto.session_id !== undefined && dto.note !== undefined) {
       return this.addConnectionNote(dto);
     }
@@ -64,8 +63,8 @@ export class AuditService {
   }
 
   /**
-   * 仅添加备注
-   * 通过 deviceId + sessionId 查找已有连接记录并更新备注
+   * Add note only
+   * Find the existing connection record by deviceId + sessionId and update the note
    */
   private async addConnectionNote(
     dto: ConnectionAuditDto,
@@ -90,8 +89,8 @@ export class AuditService {
   }
 
   /**
-   * 管理端更新连接审计记录
-   * 按主键查找记录并更新 note 字段
+   * Admin-side update of a connection audit record
+   * Find the record by primary key and update the note field
    */
   async updateConnectionAudit(
     id: number,
@@ -110,8 +109,8 @@ export class AuditService {
   }
 
   /**
-   * 创建或更新连接审计记录
-   * 处理完整的连接状态上报（含 uuid）
+   * Create or update a connection audit record
+   * Handle a full connection status report (including uuid)
    */
   private async upsertConnectionAudit(
     dto: ConnectionAuditDto,
@@ -120,7 +119,7 @@ export class AuditService {
     const sessionId =
       dto.session_id !== undefined ? String(dto.session_id) : null;
 
-    // 转换 action 状态
+    // Convert the action status
     let action: string;
     if (dto.action === 'new') {
       action = 'open';
@@ -130,7 +129,7 @@ export class AuditService {
       action = dto.action;
     }
 
-    // 尝试查找现有连接（deviceId、deviceUuid、connId 均相同视为同一连接）
+    // Try to find an existing connection (same deviceId, deviceUuid and connId are treated as the same connection)
     const whereCondition: FindOptionsWhere<ConnectionAudit> = {
       deviceId: dto.id,
       deviceUuid: dto.uuid,
@@ -156,7 +155,7 @@ export class AuditService {
   }
 
   /**
-   * 更新已有连接审计记录
+   * Update an existing connection audit record
    */
   private async updateExistingConnection(
     existingConnection: ConnectionAudit,
@@ -214,7 +213,7 @@ export class AuditService {
   }
 
   /**
-   * 创建新连接审计记录
+   * Create a new connection audit record
    */
   private async createNewConnection(
     dto: ConnectionAuditDto,
@@ -245,14 +244,14 @@ export class AuditService {
   }
 
   /**
-   * 记录文件审计
-   * 记录文件传输操作的详细信息
+   * Record file audit
+   * Records details of file transfer operations
    *
-   * @param dto 文件审计数据
-   * @returns 保存的文件审计记录
+   * @param dto File audit data
+   * @returns The saved file audit record
    */
   async auditFile(dto: FileAuditDto): Promise<FileAudit> {
-    // nonce 去重：先查已有记录（加 deviceId 防止跨设备误匹配）
+    // nonce deduplication: look up existing records first (with deviceId to prevent cross-device mismatches)
     if (dto.nonce) {
       const existing = await this.fileAuditRepository.findOne({
         where: { deviceId: dto.id, nonce: dto.nonce },
@@ -262,7 +261,7 @@ export class AuditService {
       }
     }
 
-    // 解析 info JSON 字符串
+    // Parse the info JSON string
     let info: {
       ip: string;
       name: string;
@@ -293,7 +292,7 @@ export class AuditService {
     try {
       return await this.fileAuditRepository.save(fileAudit);
     } catch (err) {
-      // 并发时唯一索引冲突，重新查询并返回已有记录
+      // Unique index conflict under concurrency; re-query and return the existing record
       if (dto.nonce && this.isUniqueConstraintError(err)) {
         const existing = await this.fileAuditRepository.findOne({
           where: { deviceId: dto.id, nonce: dto.nonce },
@@ -307,14 +306,14 @@ export class AuditService {
   }
 
   /**
-   * 记录告警审计
-   * 记录安全告警的详细信息
+   * Record alarm audit
+   * Records details of security alarms
    *
-   * @param dto 告警审计数据
-   * @returns 保存的告警审计记录
+   * @param dto Alarm audit data
+   * @returns The saved alarm audit record
    */
   async auditAlarm(dto: AlarmAuditDto): Promise<AlarmAudit> {
-    // nonce 去重：先查已有记录（加 deviceId 防止跨设备误匹配）
+    // nonce deduplication: look up existing records first (with deviceId to prevent cross-device mismatches)
     if (dto.nonce) {
       const existing = await this.alarmAuditRepository.findOne({
         where: { deviceId: dto.id, nonce: dto.nonce },
@@ -324,7 +323,7 @@ export class AuditService {
       }
     }
 
-    // 解析 info JSON 字符串
+    // Parse the info JSON string
     let info: { id?: string; ip: string; name?: string };
     try {
       info = JSON.parse(dto.info) as typeof info;
@@ -347,7 +346,7 @@ export class AuditService {
     try {
       return await this.alarmAuditRepository.save(alarmAudit);
     } catch (err) {
-      // 并发时唯一索引冲突，重新查询并返回已有记录
+      // Unique index conflict under concurrency; re-query and return the existing record
       if (dto.nonce && this.isUniqueConstraintError(err)) {
         const existing = await this.alarmAuditRepository.findOne({
           where: { deviceId: dto.id, nonce: dto.nonce },
@@ -361,9 +360,9 @@ export class AuditService {
   }
 
   /**
-   * 查询连接审计
-   * @param filters 过滤条件
-   * @returns 连接审计列表
+   * Query connection audits
+   * @param filters Filter conditions
+   * @returns Connection audit list
    */
   async queryConnectionAudits(
     filters: {
@@ -409,19 +408,19 @@ export class AuditService {
         'ca.createdAt',
       ]);
 
-    // 按被控端设备ID过滤（模糊匹配）
+    // Filter by controlled device ID (fuzzy match)
     if (deviceId) {
       queryBuilder.andWhere('ca.deviceId LIKE :deviceId', {
         deviceId: `%${deviceId}%`,
       });
     }
 
-    // 按连接类型过滤（-1 表示未建立连接）
+    // Filter by connection type (-1 means no connection established)
     if (type !== undefined) {
       queryBuilder.andWhere('ca.type = :type', { type });
     }
 
-    // 按时间段过滤
+    // Filter by time range
     if (startTime) {
       const start = new Date(startTime);
       queryBuilder.andWhere('ca.createdAt >= :startTime', { startTime: start });
@@ -552,9 +551,9 @@ export class AuditService {
   }
 
   /**
-   * 查询文件审计
-   * @param filters 过滤条件
-   * @returns 文件审计列表
+   * Query file audits
+   * @param filters Filter conditions
+   * @returns File audit list
    */
   async queryFileAudits(filters: {
     deviceId?: string;
@@ -592,19 +591,19 @@ export class AuditService {
         'fa.createdAt',
       ]);
 
-    // 按被控端设备ID过滤（模糊匹配）
+    // Filter by controlled device ID (fuzzy match)
     if (deviceId) {
       queryBuilder.andWhere('fa.deviceId LIKE :deviceId', {
         deviceId: `%${deviceId}%`,
       });
     }
 
-    // 按文件传输类型过滤
+    // Filter by file transfer type
     if (type !== undefined) {
       queryBuilder.andWhere('fa.type = :type', { type });
     }
 
-    // 按时间段过滤
+    // Filter by time range
     if (startTime) {
       const start = new Date(startTime);
       queryBuilder.andWhere('fa.createdAt >= :startTime', { startTime: start });
@@ -625,9 +624,9 @@ export class AuditService {
   }
 
   /**
-   * 查询告警审计
-   * @param filters 过滤条件
-   * @returns 告警审计列表
+   * Query alarm audits
+   * @param filters Filter conditions
+   * @returns Alarm audit list
    */
   async queryAlarmAudits(filters: {
     deviceId?: string;
@@ -662,19 +661,19 @@ export class AuditService {
         'aa.createdAt',
       ]);
 
-    // 按设备ID过滤（模糊匹配）
+    // Filter by device ID (fuzzy match)
     if (deviceId) {
       queryBuilder.andWhere('aa.deviceId LIKE :deviceId', {
         deviceId: `%${deviceId}%`,
       });
     }
 
-    // 按告警类型过滤
+    // Filter by alarm type
     if (type !== undefined) {
       queryBuilder.andWhere('aa.typ = :type', { type });
     }
 
-    // 按时间段过滤
+    // Filter by time range
     if (startTime) {
       const start = new Date(startTime);
       queryBuilder.andWhere('aa.createdAt >= :startTime', { startTime: start });
@@ -695,9 +694,9 @@ export class AuditService {
   }
 
   /**
-   * 查询控制台审计
-   * @param filters 过滤条件
-   * @returns 控制台审计列表
+   * Query console audits
+   * @param filters Filter conditions
+   * @returns Console audit list
    */
   queryConsoleAudits(filters: {
     operator?: string;

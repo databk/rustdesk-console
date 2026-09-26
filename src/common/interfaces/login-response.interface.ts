@@ -2,42 +2,42 @@ import { UserInfo } from '../../modules/user/entities/user.entity';
 import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/types';
 
 /**
- * 登录响应接口
- * 定义登录成功后返回的数据结构
- * 适用于所有认证方式（密码登录、TFA、邮箱验证码、OIDC、Passkey等）
+ * Login response interface
+ * Defines the data structure returned after a successful login
+ * Applies to all authentication methods (password login, TFA, email verification code, OIDC, Passkey, etc.)
  */
 export interface LoginResponse {
-  /** 访问令牌，仅在登录成功时返回 */
+  /** Access token, returned only on successful login */
   access_token?: string;
-  /** 响应类型，用于标识登录流程的状态 */
+  /** Response type, identifies the state of the login flow */
   type: string;
-  /** 双因素认证类型，仅在需要TFA时返回 */
+  /** Two-factor authentication type, returned only when TFA is required */
   tfa_type?: string;
-  /** 登录会话标识符（UUID），由服务端在需要二次验证时返回，客户端在后续请求中回传，用于跟踪一次登录 */
+  /** Login session identifier (UUID), returned by the server when a second verification step is required and echoed back by the client in subsequent requests to track one login */
   secret?: string;
-  /** Passkey 认证选项，仅在需要 Passkey 验证时返回，供浏览器调用 navigator.credentials.get() */
+  /** Passkey authentication options, returned only when Passkey verification is required, for the browser to call navigator.credentials.get() */
   passkey_options?: PublicKeyCredentialRequestOptionsJSON;
-  /** 用户信息 */
+  /** User info */
   user?: {
     /** Stable database identifier */
     guid: string;
-    /** 用户名 */
+    /** Username */
     name: string;
-    /** 显示名称 */
+    /** Display name */
     display_name?: string;
-    /** 头像 URL */
+    /** Avatar URL */
     avatar?: string;
-    /** 邮箱地址 */
+    /** Email address */
     email?: string;
-    /** 用户备注 */
+    /** User note */
     note?: string;
-    /** 用户状态 */
+    /** User status */
     status: number;
-    /** 用户信息配置 */
+    /** User info settings */
     info?: UserInfo;
-    /** 是否为管理员 */
+    /** Whether the user is an administrator */
     is_admin: boolean;
-    /** 第三方认证类型 */
+    /** Third-party authentication type */
     third_auth_type?: string;
   };
 }

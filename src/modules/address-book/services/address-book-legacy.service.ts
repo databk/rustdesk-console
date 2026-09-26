@@ -14,13 +14,13 @@ import { mapOsToPlatform } from '../../../common/utils/platform.util';
 @Injectable()
 /**
  * AddressBookLegacyService
- * 负责旧版API兼容的子服务
+ * Sub-service responsible for legacy API compatibility
  *
- * 与主服务关系：
- * 被AddressBookService委托处理旧版API请求
+ * Relationship with the main service:
+ * Delegated by AddressBookService to handle legacy API requests
  *
- * 调用上下文：
- * 提供与旧版客户端的兼容性支持
+ * Call context:
+ * Provides compatibility support for legacy clients
  */
 export class AddressBookLegacyService {
   constructor(
@@ -40,25 +40,25 @@ export class AddressBookLegacyService {
   ) {}
 
   /**
-   * 获取旧版地址簿数据
-   * 返回格式兼容旧版RustDesk客户端
+   * Get legacy address book data
+   * Returns a format compatible with legacy RustDesk clients
    *
-   * 数据格式说明：
-   * - 如果地址簿为空，返回字符串 "null"
-   * - 如果地址簿有数据，返回对象包含：
-   *   - licensed_devices: 许可设备数量
-   *   - data: JSON字符串，包含tags、peers、tag_colors
+   * Data format description:
+   * - If the address book is empty, returns the string "null"
+   * - If the address book has data, returns an object containing:
+   *   - licensed_devices: number of licensed devices
+   *   - data: JSON string containing tags, peers, and tag_colors
    *
-   * @param userId 用户ID
-   * @returns 旧版地址簿数据（字符串或对象）
+   * @param userId User ID
+   * @returns Legacy address book data (string or object)
    */
   async getLegacyAddressBook(userId: string) {
-    // 获取用户的个人地址簿
+    // Get the user's personal address book
     let addressBook = await this.addressBookRepository.findOne({
       where: { owner: userId, isPersonal: true },
     });
 
-    // 如果不存在则创建
+    // Create it if it does not exist
     if (!addressBook) {
       addressBook = this.addressBookRepository.create({
         guid: uuidv4(),
@@ -69,18 +69,18 @@ export class AddressBookLegacyService {
       await this.addressBookRepository.save(addressBook);
     }
 
-    // 获取所有标签
+    // Get all tags
     const tags = await this.addressBookTagRepository.find({
       where: { addressBookGuid: addressBook.guid },
     });
 
-    // 获取所有设备及其标签
+    // Get all devices and their tags
     const peers = await this.addressBookPeerRepository.find({
       where: { addressBookGuid: addressBook.guid },
       relations: ['tags'],
     });
 
-    // 获取所有设备ID，用于从sysinfos表获取信息
+    // Get all device IDs, used to fetch info from the sysinfos table
     const deviceIds = peers.map((p) => p.deviceId);
     const sysinfos =
       deviceIds.length > 0
@@ -91,7 +91,7 @@ export class AddressBookLegacyService {
 
     const sysinfoMap = new Map(sysinfos.map((s) => [s.uuid, s]));
 
-    // 从 peers 表获取设备信息（deviceId 引用 peers.uuid，需要解析为 peers.id）
+    // Get device info from the peers table (deviceId references peers.uuid and needs to be resolved to peers.id)
     const peerRecords =
       deviceIds.length > 0
         ? await this.peerRepository.find({
@@ -100,18 +100,18 @@ export class AddressBookLegacyService {
         : [];
     const peerMap = new Map(peerRecords.map((p) => [p.uuid, p]));
 
-    // 如果地址簿为空，返回 "null"
+    // If the address book is empty, return "null"
     if (tags.length === 0 && peers.length === 0) {
       return 'null';
     }
 
-    // 构建标签颜色映射
+    // Build the tag color mapping
     const tagColors: Record<string, number> = {};
     for (const tag of tags) {
       tagColors[tag.name] = tag.color;
     }
 
-    // 构建设备列表
+    // Build the device list
     const peersData = peers.map((p) => {
       const sysinfo = sysinfoMap.get(p.deviceId);
       const peerRecord = peerMap.get(p.deviceId);
@@ -126,7 +126,7 @@ export class AddressBookLegacyService {
       };
     });
 
-    // 构建标签列表
+    // Build the tag list
     const tagsList = tags.map((t) => t.name);
 
     return {
@@ -140,32 +140,32 @@ export class AddressBookLegacyService {
   }
 
   /**
-   * 更新旧版地址簿数据
-   * 接收双重JSON编码的数据，并更新到数据库
+   * Update legacy address book data
+   * Receives double JSON-encoded data and updates the database
    *
-   * 数据格式说明：
-   * 输入数据包含：
-   * - tags: 标签名称数组
-   * - peers: 设备数组，每个设备包含id、hash、username、hostname、platform、alias、tags
-   * - tag_colors: JSON字符串，包含标签颜色映射
+   * Data format description:
+   * The input data contains:
+   * - tags: array of tag names
+   * - peers: array of devices, each containing id, hash, username, hostname, platform, alias, tags
+   * - tag_colors: JSON string containing the tag color mapping
    *
-   * 处理逻辑：
-   * 1. 解析双重JSON编码的数据
-   * 2. 删除现有所有标签和设备
-   * 3. 根据新数据创建标签和设备
-   * 4. 建立设备与标签的关联关系
+   * Processing logic:
+   * 1. Parse the double JSON-encoded data
+   * 2. Delete all existing tags and devices
+   * 3. Create tags and devices from the new data
+   * 4. Establish the associations between devices and tags
    *
-   * @param userId 用户ID
-   * @param data 双重JSON编码的地址簿数据
-   * @returns 操作结果（字符串 "null"）
-   * @throws BadRequestException 当JSON数据无效时抛出
+   * @param userId User ID
+   * @param data Double JSON-encoded address book data
+   * @returns Operation result (the string "null")
+   * @throws BadRequestException Thrown when the JSON data is invalid
    */
   async updateLegacyAddressBook(userId: string, data: string) {
     if (!data) {
       return 'null';
     }
 
-    // 解析双重 JSON 编码的数据
+    // Parse the double JSON-encoded data
     let parsedData: {
       tags?: string[];
       peers?: Array<{
@@ -183,15 +183,15 @@ export class AddressBookLegacyService {
     try {
       parsedData = JSON.parse(data) as typeof parsedData;
     } catch {
-      throw new BadRequestException('无效的 JSON 数据');
+      throw new BadRequestException('Invalid JSON data');
     }
 
-    // 获取用户的个人地址簿
+    // Get the user's personal address book
     let addressBook = await this.addressBookRepository.findOne({
       where: { owner: userId, isPersonal: true },
     });
 
-    // 如果不存在则创建
+    // Create it if it does not exist
     if (!addressBook) {
       addressBook = this.addressBookRepository.create({
         guid: uuidv4(),
@@ -204,13 +204,13 @@ export class AddressBookLegacyService {
 
     const addressBookGuid = addressBook.guid;
 
-    // 解析标签颜色
+    // Parse the tag colors
     let tagColors: Record<string, number> = {};
     if (parsedData.tag_colors) {
       try {
         tagColors = JSON.parse(parsedData.tag_colors) as Record<string, number>;
       } catch {
-        // 忽略解析错误
+        // Ignore parse errors
       }
     }
 
@@ -236,7 +236,7 @@ export class AddressBookLegacyService {
       await tagRepository.delete({ addressBookGuid });
       await peerRepository.delete({ addressBookGuid });
 
-      // 创建新标签
+      // Create a new tag
       const tagNameToGuid: Record<string, string> = {};
       const dangerousProperties = ['__proto__', 'constructor', 'prototype'];
 
@@ -258,11 +258,11 @@ export class AddressBookLegacyService {
         }
       }
 
-      // 创建新设备
+      // Create a new device
       if (parsedData.peers && parsedData.peers.length > 0) {
         for (const peerData of parsedData.peers) {
-          // 通过 findOrCreatePeer 查找或创建 peer 记录，获取 uuid 作为 deviceId
-          // 与新版 API 保持一致：deviceId 始终引用 peers.uuid
+          // Look up or create the peer record via findOrCreatePeer, using its uuid as deviceId
+          // Consistent with the new API: deviceId always references peers.uuid
           const peerRecord = await this.findOrCreatePeer(peerData.id);
 
           const peerGuid = uuidv4();
@@ -275,7 +275,7 @@ export class AddressBookLegacyService {
           });
           await peerRepository.save(peer);
 
-          // 处理标签关联
+          // Handle tag associations
           if (peerData.tags && peerData.tags.length > 0) {
             for (const tagName of peerData.tags) {
               const tagGuid = tagNameToGuid[tagName];
@@ -296,11 +296,11 @@ export class AddressBookLegacyService {
   }
 
   /**
-   * 查找或创建设备记录
-   * 在 peers 表中查找指定 id 的设备，如果找不到则自动创建
+   * Find or create a device record
+   * Look up the device with the given id in the peers table; create it automatically if not found
    *
-   * @param id 设备ID（RustDesk 数字 ID、IP 地址或已有记录的任何格式）
-   * @returns Peer 记录
+   * @param id Device ID (RustDesk numeric ID, IP address, or any format of an existing record)
+   * @returns Peer record
    */
   private async findOrCreatePeer(id: string): Promise<Peer> {
     const peerRecord = await this.peerRepository.findOne({
@@ -311,8 +311,8 @@ export class AddressBookLegacyService {
       return peerRecord;
     }
 
-    // 对于不在 peers 表中的设备，自动创建 peer 记录
-    // 这包括 IP 格式设备（如 192.168.1.94）以及尚未发送心跳的数字 ID 设备
+    // For devices not in the peers table, create a peer record automatically
+    // This includes IP-format devices (such as 192.168.1.94) and numeric-ID devices that have not sent a heartbeat yet
     const newPeer = this.peerRepository.create({
       uuid: uuidv4(),
       id,

@@ -5,33 +5,33 @@ import { HeartbeatDto } from './dto/heartbeat.dto';
 import { Public } from '../auth/decorators/public.decorator';
 
 /**
- * 心跳控制器
- * 负责处理设备心跳请求，维护设备在线状态
+ * Heartbeat controller
+ * Handles device heartbeat requests and maintains device online status
  *
- * 端点数量：1个
- * - POST /api/heartbeat - 接收设备心跳
+ * Number of endpoints: 1
+ * - POST /api/heartbeat - Receive device heartbeat
  */
 @Controller('heartbeat')
 export class HeartbeatController {
   constructor(private readonly HeartbeatService: HeartbeatService) {}
 
   /**
-   * 接收设备心跳
-   * 处理设备发送的心跳数据，更新设备在线状态和最后活跃时间
+   * Receive device heartbeat
+   * Processes heartbeat data sent by devices, updating the device online status and last active time
    *
-   * 功能说明：
-   * - 验证设备身份和令牌有效性
-   * - 更新设备的在线状态
-   * - 记录设备的最后活跃时间
-   * - 更新设备信息（如IP地址、操作系统等）
+   * Description:
+   * - Validate device identity and token validity
+   * - Update the device online status
+   * - Record the device last active time
+   * - Update device information (e.g. IP address, operating system)
    *
-   * 安全措施：
-   * - 使用@Public装饰器，无需认证即可访问（设备使用自己的令牌）
-   * - 启用限流保护：每分钟最多10次请求
+   * Security measures:
+   * - Uses the @Public decorator, accessible without authentication (devices use their own token)
+   * - Rate limiting enabled: at most 10 requests per minute
    *
-   * @param HeartbeatDto 心跳数据传输对象，包含设备ID、令牌和状态信息
-   * @returns 处理成功返回确认消息
-   * @throws UnauthorizedException 设备令牌无效或已过期
+   * @param HeartbeatDto heartbeat data transfer object containing device ID, token, and status information
+   * @returns Returns a confirmation message on success
+   * @throws UnauthorizedException device token is invalid or expired
    */
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })

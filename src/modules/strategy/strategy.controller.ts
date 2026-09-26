@@ -85,7 +85,7 @@ export class StrategyController {
   @HttpCode(HttpStatus.OK)
   async deleteStrategy(@Param('guid') guid: string) {
     await this.strategyService.deleteStrategy(guid);
-    return { message: '策略删除成功' };
+    return { message: 'Strategy deleted successfully' };
   }
 
   @Post('strategies/:guid/assign')

@@ -1,5 +1,5 @@
 /**
- * 更新通道
+ * Update channel
  */
 export enum UpdateChannel {
   STABLE = 'stable',
@@ -7,7 +7,7 @@ export enum UpdateChannel {
 }
 
 /**
- * 更新检查 API 请求体
+ * Update check API request body
  */
 export interface UpdateCheckRequest {
   version: {
@@ -110,7 +110,7 @@ export interface UpdateCheckRequest {
 }
 
 /**
- * 更新检查 API 响应体 - 有更新
+ * Update check API response body - update available
  */
 export interface UpdateCheckComponentResult {
   has_update: true;
@@ -121,14 +121,14 @@ export interface UpdateCheckComponentResult {
 }
 
 /**
- * 更新检查 API 响应体 - 无更新
+ * Update check API response body - no update
  */
 export interface UpdateCheckNoUpdateResult {
   has_update: false;
 }
 
 /**
- * 更新检查 API 响应体
+ * Update check API response body
  */
 export interface UpdateCheckResponse {
   backend: UpdateCheckComponentResult | UpdateCheckNoUpdateResult;

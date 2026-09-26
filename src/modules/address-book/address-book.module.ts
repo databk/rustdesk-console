@@ -22,16 +22,16 @@ import { UserGroupModule } from '../user-group/user-group.module';
 import { UserGroup } from '../user-group/entities/user-group.entity';
 
 /**
- * 地址簿模块
- * 负责地址簿管理、设备管理、标签管理和规则管理
+ * Address book module
+ * Handles address book management, device management, tag management, and rule management
  *
- * 导入模块：
+ * Imported modules:
  * - TypeOrmModule
  *
- * 导出服务：
+ * Exported services:
  * - AddressBookService
  *
- * 提供服务：
+ * Provided services:
  * - AddressBookService
  * - PeerService
  * - TagService

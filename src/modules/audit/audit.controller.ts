@@ -26,40 +26,40 @@ import {
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 /**
- * 审计控制器
- * 负责处理审计相关的HTTP请求，记录连接、文件传输和告警事件
+ * Audit controller
+ * Handles audit-related HTTP requests and records connection, file transfer and alarm events
  *
- * 端点数量：7个
- * - POST /api/audit/conn - 记录连接审计
- * - POST /api/audit/file - 记录文件审计
- * - POST /api/audit/alarm - 记录告警审计
- * - GET /api/audits/conn - 查询连接审计
- * - GET /api/audits/file - 查询文件审计
- * - GET /api/audits/alarm - 查询告警审计
- * - GET /api/audits/console - 查询控制台审计
+ * Number of endpoints: 7
+ * - POST /api/audit/conn - Record connection audit
+ * - POST /api/audit/file - Record file audit
+ * - POST /api/audit/alarm - Record alarm audit
+ * - GET /api/audits/conn - Query connection audits
+ * - GET /api/audits/file - Query file audits
+ * - GET /api/audits/alarm - Query alarm audits
+ * - GET /api/audits/console - Query console audits
  */
 @Controller('audit')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
-  // ============ 审计记录接口（客户端调用，保持公开）============
+  // ============ Audit recording endpoints (called by clients, kept public) ============
 
   /**
-   * 记录连接审计
-   * 记录远程桌面连接事件，包括连接时间、连接双方、连接时长等信息
+   * Record connection audit
+   * Records remote desktop connection events, including connection time, both parties and connection duration
    *
-   * 功能说明：
-   * - 记录连接发起方和接收方的设备信息
-   * - 记录连接开始和结束时间
-   * - 记录连接类型和状态
-   * - 支持高频率记录（限流：每分钟50次）
+   * Features:
+   * - Records device information of the connection initiator and receiver
+   * - Records connection start and end times
+   * - Records connection type and status
+   * - Supports high-frequency recording (rate limit: 50 per minute)
    *
-   * 安全措施：
-   * - 使用@Public装饰器，设备使用自己的令牌进行认证
-   * - 启用限流保护：每分钟最多50次请求
+   * Security measures:
+   * - Uses the @Public decorator; devices authenticate with their own tokens
+   * - Rate limiting enabled: at most 50 requests per minute
    *
-   * @param dto 连接审计数据传输对象
-   * @returns 记录成功返回消息、状态和审计记录ID
+   * @param dto Connection audit data transfer object
+   * @returns On success, a message, the status and the audit record ID
    */
   @Public()
   @Throttle({ default: { limit: 50, ttl: 60000 } })
@@ -67,29 +67,29 @@ export class AuditController {
   async auditConnection(@Body() dto: ConnectionAuditDto) {
     const result = await this.auditService.auditConnection(dto);
     return {
-      message: '连接审计记录成功',
+      message: 'Connection audit recorded successfully',
       status: 'success',
       data: result,
     };
   }
 
   /**
-   * 记录文件审计
-   * 记录文件传输事件，包括文件名称、大小、传输方向、传输状态等信息
+   * Record file audit
+   * Records file transfer events, including file name, size, transfer direction and transfer status
    *
-   * 功能说明：
-   * - 记录文件传输的发起方和接收方
-   * - 记录文件的基本信息（名称、大小、类型）
-   * - 记录传输方向（上传/下载）
-   * - 记录传输状态和结果
-   * - 支持高频率记录（限流：每分钟50次）
+   * Features:
+   * - Records the initiator and receiver of the file transfer
+   * - Records basic file information (name, size, type)
+   * - Records the transfer direction (upload/download)
+   * - Records the transfer status and result
+   * - Supports high-frequency recording (rate limit: 50 per minute)
    *
-   * 安全措施：
-   * - 使用@Public装饰器，设备使用自己的令牌进行认证
-   * - 启用限流保护：每分钟最多50次请求
+   * Security measures:
+   * - Uses the @Public decorator; devices authenticate with their own tokens
+   * - Rate limiting enabled: at most 50 requests per minute
    *
-   * @param dto 文件审计数据传输对象
-   * @returns 记录成功返回消息、状态和审计记录ID
+   * @param dto File audit data transfer object
+   * @returns On success, a message, the status and the audit record ID
    */
   @Public()
   @Throttle({ default: { limit: 50, ttl: 60000 } })
@@ -97,29 +97,29 @@ export class AuditController {
   async auditFile(@Body() dto: FileAuditDto) {
     const result = await this.auditService.auditFile(dto);
     return {
-      message: '文件审计记录成功',
+      message: 'File audit recorded successfully',
       status: 'success',
       data: result,
     };
   }
 
   /**
-   * 记录告警审计
-   * 记录安全告警事件，包括告警类型、告警级别、告警内容等信息
+   * Record alarm audit
+   * Records security alarm events, including alarm type, alarm level and alarm content
    *
-   * 功能说明：
-   * - 记录告警的类型（如异常登录、未授权访问等）
-   * - 记录告警的级别（低/中/高/严重）
-   * - 记录告警的详细内容
-   * - 记录告警的时间和来源设备
-   * - 支持高频率记录（限流：每分钟50次）
+   * Features:
+   * - Records the alarm type (e.g. abnormal login, unauthorized access)
+   * - Records the alarm level (low/medium/high/critical)
+   * - Records the detailed alarm content
+   * - Records the alarm time and source device
+   * - Supports high-frequency recording (rate limit: 50 per minute)
    *
-   * 安全措施：
-   * - 使用@Public装饰器，设备使用自己的令牌进行认证
-   * - 启用限流保护：每分钟最多50次请求
+   * Security measures:
+   * - Uses the @Public decorator; devices authenticate with their own tokens
+   * - Rate limiting enabled: at most 50 requests per minute
    *
-   * @param dto 告警审计数据传输对象
-   * @returns 记录成功返回消息、状态和审计记录ID
+   * @param dto Alarm audit data transfer object
+   * @returns On success, a message, the status and the audit record ID
    */
   @Public()
   @Throttle({ default: { limit: 50, ttl: 60000 } })
@@ -127,7 +127,7 @@ export class AuditController {
   async auditAlarm(@Body() dto: AlarmAuditDto) {
     const result = await this.auditService.auditAlarm(dto);
     return {
-      message: '告警审计记录成功',
+      message: 'Alarm audit recorded successfully',
       status: 'success',
       data: result,
     };
@@ -138,7 +138,7 @@ export class AuditController {
 export class AuditsController {
   constructor(private readonly auditService: AuditService) {}
 
-  // ============ 审计查询接口（管理端调用，需要认证）============
+  // ============ Audit query endpoints (called by the admin side, authentication required) ============
 
   @RequirePermission('devices.disconnect')
   @Get('conn/active')
@@ -150,26 +150,26 @@ export class AuditsController {
   }
 
   /**
-   * 查询连接审计
-   * 查询远程桌面连接的审计记录
+   * Query connection audits
+   * Queries audit records of remote desktop connections
    *
-   * 功能说明：
-   * - 支持分页查询
-   * - 支持按被控端设备ID过滤（deviceId模糊匹配）
-   * - 支持按时间段过滤（startTime/endTime范围查询）
-   * - 支持按连接类型过滤（type，-1表示未建立连接）
+   * Features:
+   * - Supports paginated queries
+   * - Supports filtering by controlled device ID (fuzzy match on deviceId)
+   * - Supports filtering by time range (startTime/endTime range query)
+   * - Supports filtering by connection type (type; -1 means no connection established)
    *
-   * 安全措施：
-   * - 需要 audit.view 权限
-   * - 只有管理员可以查询审计记录
+   * Security measures:
+   * - Requires the audit.view permission
+   * - Only administrators can query audit records
    *
-   * @param deviceId 被控端设备ID（模糊匹配）
-   * @param type 连接类型（-1表示未建立连接）
-   * @param startTime 开始时间（ISO 8601格式）
-   * @param endTime 结束时间（ISO 8601格式）
-   * @param pageSize 每页记录数
-   * @param current 当前页码
-   * @returns 连接审计列表
+   * @param deviceId Controlled device ID (fuzzy match)
+   * @param type Connection type (-1 means no connection established)
+   * @param startTime Start time (ISO 8601 format)
+   * @param endTime End time (ISO 8601 format)
+   * @param pageSize Records per page
+   * @param current Current page number
+   * @returns Connection audit list
    */
   @RequirePermission('audit.view')
   @Get('conn')
@@ -181,11 +181,11 @@ export class AuditsController {
   }
 
   /**
-   * 更新连接审计记录
-   * 管理端对连接审计记录进行部分更新（如添加/修改/清空备注）
+   * Update connection audit record
+   * Admin-side partial update of a connection audit record (e.g. add/modify/clear the note)
    *
-   * @param id 连接审计记录主键
-   * @param dto 更新数据
+   * @param id Primary key of the connection audit record
+   * @param dto Update data
    */
   @RequireSuperAdmin()
   @Patch('conn/:id')
@@ -195,33 +195,33 @@ export class AuditsController {
   ) {
     const result = await this.auditService.updateConnectionAudit(id, dto);
     return {
-      message: '连接审计更新成功',
+      message: 'Connection audit updated successfully',
       status: 'success',
       data: result,
     };
   }
 
   /**
-   * 查询文件审计
-   * 查询文件传输的审计记录
+   * Query file audits
+   * Queries audit records of file transfers
    *
-   * 功能说明：
-   * - 支持分页查询
-   * - 支持按被控端设备ID过滤（deviceId模糊匹配）
-   * - 支持按时间段过滤（startTime/endTime范围查询）
-   * - 支持按文件传输类型过滤（type: 0-发送, 1-接收）
+   * Features:
+   * - Supports paginated queries
+   * - Supports filtering by controlled device ID (fuzzy match on deviceId)
+   * - Supports filtering by time range (startTime/endTime range query)
+   * - Supports filtering by file transfer type (type: 0 - send, 1 - receive)
    *
-   * 安全措施：
-   * - 需要 audit.view 权限
-   * - 只有管理员可以查询审计记录
+   * Security measures:
+   * - Requires the audit.view permission
+   * - Only administrators can query audit records
    *
-   * @param deviceId 被控端设备ID（模糊匹配）
-   * @param type 文件传输类型（0: SEND, 1: RECEIVE）
-   * @param startTime 开始时间（ISO 8601格式）
-   * @param endTime 结束时间（ISO 8601格式）
-   * @param pageSize 每页记录数
-   * @param current 当前页码
-   * @returns 文件审计列表
+   * @param deviceId Controlled device ID (fuzzy match)
+   * @param type File transfer type (0: SEND, 1: RECEIVE)
+   * @param startTime Start time (ISO 8601 format)
+   * @param endTime End time (ISO 8601 format)
+   * @param pageSize Records per page
+   * @param current Current page number
+   * @returns File audit list
    */
   @RequirePermission('audit.view')
   @Get('file')
@@ -244,26 +244,26 @@ export class AuditsController {
   }
 
   /**
-   * 查询告警审计
-   * 查询安全告警的审计记录
+   * Query alarm audits
+   * Queries audit records of security alarms
    *
-   * 功能说明：
-   * - 支持分页查询
-   * - 支持按被控端设备ID过滤（deviceId模糊匹配）
-   * - 支持按时间段过滤（startTime/endTime范围查询）
-   * - 支持按告警类型过滤（type: 0-IP白名单, 1-超30次尝试, 2-1分钟6次尝试, 6-IPv6前缀超限, 7-终端OS登录backoff, 8-终端OS登录并发超限, 9-会话范围违规, 10-ID白名单违规）
+   * Features:
+   * - Supports paginated queries
+   * - Supports filtering by controlled device ID (fuzzy match on deviceId)
+   * - Supports filtering by time range (startTime/endTime range query)
+   * - Supports filtering by alarm type (type: 0 - IP whitelist, 1 - more than 30 attempts, 2 - 6 attempts in 1 minute, 6 - IPv6 prefix limit exceeded, 7 - terminal OS login backoff, 8 - terminal OS login concurrency limit exceeded, 9 - session scope violation, 10 - ID whitelist violation)
    *
-   * 安全措施：
-   * - 需要 audit.view 权限
-   * - 只有管理员可以查询审计记录
+   * Security measures:
+   * - Requires the audit.view permission
+   * - Only administrators can query audit records
    *
-   * @param deviceId 被控端设备ID（模糊匹配）
-   * @param type 告警类型
-   * @param startTime 开始时间（ISO 8601格式）
-   * @param endTime 结束时间（ISO 8601格式）
-   * @param pageSize 每页记录数
-   * @param current 当前页码
-   * @returns 告警审计列表
+   * @param deviceId Controlled device ID (fuzzy match)
+   * @param type Alarm type
+   * @param startTime Start time (ISO 8601 format)
+   * @param endTime End time (ISO 8601 format)
+   * @param pageSize Records per page
+   * @param current Current page number
+   * @returns Alarm audit list
    */
   @RequirePermission('audit.view')
   @Get('alarm')
@@ -286,24 +286,24 @@ export class AuditsController {
   }
 
   /**
-   * 查询控制台审计
-   * 查询控制台操作的审计记录
+   * Query console audits
+   * Queries audit records of console operations
    *
-   * 功能说明：
-   * - 支持分页查询
-   * - 支持按操作人过滤
-   * - 支持按创建时间过滤
+   * Features:
+   * - Supports paginated queries
+   * - Supports filtering by operator
+   * - Supports filtering by creation time
    *
-   * 安全措施：
-   * - 需要 audit.view 权限
-   * - 只有管理员可以查询审计记录
+   * Security measures:
+   * - Requires the audit.view permission
+   * - Only administrators can query audit records
    *
-   * @param operator 操作人（模糊匹配）
-   * @param pageSize 每页记录数
-   * @param current 当前页码
-   * @param start_time 开始时间（UTC时间字符串）
-   * @param end_time 结束时间（UTC时间字符串）
-   * @returns 控制台审计列表
+   * @param operator Operator (fuzzy match)
+   * @param pageSize Records per page
+   * @param current Current page number
+   * @param start_time Start time (UTC time string)
+   * @param end_time End time (UTC time string)
+   * @returns Console audit list
    */
   @RequirePermission('audit.view')
   @Get('console')

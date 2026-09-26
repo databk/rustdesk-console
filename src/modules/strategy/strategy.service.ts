@@ -48,7 +48,7 @@ export class StrategyService {
       where: { name: dto.name },
     });
     if (existing) {
-      throw new BadRequestException('策略名称已存在');
+      throw new BadRequestException('Strategy name already exists');
     }
 
     const strategy = new Strategy();
@@ -75,7 +75,7 @@ export class StrategyService {
       where: { guid },
     });
     if (!strategy) {
-      throw new NotFoundException('策略不存在');
+      throw new NotFoundException('Strategy not found');
     }
 
     if (dto.name !== undefined) {
@@ -83,7 +83,7 @@ export class StrategyService {
         where: { name: dto.name },
       });
       if (existing && existing.guid !== guid) {
-        throw new BadRequestException('策略名称已存在');
+        throw new BadRequestException('Strategy name already exists');
       }
       strategy.name = dto.name;
     }
@@ -116,7 +116,7 @@ export class StrategyService {
       where: { guid },
     });
     if (!strategy) {
-      throw new NotFoundException('策略不存在');
+      throw new NotFoundException('Strategy not found');
     }
 
     await this.strategyRepository.remove(strategy);
@@ -228,7 +228,7 @@ export class StrategyService {
       where: { guid },
     });
     if (!strategy) {
-      throw new NotFoundException('策略不存在');
+      throw new NotFoundException('Strategy not found');
     }
 
     return {
@@ -266,14 +266,17 @@ export class StrategyService {
           const strategy = await manager
             .getRepository(Strategy)
             .findOne({ where: { guid: strategyGuid } });
-          if (!strategy) throw new NotFoundException('策略不存在');
+          if (!strategy) throw new NotFoundException('Strategy not found');
           const peers = await manager
             .getRepository(Peer)
             .find({ where: { uuid: In(targets) } });
           const foundUuids = new Set(peers.map((p) => p.uuid));
           for (const targetGuid of targets) {
             if (!foundUuids.has(targetGuid)) {
-              errors.push({ target_guid: targetGuid, reason: '设备不存在' });
+              errors.push({
+                target_guid: targetGuid,
+                reason: 'Device not found',
+              });
             }
           }
           if (peers.length > 0) {
@@ -294,7 +297,9 @@ export class StrategyService {
                 targets,
                 manager,
               );
-              throw new ConflictException('设备信息已发生变化，请重试');
+              throw new ConflictException(
+                'Device information has changed, please retry',
+              );
             }
             success.push(...peers.map((p) => p.uuid));
           }
@@ -315,11 +320,14 @@ export class StrategyService {
           const strategy = await manager
             .getRepository(Strategy)
             .findOne({ where: { guid: strategyGuid } });
-          if (!strategy) throw new NotFoundException('策略不存在');
+          if (!strategy) throw new NotFoundException('Strategy not found');
           const foundGuids = new Set(users.map((u) => u.guid));
           for (const targetGuid of targets) {
             if (!foundGuids.has(targetGuid)) {
-              errors.push({ target_guid: targetGuid, reason: '用户不存在' });
+              errors.push({
+                target_guid: targetGuid,
+                reason: 'User does not exist',
+              });
             }
           }
           if (users.length > 0) {
@@ -327,7 +335,9 @@ export class StrategyService {
               .getRepository(User)
               .update({ guid: In(users.map((u) => u.guid)) }, { strategyGuid });
             if (result.affected !== users.length)
-              throw new ConflictException('用户信息已发生变化，请重试');
+              throw new ConflictException(
+                'User information has changed, please retry',
+              );
             success.push(...users.map((u) => u.guid));
           }
         });
@@ -344,14 +354,17 @@ export class StrategyService {
           const strategy = await manager
             .getRepository(Strategy)
             .findOne({ where: { guid: strategyGuid } });
-          if (!strategy) throw new NotFoundException('策略不存在');
+          if (!strategy) throw new NotFoundException('Strategy not found');
           const groups = await manager
             .getRepository(DeviceGroup)
             .find({ where: { guid: In(targets) } });
           const foundGuids = new Set(groups.map((g) => g.guid));
           for (const targetGuid of targets) {
             if (!foundGuids.has(targetGuid)) {
-              errors.push({ target_guid: targetGuid, reason: '设备组不存在' });
+              errors.push({
+                target_guid: targetGuid,
+                reason: 'Device group not found',
+              });
             }
           }
           if (groups.length > 0) {
@@ -363,7 +376,9 @@ export class StrategyService {
               { strategyGuid },
             );
             if (result.affected !== groups.length)
-              throw new ConflictException('设备组信息已发生变化，请重试');
+              throw new ConflictException(
+                'Device group information has changed, please retry',
+              );
             success.push(...groups.map((g) => g.guid));
           }
         });
@@ -371,7 +386,7 @@ export class StrategyService {
       }
       default:
         throw new BadRequestException(
-          `不支持的目标类型: ${String(targetType)}`,
+          `Unsupported target type: ${String(targetType)}`,
         );
     }
 
@@ -401,7 +416,7 @@ export class StrategyService {
           const strategy = await manager
             .getRepository(Strategy)
             .findOne({ where: { guid: strategyGuid } });
-          if (!strategy) throw new NotFoundException('策略不存在');
+          if (!strategy) throw new NotFoundException('Strategy not found');
           const peers = await manager
             .getRepository(Peer)
             .find({ where: { uuid: In(targets) } });
@@ -412,11 +427,14 @@ export class StrategyService {
           const assignedUuids = new Set(assignedPeers.map((peer) => peer.uuid));
           for (const targetGuid of targets) {
             if (!existingUuids.has(targetGuid)) {
-              errors.push({ target_guid: targetGuid, reason: '设备不存在' });
+              errors.push({
+                target_guid: targetGuid,
+                reason: 'Device not found',
+              });
             } else if (!assignedUuids.has(targetGuid)) {
               errors.push({
                 target_guid: targetGuid,
-                reason: '设备未绑定该策略',
+                reason: 'Device is not bound to this strategy',
               });
             }
           }
@@ -433,7 +451,9 @@ export class StrategyService {
               { strategyGuid: null },
             );
             if (result.affected !== assignedPeers.length)
-              throw new ConflictException('设备信息已发生变化，请重试');
+              throw new ConflictException(
+                'Device information has changed, please retry',
+              );
             success.push(...assignedPeers.map((peer) => peer.uuid));
           }
         });
@@ -453,7 +473,7 @@ export class StrategyService {
           const strategy = await manager
             .getRepository(Strategy)
             .findOne({ where: { guid: strategyGuid } });
-          if (!strategy) throw new NotFoundException('策略不存在');
+          if (!strategy) throw new NotFoundException('Strategy not found');
           const existingGuids = new Set(users.map((user) => user.guid));
           const assignedUsers = users.filter(
             (user) => user.strategyGuid === strategyGuid,
@@ -461,11 +481,14 @@ export class StrategyService {
           const assignedGuids = new Set(assignedUsers.map((user) => user.guid));
           for (const targetGuid of targets) {
             if (!existingGuids.has(targetGuid)) {
-              errors.push({ target_guid: targetGuid, reason: '用户不存在' });
+              errors.push({
+                target_guid: targetGuid,
+                reason: 'User does not exist',
+              });
             } else if (!assignedGuids.has(targetGuid)) {
               errors.push({
                 target_guid: targetGuid,
-                reason: '用户未绑定该策略',
+                reason: 'User is not bound to this strategy',
               });
             }
           }
@@ -478,7 +501,9 @@ export class StrategyService {
               { strategyGuid: null },
             );
             if (result.affected !== assignedUsers.length)
-              throw new ConflictException('用户信息已发生变化，请重试');
+              throw new ConflictException(
+                'User information has changed, please retry',
+              );
             success.push(...assignedUsers.map((user) => user.guid));
           }
         });
@@ -495,7 +520,7 @@ export class StrategyService {
           const strategy = await manager
             .getRepository(Strategy)
             .findOne({ where: { guid: strategyGuid } });
-          if (!strategy) throw new NotFoundException('策略不存在');
+          if (!strategy) throw new NotFoundException('Strategy not found');
           const groups = await manager
             .getRepository(DeviceGroup)
             .find({ where: { guid: In(targets) } });
@@ -508,11 +533,14 @@ export class StrategyService {
           );
           for (const targetGuid of targets) {
             if (!existingGuids.has(targetGuid)) {
-              errors.push({ target_guid: targetGuid, reason: '设备组不存在' });
+              errors.push({
+                target_guid: targetGuid,
+                reason: 'Device group not found',
+              });
             } else if (!assignedGuids.has(targetGuid)) {
               errors.push({
                 target_guid: targetGuid,
-                reason: '设备组未绑定该策略',
+                reason: 'Device group is not bound to this strategy',
               });
             }
           }
@@ -526,7 +554,9 @@ export class StrategyService {
               { strategyGuid: null },
             );
             if (result.affected !== assignedGroups.length)
-              throw new ConflictException('设备组信息已发生变化，请重试');
+              throw new ConflictException(
+                'Device group information has changed, please retry',
+              );
             success.push(...assignedGroups.map((group) => group.guid));
           }
         });
@@ -534,7 +564,7 @@ export class StrategyService {
       }
       default:
         throw new BadRequestException(
-          `不支持的目标类型: ${String(targetType)}`,
+          `Unsupported target type: ${String(targetType)}`,
         );
     }
 
@@ -549,7 +579,7 @@ export class StrategyService {
     expectedStrategyGuid?: string,
   ): Promise<void> {
     const concurrentChange = new ConflictException(
-      '设备信息已发生变化，请重试',
+      'Device information has changed, please retry',
     );
     try {
       await this.peerRepository.manager.transaction(async (manager) => {
@@ -604,7 +634,7 @@ export class StrategyService {
       where: { guid },
     });
     if (!strategy) {
-      throw new NotFoundException('策略不存在');
+      throw new NotFoundException('Strategy not found');
     }
 
     switch (target_type) {
@@ -689,7 +719,7 @@ export class StrategyService {
       }
       default:
         throw new BadRequestException(
-          `不支持的目标类型: ${String(target_type)}`,
+          `Unsupported target type: ${String(target_type)}`,
         );
     }
   }

@@ -56,7 +56,7 @@ address-book grants in one transaction:
 
 ```json
 {
-  "message": "用户组删除成功",
+  "message": "User group deleted successfully",
   "moved_user_count": 4,
   "deleted_rule_count": 2
 }

@@ -275,7 +275,7 @@ describe('User group integration', () => {
     expect(operations.name).toBe('Operations');
     expect(operations.note).toBe('Primary operators');
     await expect(userGroupService.createGroup({ name: '   ' })).rejects.toThrow(
-      '用户组名称不能为空',
+      'User group name cannot be empty',
     );
     await expect(
       userGroupService.createGroup({ name: 'operations' }),
@@ -294,7 +294,7 @@ describe('User group integration', () => {
         [alice.guid, randomUUID()],
         'actor',
       ),
-    ).rejects.toThrow('一个或多个用户不存在');
+    ).rejects.toThrow('One or more users do not exist');
     expect(
       (await userRepository.findOneByOrFail({ guid: alice.guid }))
         .userGroupGuid,
@@ -330,7 +330,7 @@ describe('User group integration', () => {
         current: 1,
         pageSize: 20,
       }),
-    ).rejects.toThrow('用户组不存在');
+    ).rejects.toThrow('User group does not exist');
   });
 
   it('uses user_group_guid while keeping legacy group_name as a no-op', async () => {
@@ -389,7 +389,7 @@ describe('User group integration', () => {
         },
         alice.guid,
       ),
-    ).resolves.toEqual({ message: '批量安全设置已更新' });
+    ).resolves.toEqual({ message: 'Bulk security settings updated' });
 
     for (const guid of [alice.guid, bob.guid]) {
       const info = (
@@ -407,7 +407,7 @@ describe('User group integration', () => {
         },
         alice.guid,
       ),
-    ).rejects.toThrow('用户不存在');
+    ).rejects.toThrow('User does not exist');
     expect(
       (await userRepository.findOneByOrFail({ guid: alice.guid })).getUserInfo()
         .other?.tfa_enforce,
@@ -616,7 +616,7 @@ describe('User group integration', () => {
     await expect(
       userGroupService.deleteGroup(temporaryGroup.guid, 'actor'),
     ).resolves.toEqual({
-      message: '用户组删除成功',
+      message: 'User group deleted successfully',
       moved_user_count: 1,
       deleted_rule_count: 1,
     });
@@ -634,7 +634,7 @@ describe('User group integration', () => {
     ).toBe(0);
     await expect(
       userGroupService.deleteGroup(defaultGroup.guid, 'actor'),
-    ).rejects.toThrow('默认用户组不能删除');
+    ).rejects.toThrow('The default user group cannot be deleted');
   });
 
   it('protects administrator members on move and group deletion paths', async () => {
@@ -650,7 +650,7 @@ describe('User group integration', () => {
     await userRepository.save(administrator);
 
     authorizationService.assertUsersMutation.mockRejectedValueOnce(
-      new ForbiddenException('不能修改超级管理员'),
+      new ForbiddenException('Cannot modify the super administrator'),
     );
     await expect(
       userGroupService.moveUsers(
@@ -665,7 +665,7 @@ describe('User group integration', () => {
     ).toBe(protectedGroup.guid);
 
     authorizationService.assertUsersMutation.mockRejectedValueOnce(
-      new ForbiddenException('不能修改超级管理员'),
+      new ForbiddenException('Cannot modify the super administrator'),
     );
     await expect(
       userGroupService.deleteGroup(protectedGroup.guid, 'actor'),
@@ -836,7 +836,7 @@ describe('User group integration', () => {
 
     await expect(
       ruleService.deleteRules([first.guid, randomUUID()], owner.guid),
-    ).rejects.toThrow('未找到任何规则');
+    ).rejects.toThrow('No rules found');
     expect(await ruleRepository.findOneBy({ guid: first.guid })).not.toBeNull();
 
     await expect(
@@ -844,7 +844,7 @@ describe('User group integration', () => {
         [first.guid, first.guid, second.guid],
         owner.guid,
       ),
-    ).resolves.toEqual({ message: '删除成功' });
+    ).resolves.toEqual({ message: 'Deleted successfully' });
     expect(await ruleRepository.findOneBy({ guid: first.guid })).toBeNull();
     expect(await ruleRepository.findOneBy({ guid: second.guid })).toBeNull();
   });
@@ -958,7 +958,7 @@ describe('User group integration', () => {
         },
         owner.guid,
       ),
-    ).rejects.toThrow('用户组不存在');
+    ).rejects.toThrow('User group does not exist');
 
     const memberBooks = await ruleService.getSharedAddressBooks(member.guid, {
       current: 1,
@@ -1069,7 +1069,7 @@ describe('User group integration', () => {
     const outsider = await createUser('profile-outsider', defaultGroup.guid);
     await expect(
       ruleService.getWebSharedAddressBook(sharedGuid, outsider.guid),
-    ).rejects.toThrow('共享地址簿不存在');
+    ).rejects.toThrow('Shared address book does not exist');
 
     const ownerProtocolProfiles = await ruleService.getSharedAddressBooks(
       owner.guid,
@@ -1095,7 +1095,7 @@ describe('User group integration', () => {
         owner.guid,
         'Not allowed here',
       ),
-    ).rejects.toThrow('私有自定义地址簿不存在');
+    ).rejects.toThrow('Private custom address book does not exist');
     await ruleService.deleteCustomAddressBooks([privateGuid], owner.guid);
     expect(
       await addressBookRepository.findOneBy({ guid: privateGuid }),

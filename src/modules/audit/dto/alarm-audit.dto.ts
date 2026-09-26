@@ -10,7 +10,7 @@ import {
 
 /**
  * AlarmAuditDto
- * 用于记录告警审计信息
+ * Used to record alarm audit information
  */
 export class AlarmAuditDto {
   @IsString()

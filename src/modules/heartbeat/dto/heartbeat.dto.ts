@@ -8,7 +8,7 @@ import {
 
 /**
  * HeartbeatDto
- * 用于设备心跳数据上报
+ * Used for reporting device heartbeat data
  */
 export class HeartbeatDto {
   @IsString()
@@ -28,8 +28,8 @@ export class HeartbeatDto {
   modified_at: number;
 
   /**
-   * 当前活跃连接ID列表
-   * 客户端上报当前持有的活跃连接，服务端据此维护连接状态
+   * List of currently active connection IDs
+   * The client reports the active connections it currently holds; the server uses this to maintain connection state
    */
   @IsOptional()
   @IsArray()

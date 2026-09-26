@@ -11,46 +11,46 @@ export type BuildStatus =
   'pending' | 'building' | 'completed' | 'failed' | 'cancelled';
 
 /**
- * Nexus 构建记录实体
- * 持久化每次客户端定制构建的状态与配置
+ * Nexus build record entity
+ * Persists the status and configuration of every custom client build
  */
 @Entity('nexus_builds')
 export class NexusBuild {
-  /** Nexus 构建任务 UUID */
+  /** Nexus build task UUID */
   @PrimaryColumn()
   @Index()
   uuid: string;
 
-  /** 关联的本地用户 GUID */
+  /** Associated local user GUID */
   @Column()
   @Index()
   userGuid: string;
 
-  /** 操作系统 */
+  /** Operating system */
   @Column()
   os: string;
 
-  /** 架构 */
+  /** Architecture */
   @Column()
   arch: string;
 
-  /** 应用名称 */
+  /** App name */
   @Column()
   appName: string;
 
-  /** 定制配置 JSON */
+  /** Customization configuration JSON */
   @Column({ type: 'text', nullable: true })
   custom: string;
 
-  /** 构建状态 */
+  /** Build status */
   @Column({ default: 'pending' })
   status: BuildStatus;
 
-  /** 构建产物文件列表 JSON */
+  /** Build artifact file list JSON */
   @Column({ type: 'text', nullable: true })
   files: string;
 
-  /** 状态补充说明 */
+  /** Additional status details */
   @Column({ nullable: true })
   message: string;
 

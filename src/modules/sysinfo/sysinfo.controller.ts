@@ -5,31 +5,31 @@ import { SysinfoDto } from './dto/sysinfo.dto';
 import { Public } from '../auth/decorators/public.decorator';
 
 /**
- * 系统信息控制器
- * 负责处理设备系统信息的上报和查询
+ * System info controller
+ * Handles reporting and querying of device system information
  *
- * 端点数量：1个
- * - POST /api/sysinfo - 提交系统信息
+ * Number of endpoints: 1
+ * - POST /api/sysinfo - Submit system info
  */
 @Controller()
 export class SysinfoController {
   constructor(private readonly sysinfoService: SysinfoService) {}
 
   /**
-   * 提交系统信息
-   * 接收设备上报的系统信息并创建/更新到数据库
+   * Submit system info
+   * Receives system info reported by devices and creates/updates it in the database
    *
-   * 功能说明：
-   * - 校验设备是否在 peers 表中已注册，未注册返回 ID_NOT_FOUND
-   * - 已注册设备创建或更新 sysinfos 表中的系统信息（操作系统、硬件配置等）
-   * - 支持预设地址簿和设备组的自动分配
+   * Description:
+   * - Check whether the device is registered in the peers table; returns ID_NOT_FOUND if not
+   * - For registered devices, create or update the system info in the sysinfos table (operating system, hardware configuration, etc.)
+   * - Supports automatic assignment of preset address books and device groups
    *
-   * 安全措施：
-   * - 使用@Public装饰器，无需认证即可访问（设备使用自己的令牌）
-   * - 启用限流保护：每分钟最多5次请求
+   * Security measures:
+   * - Uses the @Public decorator, accessible without authentication (devices use their own token)
+   * - Rate limiting enabled: at most 5 requests per minute
    *
-   * @param sysinfoDto 系统信息数据传输对象，包含设备ID、令牌和系统详细信息
-   * @returns 成功返回 SYSINFO_UPDATED，设备未在 peers 表注册返回 ID_NOT_FOUND
+   * @param sysinfoDto system info data transfer object containing device ID, token, and detailed system information
+   * @returns returns SYSINFO_UPDATED on success, or ID_NOT_FOUND if the device is not registered in the peers table
    */
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })

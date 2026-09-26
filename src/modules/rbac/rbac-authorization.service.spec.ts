@@ -200,7 +200,7 @@ describe('RbacAuthorizationService', () => {
 
     await expect(
       service.requirePermission('actor', 'users.edit'),
-    ).rejects.toThrow('无权限访问');
+    ).rejects.toThrow('Access denied');
     expect(assignmentGroupRepository.find).not.toHaveBeenCalled();
   });
 
@@ -222,7 +222,7 @@ describe('RbacAuthorizationService', () => {
 
     await expect(
       service.assertDeviceAccess('actor', 'devices.delete', 'peer-2'),
-    ).rejects.toThrow('设备不在授权设备组内');
+    ).rejects.toThrow('Device is not in an authorized device group');
 
     peerRepository.find.mockResolvedValue([
       { uuid: 'peer-1', deviceGroupGuid: 'group-1' },
@@ -233,7 +233,7 @@ describe('RbacAuthorizationService', () => {
         'peer-1',
         'peer-2',
       ]),
-    ).rejects.toThrow('批量请求包含未授权设备');
+    ).rejects.toThrow('Batch request contains unauthorized devices');
     expect(auditService.recordDenied).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserGuid: 'actor',
@@ -259,7 +259,7 @@ describe('RbacAuthorizationService', () => {
     ).resolves.toEqual({ global: true, deviceGroupGuids: new Set() });
     await expect(
       service.requirePermission('actor', 'strategies.view'),
-    ).rejects.toThrow('无权限访问');
+    ).rejects.toThrow('Access denied');
   });
 
   it('requires global scope for strategy assignment to a user', async () => {
@@ -275,7 +275,9 @@ describe('RbacAuthorizationService', () => {
 
     await expect(
       service.assertStrategyTargets('actor', 'user', ['user-1']),
-    ).rejects.toThrow('按用户分配策略需要全局权限');
+    ).rejects.toThrow(
+      'Assigning strategies by user requires global permission',
+    );
   });
 
   it('protects administrator users from global strategy assignment', async () => {
@@ -291,7 +293,7 @@ describe('RbacAuthorizationService', () => {
 
     await expect(
       service.assertStrategyTargets('actor', 'user', ['protected-user']),
-    ).rejects.toThrow('需要超级管理员权限');
+    ).rejects.toThrow('Super administrator permission required');
     expect(auditService.recordDenied).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserGuid: 'actor',
@@ -319,7 +321,7 @@ describe('RbacAuthorizationService', () => {
         ['protected-user'],
         'user_groups.membership',
       ),
-    ).rejects.toThrow('需要超级管理员权限');
+    ).rejects.toThrow('Super administrator permission required');
   });
 
   it('does not expose unknown persisted permission rows as effective grants', async () => {
@@ -353,7 +355,7 @@ describe('RbacAuthorizationService', () => {
 
     await expect(
       service.requirePermission('actor', 'users.edit'),
-    ).rejects.toThrow('无权限访问');
+    ).rejects.toThrow('Access denied');
     await expect(service.getEffectivePermissions('actor')).resolves.toEqual({
       permissions: ['users.view'],
       scopes: {
@@ -430,7 +432,7 @@ describe('RbacAuthorizationService', () => {
 
     await expect(
       service.assertStrategyTargets('actor', 'device_group', ['group-2']),
-    ).rejects.toThrow('目标设备组不在授权范围内');
+    ).rejects.toThrow('Target device group is outside the authorized scope');
   });
 });
 
@@ -880,7 +882,7 @@ describe('UserRoleService', () => {
 
     await expect(
       service.replaceUserRoles('owner', { assignments: [] }, 'owner'),
-    ).rejects.toThrow('超级管理员不能分配普通角色');
+    ).rejects.toThrow('Super administrators cannot be assigned regular roles');
     expect(transaction).not.toHaveBeenCalled();
   });
 });
@@ -961,7 +963,7 @@ describe('RoleService', () => {
 
     await expect(
       service.updateRole('role-1', { permissions: ['users.edit'] }, 'actor'),
-    ).rejects.toThrow('权限依赖缺失');
+    ).rejects.toThrow('Missing permission dependencies');
     expect(transaction).not.toHaveBeenCalled();
   });
 
@@ -983,7 +985,7 @@ describe('RoleService', () => {
 
     await expect(
       service.updateRole('role-1', { permissions: ['roles.create'] }, 'owner'),
-    ).rejects.toThrow('权限码不可分配: roles.create');
+    ).rejects.toThrow('Permission code cannot be assigned: roles.create');
     expect(transaction).not.toHaveBeenCalled();
   });
 
@@ -1014,7 +1016,7 @@ describe('RoleService', () => {
         { permissions: ['users.view', 'users.edit'] },
         'actor',
       ),
-    ).rejects.toThrow('已有高级范围授权');
+    ).rejects.toThrow('Roles with advanced scope grants');
     expect(transaction).not.toHaveBeenCalled();
   });
 
@@ -1040,7 +1042,7 @@ describe('RoleService', () => {
 
     await expect(
       service.updateRole('role-1', { permissions: [] }, 'actor'),
-    ).rejects.toThrow('已有高级范围授权');
+    ).rejects.toThrow('Roles with advanced scope grants');
     expect(transaction).not.toHaveBeenCalled();
   });
 });
@@ -1235,7 +1237,7 @@ describe('RbacGuard', () => {
   });
 
   it('records one route denial when the permission check fails', async () => {
-    const denial = new ForbiddenException('无权限访问');
+    const denial = new ForbiddenException('Access denied');
     const reflector = {
       getAllAndOverride: jest.fn((key: string) =>
         key === REQUIRE_PERMISSION_KEY ? ['devices.delete'] : undefined,
@@ -1342,7 +1344,9 @@ describe('DeviceGroupController current-state authorization', () => {
       disconnectStoreService,
       authorizationService,
     } = createController();
-    const denial = new ForbiddenException('设备不在授权设备组内');
+    const denial = new ForbiddenException(
+      'Device is not in an authorized device group',
+    );
     authorizationService.assertDeviceAccess.mockRejectedValue(denial);
 
     await expect(
@@ -1524,7 +1528,9 @@ describe('DeviceGroupService scoped writes', () => {
     const { service, authorizationService } = createService(0);
     authorizationService.assertDevicesAccess
       .mockResolvedValueOnce(scopedAuthorization)
-      .mockRejectedValueOnce(new ForbiddenException('批量请求包含未授权设备'));
+      .mockRejectedValueOnce(
+        new ForbiddenException('Batch request contains unauthorized devices'),
+      );
 
     await expect(
       service.updateDeviceStatus(['peer-1'], DeviceStatus.DISABLED, 'actor'),

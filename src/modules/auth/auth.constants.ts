@@ -1,42 +1,42 @@
 /**
- * 认证模块常量
- * 集中管理登录相关配置，避免魔法数字和散落的字符串字面量
+ * Auth module constants
+ * Centralizes login-related configuration to avoid magic numbers and scattered string literals
  */
 
-/** JWT Token 有效期（天） */
+/** JWT token validity period (days) */
 export const TOKEN_EXPIRY_DAYS = 30;
 
-/** TFA 登录会话有效期（分钟） */
+/** TFA login session validity period (minutes) */
 export const TFA_LOGIN_SESSION_EXPIRY_MINUTES = 5;
 
-/** 邮箱验证码有效期（分钟） */
+/** Email verification code validity period (minutes) */
 export const EMAIL_VERIFICATION_CODE_EXPIRY_MINUTES = 5;
 
-/** Passkey 会话有效期（分钟） */
+/** Passkey session validity period (minutes) */
 export const PASSKEY_SESSION_EXPIRY_MINUTES = 5;
 
-/** JWT 默认密钥（仅用于开发环境，生产环境必须通过 JWT_SECRET 覆盖） */
+/** Default JWT secret (development only; must be overridden via JWT_SECRET in production) */
 export const JWT_DEFAULT_SECRET =
   'rustdesk-api-secret-key-change-in-production';
 
 /**
- * 登录类型枚举
- * 对应 LoginDto.type 字段，标识客户端请求的登录流程
+ * Login type enum
+ * Corresponds to the LoginDto.type field and identifies the login flow requested by the client
  */
 export enum LoginType {
-  /** 标准账号密码登录 */
+  /** Standard username/password login */
   ACCOUNT = 'account',
-  /** 手机号登录 */
+  /** Phone number login */
   MOBILE = 'mobile',
-  /** 短信验证码登录 */
+  /** SMS code login */
   SMS_CODE = 'sms_code',
-  /** 邮箱验证码登录（二次验证） */
+  /** Email verification code login (second step) */
   EMAIL_CODE = 'email_code',
-  /** TFA 验证码登录（二次验证） */
+  /** TFA code login (second step) */
   TFA_CODE = 'tfa_code',
-  /** Passkey 双因素认证检查 */
+  /** Passkey two-factor authentication check */
   PASSKEY_CHECK = 'passkey_check',
 }
 
-/** LoginDto.type 允许的取值列表，供 class-validator @IsIn 使用 */
+/** List of allowed LoginDto.type values, used by class-validator @IsIn */
 export const LOGIN_TYPE_VALUES: string[] = Object.values(LoginType);

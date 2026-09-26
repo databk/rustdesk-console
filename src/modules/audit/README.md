@@ -1,131 +1,131 @@
-# 审计模块 (Audit Module)
+# Audit Module
 
-本模块提供连接审计和文件审计功能，用于记录和跟踪RustDesk客户端的连接和文件传输活动。
+This module provides connection auditing and file auditing, used to record and track connection and file transfer activity of RustDesk clients.
 
-## 数据库适配
+## Database Adaptation
 
-本模块支持多种数据库类型，自动根据数据库类型进行适配：
+This module supports multiple database types and adapts automatically to the database type:
 
-- **SQLite**: 使用 `varchar` 和 `int` 类型存储枚举值
-- **PostgreSQL/MySQL**: 可以使用 `enum` 类型存储枚举值
+- **SQLite**: Uses `varchar` and `int` types to store enum values
+- **PostgreSQL/MySQL**: Can use the `enum` type to store enum values
 
-当前实现使用 SQLite 兼容的类型（`varchar` 和 `int`），确保在所有数据库上都能正常工作。
+The current implementation uses SQLite-compatible types (`varchar` and `int`), ensuring it works on all databases.
 
-## 功能特性
+## Features
 
-- **连接审计** (`/audit/conn`): 记录设备连接、断开和授权事件
-- **文件审计** (`/audit/file`): 记录文件传输活动（发送/接收）
-- **告警审计** (`/audit/alarm`): 记录安全告警事件
+- **Connection audit** (`/audit/conn`): Records device connection, disconnection and authorization events
+- **File audit** (`/audit/file`): Records file transfer activity (send/receive)
+- **Alarm audit** (`/audit/alarm`): Records security alarm events
 
-## 数据库表结构
+## Database Table Structure
 
-### connection_audits (连接审计表)
-- `id`: 主键
-- `deviceId`: 设备ID
-- `deviceUuid`: 设备UUID (base64编码)
-- `connId`: 连接ID (可选)
-- `sessionId`: 会话ID (可选)
-- `ip`: 客户端IP地址
-- `action`: 动作类型 ('new' | 'close')
-- `peerId`: 对端设备ID (可选)
-- `peerName`: 对端设备名称 (可选)
-- `type`: 连接类型 (0-4)
-  - 0: 远程控制
-  - 1: 文件传输
-  - 2: 端口转发
-  - 3: 摄像头
-  - 4: 终端
-- `createdAt`: 创建时间
-- `requestedAt`: 连接发起时间（action = 'open'）
-- `establishedAt`: 连接建立时间（action = 'established'）
-- `closedAt`: 连接关闭时间（action = 'close'）
-- `nonce`: 去重唯一标识 (可选，客户端重试时携带相同值，服务器据此去重)
-- `connAuditRef`: 控制端用户归因引用 (可选)
-- `primaryAuth`: 主认证方式 (可选，0=None, 1=Click, 2=TemporaryPassword, 3=PermanentPassword, 4=SwitchSides)
-- `twoFactor`: 二因素认证方式 (可选，0=None, 1=Totp, 2=TrustedDevice)
+### connection_audits (connection audit table)
+- `id`: Primary key
+- `deviceId`: Device ID
+- `deviceUuid`: Device UUID (base64 encoded)
+- `connId`: Connection ID (optional)
+- `sessionId`: Session ID (optional)
+- `ip`: Client IP address
+- `action`: Action type ('new' | 'close')
+- `peerId`: Peer device ID (optional)
+- `peerName`: Peer device name (optional)
+- `type`: Connection type (0-4)
+  - 0: Remote control
+  - 1: File transfer
+  - 2: Port forwarding
+  - 3: Camera
+  - 4: Terminal
+- `createdAt`: Creation time
+- `requestedAt`: Connection request time (action = 'open')
+- `establishedAt`: Connection established time (action = 'established')
+- `closedAt`: Connection closed time (action = 'close')
+- `nonce`: Deduplication unique identifier (optional; the client sends the same value when retrying, and the server deduplicates on it)
+- `connAuditRef`: Controlling-side user attribution reference (optional)
+- `primaryAuth`: Primary authentication method (optional, 0=None, 1=Click, 2=TemporaryPassword, 3=PermanentPassword, 4=SwitchSides)
+- `twoFactor`: Two-factor authentication method (optional, 0=None, 1=Totp, 2=TrustedDevice)
 
-### file_audits (文件审计表)
-- `id`: 主键
-- `deviceId`: 设备ID
-- `deviceUuid`: 设备UUID (base64编码)
-- `peerId`: 对端设备ID
-- `connId`: 连接ID (可选)
-- `type`: 传输类型 (0: 发送 | 1: 接收)
-- `path`: 文件路径 (可选)
-- `isFile`: 是否为文件 (true/false)
-- `clientIp`: 客户端IP地址
-- `clientName`: 客户端名称
-- `fileCount`: 文件总数
-- `files`: 文件列表 (最多10个，按大小排序) - JSON格式: [['文件名', 大小], ...]
-- `createdAt`: 创建时间
-- `nonce`: 去重唯一标识 (可选，客户端重试时携带相同值，服务器据此去重)
+### file_audits (file audit table)
+- `id`: Primary key
+- `deviceId`: Device ID
+- `deviceUuid`: Device UUID (base64 encoded)
+- `peerId`: Peer device ID
+- `connId`: Connection ID (optional)
+- `type`: Transfer type (0: send | 1: receive)
+- `path`: File path (optional)
+- `isFile`: Whether it is a file (true/false)
+- `clientIp`: Client IP address
+- `clientName`: Client name
+- `fileCount`: Total number of files
+- `files`: File list (at most 10, sorted by size) - JSON format: [['file name', size], ...]
+- `createdAt`: Creation time
+- `nonce`: Deduplication unique identifier (optional; the client sends the same value when retrying, and the server deduplicates on it)
 
-### alarm_audits (告警审计表)
-- `id`: 主键
-- `deviceId`: 设备ID
-- `deviceUuid`: 设备UUID (base64编码)
-- `typ`: 告警类型 (0-10)
-  - 0: IP白名单违规
-  - 1: 超过30次尝试
-  - 2: 1分钟内6次尝试
-  - 6: IPv6前缀尝试过多
-  - 7: 终端OS登录backoff
-  - 8: 终端OS登录并发超限
-  - 9: 会话范围违规
-  - 10: ID白名单违规
-- `infoId`: 告警信息中的设备ID (可选)
-- `infoIp`: 告警信息中的IP地址
-- `infoName`: 告警信息中的设备名称 (可选)
-- `createdAt`: 创建时间
-- `connId`: 连接ID (可选)
-- `nonce`: 去重唯一标识 (可选，客户端重试时携带相同值，服务器据此去重)
-- `connAuditRef`: 控制端用户归因引用 (可选，仅 IP白名单和ID白名单告警携带)
+### alarm_audits (alarm audit table)
+- `id`: Primary key
+- `deviceId`: Device ID
+- `deviceUuid`: Device UUID (base64 encoded)
+- `typ`: Alarm type (0-10)
+  - 0: IP whitelist violation
+  - 1: More than 30 attempts
+  - 2: 6 attempts within 1 minute
+  - 6: Too many attempts from an IPv6 prefix
+  - 7: Terminal OS login backoff
+  - 8: Terminal OS login concurrency limit exceeded
+  - 9: Session scope violation
+  - 10: ID whitelist violation
+- `infoId`: Device ID in the alarm info (optional)
+- `infoIp`: IP address in the alarm info
+- `infoName`: Device name in the alarm info (optional)
+- `createdAt`: Creation time
+- `connId`: Connection ID (optional)
+- `nonce`: Deduplication unique identifier (optional; the client sends the same value when retrying, and the server deduplicates on it)
+- `connAuditRef`: Controlling-side user attribution reference (optional; only carried by IP whitelist and ID whitelist alarms)
 
-## API 接口
+## API Endpoints
 
-### 1. 连接审计接口
+### 1. Connection Audit Endpoint
 
-**端点**: `POST /audit/conn`
+**Endpoint**: `POST /audit/conn`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "id": "设备ID",
-  "uuid": "设备UUID(base64编码)",
-  "conn_id": "连接ID",
-  "session_id": "会话ID",
-  "ip": "客户端IP地址",
+  "id": "device ID",
+  "uuid": "device UUID (base64 encoded)",
+  "conn_id": "connection ID",
+  "session_id": "session ID",
+  "ip": "client IP address",
   "action": "new",
-  "peer": ["对端ID", "对端名称"],
+  "peer": ["peer ID", "peer name"],
   "type": 0,
-  "nonce": "去重唯一标识(UUID)",
-  "conn_audit_ref": "控制端用户归因引用",
+  "nonce": "deduplication unique identifier (UUID)",
+  "conn_audit_ref": "controlling-side user attribution reference",
   "primary_auth": 0,
   "two_factor": 0
 }
 ```
 
-**触发场景**:
-- 新建连接时: `action: "new"` + IP 地址 → 记录 `requestedAt` 时间
-- 连接建立时: `action: ""` 或不传 → 记录 `establishedAt` 时间
-- 关闭连接时: `action: "close"` → 记录 `closedAt` 时间
-- 登录授权成功时: 包含 peer 信息和连接类型
+**Trigger scenarios**:
+- When a connection is created: `action: "new"` + IP address -> records the `requestedAt` time
+- When a connection is established: `action: ""` or omitted -> records the `establishedAt` time
+- When a connection is closed: `action: "close"` -> records the `closedAt` time
+- When login authorization succeeds: includes peer info and connection type
 
-**响应**:
+**Response**:
 ```json
 {
-  "message": "连接审计记录成功",
+  "message": "Connection audit recorded successfully",
   "status": "success",
   "data": {
     "id": 1,
-    "deviceId": "设备ID",
-    "deviceUuid": "设备UUID",
-    "connId": "连接ID",
-    "sessionId": "会话ID",
-    "ip": "客户端IP地址",
+    "deviceId": "device ID",
+    "deviceUuid": "device UUID",
+    "connId": "connection ID",
+    "sessionId": "session ID",
+    "ip": "client IP address",
     "action": "new",
-    "peerId": "对端ID",
-    "peerName": "对端名称",
+    "peerId": "peer ID",
+    "peerName": "peer name",
     "type": 0,
     "createdAt": "2024-01-01T00:00:00.000Z",
     "requestedAt": "2024-01-01T00:00:00.000Z",
@@ -135,70 +135,70 @@
 }
 ```
 
-### 2. 文件审计接口
+### 2. File Audit Endpoint
 
-**端点**: `POST /audit/file`
+**Endpoint**: `POST /audit/file`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "id": "设备ID",
-  "uuid": "设备UUID(base64编码)",
-  "peer_id": "对端设备ID",
+  "id": "device ID",
+  "uuid": "device UUID (base64 encoded)",
+  "peer_id": "peer device ID",
   "type": 0,
-  "path": "文件路径",
+  "path": "file path",
   "is_file": true,
   "info": {
-    "ip": "客户端IP",
-    "name": "客户端名称",
+    "ip": "client IP",
+    "name": "client name",
     "num": 2,
     "files": [
-      ["文件名1", 1024],
-      ["文件名2", 2048]
+      ["file name 1", 1024],
+      ["file name 2", 2048]
     ]
   }
 }
 ```
 
-**触发场景**:
-- 远程发送文件: `type: 0`
-- 远程接收文件: `type: 1`
-- 剪贴板文件传输
+**Trigger scenarios**:
+- Sending a file remotely: `type: 0`
+- Receiving a file remotely: `type: 1`
+- Clipboard file transfer
 
-**响应**:
+**Response**:
 ```json
 {
-  "message": "文件审计记录成功",
+  "message": "File audit recorded successfully",
   "status": "success",
   "data": {
     "id": 1,
-    "deviceId": "设备ID",
-    "deviceUuid": "设备UUID",
-    "peerId": "对端设备ID",
+    "deviceId": "device ID",
+    "deviceUuid": "device UUID",
+    "peerId": "peer device ID",
     "type": 0,
-    "path": "文件路径",
+    "path": "file path",
     "isFile": true,
-    "clientIp": "客户端IP",
-    "clientName": "客户端名称",
+    "clientIp": "client IP",
+    "clientName": "client name",
     "fileCount": 2,
     "files": [
-      ["文件名1", 1024],
-      ["文件名2", 2048]
+      ["file name 1", 1024],
+      ["file name 2", 2048]
     ],
     "createdAt": "2024-01-01T00:00:00.000Z"
   }
 }
 ```
 
-### 3. 告警审计接口
+### 3. Alarm Audit Endpoint
 
-**端点**: `POST /audit/alarm`
+**Endpoint**: `POST /audit/alarm`
 
-**请求体**:
+**Request body**:
 ```json
 {
-  "id": "设备ID",
-  "uuid": "设备UUID(base64编码)",
+  "id": "device ID",
+  "uuid": "device UUID (base64 encoded)",
   "typ": 0,
   "info": {
     "ip": "192.168.1.1",
@@ -207,34 +207,34 @@
 }
 ```
 
-**告警类型**:
-- `0`: IP白名单违规
-- `1`: 超过30次尝试
-- `2`: 1分钟内6次尝试
-- `6`: IPv6前缀尝试过多
-- `7`: 终端OS登录backoff
-- `8`: 终端OS登录并发超限
-- `9`: 会话范围违规
-- `10`: ID白名单违规
+**Alarm types**:
+- `0`: IP whitelist violation
+- `1`: More than 30 attempts
+- `2`: 6 attempts within 1 minute
+- `6`: Too many attempts from an IPv6 prefix
+- `7`: Terminal OS login backoff
+- `8`: Terminal OS login concurrency limit exceeded
+- `9`: Session scope violation
+- `10`: ID whitelist violation
 
-**触发场景**:
-- IP白名单违规检测
-- 登录尝试次数超限
-- 短时间内多次尝试
-- IPv6前缀异常访问
-- 终端OS登录异常
-- 会话范围权限违规
-- ID白名单违规检测
+**Trigger scenarios**:
+- IP whitelist violation detection
+- Login attempt count exceeded
+- Multiple attempts in a short time
+- Abnormal access from an IPv6 prefix
+- Abnormal terminal OS login
+- Session scope permission violation
+- ID whitelist violation detection
 
-**响应**:
+**Response**:
 ```json
 {
-  "message": "告警审计记录成功",
+  "message": "Alarm audit recorded successfully",
   "status": "success",
   "data": {
     "id": 1,
-    "deviceId": "设备ID",
-    "deviceUuid": "设备UUID",
+    "deviceId": "device ID",
+    "deviceUuid": "device UUID",
     "typ": 0,
     "info": {
       "ip": "192.168.1.1",
@@ -245,9 +245,9 @@
 }
 ```
 
-## 使用示例
+## Usage Examples
 
-### 使用 curl 测试连接审计
+### Testing connection audit with curl
 
 ```bash
 curl -X POST http://localhost:3000/audit/conn \
@@ -264,7 +264,7 @@ curl -X POST http://localhost:3000/audit/conn \
   }'
 ```
 
-### 使用 curl 测试文件审计
+### Testing file audit with curl
 
 ```bash
 curl -X POST http://localhost:3000/audit/file \
@@ -288,7 +288,7 @@ curl -X POST http://localhost:3000/audit/file \
   }'
 ```
 
-### 使用 curl 测试告警审计
+### Testing alarm audit with curl
 
 ```bash
 curl -X POST http://localhost:3000/audit/alarm \
@@ -304,32 +304,32 @@ curl -X POST http://localhost:3000/audit/alarm \
   }'
 ```
 
-## 注意事项
+## Notes
 
-1. **文件数量限制**: 文件审计接口最多记录10个文件（按大小排序）
-2. **验证**: 所有请求都会经过自动验证，确保数据格式正确
-3. **时间戳**: 所有审计记录都会自动记录创建时间
-4. **数据库**: 使用SQLite数据库，数据存储在 `rustdesk-console.db` 文件中
+1. **File count limit**: The file audit endpoint records at most 10 files (sorted by size)
+2. **Validation**: All requests are validated automatically to ensure the data format is correct
+3. **Timestamps**: All audit records automatically record their creation time
+4. **Database**: Uses a SQLite database; data is stored in the `rustdesk-console.db` file
 
-## 测试
+## Testing
 
-运行审计模块的测试:
+Run the audit module tests:
 
 ```bash
 npm run test -- audit
 ```
 
-运行所有测试:
+Run all tests:
 
 ```bash
 npm run test
 ```
 
-## 相关文件
+## Related Files
 
-- `audit.controller.ts`: 控制器层，处理HTTP请求
-- `audit.service.ts`: 服务层，处理业务逻辑
-- `audit.module.ts`: 模块配置
-- `dto/`: 数据传输对象定义
-- `entities/`: 数据库实体定义
-- `audit.controller.spec.ts`: 单元测试
+- `audit.controller.ts`: Controller layer, handles HTTP requests
+- `audit.service.ts`: Service layer, handles business logic
+- `audit.module.ts`: Module configuration
+- `dto/`: Data transfer object definitions
+- `entities/`: Database entity definitions
+- `audit.controller.spec.ts`: Unit tests

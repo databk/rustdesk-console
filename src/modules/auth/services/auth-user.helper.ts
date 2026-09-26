@@ -3,24 +3,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 
-/** 用户查询选项，控制需要额外 select 的敏感字段 */
+/** User query options, controlling which sensitive fields need an extra select */
 export interface UserQueryOptions {
-  /** 是否查询密码字段，默认 false */
+  /** Whether to select the password field; defaults to false */
   withPassword?: boolean;
-  /** 是否查询 TFA 密钥字段，默认 false */
+  /** Whether to select the TFA secret field; defaults to false */
   withTfaSecret?: boolean;
-  /** 是否查询 info 字段，默认 true */
+  /** Whether to select the info field; defaults to true */
   withInfo?: boolean;
-  /** 是否查询 thirdAuthType 字段，默认 true */
+  /** Whether to select the thirdAuthType field; defaults to true */
   withThirdAuthType?: boolean;
-  /** 是否查询 avatar 字段，默认 true */
+  /** Whether to select the avatar field; defaults to true */
   withAvatar?: boolean;
 }
 
 /**
- * 认证用户查询助手
- * 统一封装登录流程中常见的用户查询（含敏感字段 select），
- * 消除 AuthService / AuthTfaService / AuthEmailService / AuthPasskeyService 中的重复查询构建
+ * Auth user query helper
+ * Encapsulates common user queries in the login flow (including sensitive field selects),
+ * eliminating duplicated query building in AuthService / AuthTfaService / AuthEmailService / AuthPasskeyService
  */
 @Injectable()
 export class AuthUserHelper {
@@ -30,8 +30,8 @@ export class AuthUserHelper {
   ) {}
 
   /**
-   * 通过 GUID 查询用户
-   * 默认包含 info、thirdAuthType、avatar 字段
+   * Find a user by GUID
+   * Includes the info, thirdAuthType, and avatar fields by default
    */
   async findByGuid(
     guid: string,
@@ -47,8 +47,8 @@ export class AuthUserHelper {
   }
 
   /**
-   * 通过用户名或邮箱查询用户
-   * 默认包含 info、thirdAuthType、avatar 字段
+   * Find a user by username or email
+   * Includes the info, thirdAuthType, and avatar fields by default
    */
   async findByUsernameOrEmail(
     username: string,
@@ -67,8 +67,8 @@ export class AuthUserHelper {
   }
 
   /**
-   * 根据查询选项添加敏感字段的 addSelect
-   * info、thirdAuthType、avatar 默认查询；password、tfaSecret 默认不查询
+   * Add addSelect for sensitive fields based on the query options
+   * info, thirdAuthType, and avatar are selected by default; password and tfaSecret are not
    */
   private applySelects(
     queryBuilder: ReturnType<Repository<User>['createQueryBuilder']>,

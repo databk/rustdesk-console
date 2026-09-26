@@ -90,7 +90,7 @@ export class AuthController {
     const token = extractBearerToken(req);
 
     await this.authService.logout(userId, logoutDto, token);
-    return { message: '登出成功' };
+    return { message: 'Logged out successfully' };
   }
 
   @Post('currentUser')
@@ -129,7 +129,7 @@ export class AuthController {
     return this.tfaService.disableTfa(userId, dto.code);
   }
 
-  // ==================== Passkey 注册 ====================
+  // ==================== Passkey registration ====================
 
   @Post('passkey/register/begin')
   @HttpCode(HttpStatus.OK)
@@ -150,7 +150,7 @@ export class AuthController {
     );
   }
 
-  // ==================== Passkey 无密码登录 ====================
+  // ==================== Passkey passwordless login ====================
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -174,7 +174,7 @@ export class AuthController {
     );
   }
 
-  // ==================== Passkey 凭证管理 ====================
+  // ==================== Passkey credential management ====================
 
   @Get('passkey/list')
   async listPasskeys(@CurrentUser('id') userId: string) {
@@ -188,10 +188,10 @@ export class AuthController {
     @Param('guid') guid: string,
   ) {
     await this.passkeyService.deleteCredential(userId, guid);
-    return { message: '凭证已删除' };
+    return { message: 'Credential deleted' };
   }
 
-  // ==================== Passkey 双因素认证 ====================
+  // ==================== Passkey two-factor authentication ====================
 
   @Post('passkey/tfa')
   @HttpCode(HttpStatus.OK)
@@ -202,7 +202,7 @@ export class AuthController {
     return this.passkeyService.setPasskeyTfaEnabled(userId, dto.enabled);
   }
 
-  // ==================== 登录会话管理 ====================
+  // ==================== Login session management ====================
 
   @Get('sessions')
   async listSessions(@CurrentUser('id') userId: string) {
@@ -217,6 +217,6 @@ export class AuthController {
     @Param('jti') jti: string,
   ) {
     await this.tokenService.revokeSession(userId, jti);
-    return { message: '会话已撤销' };
+    return { message: 'Session revoked' };
   }
 }

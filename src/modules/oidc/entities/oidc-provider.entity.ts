@@ -8,8 +8,8 @@ import {
 } from 'typeorm';
 
 /**
- * OIDC 提供商实体
- * 管理 OpenID Connect 身份提供商配置
+ * OIDC provider entity
+ * Manages OpenID Connect identity provider configuration
  */
 export enum OidcProviderType {
   OIDC = 'oidc',
@@ -19,15 +19,15 @@ export enum OidcProviderType {
 @Entity('oidc_providers')
 export class OidcProvider {
   /**
-   * 提供商唯一标识符
-   * UUID格式，用于唯一标识一个 OIDC 提供商
+   * Unique provider identifier
+   * UUID format, uniquely identifies an OIDC provider
    */
   @PrimaryColumn()
   guid: string;
 
   /**
-   * 提供商名称
-   * 用于显示和区分不同的提供商
+   * Provider name
+   * Used to display and distinguish different providers
    */
   @Column()
   @Index()
@@ -40,92 +40,92 @@ export class OidcProvider {
   type: OidcProviderType;
 
   /**
-   * 发行者 URL
-   * OIDC 提供商的发行者标识
+   * Issuer URL
+   * Issuer identifier of the OIDC provider
    */
   @Column()
   issuer: string;
 
   /**
-   * 客户端 ID
-   * 在 OIDC 提供商注册的应用标识
+   * Client ID
+   * Application identifier registered with the OIDC provider
    */
   @Column()
   clientId: string;
 
   /**
-   * 客户端密钥
-   * 在 OIDC 提供商注册的应用密钥
+   * Client secret
+   * Application secret registered with the OIDC provider
    */
   @Column({ nullable: true, select: false })
   clientSecret: string;
 
   /**
-   * 授权范围
-   * 请求的 OAuth2 授权范围
+   * Authorization scope
+   * Requested OAuth2 authorization scope
    */
   @Column({ nullable: true })
   scope: string;
 
   /**
-   * 授权端点
-   * OIDC 提供商的授权端点 URL
+   * Authorization endpoint
+   * Authorization endpoint URL of the OIDC provider
    */
   @Column({ nullable: true })
   authorizationEndpoint: string;
 
   /**
-   * 令牌端点
-   * OIDC 提供商的令牌端点 URL
+   * Token endpoint
+   * Token endpoint URL of the OIDC provider
    */
   @Column({ nullable: true })
   tokenEndpoint: string;
 
   /**
-   * 用户信息端点
-   * OIDC 提供商的用户信息端点 URL
+   * User info endpoint
+   * User info endpoint URL of the OIDC provider
    */
   @Column({ nullable: true })
   userinfoEndpoint: string;
 
   /**
-   * JWKS 端点
-   * OIDC 提供商的 JSON Web Key Set 端点 URL，用于验证 ID Token 签名
+   * JWKS endpoint
+   * JSON Web Key Set endpoint URL of the OIDC provider, used to verify ID Token signatures
    */
   @Column({ nullable: true })
   jwksUri: string;
 
   /**
-   * 提供商图标
-   * 自定义 OIDC 提供商的 SVG 图标字符串，用于客户端展示
-   * 内置提供商此字段为 null，客户端使用内置 SVG
+   * Provider icon
+   * SVG icon string of a custom OIDC provider, shown in the client
+   * Null for built-in providers; the client uses its built-in SVG
    */
   @Column({ type: 'text', nullable: true })
   icon: string;
 
   /**
-   * 是否启用
-   * true - 提供商可用
-   * false - 提供商禁用
+   * Whether enabled
+   * true - provider is available
+   * false - provider is disabled
    */
   @Column({ default: true })
   enabled: boolean;
 
   /**
-   * 显示优先级
-   * 数值越小优先级越高
+   * Display priority
+   * Lower value means higher priority
    */
   @Column({ default: 0 })
   priority: number;
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;
 
   /**
-   * 更新时间
+   * Update time
    */
   @UpdateDateColumn()
   updatedAt: Date;

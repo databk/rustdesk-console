@@ -1,12 +1,12 @@
 import { IsArray, ArrayNotEmpty, IsNumber } from 'class-validator';
 
 /**
- * 断开连接DTO
- * 用于管理员强制断开指定设备的连接
+ * Disconnect DTO
+ * Used by administrators to forcibly disconnect connections of specified devices
  */
 export class DisconnectDto {
   /**
-   * 需要强制断开的连接ID列表
+   * List of connection IDs to forcibly disconnect
    */
   @IsArray()
   @ArrayNotEmpty()

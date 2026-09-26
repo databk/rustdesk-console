@@ -7,13 +7,13 @@ import { Strategy } from '../strategy/entities/strategy.entity';
 import { PeerQueryDto } from './dto/peer.dto';
 
 /**
- * 设备服务
- * 负责设备相关的业务逻辑和权限管理
+ * Device service
+ * Responsible for device-related business logic and permission management
  *
- * 功能：
- * - 获取用户可访问的设备列表
- * - 管理设备权限
- * - 处理设备在线状态
+ * Features:
+ * - Get the list of devices accessible to a user
+ * - Manage device permissions
+ * - Handle device online status
  */
 @Injectable()
 export class PeerService {
@@ -29,28 +29,28 @@ export class PeerService {
   ) {}
 
   /**
-   * 获取用户可访问的设备列表（分页）
-   * 根据用户权限返回可访问的设备列表
+   * Get the list of devices accessible to a user (paginated)
+   * Returns the accessible device list based on user permissions
    *
-   * 权限逻辑：
-   * 1. 管理员可以看到所有设备
-   * 2. 普通用户：
-   *    - 用户自己的设备
-   *    - 用户有权访问的设备组中的设备
-   *    - 用户有权访问的其他用户的设备
+   * Permission logic:
+   * 1. Administrators can see all devices
+   * 2. Regular users:
+   *    - The user's own devices
+   *    - Devices in device groups the user has access to
+   *    - Devices of other users the user has access to
    *
-   * 筛选条件：
-   * - id: 按设备ID筛选（模糊匹配）
-   * - status: 按设备状态筛选（'0'=禁用, '1'=正常）
-   * - is_online: 按是否在线筛选（'0'=离线, '1'=在线）
-   * - user_name: 按用户名筛选（模糊匹配）
-   * - device_group_name: 按设备组名称筛选（模糊匹配）
-   * - os: 按操作系统筛选（模糊匹配）
+   * Filter conditions:
+   * - id: filter by device ID (fuzzy match)
+   * - status: filter by device status ('0' = disabled, '1' = normal)
+   * - is_online: filter by online status ('0' = offline, '1' = online)
+   * - user_name: filter by user name (fuzzy match)
+   * - device_group_name: filter by device group name (fuzzy match)
+   * - os: filter by operating system (fuzzy match)
    *
-   * @param userGuid 用户GUID
-   * @param query 查询参数，包含分页和筛选条件
-   * @param isAdmin 是否为管理员
-   * @returns 设备列表和总数
+   * @param userGuid User GUID
+   * @param query Query parameters, including pagination and filter conditions
+   * @param isAdmin Whether the user is an administrator
+   * @returns Device list and total count
    */
   async getAccessiblePeers(
     userGuid: string,
@@ -70,26 +70,26 @@ export class PeerService {
     } = query;
     const skip = (current - 1) * pageSize;
 
-    // 计算一分钟前的时间（用于判断在线状态）
+    // Calculate the time one minute ago (used to determine online status)
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
 
-    // 构建查询
+    // Build the query
     const queryBuilder = this.peerRepository
       .createQueryBuilder('peer')
       .leftJoinAndSelect('peer.deviceGroup', 'deviceGroup');
 
-    // 管理员可以看到所有设备
+    // Administrators can see all devices
     if (!isAdmin) {
       queryBuilder.where(
         `(
-          -- 用户自己的设备
+          -- The user's own devices
           peer.userGuid = :userGuid
-          -- 用户有权访问的设备组中的设备
+          -- Devices in device groups the user has access to
           OR EXISTS (
             SELECT 1 FROM device_group_user_permissions udgp
             WHERE udgp.userGuid = :userGuid AND udgp.deviceGroupGuid = peer.deviceGroupGuid
           )
-          -- 用户有权访问的其他用户的设备
+          -- Devices of other users the user has access to
           OR EXISTS (
             SELECT 1 FROM user_user_permissions uup
             WHERE uup.userGuid = :userGuid AND uup.targetUserGuid = peer.userGuid
@@ -99,19 +99,19 @@ export class PeerService {
       );
     }
 
-    // 按设备ID筛选（模糊匹配）
+    // Filter by device ID (fuzzy match)
     if (id) {
       queryBuilder.andWhere('peer.id LIKE :peerId', { peerId: `%${id}%` });
     }
 
-    // 按设备状态筛选：status='0' 禁用, status='1' 正常
+    // Filter by device status: status='0' disabled, status='1' normal
     if (status !== undefined) {
       queryBuilder.andWhere('peer.status = :peerStatus', {
         peerStatus: parseInt(status),
       });
     }
 
-    // 按是否在线筛选
+    // Filter by online status
     if (is_online === '1') {
       queryBuilder.andWhere('peer.lastHeartbeat > :oneMinuteAgo', {
         oneMinuteAgo,
@@ -123,7 +123,7 @@ export class PeerService {
       );
     }
 
-    // 按用户名筛选（模糊匹配）
+    // Filter by user name (fuzzy match)
     if (user_name) {
       queryBuilder.andWhere(
         `EXISTS (
@@ -134,21 +134,21 @@ export class PeerService {
       );
     }
 
-    // 按设备组GUID筛选（精确匹配，优先级更高）
+    // Filter by device group GUID (exact match, higher priority)
     if (device_group_guid) {
       queryBuilder.andWhere('peer.deviceGroupGuid = :deviceGroupGuid', {
         deviceGroupGuid: device_group_guid,
       });
     }
 
-    // 按设备组名称筛选（模糊匹配）
+    // Filter by device group name (fuzzy match)
     if (device_group_name && !device_group_guid) {
       queryBuilder.andWhere('deviceGroup.name LIKE :deviceGroupName', {
         deviceGroupName: `%${device_group_name}%`,
       });
     }
 
-    // 按操作系统筛选（模糊匹配，需要关联 sysinfo 表）
+    // Filter by operating system (fuzzy match, requires joining the sysinfo table)
     if (os) {
       queryBuilder.andWhere(
         `EXISTS (
@@ -159,26 +159,26 @@ export class PeerService {
       );
     }
 
-    // 分页查询
+    // Paginated query
     queryBuilder.orderBy('peer.id', 'ASC').skip(skip).take(pageSize);
 
     const [peers, total] = await queryBuilder.getManyAndCount();
 
-    // 获取所有设备的 uuid 列表
+    // Get the uuid list of all devices
     const uuids = peers.map((p) => p.uuid);
 
-    // 批量查询系统信息
+    // Batch query system information
     const sysinfos =
       uuids.length > 0 ? await this.sysinfoRepository.findByIds(uuids) : [];
 
     const sysinfoMap = new Map(sysinfos.map((s) => [s.uuid, s]));
 
-    // 获取所有相关的用户GUID
+    // Get all related user GUIDs
     const userGuids = [
       ...new Set(peers.map((p) => p.userGuid).filter((guid) => guid != null)),
     ];
 
-    // 批量查询用户信息
+    // Batch query user information
     const users =
       userGuids.length > 0
         ? await this.userRepository.find({ where: { guid: In(userGuids) } })
@@ -214,7 +214,7 @@ export class PeerService {
       return version;
     };
 
-    // 转换响应格式
+    // Convert the response format
     const data = peers.map((peer) => {
       const sysinfo = sysinfoMap.get(peer.uuid);
       const isOnline = peer.lastHeartbeat
@@ -255,9 +255,9 @@ export class PeerService {
   }
 
   /**
-   * 根据UUID查找设备
-   * @param uuid 设备UUID
-   * @returns 设备实体或null
+   * Find a device by UUID
+   * @param uuid Device UUID
+   * @returns The device entity or null
    */
   async findByUuid(uuid: string): Promise<Peer | null> {
     return this.peerRepository.findOne({ where: { uuid } });

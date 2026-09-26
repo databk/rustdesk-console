@@ -7,22 +7,22 @@ import { JwtPayload } from '../../../common/services/token.service';
 import { JWT_DEFAULT_SECRET } from '../auth.constants';
 
 /**
- * 从请求中提取 JWT Token
- * 支持两种认证方式：
- * 1. Authorization header Bearer token（客户端使用）
- * 2. Cookie access_token（Web 前端使用）
+ * Extract the JWT token from the request
+ * Supports two authentication methods:
+ * 1. Authorization header Bearer token (used by the client app)
+ * 2. Cookie access_token (used by the web frontend)
  *
- * @param req Express 请求对象
- * @returns JWT token 字符串或 null
+ * @param req Express request object
+ * @returns JWT token string or null
  */
 function extractToken(req: Request): string | null {
-  // 优先从 Authorization header 提取 Bearer token
+  // Prefer extracting the Bearer token from the Authorization header
   const authHeaderToken = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
   if (authHeaderToken) {
     return authHeaderToken;
   }
 
-  // 如果 header 中没有，从 Cookie 中提取
+  // If not in the header, extract it from the Cookie
   if (req.cookies && 'access_token' in req.cookies) {
     const token = req.cookies.access_token as string;
     return token;
@@ -32,20 +32,20 @@ function extractToken(req: Request): string | null {
 }
 
 /**
- * JWT认证策略
- * 使用Passport的JWT策略进行令牌验证和用户认证
+ * JWT authentication strategy
+ * Uses Passport's JWT strategy for token validation and user authentication
  *
- * 验证逻辑：
- * 1. 从请求头的Authorization字段或Cookie中提取令牌
- * 2. 使用JWT密钥验证令牌签名和有效期
- * 3. 检查令牌是否已被撤销
- * 4. 提取用户信息并返回
+ * Validation logic:
+ * 1. Extract the token from the Authorization request header or the Cookie
+ * 2. Verify the token signature and expiry using the JWT secret
+ * 3. Check whether the token has been revoked
+ * 4. Extract the user info and return it
  *
- * 安全措施：
- * - 不忽略令牌过期时间
- * - 支持令牌撤销机制
- * - 使用环境变量配置JWT密钥
- * - 支持双模式认证（Header + Cookie）
+ * Security measures:
+ * - Token expiry is not ignored
+ * - Supports a token revocation mechanism
+ * - JWT secret is configured via environment variable
+ * - Supports dual-mode authentication (Header + Cookie)
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -70,19 +70,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   /**
-   * 验证JWT令牌
-   * 验证令牌的有效性并提取用户信息
+   * Validate the JWT token
+   * Validates the token and extracts the user info
    *
-   * 验证流程：
-   * 1. 从请求头或Cookie提取令牌
-   * 2. 检查令牌是否存在
-   * 3. 验证令牌是否被撤销
-   * 4. 提取用户信息（ID、用户名、邮箱、管理员标志）
+   * Validation flow:
+   * 1. Extract the token from the request header or Cookie
+   * 2. Check that the token exists
+   * 3. Check whether the token has been revoked
+   * 4. Extract the user info (ID, username, email, admin flag)
    *
-   * @param req Express请求对象，用于访问请求头和Cookie
-   * @param payload JWT载荷，包含用户基本信息
-   * @returns 验证通过的用户信息
-   * @throws UnauthorizedException 令牌无效、已过期或已被撤销
+   * @param req Express request object, used to access request headers and Cookies
+   * @param payload JWT payload containing basic user info
+   * @returns The validated user info
+   * @throws UnauthorizedException the token is invalid, expired, or revoked
    */
   async validate(
     req: Request,
@@ -90,26 +90,26 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ): Promise<Record<string, unknown>> {
     const token = extractToken(req);
 
-    // Token 不存在时直接拒绝
+    // Reject immediately if the token is missing
     if (!token) {
-      throw new UnauthorizedException('Token 无效');
+      throw new UnauthorizedException('Invalid token');
     }
 
-    // 验证 Token 是否被撤销
+    // Check whether the token has been revoked
     const validPayload = await this.authService.validateToken(token);
     if (!validPayload) {
-      throw new UnauthorizedException('Token 已失效或被撤销');
+      throw new UnauthorizedException('Token expired or revoked');
     }
 
     const { sub, username, email, isAdmin, jti } = validPayload;
 
-    // 保持原有字段名 id，实际值是用户的 guid
+    // Keep the original field name id; the actual value is the user's guid
     return {
-      id: sub, // 保持原有字段名 id，值为用户的 guid
+      id: sub, // Keep the original field name id; the value is the user's guid
       username,
       email,
       isAdmin,
-      jti, // 令牌唯一标识，用于会话管理
+      jti, // Unique token identifier, used for session management
     };
   }
 }

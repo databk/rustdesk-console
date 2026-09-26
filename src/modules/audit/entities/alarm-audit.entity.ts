@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 
 /**
- * 告警类型枚举
+ * Alarm type enum
  */
 export enum AlarmType {
   IP_WHITELIST = 0,

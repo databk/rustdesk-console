@@ -33,39 +33,39 @@ import { AddressBookRuleService } from './services/address-book-rule.service';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 
 /**
- * 地址簿控制器
- * 负责处理地址簿相关的 HTTP 请求，包括地址簿管理、设备管理、标签管理和规则管理
+ * Address book controller
+ * Handles address book related HTTP requests, including address book management, device management, tag management, and rule management
  *
- * 端点数量：26 个
+ * Number of endpoints: 26
  *
- * 旧版 API（兼容性）：
- * - GET /api/ab - 获取旧版地址簿
- * - POST /api/ab - 更新旧版地址簿
+ * Legacy API (compatibility):
+ * - GET /api/ab - Get the legacy address book
+ * - POST /api/ab - Update the legacy address book
  *
- * 新版 API：
- * - POST /api/ab/settings - 获取地址簿设置
- * - GET /api/ab/personal - 获取个人地址簿 GUID
- * - POST /api/ab/personal - 获取个人地址簿 GUID
- * - GET /api/ab/shared/profiles - 获取共享地址簿列表
- * - POST /api/ab/shared/profiles - 获取共享地址簿列表
- * - POST /api/ab/shared/add - 添加共享地址簿
- * - PUT /api/ab/shared/update/profile - 更新共享地址簿
- * - DELETE /api/ab/shared - 删除共享地址簿
- * - GET /api/ab/peers - 获取地址簿中的设备列表
- * - POST /api/ab/peers - 获取地址簿中的设备列表
- * - GET /api/ab/tags/{guid} - 获取地址簿标签列表
- * - POST /api/ab/tags/{guid} - 获取地址簿标签列表
- * - POST /api/ab/peer/add/{guid} - 添加设备到地址簿
- * - PUT /api/ab/peer/update/{guid} - 更新设备信息
- * - DELETE /api/ab/peer/{guid} - 删除设备
- * - POST /api/ab/tag/add/{guid} - 添加标签
- * - PUT /api/ab/tag/rename/{guid} - 重命名标签
- * - PUT /api/ab/tag/update/{guid} - 更新标签颜色
- * - DELETE /api/ab/tag/{guid} - 删除标签
- * - GET /api/ab/rules - 获取地址簿规则列表
- * - POST /api/ab/rule - 添加规则
- * - PATCH /api/ab/rule - 更新规则
- * - DELETE /api/ab/rules - 删除规则
+ * New API:
+ * - POST /api/ab/settings - Get the address book settings
+ * - GET /api/ab/personal - Get the personal address book GUID
+ * - POST /api/ab/personal - Get the personal address book GUID
+ * - GET /api/ab/shared/profiles - Get the shared address book list
+ * - POST /api/ab/shared/profiles - Get the shared address book list
+ * - POST /api/ab/shared/add - Add a shared address book
+ * - PUT /api/ab/shared/update/profile - Update a shared address book
+ * - DELETE /api/ab/shared - Delete shared address books
+ * - GET /api/ab/peers - Get the device list of an address book
+ * - POST /api/ab/peers - Get the device list of an address book
+ * - GET /api/ab/tags/{guid} - Get the address book tag list
+ * - POST /api/ab/tags/{guid} - Get the address book tag list
+ * - POST /api/ab/peer/add/{guid} - Add a device to the address book
+ * - PUT /api/ab/peer/update/{guid} - Update device information
+ * - DELETE /api/ab/peer/{guid} - Delete a device
+ * - POST /api/ab/tag/add/{guid} - Add a tag
+ * - PUT /api/ab/tag/rename/{guid} - Rename a tag
+ * - PUT /api/ab/tag/update/{guid} - Update a tag color
+ * - DELETE /api/ab/tag/{guid} - Delete a tag
+ * - GET /api/ab/rules - Get the address book rule list
+ * - POST /api/ab/rule - Add a rule
+ * - PATCH /api/ab/rule - Update a rule
+ * - DELETE /api/ab/rules - Delete rules
  */
 @Controller('ab')
 export class AddressBookController {
@@ -74,14 +74,14 @@ export class AddressBookController {
     private readonly ruleService: AddressBookRuleService,
   ) {}
 
-  // ============ 旧版（Legacy）API ============
+  // ============ Legacy API ============
 
   /**
-   * 获取旧版地址簿
-   * 获取用户的旧版地址簿数据（兼容性接口）
+   * Get the legacy address book
+   * Get the user's legacy address book data (compatibility endpoint)
    *
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 旧版地址簿的 JSON 字符串
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns JSON string of the legacy address book
    */
   @Get()
   async getLegacyAddressBook(@CurrentUser('id') userId: number) {
@@ -89,12 +89,12 @@ export class AddressBookController {
   }
 
   /**
-   * 更新旧版地址簿
-   * 更新用户的旧版地址簿数据（兼容性接口）
+   * Update the legacy address book
+   * Update the user's legacy address book data (compatibility endpoint)
    *
-   * @param data 地址簿数据的 JSON 字符串
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 更新成功返回地址簿数据，失败返回错误信息
+   * @param data JSON string of the address book data
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Returns the address book data on successful update, or an error message on failure
    */
   @Post()
   @HttpCode(HttpStatus.OK)
@@ -112,13 +112,13 @@ export class AddressBookController {
     }
   }
 
-  // ============ 新版 API ============
+  // ============ New API ============
 
   /**
-   * 获取地址簿设置
-   * 获取地址簿的全局设置信息
+   * Get the address book settings
+   * Get the global settings of the address book
    *
-   * @returns 地址簿设置对象
+   * @returns Address book settings object
    */
   @Post('settings')
   @HttpCode(HttpStatus.OK)
@@ -127,11 +127,11 @@ export class AddressBookController {
   }
 
   /**
-   * 获取个人地址簿 GUID
-   * 获取当前用户的个人地址簿的唯一标识符
+   * Get the personal address book GUID
+   * Get the unique identifier of the current user's personal address book
    *
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 个人地址簿的 GUID
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns GUID of the personal address book
    */
   @Get('personal')
   @HttpCode(HttpStatus.OK)
@@ -140,11 +140,11 @@ export class AddressBookController {
   }
 
   /**
-   * 获取个人地址簿 GUID
-   * 获取当前用户的个人地址簿的唯一标识符
+   * Get the personal address book GUID
+   * Get the unique identifier of the current user's personal address book
    *
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 个人地址簿的 GUID
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns GUID of the personal address book
    */
   @Post('personal')
   @HttpCode(HttpStatus.OK)
@@ -188,7 +188,7 @@ export class AddressBookController {
       dto.name,
       dto.note,
     );
-    return { message: '更新成功' };
+    return { message: 'Updated successfully' };
   }
 
   @Delete('custom')
@@ -201,16 +201,16 @@ export class AddressBookController {
       dto.guids,
       String(userId),
     );
-    return { message: '删除成功' };
+    return { message: 'Deleted successfully' };
   }
 
   /**
-   * 获取共享地址簿列表
-   * 获取当前用户可访问的所有共享地址簿列表
+   * Get the shared address book list
+   * Get all shared address books accessible to the current user
    *
-   * @param query 分页查询参数
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 共享地址簿列表（分页）
+   * @param query Pagination query parameters
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Shared address book list (paginated)
    */
   @Get('shared/profiles')
   @HttpCode(HttpStatus.OK)
@@ -222,12 +222,12 @@ export class AddressBookController {
   }
 
   /**
-   * 获取共享地址簿列表
-   * 获取当前用户可访问的所有共享地址簿列表
+   * Get the shared address book list
+   * Get all shared address books accessible to the current user
    *
-   * @param query 分页查询参数
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 共享地址簿列表（分页）
+   * @param query Pagination query parameters
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Shared address book list (paginated)
    */
   @Post('shared/profiles')
   @HttpCode(HttpStatus.OK)
@@ -273,12 +273,12 @@ export class AddressBookController {
   }
 
   /**
-   * 添加共享地址簿
-   * 创建一个新的共享地址簿
+   * Add a shared address book
+   * Create a new shared address book
    *
-   * @param dto 地址簿信息数据传输对象
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 操作结果
+   * @param dto Address book information data transfer object
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Operation result
    */
   @Post('shared/add')
   @RequirePermission('address_books.share')
@@ -301,12 +301,12 @@ export class AddressBookController {
   }
 
   /**
-   * 更新共享地址簿
-   * 更新现有共享地址簿的信息
+   * Update a shared address book
+   * Update the information of an existing shared address book
    *
-   * @param dto 地址簿更新数据传输对象
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 操作结果
+   * @param dto Address book update data transfer object
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Operation result
    */
   @Put('shared/update/profile')
   @RequirePermission('address_books.edit')
@@ -331,12 +331,12 @@ export class AddressBookController {
   }
 
   /**
-   * 删除共享地址簿
-   * 删除一个或多个共享地址簿
+   * Delete shared address books
+   * Delete one or more shared address books
    *
-   * @param guids 要删除的地址簿 GUID 数组
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 操作结果
+   * @param guids Array of address book GUIDs to delete
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Operation result
    */
   @Delete('shared')
   @RequirePermission('address_books.edit')
@@ -357,12 +357,12 @@ export class AddressBookController {
   }
 
   /**
-   * 获取地址簿中的设备列表
-   * 获取指定地址簿中的所有设备信息
+   * Get the device list of the address book
+   * Get all device information in the specified address book
    *
-   * @param query 查询参数（包含标签、搜索关键词等）
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 设备列表
+   * @param query Query parameters (including tags, search keywords, etc.)
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Device list
    */
   @Get('peers')
   @HttpCode(HttpStatus.OK)
@@ -374,12 +374,12 @@ export class AddressBookController {
   }
 
   /**
-   * 获取地址簿中的设备列表
-   * 获取指定地址簿中的所有设备信息
+   * Get the device list of the address book
+   * Get all device information in the specified address book
    *
-   * @param query 查询参数（包含标签、搜索关键词等）
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 设备列表
+   * @param query Query parameters (including tags, search keywords, etc.)
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Device list
    */
   @Post('peers')
   @HttpCode(HttpStatus.OK)
@@ -388,12 +388,12 @@ export class AddressBookController {
   }
 
   /**
-   * 获取地址簿标签列表
-   * 获取指定地址簿中的所有标签
+   * Get the address book tag list
+   * Get all tags in the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 标签列表
+   * @param guid Address book GUID
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Tag list
    */
   @Get('tags/:guid')
   @HttpCode(HttpStatus.OK)
@@ -402,12 +402,12 @@ export class AddressBookController {
   }
 
   /**
-   * 获取地址簿标签列表
-   * 获取指定地址簿中的所有标签
+   * Get the address book tag list
+   * Get all tags in the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 标签列表
+   * @param guid Address book GUID
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Tag list
    */
   @Post('tags/:guid')
   @HttpCode(HttpStatus.OK)
@@ -416,13 +416,13 @@ export class AddressBookController {
   }
 
   /**
-   * 添加设备到地址簿
-   * 向指定地址簿添加新的设备
+   * Add a device to the address book
+   * Add a new device to the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param dto 设备信息数据传输对象
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 添加成功返回空字符串，失败返回错误信息
+   * @param guid Address book GUID
+   * @param dto Device information data transfer object
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Returns an empty string on successful addition, or an error message on failure
    */
   @Post('peer/add/:guid')
   @HttpCode(HttpStatus.OK)
@@ -440,13 +440,13 @@ export class AddressBookController {
   }
 
   /**
-   * 更新设备信息
-   * 更新指定地址簿中的设备信息
+   * Update device information
+   * Update device information in the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param dto 设备更新信息数据传输对象
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 更新成功返回空字符串，失败返回错误信息
+   * @param guid Address book GUID
+   * @param dto Device update information data transfer object
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Returns an empty string on successful update, or an error message on failure
    */
   @Put('peer/update/:guid')
   @HttpCode(HttpStatus.OK)
@@ -464,13 +464,13 @@ export class AddressBookController {
   }
 
   /**
-   * 删除设备
-   * 从指定地址簿中删除一个或多个设备
+   * Delete devices
+   * Delete one or more devices from the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param ids 要删除的设备 ID 数组
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 删除成功返回空字符串，失败返回错误信息
+   * @param guid Address book GUID
+   * @param ids Array of device IDs to delete
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Returns an empty string on successful deletion, or an error message on failure
    */
   @Delete('peer/:guid')
   @HttpCode(HttpStatus.OK)
@@ -488,13 +488,13 @@ export class AddressBookController {
   }
 
   /**
-   * 添加标签
-   * 向指定地址簿添加新的标签
+   * Add a tag
+   * Add a new tag to the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param dto 标签信息数据传输对象
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 添加成功返回空字符串，失败返回错误信息
+   * @param guid Address book GUID
+   * @param dto Tag information data transfer object
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Returns an empty string on successful addition, or an error message on failure
    */
   @Post('tag/add/:guid')
   @HttpCode(HttpStatus.OK)
@@ -512,13 +512,13 @@ export class AddressBookController {
   }
 
   /**
-   * 重命名标签
-   * 重命名指定地址簿中的标签
+   * Rename a tag
+   * Rename a tag in the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param dto 标签重命名数据传输对象
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 重命名成功返回空字符串，失败返回错误信息
+   * @param guid Address book GUID
+   * @param dto Tag rename data transfer object
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Returns an empty string on successful rename, or an error message on failure
    */
   @Put('tag/rename/:guid')
   @HttpCode(HttpStatus.OK)
@@ -536,13 +536,13 @@ export class AddressBookController {
   }
 
   /**
-   * 更新标签颜色
-   * 更新指定地址簿中标签的颜色
+   * Update the tag color
+   * Update the color of a tag in the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param dto 标签颜色更新数据传输对象
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 更新成功返回空字符串，失败返回错误信息
+   * @param guid Address book GUID
+   * @param dto Tag color update data transfer object
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Returns an empty string on successful update, or an error message on failure
    */
   @Put('tag/update/:guid')
   @HttpCode(HttpStatus.OK)
@@ -560,13 +560,13 @@ export class AddressBookController {
   }
 
   /**
-   * 删除标签
-   * 从指定地址簿中删除一个或多个标签
+   * Delete the tags
+   * Delete one or more tags from the specified address book
    *
-   * @param guid 地址簿 GUID
-   * @param names 要删除的标签名称数组
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 删除成功返回空字符串，失败返回错误信息
+   * @param guid Address book GUID
+   * @param names Array of tag names to delete
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Returns an empty string on successful deletion, or an error message on failure
    */
   @Delete('tag/:guid')
   @HttpCode(HttpStatus.OK)
@@ -583,15 +583,15 @@ export class AddressBookController {
     }
   }
 
-  // ============ 规则管理 API ============
+  // ============ Rule management API ============
 
   /**
-   * 获取地址簿规则列表
-   * 分页查询指定地址簿的所有访问规则
+   * Get the address book rule list
+   * Query all access rules of the specified address book (paginated)
    *
-   * @param query 查询参数（包含地址簿 GUID 和分页信息）
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 规则列表（分页）
+   * @param query Query parameters (including the address book GUID and pagination info)
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Rule list (paginated)
    */
   @Get('rules')
   @RequirePermission('address_books.view')
@@ -604,12 +604,12 @@ export class AddressBookController {
   }
 
   /**
-   * 添加地址簿规则
-   * 为指定地址簿创建新的访问规则
+   * Add an address book rule
+   * Creates a new access rule for the specified address book
    *
-   * @param dto 创建规则数据
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 新创建的规则 GUID
+   * @param dto Rule creation data
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns GUID of the newly created rule
    */
   @Post('rule')
   @RequirePermission('address_books.share')
@@ -619,12 +619,12 @@ export class AddressBookController {
   }
 
   /**
-   * 更新地址簿规则
-   * 修改指定规则的权限级别
+   * Update an address book rule
+   * Modify the permission level of the specified rule
    *
-   * @param dto 更新规则数据
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 更新成功消息
+   * @param dto Rule update data
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Update success message
    */
   @Patch('rule')
   @RequirePermission('address_books.share')
@@ -637,12 +637,12 @@ export class AddressBookController {
   }
 
   /**
-   * 删除地址簿规则
-   * 批量删除一个或多个规则
+   * Delete address book rules
+   * Batch delete one or more rules
    *
-   * @param ruleGuids 要删除的规则 GUID 数组
-   * @param userId 当前用户 ID（从 JWT 令牌中提取）
-   * @returns 删除成功消息
+   * @param ruleGuids Array of rule GUIDs to delete
+   * @param userId Current user ID (extracted from the JWT token)
+   * @returns Deletion success message
    */
   @Delete('rules')
   @RequirePermission('address_books.share')

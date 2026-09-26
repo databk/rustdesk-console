@@ -6,20 +6,20 @@ import { SystemSetting } from '../entities/system-setting.entity';
 import { UpdateSmtpConfigDto, TestSmtpConfigDto } from '../dto/smtp-config.dto';
 
 /**
- * SMTP 配置服务
- * 使用通用 SystemSetting 表管理 SMTP 配置
+ * SMTP configuration service
+ * Manages SMTP configuration using the generic SystemSetting table
  */
 @Injectable()
 export class SmtpSettingsService {
   private readonly logger = new Logger(SmtpSettingsService.name);
 
-  /** 设置分类 */
+  /** Setting category */
   private readonly CATEGORY = 'smtp';
 
-  /** 密码脱敏占位符 */
+  /** Password masking placeholder */
   private readonly PASS_MASK = '******';
 
-  /** SMTP 设置键名 */
+  /** SMTP setting keys */
   private readonly SMTP_KEYS = {
     HOST: 'smtp.host',
     PORT: 'smtp.port',
@@ -36,7 +36,7 @@ export class SmtpSettingsService {
   ) {}
 
   /**
-   * 获取 SMTP 配置（含密码，供内部服务使用）
+   * Get SMTP configuration (including password, for internal service use)
    */
   async getActiveConfig(): Promise<{
     host: string;
@@ -65,8 +65,8 @@ export class SmtpSettingsService {
   }
 
   /**
-   * 获取 SMTP 配置（密码脱敏，供 API 返回）
-   * 如果配置不存在，抛出 NotFoundException
+   * Get SMTP configuration (password masked, for API responses)
+   * Throws NotFoundException if the configuration does not exist
    */
   async getSmtpConfig(): Promise<{
     host: string;
@@ -82,10 +82,10 @@ export class SmtpSettingsService {
     const settings = await this.getSmtpSettings();
 
     if (!settings.get(this.SMTP_KEYS.HOST)) {
-      throw new NotFoundException('SMTP 配置不存在');
+      throw new NotFoundException('SMTP configuration does not exist');
     }
 
-    // 获取任意一个设置的时间戳作为整体时间
+    // Use the timestamp of any one setting as the overall time
     const anySetting = await this.settingRepository.findOne({
       where: { key: this.SMTP_KEYS.HOST },
     });
@@ -104,9 +104,9 @@ export class SmtpSettingsService {
   }
 
   /**
-   * 更新 SMTP 配置（Upsert语义）
-   * 如果配置不存在则创建，存在则更新
-   * 如果 pass 字段为脱敏占位符，则不更新密码
+   * Update SMTP configuration (Upsert semantics)
+   * Creates the configuration if it does not exist, updates it otherwise
+   * If the pass field is the masking placeholder, the password is not updated
    */
   async updateSmtpConfig(dto: UpdateSmtpConfigDto): Promise<{
     host: string;
@@ -124,7 +124,7 @@ export class SmtpSettingsService {
     });
 
     if (!existing) {
-      // 配置不存在，创建新配置
+      // Configuration does not exist, create a new one
       await this.setMultipleSettings({
         [this.SMTP_KEYS.HOST]: dto.host || '',
         [this.SMTP_KEYS.PORT]: String(dto.port ?? 587),
@@ -134,9 +134,9 @@ export class SmtpSettingsService {
         [this.SMTP_KEYS.FROM]: dto.from || '',
         [this.SMTP_KEYS.ENABLED]: String(dto.enabled ?? true),
       });
-      this.logger.log('SMTP 配置已创建');
+      this.logger.log('SMTP configuration created');
     } else {
-      // 配置已存在，更新配置
+      // Configuration exists, update it
       const updates: Record<string, string> = {};
 
       if (dto.host !== undefined) updates[this.SMTP_KEYS.HOST] = dto.host;
@@ -155,14 +155,14 @@ export class SmtpSettingsService {
       if (Object.keys(updates).length > 0) {
         await this.setMultipleSettings(updates);
       }
-      this.logger.log('SMTP 配置已更新');
+      this.logger.log('SMTP configuration updated');
     }
 
     return this.getSmtpConfig();
   }
 
   /**
-   * 测试 SMTP 连接
+   * Test SMTP connection
    */
   async testSmtpConnection(
     dto?: TestSmtpConfigDto,
@@ -182,7 +182,11 @@ export class SmtpSettingsService {
     } else {
       const config = await this.getActiveConfig();
       if (!config) {
-        return { success: false, message: 'SMTP 配置不存在，请先配置' };
+        return {
+          success: false,
+          message:
+            'SMTP configuration does not exist, please configure it first',
+        };
       }
       host = config.host;
       port = config.port;
@@ -200,19 +204,22 @@ export class SmtpSettingsService {
 
     try {
       await transporter.verify();
-      this.logger.log('SMTP 连接测试成功');
-      return { success: true, message: 'SMTP 连接测试成功' };
+      this.logger.log('SMTP connection test succeeded');
+      return { success: true, message: 'SMTP connection test succeeded' };
     } catch (error) {
-      const message = error instanceof Error ? error.message : '未知错误';
-      this.logger.error(`SMTP 连接测试失败: ${message}`);
-      return { success: false, message: `SMTP 连接测试失败: ${message}` };
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`SMTP connection test failed: ${message}`);
+      return {
+        success: false,
+        message: `SMTP connection test failed: ${message}`,
+      };
     } finally {
       transporter.close();
     }
   }
 
   /**
-   * 获取所有 SMTP 设置
+   * Get all SMTP settings
    */
   private async getSmtpSettings(): Promise<Map<string, string>> {
     const settings = await this.settingRepository.find({
@@ -227,7 +234,7 @@ export class SmtpSettingsService {
   }
 
   /**
-   * 批量设置多个配置项
+   * Set multiple configuration items in batch
    */
   private async setMultipleSettings(
     data: Record<string, string>,

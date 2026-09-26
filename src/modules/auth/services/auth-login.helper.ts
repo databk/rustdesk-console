@@ -7,13 +7,12 @@ import { LoginSessionService } from './login-session.service';
 import { UserPayload } from './auth-response.helper';
 
 /**
- * 登录上下文
- * 封装完成登录所需的三个回调，替代原先在 handleTfaLogin / handleEmailCodeLogin
- * 中散落的三个独立回调参数
+ * Login context
+ * Wraps the three callbacks needed to complete a login, replacing the three separate callback parameters previously scattered across handleTfaLogin / handleEmailCodeLogin
  *
- * - generateToken: 生成 JWT Token（deviceInfo 由上下文内部处理）
- * - createOrUpdateDevice: 创建或更新设备绑定记录
- * - buildUserPayload: 构建登录响应中的用户信息载荷
+ * - generateToken: generates the JWT token (deviceInfo is handled inside the context)
+ * - createOrUpdateDevice: creates or updates the device binding record
+ * - buildUserPayload: builds the user info payload in the login response
  */
 export interface LoginContext {
   generateToken: (
@@ -30,30 +29,30 @@ export interface LoginContext {
   buildUserPayload: (user: User) => UserPayload;
 }
 
-/** completeLogin 方法的参数 */
+/** Parameters of the completeLogin method */
 export interface CompleteLoginParams {
-  /** 已通过认证的用户 */
+  /** The authenticated user */
   user: User;
-  /** 待标记为已使用的登录会话 */
+  /** The login session to mark as used */
   session: LoginSession;
-  /** 登录上下文（回调集合） */
+  /** Login context (collection of callbacks) */
   context: LoginContext;
-  /** 设备 ID */
+  /** Device ID */
   deviceId?: string;
-  /** 设备 UUID */
+  /** Device UUID */
   deviceUuid?: string;
-  /** 设备信息 */
+  /** Device info */
   deviceInfo?: DeviceInfoDto;
-  /** 成功日志消息 */
+  /** Success log message */
   successMessage: string;
 }
 
 /**
- * 认证登录助手
- * 统一二次验证通过后的登录完成流程：
- * 标记会话已使用 → 创建/更新设备 → 生成 Token → 构建响应
+ * Auth login helper
+ * Unifies the login completion flow after second-step verification succeeds:
+ * mark the session as used -> create/update the device -> generate the token -> build the response
  *
- * 消除 AuthTfaService / AuthEmailService / AuthPasskeyService 中的重复逻辑
+ * eliminating duplicated logic in AuthTfaService / AuthEmailService / AuthPasskeyService
  */
 @Injectable()
 export class AuthLoginHelper {
@@ -62,9 +61,9 @@ export class AuthLoginHelper {
   constructor(private readonly loginSessionService: LoginSessionService) {}
 
   /**
-   * 完成登录流程
-   * 在二次验证（TFA / 邮箱验证码 / Passkey）通过后调用，
-   * 统一处理会话标记、设备绑定、Token 生成和响应构建
+   * Complete the login flow
+   * Called after second-step verification (TFA / email verification code / Passkey) succeeds,
+   * handling session marking, device binding, token generation, and response building in one place
    */
   async completeLogin(params: CompleteLoginParams): Promise<LoginResponse> {
     const {

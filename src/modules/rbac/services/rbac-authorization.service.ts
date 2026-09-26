@@ -62,7 +62,9 @@ export class RbacAuthorizationService {
       where: { guid: userGuid },
     });
     if (!user || user.status !== UserStatus.ACTIVE) {
-      throw new UnauthorizedException('账户不存在或已被禁用');
+      throw new UnauthorizedException(
+        'Account does not exist or has been disabled',
+      );
     }
     return user;
   }
@@ -73,7 +75,7 @@ export class RbacAuthorizationService {
   ): Promise<User> {
     const user = await this.getCurrentUser(userGuid, manager);
     if (!user.isAdmin) {
-      throw new ForbiddenException('需要超级管理员权限');
+      throw new ForbiddenException('Super administrator permission required');
     }
     return user;
   }
@@ -140,7 +142,7 @@ export class RbacAuthorizationService {
     manager?: EntityManager,
   ): Promise<PermissionScope> {
     if (!isAssignablePermissionCode(permissionCode)) {
-      throw new ForbiddenException('未知权限');
+      throw new ForbiddenException('Unknown permission');
     }
     const scope = await this.getPermissionScope(
       userGuid,
@@ -148,7 +150,7 @@ export class RbacAuthorizationService {
       manager,
     );
     if (!scope.global && scope.deviceGroupGuids.size === 0) {
-      throw new ForbiddenException('无权限访问');
+      throw new ForbiddenException('Access denied');
     }
     return scope;
   }
@@ -292,7 +294,7 @@ export class RbacAuthorizationService {
     const peer = await this.peerRepository.findOne({
       where: { uuid: deviceUuid },
     });
-    if (!peer) throw new NotFoundException('设备不存在');
+    if (!peer) throw new NotFoundException('Device not found');
     if (
       !scope.global &&
       (!peer.deviceGroupGuid ||
@@ -303,7 +305,7 @@ export class RbacAuthorizationService {
         'device',
         deviceUuid,
         permissionCode,
-        new ForbiddenException('设备不在授权设备组内'),
+        new ForbiddenException('Device is not in an authorized device group'),
       );
     }
     return { peer, scope };
@@ -332,7 +334,7 @@ export class RbacAuthorizationService {
           'device',
           denied.uuid,
           permissionCode,
-          new ForbiddenException('批量请求包含未授权设备'),
+          new ForbiddenException('Batch request contains unauthorized devices'),
         );
       }
     }
@@ -357,7 +359,9 @@ export class RbacAuthorizationService {
           'user',
           targetGuids[0] || null,
           'strategies.assign',
-          new ForbiddenException('按用户分配策略需要全局权限'),
+          new ForbiddenException(
+            'Assigning strategies by user requires global permission',
+          ),
         );
       }
       const users = await (
@@ -367,7 +371,7 @@ export class RbacAuthorizationService {
         select: ['guid', 'isAdmin'],
       });
       if (users.length !== new Set(targetGuids).size) {
-        throw new NotFoundException('用户不存在');
+        throw new NotFoundException('User does not exist');
       }
       const protectedUsers = await this.getProtectedUserGuids(
         users.map((user) => user.guid),
@@ -409,7 +413,9 @@ export class RbacAuthorizationService {
           'device_group',
           deniedGuid,
           'strategies.assign',
-          new ForbiddenException('目标设备组不在授权范围内'),
+          new ForbiddenException(
+            'Target device group is outside the authorized scope',
+          ),
         );
       }
       return scope;
@@ -432,7 +438,9 @@ export class RbacAuthorizationService {
         'device',
         denied.uuid,
         'strategies.assign',
-        new ForbiddenException('目标设备不在授权设备组内'),
+        new ForbiddenException(
+          'Target device is not in an authorized device group',
+        ),
       );
     }
     return scope;
@@ -455,7 +463,7 @@ export class RbacAuthorizationService {
       where: { guid: targetGuid },
       select: ['guid', 'isAdmin'],
     });
-    if (!target) throw new NotFoundException('用户不存在');
+    if (!target) throw new NotFoundException('User does not exist');
     if (await this.isProtectedUser(targetGuid, target.isAdmin, manager)) {
       try {
         await this.requireSuperAdmin(actorGuid, manager);

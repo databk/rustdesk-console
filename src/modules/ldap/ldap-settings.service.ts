@@ -5,49 +5,49 @@ import { SystemSetting } from '../settings/entities/system-setting.entity';
 import { UpdateLdapConfigDto, TlsOptionsDto } from './dto/ldap-config.dto';
 
 /**
- * LDAP 配置接口
- * 定义 LDAP 服务的完整配置结构
+ * LDAP configuration interface
+ * Defines the complete configuration structure of the LDAP service
  */
 export interface LdapConfig {
-  /** LDAP 服务器 URL 列表 */
+  /** List of LDAP server URLs */
   urls: string[];
-  /** 服务账号绑定 DN */
+  /** Service account bind DN */
   bindDN: string;
-  /** 服务账号密码 */
+  /** Service account password */
   bindCredentials: string;
-  /** 搜索基础 DN */
+  /** Search base DN */
   searchBase: string;
-  /** 搜索过滤器 */
+  /** Search filter */
   searchFilter: string;
-  /** 要读取的用户属性列表 */
+  /** List of user attributes to read */
   searchAttributes: string[];
-  /** 组搜索基础 DN */
+  /** Group search base DN */
   groupSearchBase: string;
-  /** 组搜索过滤器 */
+  /** Group search filter */
   groupSearchFilter: string;
-  /** 映射为管理员的 LDAP 组 DN 列表 */
+  /** List of LDAP group DNs mapped to administrators */
   adminGroups: string[];
-  /** TLS 配置 */
+  /** TLS configuration */
   tlsOptions: TlsOptionsDto;
-  /** 是否启用 */
+  /** Whether enabled */
   enabled: boolean;
 }
 
 /**
- * LDAP 配置服务
- * 使用通用 SystemSetting 表管理 LDAP 配置，遵循 SmtpSettingsService 模式
+ * LDAP configuration service
+ * Manages LDAP configuration using the generic SystemSetting table, following the SmtpSettingsService pattern
  */
 @Injectable()
 export class LdapSettingsService {
   private readonly logger = new Logger(LdapSettingsService.name);
 
-  /** 设置分类 */
+  /** Setting category */
   private readonly CATEGORY = 'ldap';
 
-  /** 密码脱敏占位符 */
+  /** Password masking placeholder */
   private readonly PASS_MASK = '******';
 
-  /** LDAP 设置键名 */
+  /** LDAP setting keys */
   private readonly LDAP_KEYS = {
     URLS: 'ldap.urls',
     BIND_DN: 'ldap.bindDN',
@@ -68,7 +68,7 @@ export class LdapSettingsService {
   ) {}
 
   /**
-   * 获取 LDAP 配置（含密码，供内部服务使用）
+   * Get LDAP configuration (including password, for internal service use)
    */
   async getActiveConfig(): Promise<LdapConfig | null> {
     const settings = await this.getLdapSettings();
@@ -81,7 +81,7 @@ export class LdapSettingsService {
   }
 
   /**
-   * 获取 LDAP 配置（密码脱敏，供 API 返回）
+   * Get LDAP configuration (password masked, for API responses)
    */
   async getLdapConfig(): Promise<
     LdapConfig & { createdAt: Date; updatedAt: Date }
@@ -89,7 +89,7 @@ export class LdapSettingsService {
     const settings = await this.getLdapSettings();
 
     if (!settings.get(this.LDAP_KEYS.URLS)) {
-      throw new NotFoundException('LDAP 配置不存在');
+      throw new NotFoundException('LDAP configuration does not exist');
     }
 
     const anySetting = await this.settingRepository.findOne({
@@ -105,7 +105,7 @@ export class LdapSettingsService {
   }
 
   /**
-   * 更新 LDAP 配置（Upsert 语义）
+   * Update LDAP configuration (Upsert semantics)
    */
   async updateLdapConfig(
     dto: UpdateLdapConfigDto,
@@ -137,7 +137,7 @@ export class LdapSettingsService {
         [this.LDAP_KEYS.TLS_OPTIONS]: JSON.stringify(dto.tlsOptions || {}),
         [this.LDAP_KEYS.ENABLED]: String(dto.enabled ?? false),
       });
-      this.logger.log('LDAP 配置已创建');
+      this.logger.log('LDAP configuration created');
     } else {
       const updates: Record<string, string> = {};
 
@@ -173,14 +173,14 @@ export class LdapSettingsService {
       if (Object.keys(updates).length > 0) {
         await this.setMultipleSettings(updates);
       }
-      this.logger.log('LDAP 配置已更新');
+      this.logger.log('LDAP configuration updated');
     }
 
     return this.getLdapConfig();
   }
 
   /**
-   * 检查 LDAP 是否已启用
+   * Check whether LDAP is enabled
    */
   async isEnabled(): Promise<boolean> {
     const config = await this.getActiveConfig();
@@ -188,7 +188,7 @@ export class LdapSettingsService {
   }
 
   /**
-   * 解析配置 Map 为 LdapConfig 对象
+   * Parse the configuration Map into an LdapConfig object
    */
   private parseConfig(settings: Map<string, string>): LdapConfig {
     return {
@@ -222,7 +222,7 @@ export class LdapSettingsService {
   }
 
   /**
-   * 解析 JSON 格式的设置项
+   * Parse JSON-formatted settings
    */
   private parseJson<T>(
     settings: Map<string, string>,
@@ -239,7 +239,7 @@ export class LdapSettingsService {
   }
 
   /**
-   * 获取所有 LDAP 设置
+   * Get all LDAP settings
    */
   private async getLdapSettings(): Promise<Map<string, string>> {
     const settings = await this.settingRepository.find({
@@ -254,7 +254,7 @@ export class LdapSettingsService {
   }
 
   /**
-   * 批量设置多个配置项
+   * Set multiple configuration items in batch
    */
   private async setMultipleSettings(
     data: Record<string, string>,

@@ -16,7 +16,10 @@ import { UserGroup } from '../user-group/entities/user-group.entity';
 import { Role } from '../rbac/entities/role.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { getDbPath } from '../../common/utils/data-dir.util';
-import { DashboardDataDto, DashboardTrendsDto } from './dto/dashboard-overview.dto';
+import {
+  DashboardDataDto,
+  DashboardTrendsDto,
+} from './dto/dashboard-overview.dto';
 
 @Injectable()
 export class DashboardService {
@@ -67,11 +70,17 @@ export class DashboardService {
       this.peerRepository.count(),
       this.peerRepository
         .createQueryBuilder('peer')
-        .where('peer.lastHeartbeat >= :threshold', { threshold: new Date(Date.now() - 60 * 1000) })
+        .where('peer.lastHeartbeat >= :threshold', {
+          threshold: new Date(Date.now() - 60 * 1000),
+        })
         .andWhere('peer.status = :status', { status: PeerStatus.ACTIVE })
         .getCount(),
-      this.connectionAuditRepository.count({ where: { createdAt: Between(today, new Date()) } }),
-      this.fileAuditRepository.count({ where: { createdAt: Between(today, new Date()) } }),
+      this.connectionAuditRepository.count({
+        where: { createdAt: Between(today, new Date()) },
+      }),
+      this.fileAuditRepository.count({
+        where: { createdAt: Between(today, new Date()) },
+      }),
       this.addressBookRepository.count(),
       this.userGroupRepository.count(),
       this.deviceGroupRepository.count(),
@@ -233,11 +242,12 @@ export class DashboardService {
 
   private async getSystemStatus() {
     const databasePath = getDbPath();
-    const [cpuResult, memoryResult, filesystemResult] = await Promise.allSettled([
-      si.currentLoad(),
-      si.mem(),
-      fs.statfs(databasePath),
-    ] as const);
+    const [cpuResult, memoryResult, filesystemResult] =
+      await Promise.allSettled([
+        si.currentLoad(),
+        si.mem(),
+        fs.statfs(databasePath),
+      ] as const);
 
     return {
       cpu:
@@ -247,7 +257,9 @@ export class DashboardService {
       memory:
         memoryResult.status === 'fulfilled' && memoryResult.value.total > 0
           ? this.roundPercentage(
-              ((memoryResult.value.total - memoryResult.value.available) / memoryResult.value.total) * 100,
+              ((memoryResult.value.total - memoryResult.value.available) /
+                memoryResult.value.total) *
+                100,
             )
           : null,
       disk:

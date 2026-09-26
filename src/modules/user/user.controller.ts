@@ -102,7 +102,7 @@ export class UserController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) {
-      throw new BadRequestException('请上传头像文件');
+      throw new BadRequestException('Please upload an avatar file');
     }
     return this.userService.uploadAvatar(userId, file);
   }
@@ -242,10 +242,12 @@ export class UserController {
       );
     }
     if (dto.is_admin !== undefined) {
-      throw new BadRequestException('系统所有者身份不可通过用户编辑修改');
+      throw new BadRequestException(
+        'The system owner identity cannot be changed through user editing',
+      );
     }
     if (!authorizedField) {
-      throw new BadRequestException('没有可更新的字段');
+      throw new BadRequestException('No fields to update');
     }
     return this.userService.updateUser(guid, dto, actorGuid);
   }
@@ -263,7 +265,7 @@ export class UserController {
       'users.delete',
     );
     await this.userService.deleteUser(guid, actorGuid);
-    return { message: '用户已删除' };
+    return { message: 'User deleted' };
   }
 
   @Patch('users/:guid/security')
@@ -280,7 +282,7 @@ export class UserController {
       'users.security',
     );
     await this.userService.updateUserSecurity(guid, dto, actorGuid);
-    return { message: '安全设置已更新' };
+    return { message: 'Security settings updated' };
   }
 
   @Delete('users/:guid/sessions')

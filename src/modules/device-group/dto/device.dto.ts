@@ -9,8 +9,8 @@ import {
 import { Type } from 'class-transformer';
 
 /**
- * 设备查询DTO
- * 用于获取设备列表
+ * Device query DTO
+ * Used to fetch the device list
  */
 export class DeviceQueryDto {
   @IsNumber()

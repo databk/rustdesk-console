@@ -10,11 +10,11 @@ import {
 @Injectable()
 /**
  * OidcAuthStateCleanupService
- * 定时清理过期的OIDC授权状态记录
+ * Periodically cleans up expired OIDC authorization state records
  *
- * 清理策略：
- * - 删除已过期的PENDING/EXPIRED/CANCELLED状态记录
- * - 删除超过1天未取走的AUTHORIZED状态记录（含明文JWT，需及时清理）
+ * Cleanup policy:
+ * - Delete expired PENDING/EXPIRED/CANCELLED state records
+ * - Delete AUTHORIZED state records not retrieved within 1 day (they contain plaintext JWTs and must be cleaned up promptly)
  */
 export class OidcAuthStateCleanupService {
   private readonly logger = new Logger(OidcAuthStateCleanupService.name);
@@ -29,7 +29,7 @@ export class OidcAuthStateCleanupService {
     try {
       const now = new Date();
 
-      // 清理已过期的PENDING/EXPIRED/CANCELLED/CONSUMED状态记录
+      // Clean up expired PENDING/EXPIRED/CANCELLED/CONSUMED state records
       const expiredResult = await this.authStateRepository.delete({
         expiresAt: LessThan(now),
         status: In([
@@ -40,7 +40,7 @@ export class OidcAuthStateCleanupService {
         ]),
       });
 
-      // 清理超过1天未取走的AUTHORIZED状态记录（含明文JWT，需及时清理）
+      // Clean up AUTHORIZED state records not retrieved within 1 day (they contain plaintext JWTs and must be cleaned up promptly)
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const staleResult = await this.authStateRepository.delete({
         status: OidcAuthStatus.AUTHORIZED,

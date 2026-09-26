@@ -13,29 +13,29 @@ import { DeviceGroupUserPermission } from './device-group-user-permission.entity
 import { Strategy } from '../../strategy/entities/strategy.entity';
 
 /**
- * 设备组实体
- * 管理设备分组信息
+ * Device group entity
+ * Manages device grouping information
  */
 @Entity('device_groups')
 export class DeviceGroup {
   /**
-   * 设备组唯一标识符
-   * UUID格式，用于唯一标识一个设备组
+   * Device group unique identifier
+   * UUID format, used to uniquely identify a device group
    */
   @PrimaryColumn()
   guid: string;
 
   /**
-   * 设备组名称
-   * 用于显示和区分不同的设备组
+   * Device group name
+   * Used to display and distinguish different device groups
    */
   @Column()
   @Index({ unique: true })
   name: string;
 
   /**
-   * 备注
-   * 设备组的详细说明信息
+   * Remarks
+   * Detailed description of the device group
    */
   @Column({ type: 'text', nullable: true })
   note: string;
@@ -56,20 +56,20 @@ export class DeviceGroup {
   userPermissions: DeviceGroupUserPermission[];
 
   /**
-   * 设备组中的设备列表
-   * 一对多关系，关联到 Peer
+   * List of devices in the device group
+   * One-to-many relation to Peer
    */
   @OneToMany('Peer', 'deviceGroup', { cascade: true })
   peers: any[];
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;
 
   /**
-   * 更新时间
+   * Update time
    */
   @UpdateDateColumn()
   updatedAt: Date;

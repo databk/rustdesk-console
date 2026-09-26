@@ -13,19 +13,19 @@ import { Peer } from '../../common/entities/peer.entity';
 import { ConsoleAudit } from '../rbac/entities/console-audit.entity';
 
 /**
- * 审计模块
- * 负责连接、文件传输和告警事件的审计记录
+ * Audit module
+ * Responsible for auditing connection, file transfer and alarm events
  *
- * 导入模块：
+ * Imported modules:
  * - TypeOrmModule
- * - SettingsModule（审计保留配置）
+ * - SettingsModule (audit retention settings)
  *
- * 导出服务：
+ * Exported services:
  * - AuditService
  *
- * 提供服务：
+ * Provided services:
  * - AuditService
- * - AuditCleanupService（定时清理过期审计日志）
+ * - AuditCleanupService (scheduled cleanup of expired audit logs)
  */
 @Module({
   imports: [

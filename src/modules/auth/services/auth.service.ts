@@ -33,13 +33,13 @@ import { LoginSessionService } from './login-session.service';
 import { LoginContext } from './auth-login.helper';
 
 /**
- * 认证服务
- * 负责处理用户注册、登录、登出等核心认证功能
+ * Authentication service
+ * Handles core authentication features such as user registration, login, and logout
  *
- * 支持多种登录方式：
- * - 账号密码登录（自动检测 LDAP/本地认证）
- * - 邮箱验证码登录
- * - 双因素认证登录
+ * Supports multiple login methods:
+ * - Username/password login (auto-detects LDAP/local authentication)
+ * - email verification code login
+ * - two-factor authentication login
  */
 @Injectable()
 export class AuthService {
@@ -61,12 +61,12 @@ export class AuthService {
   ) {}
 
   /**
-   * 用户注册
-   * 创建新用户账户，包括用户名、邮箱和密码验证
+   * User registration
+   * Creates a new user account, including username, email, and password validation
    *
-   * @param registerDto 注册信息，包含用户名、邮箱、密码和备注
-   * @returns 注册结果消息
-   * @throws ConflictException 当用户名或邮箱已存在时抛出
+   * @param registerDto Registration info, including username, email, password, and remarks
+   * @returns Registration result message
+   * @throws ConflictException Thrown when the username or email already exists
    */
   async register(registerDto: RegisterDto): Promise<{ message: string }> {
     const { username, email, password, note } = registerDto;
@@ -77,9 +77,9 @@ export class AuthService {
 
     if (existingUser) {
       if (existingUser.username === username) {
-        throw new ConflictException('用户名已存在');
+        throw new ConflictException('Username already exists');
       }
-      throw new ConflictException('邮箱已被注册');
+      throw new ConflictException('Email already registered');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -98,23 +98,23 @@ export class AuthService {
 
     await this.userRepository.save(user);
 
-    this.logger.log(`新用户注册成功: ${username}`);
-    return { message: '注册成功' };
+    this.logger.log(`New user registered successfully: ${username}`);
+    return { message: 'Registration successful' };
   }
 
   /**
-   * 用户登录
-   * 支持多种登录方式：账号密码（自动检测 LDAP/本地）、邮箱验证码、双因素认证
+   * User login
+   * Supports multiple login methods: username/password (auto-detects LDAP/local), email verification code, two-factor authentication
    *
-   * LDAP 自动检测策略（遵循 LDAP 最佳实践）：
-   * 1. 已关联的 LDAP 用户（oidcSubject 以 'ldap:' 开头）→ 强制走 LDAP 认证
-   * 2. LDAP 已启用且用户在 LDAP 中存在 → 走 LDAP 认证
-   * 3. 以上均不满足 → 回退到本地账号密码认证
+   * LDAP auto-detection strategy (following LDAP best practices):
+   * 1. Linked LDAP user (oidcSubject starts with 'ldap:') -> LDAP authentication is enforced
+   * 2. LDAP is enabled and the user exists in LDAP -> use LDAP authentication
+   * 3. None of the above -> fall back to local username/password authentication
    *
-   * @param loginDto 登录信息，包含用户名、密码、设备信息等
-   * @returns 登录响应，可能包含token或需要进一步验证的提示
-   * @throws BadRequestException 当参数不完整时抛出
-   * @throws UnauthorizedException 当认证失败时抛出
+   * @param loginDto Login info, including username, password, device info, etc.
+   * @returns Login response; may contain a token or a prompt for further verification
+   * @throws BadRequestException Thrown when parameters are incomplete
+   * @throws UnauthorizedException Thrown when authentication fails
    */
   async login(loginDto: LoginDto): Promise<LoginResponse> {
     const { type } = loginDto;
@@ -124,7 +124,8 @@ export class AuthService {
         return this.handleEmailCodeLogin(loginDto);
       case LoginType.SMS_CODE:
         throw new BadRequestException({
-          error: '短信验证码登录功能正在开发中，暂时不可用',
+          error:
+            'SMS code login is under development and currently unavailable',
         });
       case LoginType.TFA_CODE:
         return this.tfaService.handleTfaLogin(
@@ -137,15 +138,15 @@ export class AuthService {
   }
 
   /**
-   * 处理邮箱验证码登录（第二步验证）
-   * 通过会话的 method 字段区分 TFA 登录与邮箱验证码登录，
-   * 而非使用用户可控的 tfaCode 字段控制流程，避免攻击者通过操控 tfaCode 绕过验证
+   * Handle email verification code login (second step)
+   * The session's method field is used to distinguish TFA login from email verification code login,
+   * instead of using the user-controlled tfaCode field to drive the flow, so attackers cannot bypass verification by manipulating tfaCode
    */
   private async handleEmailCodeLogin(
     loginDto: LoginDto,
   ): Promise<LoginResponse> {
     if (!loginDto.secret) {
-      throw new BadRequestException({ error: '缺少会话标识符' });
+      throw new BadRequestException({ error: 'Missing session identifier' });
     }
 
     const session = await this.loginSessionService.findByGuid(loginDto.secret, {
@@ -154,7 +155,7 @@ export class AuthService {
 
     if (!session) {
       throw new UnauthorizedException({
-        error: '登录会话已过期或无效，请重新登录',
+        error: 'Login session expired or invalid, please log in again',
       });
     }
 
@@ -167,7 +168,7 @@ export class AuthService {
   }
 
   /**
-   * 处理标准账号密码登录（自动检测 LDAP/本地认证）
+   * Handle standard username/password login (auto-detects LDAP/local authentication)
    */
   private async handleStandardLogin(
     loginDto: LoginDto,
@@ -175,7 +176,9 @@ export class AuthService {
     const { username, password, id, uuid, deviceInfo } = loginDto;
 
     if (!username || !password) {
-      throw new BadRequestException({ error: '用户名和密码不能为空' });
+      throw new BadRequestException({
+        error: 'Username and password are required',
+      });
     }
 
     const ldapUser = await this.tryLdapAuthentication(username, password);
@@ -187,9 +190,9 @@ export class AuthService {
   }
 
   /**
-   * 创建登录上下文
-   * 封装 generateToken / createOrUpdateDevice / buildUserPayload 三个回调，
-   * 供二次验证（TFA / 邮箱验证码）通过后统一调用
+   * Create the login context
+   * Wraps the generateToken / createOrUpdateDevice / buildUserPayload callbacks,
+   * to be called uniformly after second-step verification (TFA / email verification code) succeeds
    */
   private createLoginContext(loginDto: LoginDto): LoginContext {
     return {
@@ -213,17 +216,17 @@ export class AuthService {
   }
 
   /**
-   * 尝试 LDAP 认证
-   * 遵循 LDAP 最佳实践：后端自动判断账号类型，用户无需指定
+   * Attempt LDAP authentication
+   * Follows LDAP best practices: the backend determines the account type automatically, so users do not need to specify it
    *
-   * 策略：
-   * 1. 已关联的 LDAP 用户 → 强制走 LDAP（必须通过 LDAP 验证）
-   * 2. LDAP 已启用且用户在 LDAP 中存在 → 走 LDAP 认证
-   * 3. LDAP 认证失败 → 返回 null，回退本地认证
+   * Strategy:
+   * 1. Linked LDAP user -> LDAP is enforced (must pass LDAP verification)
+   * 2. LDAP is enabled and the user exists in LDAP -> use LDAP authentication
+   * 3. LDAP authentication failed -> return null and fall back to local authentication
    *
-   * @param username 用户名
-   * @param password 密码
-   * @returns 认证成功返回 User 实体，否则返回 null
+   * @param username username
+   * @param password password
+   * @returns The User entity on success, otherwise null
    */
   private async tryLdapAuthentication(
     username: string,
@@ -243,19 +246,21 @@ export class AuthService {
     try {
       return await this.ldapService.authenticate(username, password);
     } catch {
-      this.logger.debug(`LDAP 认证失败，回退本地认证: ${username}`);
+      this.logger.debug(
+        `LDAP authentication failed, falling back to local authentication: ${username}`,
+      );
       return null;
     }
   }
 
   /**
-   * 本地账号密码登录
+   * Local username/password login
    *
-   * @param username 用户名
-   * @param password 密码
-   * @param id 设备 ID
-   * @param uuid 设备 UUID
-   * @returns 登录响应
+   * @param username username
+   * @param password password
+   * @param id Device ID
+   * @param uuid Device UUID
+   * @returns Login response
    */
   private async localLogin(
     username: string,
@@ -270,20 +275,26 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException({ error: '用户名或密码错误' });
+      throw new UnauthorizedException({
+        error: 'Incorrect username or password',
+      });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException({ error: '用户名或密码错误' });
+      throw new UnauthorizedException({
+        error: 'Incorrect username or password',
+      });
     }
 
     if (user.status === UserStatus.DISABLED) {
-      throw new UnauthorizedException({ error: '账户已被禁用' });
+      throw new UnauthorizedException({ error: 'Account has been disabled' });
     }
 
     if (user.status === UserStatus.UNVERIFIED) {
-      throw new UnauthorizedException({ error: '请先验证邮箱' });
+      throw new UnauthorizedException({
+        error: 'Please verify your email first',
+      });
     }
 
     const userInfo = user.getUserInfo();
@@ -317,7 +328,7 @@ export class AuthService {
   }
 
   /**
-   * 构建登录响应
+   * Build the login response
    */
   private async buildLoginResponse(
     user: User,
@@ -341,7 +352,7 @@ export class AuthService {
       deviceInfo,
     );
 
-    this.logger.log(`用户登录成功: ${user.username}`);
+    this.logger.log(`User logged in successfully: ${user.username}`);
 
     return {
       access_token: token,
@@ -351,13 +362,13 @@ export class AuthService {
   }
 
   /**
-   * 获取当前用户信息
-   * 根据用户GUID查询并返回用户详细信息
+   * Get the current user's info
+   * Looks up and returns detailed user info by user GUID
    *
-   * @param userGuid 用户的GUID
-   * @param currentUserDto 当前用户信息（可选）
-   * @returns 用户详细信息
-   * @throws UnauthorizedException 当用户不存在时抛出
+   * @param userGuid The user's GUID
+   * @param currentUserDto Current user info (optional)
+   * @returns Detailed user info
+   * @throws UnauthorizedException Thrown when the user does not exist
    */
   async getCurrentUser(
     userGuid: string,
@@ -366,24 +377,24 @@ export class AuthService {
     const user = await this.authUserHelper.findByGuid(userGuid);
 
     if (!user) {
-      throw new UnauthorizedException('用户不存在');
+      throw new UnauthorizedException('User does not exist');
     }
 
     return this.authResponseHelper.buildCurrentUserPayload(user);
   }
 
   /**
-   * 用户登出
-   * 撤销当前token，并可选择撤销设备的所有token
+   * User logout
+   * Revokes the current token and optionally all of the device's tokens
    *
-   * 安全措施：
-   * - 撤销当前使用的token
-   * - 撤销设备的所有token
-   * - 解除设备与用户的绑定
+   * Security measures:
+   * - Revoke the token currently in use
+   * - Revoke all of the device's tokens
+   * - Unbind the device from the user
    *
-   * @param userGuid 用户的GUID
-   * @param logoutDto 登出信息，包含设备ID和UUID
-   * @param token 当前使用的token（可选）
+   * @param userGuid The user's GUID
+   * @param logoutDto Logout info, including the device ID and UUID
+   * @param token The token currently in use (optional)
    */
   async logout(
     userGuid: string,
@@ -404,15 +415,15 @@ export class AuthService {
       }
     }
 
-    this.logger.log(`用户登出: ${userGuid}`);
+    this.logger.log(`User logged out: ${userGuid}`);
   }
 
   /**
-   * 验证JWT Token
-   * 委托给AuthTokenService进行token验证
+   * Validate JWT token
+   * Delegates token validation to AuthTokenService
    *
-   * @param token JWT令牌字符串
-   * @returns 令牌负载，验证失败返回null
+   * @param token JWT token string
+   * @returns Token payload, or null if validation fails
    */
   async validateToken(token: string): Promise<JwtPayload | null> {
     const payload = await this.tokenService.validateToken(token);

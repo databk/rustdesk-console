@@ -55,28 +55,30 @@ export class AuthPasskeyService {
     private readonly authLoginHelper: AuthLoginHelper,
   ) {}
 
-  // ==================== 注册 ====================
+  // ==================== Registration ====================
 
   /**
-   * 发起 Passkey 注册
-   * 生成注册选项，包含 challenge，存入临时会话
+   * Initiate Passkey registration
+   * Generates registration options including a challenge and stores them in a temporary session
    *
-   * @param userGuid 当前登录用户的 guid
-   * @returns 注册选项，供浏览器调用 navigator.credentials.create()
+   * @param userGuid guid of the currently logged-in user
+   * @returns Registration options, for the browser to call navigator.credentials.create()
    */
   async beginRegistration(
     userGuid: string,
   ): Promise<PublicKeyCredentialCreationOptionsJSON> {
     const config = await this.configService.getConfig();
     if (!config.enabled) {
-      throw new BadRequestException({ error: 'Passkey 功能未启用' });
+      throw new BadRequestException({
+        error: 'Passkey feature is not enabled',
+      });
     }
 
     const user = await this.userRepository.findOne({
       where: { guid: userGuid },
     });
     if (!user) {
-      throw new NotFoundException('用户不存在');
+      throw new NotFoundException('User does not exist');
     }
 
     const existingCredentials = await this.credentialRepository.find({
@@ -106,18 +108,18 @@ export class AuthPasskeyService {
       code: options.challenge,
     });
 
-    this.logger.log(`用户 ${user.username} 发起 Passkey 注册`);
+    this.logger.log(`User ${user.username} initiated Passkey registration`);
 
     return options;
   }
 
   /**
-   * 验证 Passkey 注册
-   * 验证认证器返回的 attestation，通过后保存凭证
+   * Verify Passkey registration
+   * Verifies the attestation returned by the authenticator and saves the credential on success
    *
-   * @param userGuid 当前登录用户的 guid
-   * @param response 浏览器返回的注册响应
-   * @param name 用户自定义凭证名称
+   * @param userGuid guid of the currently logged-in user
+   * @param response Registration response returned by the browser
+   * @param name User-defined credential name
    */
   async verifyRegistration(
     userGuid: string,
@@ -126,7 +128,9 @@ export class AuthPasskeyService {
   ): Promise<{ message: string }> {
     const config = await this.configService.getConfig();
     if (!config.enabled) {
-      throw new BadRequestException({ error: 'Passkey 功能未启用' });
+      throw new BadRequestException({
+        error: 'Passkey feature is not enabled',
+      });
     }
 
     const session = await this.loginSessionService.findValidSession(
@@ -135,7 +139,7 @@ export class AuthPasskeyService {
     );
     if (!session) {
       throw new BadRequestException({
-        error: '注册会话已过期，请重新发起注册',
+        error: 'Registration session expired, please start registration again',
       });
     }
 
@@ -149,12 +153,16 @@ export class AuthPasskeyService {
         requireUserVerification: true,
       });
     } catch (error) {
-      this.logger.error(`Passkey 注册验证失败: ${error}`);
-      throw new BadRequestException({ error: 'Passkey 注册验证失败' });
+      this.logger.error(`Passkey registration verification failed: ${error}`);
+      throw new BadRequestException({
+        error: 'Passkey registration verification failed',
+      });
     }
 
     if (!verification.verified || !verification.registrationInfo) {
-      throw new BadRequestException({ error: 'Passkey 注册验证失败' });
+      throw new BadRequestException({
+        error: 'Passkey registration verification failed',
+      });
     }
 
     const { credential, credentialDeviceType, credentialBackedUp } =
@@ -164,7 +172,9 @@ export class AuthPasskeyService {
       where: { credentialId: credential.id },
     });
     if (existing) {
-      throw new BadRequestException({ error: '该凭证已存在' });
+      throw new BadRequestException({
+        error: 'This credential already exists',
+      });
     }
 
     const passkeyCredential = this.credentialRepository.create({
@@ -187,18 +197,18 @@ export class AuthPasskeyService {
 
     await this.loginSessionService.markSessionUsed(session);
 
-    this.logger.log(`用户 ${userGuid} 成功绑定 Passkey 凭证`);
+    this.logger.log(`User ${userGuid} successfully bound a Passkey credential`);
 
-    return { message: 'Passkey 绑定成功' };
+    return { message: 'Passkey bound successfully' };
   }
 
-  // ==================== 无密码登录 ====================
+  // ==================== Passwordless login ====================
 
   /**
-   * 发起 Passkey 无密码登录
-   * 生成认证选项，不指定 allowCredentials，浏览器自动列出可用凭证
+   * Initiate Passkey passwordless login
+   * Generates authentication options without specifying allowCredentials, so the browser lists available credentials automatically
    *
-   * @returns 会话标识符和认证选项
+   * @returns Session identifier and authentication options
    */
   async beginAuthLogin(): Promise<{
     secret: string;
@@ -206,7 +216,9 @@ export class AuthPasskeyService {
   }> {
     const config = await this.configService.getConfig();
     if (!config.enabled) {
-      throw new BadRequestException({ error: 'Passkey 功能未启用' });
+      throw new BadRequestException({
+        error: 'Passkey feature is not enabled',
+      });
     }
 
     const options = await generateAuthenticationOptions({
@@ -220,22 +232,24 @@ export class AuthPasskeyService {
       code: options.challenge,
     });
 
-    this.logger.log(`发起 Passkey 无密码登录，会话 ${session.guid}`);
+    this.logger.log(
+      `Initiated Passkey passwordless login, session ${session.guid}`,
+    );
 
     return { secret: session.guid, options };
   }
 
   /**
-   * 验证 Passkey 登录
-   * 通过 credentialId 反查用户，验证签名，签发 JWT
-   * 同时处理无密码登录和双因素认证登录
+   * Verify Passkey login
+   * Looks up the user by credentialId, verifies the signature, and issues a JWT
+   * Handles both passwordless login and two-factor authentication login
    *
-   * @param secret 会话标识符
-   * @param response 浏览器返回的认证响应
-   * @param deviceId 设备 ID
-   * @param deviceUuid 设备 UUID
-   * @param deviceInfo 设备信息
-   * @returns 登录响应，包含 JWT token
+   * @param secret Session identifier
+   * @param response Authentication response returned by the browser
+   * @param deviceId Device ID
+   * @param deviceUuid Device UUID
+   * @param deviceInfo Device info
+   * @returns Login response containing the JWT token
    */
   async verifyAuthLogin(
     secret: string,
@@ -246,7 +260,9 @@ export class AuthPasskeyService {
   ): Promise<LoginResponse> {
     const config = await this.configService.getConfig();
     if (!config.enabled) {
-      throw new BadRequestException({ error: 'Passkey 功能未启用' });
+      throw new BadRequestException({
+        error: 'Passkey feature is not enabled',
+      });
     }
 
     const session = await this.loginSessionService.findByGuid(secret, {
@@ -256,12 +272,12 @@ export class AuthPasskeyService {
 
     if (!session) {
       throw new UnauthorizedException({
-        error: '登录会话已过期或无效，请重新登录',
+        error: 'Login session expired or invalid, please log in again',
       });
     }
 
     if (session.method !== 'passkey' && session.method !== 'passkey_tfa') {
-      throw new UnauthorizedException({ error: '会话类型不匹配' });
+      throw new UnauthorizedException({ error: 'Session type mismatch' });
     }
 
     const credential = await this.credentialRepository.findOne({
@@ -269,14 +285,18 @@ export class AuthPasskeyService {
     });
 
     if (!credential) {
-      throw new UnauthorizedException({ error: '未找到匹配的凭证' });
+      throw new UnauthorizedException({
+        error: 'No matching credential found',
+      });
     }
 
     if (
       session.method === 'passkey_tfa' &&
       session.userGuid !== credential.userGuid
     ) {
-      throw new UnauthorizedException({ error: '凭证与用户不匹配' });
+      throw new UnauthorizedException({
+        error: 'Credential does not match the user',
+      });
     }
 
     const user = await this.userRepository.findOne({
@@ -284,11 +304,11 @@ export class AuthPasskeyService {
     });
 
     if (!user) {
-      throw new UnauthorizedException({ error: '用户不存在' });
+      throw new UnauthorizedException({ error: 'User does not exist' });
     }
 
     if (user.status === UserStatus.DISABLED) {
-      throw new UnauthorizedException({ error: '账户已被禁用' });
+      throw new UnauthorizedException({ error: 'Account has been disabled' });
     }
 
     const transports = credential.transports
@@ -311,12 +331,16 @@ export class AuthPasskeyService {
         requireUserVerification: true,
       });
     } catch (error) {
-      this.logger.error(`Passkey 登录验证失败: ${error}`);
-      throw new UnauthorizedException({ error: 'Passkey 认证失败' });
+      this.logger.error(`Passkey login verification failed: ${error}`);
+      throw new UnauthorizedException({
+        error: 'Passkey authentication failed',
+      });
     }
 
     if (!verification.verified) {
-      throw new UnauthorizedException({ error: 'Passkey 认证失败' });
+      throw new UnauthorizedException({
+        error: 'Passkey authentication failed',
+      });
     }
 
     credential.counter = verification.authenticationInfo.newCounter;
@@ -337,19 +361,19 @@ export class AuthPasskeyService {
       deviceId,
       deviceUuid,
       deviceInfo,
-      successMessage: `用户 ${user.username} 通过 Passkey 登录成功`,
+      successMessage: `User ${user.username} logged in successfully via Passkey`,
     });
   }
 
-  // ==================== 双因素认证 ====================
+  // ==================== Two-factor authentication ====================
 
   /**
-   * 发起 Passkey 双因素认证
-   * 密码校验通过后调用，生成认证选项并返回给客户端
+   * Initiate Passkey two-factor authentication
+   * Called after password verification succeeds; generates authentication options and returns them to the client
    *
-   * @param user 已通过密码校验的用户
-   * @param buildUserPayload 构建用户信息载荷的回调函数
-   * @returns 登录响应，包含会话标识符和认证选项
+   * @param user User who has passed password verification
+   * @param buildUserPayload Callback that builds the user info payload
+   * @returns Login response containing the session identifier and authentication options
    */
   async initiatePasskeyTfa(
     user: User,
@@ -357,7 +381,9 @@ export class AuthPasskeyService {
   ): Promise<LoginResponse> {
     const config = await this.configService.getConfig();
     if (!config.enabled) {
-      throw new BadRequestException({ error: 'Passkey 功能未启用' });
+      throw new BadRequestException({
+        error: 'Passkey feature is not enabled',
+      });
     }
 
     const credentials = await this.credentialRepository.find({
@@ -366,7 +392,8 @@ export class AuthPasskeyService {
 
     if (credentials.length === 0) {
       throw new BadRequestException({
-        error: '未绑定 Passkey 凭证，无法进行双因素认证',
+        error:
+          'No Passkey credential bound, cannot perform two-factor authentication',
       });
     }
 
@@ -388,7 +415,9 @@ export class AuthPasskeyService {
       deleteExisting: true,
     });
 
-    this.logger.log(`用户 ${user.username} 登录需要 Passkey 双因素认证`);
+    this.logger.log(
+      `User ${user.username} login requires Passkey two-factor authentication`,
+    );
 
     return {
       type: 'passkey_check',
@@ -398,10 +427,10 @@ export class AuthPasskeyService {
     };
   }
 
-  // ==================== 凭证管理 ====================
+  // ==================== Credential management ====================
 
   /**
-   * 列出用户的所有 Passkey 凭证
+   * List all of the user's Passkey credentials
    */
   async listCredentials(userGuid: string): Promise<PasskeyCredential[]> {
     return this.credentialRepository.find({
@@ -411,7 +440,7 @@ export class AuthPasskeyService {
   }
 
   /**
-   * 删除指定 Passkey 凭证
+   * Delete the specified Passkey credential
    */
   async deleteCredential(
     userGuid: string,
@@ -422,7 +451,7 @@ export class AuthPasskeyService {
     });
 
     if (!credential) {
-      throw new NotFoundException('凭证不存在');
+      throw new NotFoundException('Credential does not exist');
     }
 
     await this.credentialRepository.remove(credential);
@@ -434,11 +463,13 @@ export class AuthPasskeyService {
       await this.setPasskeyTfaEnabled(userGuid, false);
     }
 
-    this.logger.log(`用户 ${userGuid} 删除了 Passkey 凭证 ${credentialGuid}`);
+    this.logger.log(
+      `User ${userGuid} deleted Passkey credential ${credentialGuid}`,
+    );
   }
 
   /**
-   * 检查用户是否有 Passkey 凭证
+   * Check whether the user has a Passkey credential
    */
   async hasCredentials(userGuid: string): Promise<boolean> {
     const count = await this.credentialRepository.count({
@@ -448,8 +479,8 @@ export class AuthPasskeyService {
   }
 
   /**
-   * 启用/禁用 Passkey 双因素认证
-   * 存储在 UserInfo.other.passkey_tfa_enabled 中
+   * Enable/disable Passkey two-factor authentication
+   * Stored in UserInfo.other.passkey_tfa_enabled
    */
   async setPasskeyTfaEnabled(
     userGuid: string,
@@ -461,14 +492,15 @@ export class AuthPasskeyService {
     });
 
     if (!user) {
-      throw new NotFoundException('用户不存在');
+      throw new NotFoundException('User does not exist');
     }
 
     if (enabled) {
       const hasCredential = await this.hasCredentials(userGuid);
       if (!hasCredential) {
         throw new BadRequestException({
-          error: '请先绑定 Passkey 凭证再启用双因素认证',
+          error:
+            'Please bind a Passkey credential before enabling two-factor authentication',
         });
       }
     }
@@ -481,18 +513,18 @@ export class AuthPasskeyService {
     await this.userRepository.save(user);
 
     this.logger.log(
-      `用户 ${userGuid} ${enabled ? '启用' : '禁用'}了 Passkey 双因素认证`,
+      `User ${userGuid} ${enabled ? 'enabled' : 'disabled'} Passkey two-factor authentication`,
     );
 
     return {
       message: enabled
-        ? 'Passkey 双因素认证已启用'
-        : 'Passkey 双因素认证已禁用',
+        ? 'Passkey two-factor authentication enabled'
+        : 'Passkey two-factor authentication disabled',
     };
   }
 
   /**
-   * 检查用户是否启用了 Passkey 双因素认证
+   * Check whether the user has enabled Passkey two-factor authentication
    */
   async isPasskeyTfaEnabled(userGuid: string): Promise<boolean> {
     const user = await this.authUserHelper.findByGuid(userGuid, {

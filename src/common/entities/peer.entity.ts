@@ -11,9 +11,9 @@ import {
 import { Strategy } from '../../modules/strategy/entities/strategy.entity';
 
 /**
- * 设备状态枚举
- * 1: 正常
- * 0: 禁用
+ * Device status enum
+ * 1: Normal
+ * 0: Disabled
  */
 export enum PeerStatus {
   DISABLED = 0,
@@ -21,36 +21,36 @@ export enum PeerStatus {
 }
 
 /**
- * 设备实体
- * 管理所有注册设备的基本信息
+ * Device entity
+ * Manages basic information of all registered devices
  */
 @Entity('peers')
 export class Peer {
   /**
-   * 设备唯一标识符
-   * UUID格式，用于唯一标识一个设备
+   * Unique device identifier
+   * UUID format, uniquely identifies a device
    */
   @PrimaryColumn()
   uuid: string;
 
   /**
-   * 设备ID
-   * RustDesk 客户端的数字标识
+   * device ID
+   * Numeric identifier of the RustDesk client
    */
   @Column()
   id: string;
 
   /**
-   * 所属用户唯一标识符
-   * 关联到 users 表的 guid 字段
+   * Unique identifier of the owning user
+   * References the guid field of the users table
    */
   @Column({ type: 'varchar', nullable: true })
   @Index()
   userGuid: string | null;
 
   /**
-   * 所属设备组GUID
-   * 关联到 device_groups 表的 guid 字段
+   * GUID of the owning device group
+   * References the guid field of the device_groups table
    */
   @Column({ type: 'varchar', nullable: true })
   @Index()
@@ -61,8 +61,8 @@ export class Peer {
   strategyGuid: string | null;
 
   /**
-   * 设备备注
-   * 管理员对设备的备注信息
+   * Device note
+   * Note added to the device by an administrator
    */
   @Column({ type: 'varchar', nullable: true })
   note: string | null;
@@ -76,8 +76,8 @@ export class Peer {
   deviceGroup: any;
 
   /**
-   * 设备状态
-   * 1: 正常, 0: 禁用
+   * Device status
+   * 1: Normal, 0: Disabled
    */
   @Column({
     type: 'integer',
@@ -86,34 +86,34 @@ export class Peer {
   status: PeerStatus;
 
   /**
-   * 版本号
-   * 设备信息的版本号
+   * Version number
+   * Version number of the device information
    */
   @Column()
   ver: number;
 
   /**
-   * 修改时间戳
-   * 设备信息最后修改的时间戳
+   * Modification timestamp
+   * Timestamp of the last modification of the device information
    */
   @Column()
   modifiedAt: number;
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;
 
   /**
-   * 最后心跳时间
-   * 设备最后一次发送心跳的时间，用于判断设备在线状态
+   * Last heartbeat time
+   * Time the device last sent a heartbeat, used to determine online status
    */
   @Column({ type: 'datetime', nullable: true })
   lastHeartbeat: Date | null;
 
   /**
-   * 更新时间
+   * Update time
    */
   @UpdateDateColumn()
   updatedAt: Date;

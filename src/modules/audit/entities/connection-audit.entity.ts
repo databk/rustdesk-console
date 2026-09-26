@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 
 /**
- * 连接类型枚举
+ * Connection type enum
  */
 export enum ConnType {
   NOT_ESTABLISHED = -1,
@@ -19,7 +19,7 @@ export enum ConnType {
 }
 
 /**
- * 主认证方式枚举
+ * Primary authentication method enum
  */
 export enum PrimaryAuth {
   NONE = 0,
@@ -30,7 +30,7 @@ export enum PrimaryAuth {
 }
 
 /**
- * 二因素认证方式枚举
+ * Two-factor authentication method enum
  */
 export enum TwoFactor {
   NONE = 0,

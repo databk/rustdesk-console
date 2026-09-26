@@ -1,16 +1,16 @@
 /**
- * 共享模块
- * 导出所有被多个模块使用的实体、装饰器、守卫等
+ * Shared module
+ * Exports entities, decorators, guards, etc. used by multiple modules
  */
 
-// 实体
+// Entities
 export * from './entities';
 
-// 装饰器
+// Decorators
 export * from './decorators';
 
-// 接口
+// Interfaces
 export * from './interfaces';
 
-// 守卫
+// Guards
 export * from './guards';
