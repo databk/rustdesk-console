@@ -13,6 +13,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { familySync } from 'detect-libc';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -152,7 +153,7 @@ const pkgJson = JSON.parse(
 // Some musl dynamic linkers (notably OpenWrt's) cannot resolve these symbols
 // from a PIE executable, causing ERR_DLOPEN_FAILED. Fall back to the wasm
 // build of sharp on musl to avoid native module loading issues entirely.
-const { familySync } = require('detect-libc');
+
 const isMusl = familySync() === 'musl';
 
 const nativePkg = {
