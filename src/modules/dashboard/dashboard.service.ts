@@ -146,7 +146,7 @@ export class DashboardService {
   async getTrends(range: string = '7d'): Promise<DashboardTrendsDto> {
     const days = this.parseRange(range);
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    startDate.setDate(startDate.getDate() - days + 1);
     startDate.setHours(0, 0, 0, 0);
 
     const [connectionTrend, newUserTrend, alarmTrend] = await Promise.all([
