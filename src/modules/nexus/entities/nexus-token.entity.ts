@@ -8,12 +8,12 @@ import {
 } from 'typeorm';
 
 /**
- * Nexus Token 实体
- * 存储用户与 Nexus 系统的 GitHub OAuth Token 关联
+ * Nexus token entity
+ * Stores the association between a user and the GitHub OAuth token of the Nexus system
  */
 @Entity('nexus_tokens')
 export class NexusToken {
-  /** 关联的本地用户 GUID */
+  /** Associated local user GUID */
   @PrimaryColumn()
   @Index()
   userGuid: string;
@@ -22,15 +22,15 @@ export class NexusToken {
   @Column({ type: 'text' })
   nexusToken: string;
 
-  /** GitHub 用户名 */
+  /** GitHub username */
   @Column()
   nexusUsername: string;
 
-  /** Token 过期时间 */
+  /** Token expiration time */
   @Column({ type: 'datetime' })
   expiresAt: Date;
 
-  /** 当前构建任务 UUID（如有） */
+  /** Current build task UUID (if any) */
   @Column({ nullable: true })
   currentUuid: string;
 
@@ -40,7 +40,7 @@ export class NexusToken {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  /** 检查 Token 是否已过期 */
+  /** Check whether the token has expired */
   isExpired(): boolean {
     return new Date() > this.expiresAt;
   }

@@ -42,10 +42,10 @@ export class NexusService implements OnModuleInit {
   private readonly storagePath: string;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  /** 内存中暂存 login_id 与 userGuid 的映射，用于轮询成功后关联用户 */
+  /** In-memory mapping of login_id to userGuid, used to link the user after polling succeeds */
   private loginSessionMap = new Map<string, string>();
 
-  /** 正在下载的 uuid 集合，防止并发重复下载 */
+  /** Set of uuids currently downloading, preventing concurrent duplicate downloads */
   private downloadingSet = new Set<string>();
 
   constructor(
@@ -59,18 +59,18 @@ export class NexusService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // 启动定时轮询
+    // Start scheduled polling
     this.pollTimer = setInterval(
       () => void this.pollActiveBuilds(),
       POLL_INTERVAL_MS,
     );
-    // 首次立即执行一次
+    // Run once immediately on start
     await this.pollActiveBuilds();
   }
 
   /**
-   * 定时轮询所有进行中的构建任务
-   * 每隔 10 秒查询一次 Nexus，更新状态并下载产物
+   * Periodically poll all in-progress build tasks
+   * Queries Nexus every 10 seconds, updates the status, and downloads artifacts
    */
   private async pollActiveBuilds() {
     try {
@@ -91,7 +91,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 同步单个构建任务的状态
+   * Sync the status of a single build task
    */
   private async syncBuildStatus(build: NexusBuild) {
     const nexusToken = await this.nexusTokenRepository.findOne({
@@ -99,10 +99,10 @@ export class NexusService implements OnModuleInit {
     });
 
     if (!nexusToken || nexusToken.isExpired()) {
-      // Nexus Token 不可用，标记任务失败
+      // Nexus token unavailable, mark the task as failed
       await this.nexusBuildRepository.update(
         { uuid: build.uuid },
-        { status: 'failed', message: 'Nexus Token 已过期' },
+        { status: 'failed', message: 'Nexus token has expired' },
       );
       return;
     }
@@ -122,7 +122,7 @@ export class NexusService implements OnModuleInit {
 
     const data = (await response.json()) as NexusBuildStatusResponse;
 
-    // 更新构建记录
+    // Update the build record
     await this.nexusBuildRepository.update(
       { uuid: build.uuid },
       {
@@ -132,7 +132,7 @@ export class NexusService implements OnModuleInit {
       },
     );
 
-    // 构建完成后下载产物
+    // Download artifacts after the build completes
     if (data.status === 'completed' && data.files?.length) {
       await this.downloadBuildFilesToLocal(
         nexusToken.nexusToken,
@@ -141,7 +141,7 @@ export class NexusService implements OnModuleInit {
       );
     }
 
-    // 终态时清除 currentUuid
+    // Clear currentUuid on a terminal state
     if (['completed', 'failed', 'cancelled'].includes(data.status)) {
       if (nexusToken.currentUuid === build.uuid) {
         nexusToken.currentUuid = null as unknown as string;
@@ -151,7 +151,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 获取本地存储路径
+   * Get the local storage path
    */
   getStoragePath(): string {
     return this.storagePath;
@@ -171,7 +171,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 创建 Nexus 登录会话
+   * Create a Nexus login session
    */
   async createLoginSession(userGuid: string): Promise<NexusLoginResponse> {
     const installId = await this.updateCheckService.getInstallId();
@@ -184,7 +184,9 @@ export class NexusService implements OnModuleInit {
       this.logger.error(
         `Failed to create Nexus login session: ${response.status} ${await response.text()}`,
       );
-      throw new InternalServerErrorException('创建 Nexus 登录会话失败');
+      throw new InternalServerErrorException(
+        'Failed to create Nexus login session',
+      );
     }
 
     const data = (await response.json()) as NexusLoginResponse;
@@ -200,7 +202,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 轮询 Nexus 登录状态
+   * Poll the Nexus login status
    */
   async pollLoginStatus(loginId: string): Promise<NexusAuthStatusResponse> {
     const response = await this.fetchNexus(
@@ -209,12 +211,12 @@ export class NexusService implements OnModuleInit {
     );
 
     if (response.status === 404) {
-      return { state: 'failed', error: '登录会话已过期' };
+      return { state: 'failed', error: 'Login session has expired' };
     }
 
     if (!response.ok) {
       this.logger.error(`Nexus login status poll failed: ${response.status}`);
-      return { state: 'failed', error: '查询登录状态失败' };
+      return { state: 'failed', error: 'Failed to query login status' };
     }
 
     const data = (await response.json()) as {
@@ -248,7 +250,7 @@ export class NexusService implements OnModuleInit {
       this.loginSessionMap.delete(loginId);
       return {
         state: 'failed',
-        error: data.error ?? '登录失败',
+        error: data.error ?? 'Login failed',
       };
     }
 
@@ -256,7 +258,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 查询当前用户的 Nexus 绑定状态
+   * Query the Nexus binding status of the current user
    */
   async getBindStatus(userGuid: string): Promise<NexusBindStatusResponse> {
     const nexusToken = await this.nexusTokenRepository.findOne({
@@ -279,14 +281,14 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 解绑 Nexus（删除 Token）
+   * Unbind Nexus (delete the token)
    */
   async unbind(userGuid: string): Promise<void> {
     await this.nexusTokenRepository.delete({ userGuid });
   }
 
   /**
-   * 提交构建请求
+   * Submit a build request
    */
   async submitBuild(
     userGuid: string,
@@ -305,33 +307,33 @@ export class NexusService implements OnModuleInit {
     });
 
     if (response.status === 401) {
-      throw new UnauthorizedException('Nexus Token 已过期，请重新绑定');
+      throw new UnauthorizedException('Nexus token has expired, please rebind');
     }
 
     if (response.status === 403) {
       throw new ForbiddenException(
-        '请先对 databk/rustdesk-console 仓库进行 Star、Fork 或 Watch 操作',
+        'Please Star, Fork, or Watch the databk/rustdesk-console repository first',
       );
     }
 
     if (response.status === 409) {
-      throw new ConflictException('已有一个正在进行的构建任务');
+      throw new ConflictException('A build task is already in progress');
     }
 
     if (response.status === 429) {
-      throw new ConflictException('本月生成次数已达上限（15 次/月）');
+      throw new ConflictException('Monthly build limit reached (15 per month)');
     }
 
     if (response.status === 400) {
       const msg = await response.text();
-      throw new BadRequestException(msg || '请求参数无效');
+      throw new BadRequestException(msg || 'Invalid request parameters');
     }
 
     if (!response.ok) {
       this.logger.error(
         `Nexus build submit failed: ${response.status} ${await response.text()}`,
       );
-      throw new InternalServerErrorException('提交构建请求失败');
+      throw new InternalServerErrorException('Failed to submit build request');
     }
 
     const data = (await response.json()) as NexusGenerateResponse;
@@ -339,7 +341,7 @@ export class NexusService implements OnModuleInit {
     nexusToken.currentUuid = data.uuid;
     await this.nexusTokenRepository.save(nexusToken);
 
-    // 持久化构建记录
+    // Persist the build record
     const build = this.nexusBuildRepository.create({
       uuid: data.uuid,
       userGuid,
@@ -355,7 +357,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 获取当前用户的所有构建记录
+   * Get all build records of the current user
    */
   async listBuilds(userGuid: string): Promise<NexusBuild[]> {
     return this.nexusBuildRepository.find({
@@ -365,37 +367,39 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 删除构建记录
+   * Delete a build record
    */
   async deleteBuild(userGuid: string, uuid: string): Promise<void> {
     const build = await this.nexusBuildRepository.findOne({
       where: { uuid, userGuid },
     });
     if (!build) {
-      throw new BadRequestException('构建记录不存在');
+      throw new BadRequestException('Build record not found');
     }
     if (build.status === 'pending' || build.status === 'building') {
-      throw new BadRequestException('进行中的构建任务不能删除');
+      throw new BadRequestException(
+        'A build task in progress cannot be deleted',
+      );
     }
     await this.nexusBuildRepository.delete({ uuid });
   }
 
   /**
-   * 列出构建产物的文件列表（从本地目录读取）
+   * List the build artifact files (read from the local directory)
    */
   listBuildFiles(uuid: string): string[] {
     return this.getLocalFiles(uuid);
   }
 
   /**
-   * 获取本地文件路径，用于下载
+   * Get the local file path for download
    */
   getLocalFilePath(uuid: string, filename: string): string {
     return this.safeJoin(uuid, filename);
   }
 
   /**
-   * 将构建产物从 Nexus 下载到本地存储
+   * Download build artifacts from Nexus to local storage
    */
   private async downloadBuildFilesToLocal(
     nexusToken: string,
@@ -433,13 +437,15 @@ export class NexusService implements OnModuleInit {
           this.logger.error(
             `Failed to download ${file}: ${response.status} ${await response.text()}`,
           );
-          throw new InternalServerErrorException(`下载构建产物 ${file} 失败`);
+          throw new InternalServerErrorException(
+            `Failed to download build artifact ${file}`,
+          );
         }
 
         const writeStream = createWriteStream(filePath);
         if (!response.body) {
           throw new InternalServerErrorException(
-            `下载构建产物 ${file} 失败：响应体为空`,
+            `Failed to download build artifact ${file}: empty response body`,
           );
         }
         const reader = response.body.getReader();
@@ -468,7 +474,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 从本地目录读取文件列表
+   * Read the file list from the local directory
    */
   private getLocalFiles(uuid: string): string[] {
     const dir = this.safeJoin(uuid);
@@ -485,7 +491,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 获取用户有效的 Nexus Token，过期则抛出异常
+   * Get the user valid Nexus token; throws an exception if expired
    */
   private async getValidNexusToken(userGuid: string): Promise<NexusToken> {
     const nexusToken = await this.nexusTokenRepository.findOne({
@@ -493,18 +499,18 @@ export class NexusService implements OnModuleInit {
     });
 
     if (!nexusToken) {
-      throw new UnauthorizedException('请先绑定 Nexus 账号');
+      throw new UnauthorizedException('Please bind a Nexus account first');
     }
 
     if (nexusToken.isExpired()) {
-      throw new UnauthorizedException('Nexus Token 已过期，请重新绑定');
+      throw new UnauthorizedException('Nexus token has expired, please rebind');
     }
 
     return nexusToken;
   }
 
   /**
-   * 保存或更新 Nexus Token
+   * Save or update the Nexus token
    */
   private async saveNexusToken(
     userGuid: string,
@@ -536,7 +542,7 @@ export class NexusService implements OnModuleInit {
   }
 
   /**
-   * 封装 Nexus API 请求
+   * Wrap Nexus API requests
    */
   private async fetchNexus(
     path: string,

@@ -1,14 +1,14 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 /**
- * CurrentUser 装饰器
- * 从JWT令牌中提取当前用户信息并注入到控制器方法参数中
+ * CurrentUser decorator
+ * Extracts the current user info from the JWT token and injects it into controller method parameters
  *
- * 使用场景：
- * 在控制器方法参数中使用，自动注入当前用户的指定字段
+ * Use case:
+ * Used in controller method parameters to automatically inject the specified field of the current user
  *
- * @param field 需要提取的用户字段名（可选）
- * @returns 装饰器函数
+ * @param field name of the user field to extract (optional)
+ * @returns decorator function
  *
  * @example
  * async method(@CurrentUser('id') userId: string)

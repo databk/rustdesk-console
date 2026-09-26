@@ -17,13 +17,13 @@ import { AddTagDto, UpdateTagDto, RenameTagDto } from '../dto';
 @Injectable()
 /**
  * AddressBookTagService
- * 负责地址簿中标签管理的子服务
+ * Sub-service responsible for tag management in the address book
  *
- * 与主服务关系：
- * 被AddressBookService委托处理标签相关操作
+ * Relationship with the main service:
+ * Delegated by AddressBookService to handle tag-related operations
  *
- * 调用上下文：
- * 包括标签的添加、更新、删除和查询
+ * Call context:
+ * Includes adding, updating, deleting, and querying tags
  */
 export class AddressBookTagService {
   constructor(
@@ -36,13 +36,13 @@ export class AddressBookTagService {
   ) {}
 
   /**
-   * 获取地址簿标签列表
-   * 查询指定地址簿中的所有标签
+   * Get the address book tag list
+   * Query all tags in the specified address book
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @returns 标签列表，包含标签名称和颜色
+   * @param addressBookGuid Address book GUID
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @returns Tag list, containing tag names and colors
    */
   async getTags(
     addressBookGuid: string,
@@ -53,7 +53,7 @@ export class AddressBookTagService {
       rule: ShareRule,
     ) => Promise<AddressBook>,
   ) {
-    // 如果提供了用户ID，验证访问权限
+    // If a user ID is provided, verify access permission
     if (userId && checkAccess) {
       await checkAccess(addressBookGuid, userId, ShareRule.READ);
     }
@@ -69,13 +69,13 @@ export class AddressBookTagService {
   }
 
   /**
-   * 获取或创建标签
-   * 查找指定名称的标签，如果不存在则创建
-   * 主要用于设备添加/更新时的标签关联
+   * Get or create a tag
+   * Find the tag with the specified name, creating it if it does not exist
+   * Mainly used for tag association when adding/updating devices
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param tagName 标签名称
-   * @returns 标签GUID
+   * @param addressBookGuid Address book GUID
+   * @param tagName Tag name
+   * @returns Tag GUID
    */
   async getOrCreateTag(
     addressBookGuid: string,
@@ -86,7 +86,7 @@ export class AddressBookTagService {
     });
 
     if (!tag) {
-      // 标签不存在，创建新标签
+      // The tag does not exist, create a new tag
       tag = this.addressBookTagRepository.create({
         guid: uuidv4(),
         addressBookGuid,
@@ -100,16 +100,16 @@ export class AddressBookTagService {
   }
 
   /**
-   * 添加标签
-   * 向指定地址簿添加新标签
+   * Add a tag
+   * Add a new tag to the specified address book
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param dto 标签信息DTO，包含标签名称和颜色
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @returns 操作结果
-   * @throws NotFoundException 当地址簿不存在时抛出
-   * @throws BadRequestException 当标签已存在时抛出
+   * @param addressBookGuid Address book GUID
+   * @param dto Tag information DTO, containing the tag name and color
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @returns Operation result
+   * @throws NotFoundException Thrown when the address book does not exist
+   * @throws BadRequestException Thrown when the tag already exists
    */
   async addTag(
     addressBookGuid: string,
@@ -121,7 +121,7 @@ export class AddressBookTagService {
       rule: ShareRule,
     ) => Promise<AddressBook>,
   ) {
-    // 如果提供了用户ID，验证写权限
+    // If a user ID is provided, verify write permission
     if (userId && checkAccess) {
       await checkAccess(addressBookGuid, userId, ShareRule.READ_WRITE);
     }
@@ -131,19 +131,19 @@ export class AddressBookTagService {
     });
 
     if (!addressBook) {
-      throw new NotFoundException('地址簿不存在');
+      throw new NotFoundException('Address book does not exist');
     }
 
-    // 检查标签是否已存在
+    // Check whether the tag already exists
     const existingTag = await this.addressBookTagRepository.findOne({
       where: { name: dto.name, addressBookGuid },
     });
 
     if (existingTag) {
-      throw new BadRequestException('标签已存在');
+      throw new BadRequestException('Tag already exists');
     }
 
-    // 创建新标签
+    // Create a new tag
     const tag = this.addressBookTagRepository.create({
       guid: uuidv4(),
       addressBookGuid,
@@ -156,16 +156,16 @@ export class AddressBookTagService {
   }
 
   /**
-   * 重命名标签
-   * 修改标签的名称，同时检查新名称是否冲突
+   * Rename a tag
+   * Change the tag name, checking whether the new name conflicts
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param dto 重命名信息DTO，包含旧标签名和新标签名
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @returns 操作结果
-   * @throws NotFoundException 当旧标签不存在时抛出
-   * @throws BadRequestException 当新标签名已存在时抛出
+   * @param addressBookGuid Address book GUID
+   * @param dto Rename information DTO, containing the old and new tag names
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @returns Operation result
+   * @throws NotFoundException Thrown when the old tag does not exist
+   * @throws BadRequestException Thrown when the new tag name already exists
    */
   async renameTag(
     addressBookGuid: string,
@@ -177,30 +177,30 @@ export class AddressBookTagService {
       rule: ShareRule,
     ) => Promise<AddressBook>,
   ) {
-    // 如果提供了用户ID，验证写权限
+    // If a user ID is provided, verify write permission
     if (userId && checkAccess) {
       await checkAccess(addressBookGuid, userId, ShareRule.READ_WRITE);
     }
 
-    // 根据旧标签名查找标签
+    // Look up the tag by its old name
     const tag = await this.addressBookTagRepository.findOne({
       where: { name: dto.old, addressBookGuid },
     });
 
     if (!tag) {
-      throw new NotFoundException('标签不存在');
+      throw new NotFoundException('Tag does not exist');
     }
 
-    // 检查新标签名是否已存在
+    // Check whether the new tag name already exists
     const existingTag = await this.addressBookTagRepository.findOne({
       where: { name: dto.new, addressBookGuid },
     });
 
     if (existingTag) {
-      throw new BadRequestException('新标签名已存在');
+      throw new BadRequestException('New tag name already exists');
     }
 
-    // 更新标签名称
+    // Update the tag name
     await this.addressBookTagRepository.update(
       { guid: tag.guid },
       { name: dto.new },
@@ -209,15 +209,15 @@ export class AddressBookTagService {
   }
 
   /**
-   * 更新标签颜色
-   * 修改标签的颜色属性，用于UI显示
+   * Update the tag color
+   * Change the tag color attribute, used for UI display
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param dto 标签更新信息DTO，包含标签名和新颜色
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @returns 操作结果
-   * @throws NotFoundException 当标签不存在时抛出
+   * @param addressBookGuid Address book GUID
+   * @param dto Tag update information DTO, containing the tag name and new color
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @returns Operation result
+   * @throws NotFoundException Thrown when the tag does not exist
    */
   async updateTag(
     addressBookGuid: string,
@@ -229,21 +229,21 @@ export class AddressBookTagService {
       rule: ShareRule,
     ) => Promise<AddressBook>,
   ) {
-    // 如果提供了用户ID，验证写权限
+    // If a user ID is provided, verify write permission
     if (userId && checkAccess) {
       await checkAccess(addressBookGuid, userId, ShareRule.READ_WRITE);
     }
 
-    // 根据标签名查找标签
+    // Look up the tag by name
     const tag = await this.addressBookTagRepository.findOne({
       where: { name: dto.name, addressBookGuid },
     });
 
     if (!tag) {
-      throw new NotFoundException('标签不存在');
+      throw new NotFoundException('Tag does not exist');
     }
 
-    // 更新标签颜色
+    // Update the tag color
     await this.addressBookTagRepository.update(
       { guid: tag.guid },
       { color: dto.color },
@@ -252,15 +252,15 @@ export class AddressBookTagService {
   }
 
   /**
-   * 删除标签
-   * 批量删除指定地址簿中的标签，同时删除所有设备与这些标签的关联
+   * Delete the tags
+   * Batch delete tags from the specified address book, also removing all device associations with those tags
    *
-   * @param addressBookGuid 地址簿GUID
-   * @param names 要删除的标签名称列表
-   * @param userId 用户ID（可选，用于权限验证）
-   * @param checkAccess 权限检查函数（可选）
-   * @returns 操作结果
-   * @throws BadRequestException 当未提供标签名称时抛出
+   * @param addressBookGuid Address book GUID
+   * @param names List of tag names to delete
+   * @param userId User ID (optional, used for permission verification)
+   * @param checkAccess Permission check function (optional)
+   * @returns Operation result
+   * @throws BadRequestException Thrown when no tag names are provided
    */
   async deleteTags(
     addressBookGuid: string,
@@ -272,30 +272,30 @@ export class AddressBookTagService {
       rule: ShareRule,
     ) => Promise<AddressBook>,
   ) {
-    // 如果提供了用户ID，验证写权限
+    // If a user ID is provided, verify write permission
     if (userId && checkAccess) {
       await checkAccess(addressBookGuid, userId, ShareRule.READ_WRITE);
     }
 
     if (!names || names.length === 0) {
-      throw new BadRequestException('请提供要删除的标签名');
+      throw new BadRequestException('Please provide the tag names to delete');
     }
 
-    // 获取要删除的标签GUID
+    // Get the GUIDs of the tags to delete
     const tags = await this.addressBookTagRepository.find({
       where: { name: In(names), addressBookGuid },
     });
 
     const tagGuids = tags.map((t) => t.guid);
 
-    // 先删除标签与设备的关联关系
+    // First delete the associations between tags and devices
     if (tagGuids.length > 0) {
       await this.addressBookPeerTagRepository.delete({
         tagGuid: In(tagGuids),
       });
     }
 
-    // 删除标签
+    // Delete the tags
     await this.addressBookTagRepository.delete({
       name: In(names),
       addressBookGuid,

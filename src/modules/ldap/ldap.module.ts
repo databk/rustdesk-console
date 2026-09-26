@@ -9,15 +9,15 @@ import { UserGroupModule } from '../user-group/user-group.module';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
- * LDAP 认证模块
- * 提供 LDAP 身份验证功能
+ * LDAP authentication module
+ * Provides LDAP authentication
  *
- * 导入模块：
- * - TypeOrmModule（SystemSetting、User）
+ * Imported modules:
+ * - TypeOrmModule(SystemSetting, User)
  *
- * 导出服务：
- * - LdapService（供 AuthModule 集成 LDAP 认证）
- * - LdapSettingsService（供其他模块读取 LDAP 配置）
+ * Exported services:
+ * - LdapService(for AuthModule to integrate LDAP authentication)
+ * - LdapSettingsService(for other modules to read LDAP configuration)
  */
 @Module({
   imports: [TypeOrmModule.forFeature([SystemSetting, User]), UserGroupModule],

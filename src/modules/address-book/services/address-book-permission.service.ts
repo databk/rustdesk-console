@@ -9,13 +9,13 @@ import { AddressBook, AddressBookRule, ShareRule } from '../entities';
 import { User } from '../../user/entities/user.entity';
 
 /**
- * 地址簿权限检查服务
- * 负责检查用户对地址簿的访问权限
+ * Address book permission check service
+ * Responsible for checking user access permissions to address books
  *
- * 这个服务被提取出来是为了避免循环依赖：
- * - AddressBookService 需要权限检查
- * - AddressBookRuleService 也需要权限检查
- * - 将权限检查逻辑独立出来，两个服务都可以使用
+ * This service was extracted to avoid circular dependencies:
+ * - AddressBookService needs permission checks
+ * - AddressBookRuleService also needs permission checks
+ * - Keeping the permission check logic separate lets both services use it
  */
 @Injectable()
 export class AddressBookPermissionService {
@@ -31,15 +31,15 @@ export class AddressBookPermissionService {
   ) {}
 
   /**
-   * 检查用户是否有权限访问地址簿
-   * 验证用户对地址簿的访问权限，包括所有权检查和规则权限检查
+   * Check whether the user has permission to access the address book
+   * Verify the user's access permission to the address book, including ownership checks and rule permission checks
    *
-   * @param addressBookGuid 地址簿 GUID
-   * @param userId 用户 ID
-   * @param requiredRule 需要的权限级别（默认为只读）
-   * @returns 地址簿对象
-   * @throws NotFoundException 当地址簿不存在时抛出
-   * @throws ForbiddenException 当用户无权限或权限不足时抛出
+   * @param addressBookGuid Address book GUID
+   * @param userId User ID
+   * @param requiredRule Required permission level (defaults to read-only)
+   * @returns Address book object
+   * @throws NotFoundException Thrown when the address book does not exist
+   * @throws ForbiddenException Thrown when the user has no permission or insufficient permission
    */
   async checkAddressBookAccess(
     addressBookGuid: string,
@@ -51,10 +51,10 @@ export class AddressBookPermissionService {
     });
 
     if (!addressBook) {
-      throw new NotFoundException('地址簿不存在');
+      throw new NotFoundException('Address book does not exist');
     }
 
-    // 如果是所有者，拥有完全权限
+    // The owner has full permission
     if (addressBook.owner === userId) {
       return addressBook;
     }
@@ -64,7 +64,7 @@ export class AddressBookPermissionService {
       select: ['guid', 'userGroupGuid'],
     });
     if (!user) {
-      throw new ForbiddenException('无权访问此地址簿');
+      throw new ForbiddenException('No permission to access this address book');
     }
 
     const applicableTargets: FindOptionsWhere<AddressBookRule>[] = [
@@ -95,14 +95,14 @@ export class AddressBookPermissionService {
     );
 
     if (effectiveRule === 0) {
-      throw new ForbiddenException('无权访问此地址簿');
+      throw new ForbiddenException('No permission to access this address book');
     }
 
-    // 检查权限级别
+    // Check the permission level
     if (effectiveRule < Number(requiredRule)) {
       const requiredPermission =
-        requiredRule === ShareRule.READ_WRITE ? '读写' : '完全控制';
-      throw new ForbiddenException(`需要${requiredPermission}权限`);
+        requiredRule === ShareRule.READ_WRITE ? 'Read-write' : 'Full control';
+      throw new ForbiddenException(`${requiredPermission} permission required`);
     }
 
     return addressBook;

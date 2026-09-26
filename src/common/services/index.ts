@@ -1,4 +1,4 @@
 /**
- * 公共服务模块
+ * Common services module
  */
 export * from './token.service';

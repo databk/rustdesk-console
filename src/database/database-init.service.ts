@@ -11,10 +11,10 @@ import { UserGroupService } from '../modules/user-group/user-group.service';
 @Injectable()
 /**
  * DatabaseInitService
- * 负责数据库的初始化和预设数据的创建
+ * Handles database initialization and creation of preset data
  *
- * 使用场景：
- * 在应用启动时自动执行，确保数据库结构和预设数据正确
+ * Use case:
+ * Runs automatically at application startup to ensure the database structure and preset data are correct
  */
 export class DatabaseInitService implements OnModuleInit {
   private readonly logger = new Logger(DatabaseInitService.name);
@@ -70,10 +70,10 @@ export class DatabaseInitService implements OnModuleInit {
   }
 
   /**
-   * 创建默认管理员账户
+   * Create the default administrator account
    */
   private async createDefaultAdmin(defaultGroupGuid: string) {
-    // 检查数据库中是否已存在管理员用户
+    // Check whether an administrator user already exists in the database
     const existingAdmin = await this.userRepository.findOne({
       where: { isAdmin: true },
     });
@@ -122,12 +122,12 @@ export class DatabaseInitService implements OnModuleInit {
   }
 
   /**
-   * 清理未使用的默认 OIDC 提供商
+   * Clean up unused default OIDC providers
    *
-   * 早期版本会在初始化时自动插入 google 与 github 两个默认 OIDC 提供商。
-   * 现已移除该自动添加行为，这里负责清理历史遗留的默认提供商：
-   * 仅当提供商名称为 google/github、未配置 clientId、未启用且无用户通过
-   * 该提供商登录时才删除，避免误删用户已配置或正在使用的提供商。
+   * Early versions automatically inserted two default OIDC providers, google and github, during initialization.
+   * That automatic behavior has been removed; this cleans up the legacy default providers:
+   * Only when the provider name is google/github, no clientId is configured, it is not enabled, and no user has logged in via
+   * that provider will it be deleted, to avoid removing providers users have configured or are using.
    */
   private async cleanupUnusedDefaultOidcProviders() {
     const defaultProviderNames = ['google', 'github'];
@@ -163,7 +163,7 @@ export class DatabaseInitService implements OnModuleInit {
   }
 
   /**
-   * 清理过期的授权状态
+   * Clean up expired authorization states
    */
   private async cleanupExpiredAuthStates() {
     const result = await this.oidcAuthStateRepository

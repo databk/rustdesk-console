@@ -15,19 +15,19 @@ import { RbacModule } from '../rbac/rbac.module';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
- * 设备组模块
- * 负责设备组管理和权限控制
+ * Device group module
+ * Responsible for device group management and permission control
  *
- * 导入模块：
+ * Imported modules:
  * - TypeOrmModule
  * - AuthModule
  * - HeartbeatModule
  *
- * 导出服务：
+ * Exported services:
  * - DeviceGroupService
  * - PeerService
  *
- * 提供服务：
+ * Provided services:
  * - DeviceGroupService
  * - PeerService
  */

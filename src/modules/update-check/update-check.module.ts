@@ -26,8 +26,8 @@ import { UpdateCheckService } from './update-check.service';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
- * 更新检查模块
- * 提供版本更新检查、前端版本上报、更新通道管理功能
+ * Update check module
+ * Provides version update checking, frontend version reporting, and update channel management
  */
 @Module({
   imports: [

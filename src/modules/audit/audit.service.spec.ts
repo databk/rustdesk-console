@@ -315,14 +315,14 @@ describe('Console audit controller contract', () => {
       ),
     ).resolves.toEqual({ data: [], total: 0 });
     expect(queryConsoleAudits).toHaveBeenCalledWith({
-        operator: 'alice',
-        action: 'role.update',
-        targetType: 'role',
-        result: 'allowed',
-        pageSize: 10,
-        current: 2,
-        startTime: '2026-01-01',
-        endTime: '2026-01-02',
+      operator: 'alice',
+      action: 'role.update',
+      targetType: 'role',
+      result: 'allowed',
+      pageSize: 10,
+      current: 2,
+      startTime: '2026-01-01',
+      endTime: '2026-01-02',
     });
   });
 });

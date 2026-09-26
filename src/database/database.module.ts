@@ -10,10 +10,10 @@ import { UserGroupModule } from '../modules/user-group/user-group.module';
 
 @Global()
 /**
- * 数据库模块
- * 负责数据库连接和初始化配置
+ * Database module
+ * Handles database connection and initialization configuration
  *
- * 提供服务：
+ * Provides:
  * - DatabaseInitService
  */
 @Module({

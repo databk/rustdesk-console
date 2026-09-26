@@ -3,20 +3,20 @@ import { EmailService } from './email.service';
 import { SettingsModule } from '../settings/settings.module';
 
 /**
- * 邮件模块
- * 负责邮件发送和验证码管理
+ * Email module
+ * Responsible for sending emails and managing verification codes
  *
- * 导入模块：
- * - SettingsModule（获取 SMTP 配置）
+ * Imported modules:
+ * - SettingsModule(to obtain SMTP configuration)
  *
- * 导出服务：
+ * Exported services:
  * - EmailService
  *
- * 提供服务：
+ * Provided services:
  * - EmailService
  *
- * 注意：
- * SMTP 配置现在从数据库动态读取，不再使用静态的 MailerModule.forRoot
+ * Note:
+ * SMTP configuration is now read dynamically from the database; static MailerModule.forRoot is no longer used
  */
 @Module({
   imports: [SettingsModule],

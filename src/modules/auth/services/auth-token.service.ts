@@ -24,13 +24,13 @@ export interface SessionInfo {
 @Injectable()
 /**
  * AuthTokenService
- * 负责JWT令牌生成和验证的子服务
+ * Sub-service responsible for JWT token generation and validation
  *
- * 与主服务关系：
- * 被AuthService委托处理令牌相关操作
+ * Relationship to the main service:
+ * AuthService delegates token-related operations to it
  *
- * 调用上下文：
- * 包括令牌生成、验证和撤销
+ * Call context:
+ * Includes token generation, validation, and revocation
  */
 export class AuthTokenService {
   constructor(
@@ -41,14 +41,14 @@ export class AuthTokenService {
   ) {}
 
   /**
-   * 生成JWT Token
-   * 创建JWT令牌并将其保存到数据库，用于后续验证和撤销
+   * Generate JWT token
+   * Creates a JWT token and saves it to the database for later validation and revocation
    *
-   * @param user 用户对象
-   * @param deviceId 设备ID（可选）
-   * @param deviceUuid 设备UUID（可选）
-   * @param deviceInfo 设备信息（可选），包含操作系统、来源类型和设备名称
-   * @returns 生成的JWT Token字符串
+   * @param user User object
+   * @param deviceId Device ID (optional)
+   * @param deviceUuid Device UUID (optional)
+   * @param deviceInfo Device info (optional), containing the operating system, source type, and device name
+   * @returns The generated JWT token string
    */
   async generateToken(
     user: User,
@@ -94,11 +94,11 @@ export class AuthTokenService {
   }
 
   /**
-   * 验证JWT Token
-   * 验证Token的签名和有效期，并检查是否已被撤销
+   * Validate JWT token
+   * Validates the token's signature and expiry and checks whether it has been revoked
    *
-   * @param token JWT令牌字符串
-   * @returns Token负载，验证失败或Token已撤销返回null
+   * @param token JWT token string
+   * @returns Token payload, or null if validation fails or the token has been revoked
    */
   async validateToken(token: string): Promise<JwtPayload | null> {
     try {
@@ -135,11 +135,11 @@ export class AuthTokenService {
   }
 
   /**
-   * 撤销指定的Token
-   * 将Token标记为已撤销，使其无法再用于认证
+   * Revoke the specified token
+   * Marks the token as revoked so it can no longer be used for authentication
    *
-   * @param userGuid 用户GUID
-   * @param token 要撤销的Token字符串
+   * @param userGuid user GUID
+   * @param token The token string to revoke
    */
   async revokeToken(userGuid: string, token: string): Promise<void> {
     try {
@@ -149,17 +149,17 @@ export class AuthTokenService {
         { isRevoked: true },
       );
     } catch {
-      // Token无效或已过期，静默失败
+      // Token is invalid or expired, fail silently
     }
   }
 
   /**
-   * 撤销用户设备的所有Token
-   * 撤销指定设备的所有Token，通常在用户登出或设备移除时调用
+   * Revoke all tokens for a user's device
+   * Revokes all tokens of the given device; usually called on user logout or device removal
    *
-   * @param userGuid 用户GUID
-   * @param deviceId 设备ID（可选）
-   * @param deviceUuid 设备UUID（可选）
+   * @param userGuid user GUID
+   * @param deviceId Device ID (optional)
+   * @param deviceUuid Device UUID (optional)
    */
   async revokeDeviceTokens(
     userGuid: string,
@@ -180,11 +180,11 @@ export class AuthTokenService {
   }
 
   /**
-   * 列出用户的有效登录会话
-   * 返回未过期且未撤销的令牌及其设备信息
+   * List the user's active login sessions
+   * Returns tokens that are neither expired nor revoked, along with their device info
    *
-   * @param userGuid 用户GUID
-   * @returns 有效会话列表
+   * @param userGuid user GUID
+   * @returns List of active sessions
    */
   async listSessions(userGuid: string): Promise<SessionInfo[]> {
     const tokens = await this.tokenRepository.find({
@@ -209,11 +209,11 @@ export class AuthTokenService {
   }
 
   /**
-   * 撤销指定会话
-   * 通过 jti 撤销用户的一个登录会话
+   * Revoke the specified session
+   * Revokes one of the user's login sessions by jti
    *
-   * @param userGuid 用户GUID
-   * @param jti 令牌唯一标识符
+   * @param userGuid user GUID
+   * @param jti Unique token identifier
    */
   async revokeSession(userGuid: string, jti: string): Promise<void> {
     const token = await this.tokenRepository.findOne({
@@ -221,7 +221,7 @@ export class AuthTokenService {
     });
 
     if (!token) {
-      throw new NotFoundException('会话不存在');
+      throw new NotFoundException('Session does not exist');
     }
 
     token.isRevoked = true;

@@ -2,42 +2,42 @@ import { IsString, IsOptional, IsUrl, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
- * 设备信息
+ * Device info
  */
 export class DeviceInfoDto {
   @IsString()
-  os: string; // 操作系统：Linux, Windows, Android...
+  os: string; // Operating system: Linux, Windows, Android...
 
   @IsString()
-  type: string; // 类型：browser 或 client
+  type: string; // Type: browser or client
 
   @IsString()
-  name: string; // 设备名称或浏览器信息
+  name: string; // Device name or browser info
 }
 
 /**
- * OIDC 授权请求
+ * OIDC authorization request
  */
 export class OidcAuthRequestDto {
   @IsString()
-  op: string; // OIDC 提供商标识，如 oidc/google
+  op: string; // OIDC provider identifier, e.g. oidc/google
 
   @IsOptional()
   @IsString()
-  id?: string; // 设备ID（客户端特有字段）
+  id?: string; // device ID (client-only field)
 
   @IsOptional()
   @IsString()
-  uuid?: string; // 设备UUID（客户端特有字段）
+  uuid?: string; // Device UUID (client-only field)
 
   @ValidateNested()
   @Type(() => DeviceInfoDto)
-  deviceInfo: DeviceInfoDto; // 设备信息（必填）
+  deviceInfo: DeviceInfoDto; // Device info (required)
 
   @IsOptional()
   @IsUrl({
     protocols: ['http', 'https'],
     require_protocol: true,
   })
-  callbackUrl?: string; // Web前端回调URL（可选）
+  callbackUrl?: string; // Web frontend callback URL (optional)
 }

@@ -8,19 +8,19 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
-  // 配置 Cookie 解析中间件
+  // Configure cookie parsing middleware
   app.use(cookieParser());
 
-  // 设置全局路由前缀
+  // Set global route prefix
   app.setGlobalPrefix('api');
 
-  // 启用 CORS
+  // Enable CORS
   app.enableCors({
     origin: true,
     credentials: true,
   });
 
-  // 全局验证管道
+  // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

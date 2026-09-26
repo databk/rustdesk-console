@@ -49,7 +49,7 @@ export class OidcAdminController {
     guids: string[],
   ) {
     await this.oidcAdminService.sort(guids);
-    return { message: 'OIDC 提供商排序已更新' };
+    return { message: 'OIDC provider order updated' };
   }
 
   @Patch(':guid')
@@ -65,7 +65,7 @@ export class OidcAdminController {
   @HttpCode(HttpStatus.OK)
   async remove(@Param('guid') guid: string) {
     await this.oidcAdminService.remove(guid);
-    return { message: 'OIDC 提供商已删除' };
+    return { message: 'OIDC provider deleted' };
   }
 
   @Patch(':guid/toggle')

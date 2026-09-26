@@ -6,8 +6,8 @@ import {
   Index,
 } from 'typeorm';
 
-// SQLite 不支持 ENUM，所以使用整数代替
-// 对于支持 ENUM 的数据库，可以在装饰器中使用 @Column({ type: 'enum', enum: FileAuditType })
+// SQLite does not support ENUM, so integers are used instead
+// For databases that support ENUM, you can use @Column({ type: 'enum', enum: FileAuditType })
 
 export const FileAuditType = {
   SEND: 0,
@@ -33,7 +33,7 @@ export class FileAudit {
   @Column({ type: 'varchar', length: 255, nullable: true })
   connId: string | null;
 
-  @Column({ type: 'int' }) // SQLite 使用 int，其他数据库可以用 enum
+  @Column({ type: 'int' }) // SQLite uses int; other databases can use enum
   type: number;
 
   @Column({ type: 'text', nullable: true })

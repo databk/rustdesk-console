@@ -1,20 +1,20 @@
 import { IsString, IsOptional } from 'class-validator';
 
-/** 创建 Nexus 登录会话 DTO */
+/** Create Nexus login session DTO */
 export class NexusLoginDto {
   @IsOptional()
   @IsString()
   callbackUrl?: string;
 }
 
-/** Nexus 登录会话响应 */
+/** Nexus login session response */
 export interface NexusLoginResponse {
   login_id: string;
   auth_url: string;
   expires_in: number;
 }
 
-/** Nexus 登录状态响应 */
+/** Nexus login status response */
 export interface NexusAuthStatusResponse {
   state: 'pending' | 'completed' | 'failed';
   nexus_username?: string;
@@ -22,7 +22,7 @@ export interface NexusAuthStatusResponse {
   error?: string;
 }
 
-/** Nexus 绑定状态响应 */
+/** Nexus binding status response */
 export interface NexusBindStatusResponse {
   bound: boolean;
   nexus_username?: string;

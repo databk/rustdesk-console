@@ -37,7 +37,7 @@ export class NexusController {
   @Get('auth/status')
   async pollLoginStatus(@Query('login_id') loginId: string) {
     if (!loginId) {
-      return { state: 'failed', error: '缺少 login_id 参数' };
+      return { state: 'failed', error: 'Missing login_id parameter' };
     }
     return this.nexusService.pollLoginStatus(loginId);
   }
@@ -51,12 +51,12 @@ export class NexusController {
   @HttpCode(HttpStatus.OK)
   async unbind(@CurrentUser('id') userGuid: string) {
     await this.nexusService.unbind(userGuid);
-    return { message: '已解绑 Nexus 账号' };
+    return { message: 'Nexus account unbound' };
   }
 
   // ── Builds (RESTful) ──────────────────────────────────
 
-  /** 提交客户端构建请求 */
+  /** Submit a client build request */
   @Post('builds')
   @HttpCode(HttpStatus.CREATED)
   async createBuild(
@@ -66,13 +66,13 @@ export class NexusController {
     return this.nexusService.submitBuild(userGuid, dto);
   }
 
-  /** 获取当前用户的所有构建记录（含实时状态） */
+  /** Get all build records of the current user (including live status) */
   @Get('builds')
   async listBuilds(@CurrentUser('id') userGuid: string) {
     return this.nexusService.listBuilds(userGuid);
   }
 
-  /** 删除构建记录 */
+  /** Delete a build record */
   @Delete('builds/:uuid')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteBuild(
@@ -84,13 +84,13 @@ export class NexusController {
 
   // ── Files & Download ──────────────────────────────────
 
-  /** 列出构建产物的文件列表 */
+  /** List the build artifact files */
   @Get('builds/:uuid/files')
   listBuildFiles(@Param('uuid') uuid: string) {
     return this.nexusService.listBuildFiles(uuid);
   }
 
-  /** 下载构建产物 */
+  /** Download build artifact */
   @Get('builds/:uuid/files/:filename')
   downloadBuildFile(
     @Param('uuid') uuid: string,
@@ -100,7 +100,7 @@ export class NexusController {
     const filePath = this.nexusService.getLocalFilePath(uuid, filename);
 
     if (!existsSync(filePath)) {
-      throw new NotFoundException('文件不存在');
+      throw new NotFoundException('File not found');
     }
 
     const stat = statSync(filePath);

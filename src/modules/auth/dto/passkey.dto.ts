@@ -12,7 +12,7 @@ import type {
 } from '@simplewebauthn/types';
 
 /**
- * Passkey 登录设备信息
+ * Passkey login device info
  */
 class PasskeyAuthDeviceInfoDto {
   @IsOptional()
@@ -29,8 +29,8 @@ class PasskeyAuthDeviceInfoDto {
 }
 
 /**
- * Passkey 注册验证 DTO
- * 客户端在 navigator.credentials.create() 后提交此数据
+ * Passkey registration verification DTO
+ * The client submits this data after navigator.credentials.create()
  */
 export class VerifyPasskeyRegistrationDto {
   @IsObject()
@@ -42,8 +42,8 @@ export class VerifyPasskeyRegistrationDto {
 }
 
 /**
- * Passkey 登录发起 DTO
- * 可选传入设备信息
+ * Passkey login initiation DTO
+ * Device info can optionally be provided
  */
 export class BeginPasskeyAuthDto {
   @IsOptional()
@@ -61,8 +61,8 @@ export class BeginPasskeyAuthDto {
 }
 
 /**
- * Passkey 登录验证 DTO
- * 客户端在 navigator.credentials.get() 后提交此数据
+ * Passkey login verification DTO
+ * The client submits this data after navigator.credentials.get()
  */
 export class VerifyPasskeyAuthDto {
   @IsString()
@@ -86,7 +86,7 @@ export class VerifyPasskeyAuthDto {
 }
 
 /**
- * Passkey 双因素认证开关 DTO
+ * Passkey two-factor authentication toggle DTO
  */
 export class TogglePasskeyTfaDto {
   @IsBoolean()

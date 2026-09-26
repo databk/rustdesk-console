@@ -224,7 +224,9 @@ describe('Strategy candidate and target contracts', () => {
 
   it('requires global assignment scope before loading user candidates', async () => {
     authorizationService.assertStrategyTargets.mockRejectedValue(
-      new ForbiddenException('按用户分配策略需要全局权限'),
+      new ForbiddenException(
+        'Assigning strategies by user requires global permission',
+      ),
     );
 
     await expect(
@@ -275,14 +277,16 @@ describe('Strategy candidate and target contracts', () => {
       ),
     ).resolves.toEqual({
       success: ['device-1'],
-      errors: [{ target_guid: 'missing-device', reason: '设备不存在' }],
+      errors: [{ target_guid: 'missing-device', reason: 'Device not found' }],
     });
     expect(transactionManager.update).toHaveBeenCalledTimes(1);
   });
 
   it('does not query or mutate targets after an out-of-scope denial', async () => {
     authorizationService.assertStrategyTargets.mockRejectedValue(
-      new ForbiddenException('目标设备不在授权设备组内'),
+      new ForbiddenException(
+        'Target device is not in an authorized device group',
+      ),
     );
 
     await expect(
@@ -321,7 +325,9 @@ describe('Strategy candidate and target contracts', () => {
         deviceGroupGuids: new Set(['group-1']),
       })
       .mockRejectedValueOnce(
-        new ForbiddenException('目标设备不在授权设备组内'),
+        new ForbiddenException(
+          'Target device is not in an authorized device group',
+        ),
       );
     transactionManager.update.mockResolvedValue({ affected: 0 });
 
@@ -367,7 +373,7 @@ describe('Strategy candidate and target contracts', () => {
       ),
     ).resolves.toEqual({
       success: ['user-1'],
-      errors: [{ target_guid: 'missing-user', reason: '用户不存在' }],
+      errors: [{ target_guid: 'missing-user', reason: 'User does not exist' }],
     });
     expect(authorizationService.assertStrategyTargets).toHaveBeenCalledWith(
       'actor',
@@ -455,7 +461,7 @@ describe('Strategy candidate and target contracts', () => {
 
   it('authorizes assignment reads before looking up the strategy', async () => {
     authorizationService.requirePermission.mockRejectedValue(
-      new ForbiddenException('无权限访问'),
+      new ForbiddenException('Access denied'),
     );
 
     await expect(

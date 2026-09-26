@@ -13,28 +13,28 @@ import { AddressBook } from './address-book.entity';
 import { AddressBookTag } from './address-book-tag.entity';
 
 /**
- * 地址簿节点（设备）实体
- * 管理地址簿中的所有设备节点
+ * Address book peer (device) entity
+ * Manages all device peers in the address book
  */
 @Entity('address_book_peers')
 export class AddressBookPeer {
   /**
-   * 设备唯一标识符
-   * UUID格式，用于唯一标识地址簿中的一个设备条目
+   * Unique device identifier
+   * UUID format, uniquely identifies a device entry in the address book
    */
   @PrimaryColumn()
   guid: string;
 
   /**
-   * 所属地址簿唯一标识符
-   * 关联到 address_books 表的 guid 字段
+   * Unique identifier of the owning address book
+   * References the guid column of the address_books table
    */
   @Column()
   addressBookGuid: string;
 
   /**
-   * 关联的地址簿实体
-   * 多对一关系，关联到 AddressBook
+   * Associated address book entity
+   * Many-to-one relationship, references AddressBook
    */
   @ManyToOne(() => AddressBook, (addressBook) => addressBook.peers, {
     onDelete: 'CASCADE',
@@ -43,45 +43,45 @@ export class AddressBookPeer {
   addressBook: AddressBook;
 
   /**
-   * 设备ID
-   * RustDesk客户端的唯一标识，通常为数字格式
-   * 用于关联 sysinfos 表获取设备详细信息
+   * Device ID
+   * Unique identifier of the RustDesk client, usually numeric
+   * Used to join the sysinfos table for device details
    */
   @Column()
   deviceId: string;
 
   /**
-   * 连接哈希值
-   * 用于验证连接的安全哈希值
+   * Connection hash
+   * Secure hash used to verify the connection
    */
   @Column({ type: 'text', nullable: true })
   hash: string;
 
   /**
-   * 连接密码
-   * 设备的连接密码（加密存储）
+   * Connection password
+   * Connection password of the device (stored encrypted)
    */
   @Column({ type: 'text', nullable: true })
   password: string;
 
   /**
-   * 设备别名
-   * 用户自定义的设备显示名称
+   * Device alias
+   * User-defined display name of the device
    */
   @Column({ nullable: true })
   alias: string;
 
   /**
-   * 备注信息
-   * 设备的详细说明或备注
+   * Remarks
+   * Detailed description or remarks for the device
    */
   @Column({ type: 'text', nullable: true })
   note: string;
 
   /**
-   * 设备关联的标签列表
-   * 多对多关系，通过 address_book_peer_tags 中间表关联
-   * 一个设备可以有多个标签，一个标签也可以对应多个设备
+   * List of tags associated with the device
+   * Many-to-many relationship, linked through the address_book_peer_tags join table
+   * A device can have multiple tags, and a tag can map to multiple devices
    */
   @ManyToMany(() => AddressBookTag, (tag) => tag.peers)
   @JoinTable({
@@ -92,13 +92,13 @@ export class AddressBookPeer {
   tags: AddressBookTag[];
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;
 
   /**
-   * 更新时间
+   * Update time
    */
   @UpdateDateColumn()
   updatedAt: Date;

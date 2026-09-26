@@ -21,7 +21,9 @@ export class HeartbeatService {
   ) {}
 
   async handleHeartbeat(data: HeartbeatDto) {
-    this.logger.debug(`收到心跳数据: id=${data.id}, uuid=${data.uuid}`);
+    this.logger.debug(
+      `Received heartbeat data: id=${data.id}, uuid=${data.uuid}`,
+    );
 
     const existingPeer = await this.peerRepository.findOne({
       where: { uuid: data.uuid },
@@ -37,7 +39,7 @@ export class HeartbeatService {
           lastHeartbeat: new Date(),
         },
       );
-      this.logger.debug(`设备 ${data.uuid} 心跳已更新`);
+      this.logger.debug(`Device ${data.uuid} heartbeat updated`);
     } else {
       const peer = this.peerRepository.create({
         id: data.id,
@@ -47,7 +49,7 @@ export class HeartbeatService {
         lastHeartbeat: new Date(),
       });
       await this.peerRepository.save(peer);
-      this.logger.log(`新设备 ${data.uuid} 已注册`);
+      this.logger.log(`New device ${data.uuid} registered`);
     }
 
     if (data.conns !== undefined) {
@@ -110,7 +112,9 @@ export class HeartbeatService {
       return null;
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`设备 ${deviceUuid} 策略解析失败: ${msg}`);
+      this.logger.warn(
+        `Device ${deviceUuid} strategy resolution failed: ${msg}`,
+      );
       return null;
     }
   }
@@ -131,6 +135,8 @@ export class HeartbeatService {
       await this.activeConnectionRepository.save(entities);
     }
 
-    this.logger.debug(`设备 ${deviceUuid} 活跃连接已同步: ${conns.length} 个`);
+    this.logger.debug(
+      `Device ${deviceUuid} active connections synced: ${conns.length}`,
+    );
   }
 }

@@ -58,26 +58,26 @@ import { RbacGuard } from './modules/rbac/guards/rbac.guard';
 import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-audit.interceptor';
 
 /**
- * 应用根模块
- * RustDesk API的根模块，负责配置全局依赖和导入所有功能模块
+ * Application root module
+ * Root module of the RustDesk API; configures global dependencies and imports all feature modules
  *
- * 导入模块：
- * - ThrottlerModule - 请求限流模块
- * - TypeOrmModule - 数据库ORM模块
- * - DatabaseModule - 数据库初始化模块
- * - HeartbeatModule - 心跳模块
- * - AddressBookModule - 地址簿模块
- * - AuditModule - 审计模块
- * - UserModule - 用户模块
- * - DeviceGroupModule - 设备组模块
- * - AuthModule - 认证模块
- * - OidcModule - OIDC认证模块
- * - SysinfoModule - 系统信息模块
- * - DashboardModule - Dashboard统计模块
+ * Imported modules:
+ * - ThrottlerModule - request throttling module
+ * - TypeOrmModule - database ORM module
+ * - DatabaseModule - database initialization module
+ * - HeartbeatModule - heartbeat module
+ * - AddressBookModule - address book module
+ * - AuditModule - audit module
+ * - UserModule - user module
+ * - DeviceGroupModule - device group module
+ * - AuthModule - authentication module
+ * - OidcModule - OIDC authentication module
+ * - SysinfoModule - system info module
+ * - DashboardModule - Dashboard statistics module
  *
- * 提供服务：
- * - ThrottlerGuard - 全局限流守卫
- * - JwtAuthGuard - 全局JWT认证守卫
+ * Provides:
+ * - ThrottlerGuard - global throttler guard
+ * - JwtAuthGuard - global JWT authentication guard
  */
 @Module({
   imports: [

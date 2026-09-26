@@ -12,61 +12,61 @@ import { AddressBook } from './address-book.entity';
 import { UserGroup } from '../../user-group/entities/user-group.entity';
 
 /**
- * 共享权限规则枚举
- * 定义地址簿共享的权限级别
+ * Share permission rule enum
+ * Defines the permission levels for address book sharing
  */
 export enum ShareRule {
-  /** 只读权限 - 只能查看地址簿内容 */
+  /** Read-only permission - can only view address book contents */
   READ = 1,
-  /** 读写权限 - 可以查看和编辑地址簿内容 */
+  /** Read-write permission - can view and edit address book contents */
   READ_WRITE = 2,
-  /** 完全控制权限 - 可以查看、编辑、删除和共享地址簿 */
+  /** Full control permission - can view, edit, delete, and share the address book */
   FULL_CONTROL = 3,
 }
 
 /**
- * 地址簿规则实体
- * 管理地址簿的访问权限规则
+ * Address book rule entity
+ * Manages access permission rules for address books
  *
- * 规则类型:
- * - user: 针对特定用户的规则
- * - group: 针对特定组的规则
- * - everyone: 针对所有用户的规则（user 和 group 都为空）
+ * Rule types:
+ * - user: rule for a specific user
+ * - group: rule for a specific group
+ * - everyone: rule for all users (both user and group are empty)
  *
- * 权限级别:
- * - 1: Read (只读)
- * - 2: ReadWrite (读写)
- * - 3: FullControl (完全控制)
+ * Permission levels:
+ * - 1: Read (read-only)
+ * - 2: ReadWrite (read-write)
+ * - 3: FullControl (full control)
  */
 @Entity('address_book_rules')
 export class AddressBookRule {
   /**
-   * 规则唯一标识符
-   * UUID 格式，用于唯一标识一个规则
+   * Unique rule identifier
+   * UUID format, uniquely identifies a rule
    */
   @PrimaryColumn()
   guid: string;
 
   /**
-   * 所属地址簿 GUID
-   * 关联到 address_books 表的 guid 字段
+   * GUID of the owning address book
+   * References the guid column of the address_books table
    */
   @PrimaryColumn()
   addressBookGuid: string;
 
   /**
-   * 目标用户 GUID
-   * 当规则类型为 'user' 时，此字段为目标用户 ID
-   * 当规则类型为 'group' 或 'everyone' 时，此字段为空
+   * Target user GUID
+   * When the rule type is 'user', this field is the target user ID
+   * When the rule type is 'group' or 'everyone', this field is empty
    */
   @Column({ type: 'varchar', nullable: true })
   @Index()
   targetUserId: string | null;
 
   /**
-   * 目标组 GUID
-   * 当规则类型为 'group' 时，此字段为目标组 ID
-   * 当规则类型为 'user' 或 'everyone' 时，此字段为空
+   * Target group GUID
+   * When the rule type is 'group', this field is the target group ID
+   * When the rule type is 'user' or 'everyone', this field is empty
    */
   @Column({ type: 'varchar', nullable: true })
   @Index()
@@ -80,16 +80,16 @@ export class AddressBookRule {
   targetGroup: UserGroup | null;
 
   /**
-   * 规则权限级别
-   * 1: Read (只读)
-   * 2: ReadWrite (读写)
-   * 3: FullControl (完全控制)
+   * Rule permission level
+   * 1: Read (read-only)
+   * 2: ReadWrite (read-write)
+   * 3: FullControl (full control)
    */
   @Column({ type: 'int', default: 1 })
   rule: number;
 
   /**
-   * 关联的地址簿
+   * Associated address book
    */
   @ManyToOne(() => AddressBook, (addressBook) => addressBook.rules, {
     onDelete: 'CASCADE',
@@ -97,19 +97,19 @@ export class AddressBookRule {
   addressBook: AddressBook;
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;
 
   /**
-   * 更新时间
+   * Update time
    */
   @UpdateDateColumn()
   updatedAt: Date;
 
   /**
-   * 获取规则类型
+   * Get the rule type
    * @returns "user" | "group" | "everyone"
    */
   get ruleType(): 'user' | 'group' | 'everyone' {

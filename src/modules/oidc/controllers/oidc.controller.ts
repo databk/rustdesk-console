@@ -19,7 +19,7 @@ import { resolveAssetPath } from '../../../common/utils/runtime-paths';
 import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 /**
- * HTML特殊字符转义，防止XSS攻击
+ * Escapes HTML special characters to prevent XSS attacks
  */
 function escapeHtml(text: string): string {
   return text
@@ -31,14 +31,14 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * OIDC控制器
- * 处理OpenID Connect第三方登录相关的HTTP请求
+ * OIDC controller
+ * Handles HTTP requests related to OpenID Connect third-party login
  *
- * 端点：
- * - GET /api/login-options - 获取登录选项
- * - POST /api/oidc/auth - 请求OIDC授权
- * - GET /api/oidc/auth-query - 查询OIDC授权状态
- * - GET /api/oidc/callback - OIDC提供商回调
+ * Endpoints:
+ * - GET /api/login-options - Get login options
+ * - POST /api/oidc/auth - Request OIDC authorization
+ * - GET /api/oidc/auth-query - Query OIDC authorization state
+ * - GET /api/oidc/callback - OIDC provider callback
  */
 @Controller()
 export class OidcController {
@@ -69,8 +69,8 @@ export class OidcController {
   }
 
   /**
-   * 获取登录选项
-   * 返回当前可用的OIDC第三方登录选项列表
+   * Get login options
+   * Returns the list of currently available OIDC third-party login options
    */
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
@@ -80,10 +80,10 @@ export class OidcController {
   }
 
   /**
-   * 请求OIDC授权
-   * 发起OIDC第三方登录授权请求，返回授权URL
+   * Request OIDC authorization
+   * Initiates an OIDC third-party login authorization request and returns the authorization URL
    *
-   * @param authRequest OIDC授权请求数据传输对象
+   * @param authRequest OIDC authorization request DTO
    */
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -93,12 +93,12 @@ export class OidcController {
   }
 
   /**
-   * 查询OIDC授权状态
-   * 客户端轮询此接口获取授权结果
+   * Query OIDC authorization state
+   * The client polls this endpoint to get the authorization result
    *
-   * @param code 授权码
-   * @param deviceId 设备ID
-   * @param deviceUuid 设备UUID
+   * @param code Authorization code
+   * @param deviceId device ID
+   * @param deviceUuid Device UUID
    */
   @Public()
   @Throttle({ default: { limit: 120, ttl: 60000 } })
@@ -112,21 +112,21 @@ export class OidcController {
   }
 
   /**
-   * OIDC提供商回调端点
-   * OIDC提供商授权完成后重定向到此端点
-   * 交换授权码获取令牌，更新授权状态
-   * - 客户端登录：返回成功页面
-   * - Web前端登录：返回包含脚本的页面，脚本根据rememberMe存储token后跳转
+   * OIDC provider callback endpoint
+   * The OIDC provider redirects to this endpoint after authorization completes
+   * Exchanges the authorization code for tokens and updates the authorization state
+   * - Client login: return the success page
+   * - Web frontend login: returns a page containing a script that stores the token according to rememberMe and then redirects
    *
-   * @param req Express请求对象
-   * @param res Express响应对象
+   * @param req Express request object
+   * @param res Express response object
    */
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('oidc/callback')
   async handleCallback(@Req() req: Request, @Res() res: Response) {
     try {
-      // 使用配置的后端地址构建回调URL，避免依赖可被伪造的Host头
+      // Build the callback URL from the configured backend address to avoid relying on a spoofable Host header
       const { effectiveBackendUrl } =
         await this.generalSettingsService.getSiteSettings();
       const callbackUrl = `${effectiveBackendUrl}${req.originalUrl}`;
@@ -134,20 +134,26 @@ export class OidcController {
       const result = await this.oidcService.handleCallback(callbackUrl);
 
       if (result.isWebLogin) {
-        // Web前端登录：返回包含脚本的页面，存储token后跳转
+        // Web frontend login: return a page with a script that stores the token and then redirects
         const html = this.successHtml
-          .replace('{{title}}', '认证成功')
-          .replace('{{message}}', '您已成功登录，正在跳转...')
+          .replace('{{title}}', 'Authentication Successful')
+          .replace(
+            '{{message}}',
+            'You have logged in successfully. Redirecting...',
+          )
           .replace(/{{token}}/g, escapeHtml(result.accessToken!))
           .replace(/{{callbackUrl}}/g, escapeHtml(result.frontendRedirectUrl!));
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(html);
       } else {
-        // 客户端登录：返回成功页面
+        // Client login: return the success page
         const html = this.successHtml
-          .replace('{{title}}', '认证成功')
-          .replace('{{message}}', '您已成功登录，可以关闭此窗口返回应用。')
+          .replace('{{title}}', 'Authentication Successful')
+          .replace(
+            '{{message}}',
+            'You have logged in successfully. You can close this window and return to the app.',
+          )
           .replace(/{{token}}/g, '')
           .replace(/{{callbackUrl}}/g, '');
 
@@ -158,7 +164,7 @@ export class OidcController {
       const message =
         err instanceof Error
           ? err.message
-          : '第三方认证过程中发生错误，请重试。';
+          : 'An error occurred during third-party authentication. Please try again.';
       this.logger.error(`OIDC callback error: ${message}`);
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

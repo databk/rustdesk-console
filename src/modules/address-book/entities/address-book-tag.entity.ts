@@ -12,28 +12,28 @@ import { AddressBook } from './address-book.entity';
 import { AddressBookPeer } from './address-book-peer.entity';
 
 /**
- * 地址簿标签实体
- * 管理地址簿中的所有标签
+ * Address book tag entity
+ * Manages all tags in the address book
  */
 @Entity('address_book_tags')
 export class AddressBookTag {
   /**
-   * 标签唯一标识符
-   * UUID格式，用于唯一标识一个标签
+   * Unique tag identifier
+   * UUID format, uniquely identifies a tag
    */
   @PrimaryColumn()
   guid: string;
 
   /**
-   * 所属地址簿唯一标识符
-   * 关联到 address_books 表的 guid 字段
+   * Unique identifier of the owning address book
+   * References the guid column of the address_books table
    */
   @Column()
   addressBookGuid: string;
 
   /**
-   * 关联的地址簿实体
-   * 多对一关系，关联到 AddressBook
+   * Associated address book entity
+   * Many-to-one relationship, references AddressBook
    */
   @ManyToOne(() => AddressBook, (addressBook) => addressBook.tags, {
     onDelete: 'CASCADE',
@@ -42,37 +42,37 @@ export class AddressBookTag {
   addressBook: AddressBook;
 
   /**
-   * 标签名称
-   * 用于显示和区分不同的标签
-   * 在同一地址簿内标签名不能重复
+   * Tag name
+   * Used to display and distinguish different tags
+   * Tag names must be unique within the same address book
    */
   @Column()
   name: string;
 
   /**
-   * 标签颜色
-   * 十六进制颜色值，用于前端显示
-   * 例如: 0xFF5733 表示红色
+   * Tag color
+   * Hexadecimal color value, used for frontend display
+   * e.g. 0xFF5733 represents red
    */
   @Column({ type: 'int', unsigned: true, default: 0 })
   color: number;
 
   /**
-   * 标签关联的设备列表
-   * 多对多关系，通过 address_book_peer_tags 中间表关联
-   * 一个标签可以对应多个设备，一个设备也可以有多个标签
+   * List of devices associated with the tag
+   * Many-to-many relationship, linked through the address_book_peer_tags join table
+   * A tag can map to multiple devices, and a device can have multiple tags
    */
   @ManyToMany(() => AddressBookPeer, (peer) => peer.tags)
   peers: AddressBookPeer[];
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;
 
   /**
-   * 更新时间
+   * Update time
    */
   @UpdateDateColumn()
   updatedAt: Date;

@@ -69,9 +69,9 @@ export class GeneralSettingsService {
   }
 
   /**
-   * 获取前端页面渲染所需的精简配置（公开可读）
-   * 仅返回 watermarkEnabled / defaultLanguage / webauthnEnabled，
-   * 不暴露站点地址与 rpName 等管理员配置
+   * Get the minimal settings needed for frontend page rendering (publicly readable)
+   * Only returns watermarkEnabled / defaultLanguage / webauthnEnabled,
+   * Does not expose administrator settings such as the site URLs and rpName
    */
   async getFrontendSettings(): Promise<FrontendSettingsDto> {
     const settings = await this.getSettings();
@@ -83,9 +83,9 @@ export class GeneralSettingsService {
   }
 
   /**
-   * 获取站点地址配置（供 OIDC / User / WebAuthn 等模块消费）
-   * - effectiveFrontendUrl: frontendUrl 未配置时回退到 http://localhost:3000
-   * - effectiveBackendUrl: backendUrl 未配置时回退到 frontendUrl，再回退到 http://localhost:3000
+   * Get site URL configuration (consumed by modules such as OIDC / User / WebAuthn)
+   * - effectiveFrontendUrl: frontendUrl falls back to http://localhost:3000 when not configured
+   * - effectiveBackendUrl: backendUrl falls back to frontendUrl when not configured, then to http://localhost:3000
    */
   async getSiteSettings(): Promise<{
     frontendUrl: string;
@@ -110,8 +110,8 @@ export class GeneralSettingsService {
   }
 
   /**
-   * 获取 WebAuthn 配置（供 WebAuthnConfigService 消费）
-   * enabled 默认 true，但 frontendUrl 未配置时由调用方决定是否降级
+   * Get WebAuthn configuration (consumed by WebAuthnConfigService)
+   * enabled defaults to true, but when frontendUrl is not configured the caller decides whether to downgrade
    */
   async getWebAuthnSettings(): Promise<{
     enabled: boolean;
@@ -128,8 +128,8 @@ export class GeneralSettingsService {
   }
 
   /**
-   * 获取 JWT Token 有效期天数（供 AuthTokenService 消费）
-   * 默认 30 天，可通过 settings/general 接口修改
+   * Get the JWT token validity in days (consumed by AuthTokenService)
+   * Defaults to 30 days; can be changed via the settings/general endpoint
    */
   async getJwtExpiryDays(): Promise<number> {
     const values = await this.readValues([JWT_EXPIRY_DAYS_KEY]);
@@ -137,8 +137,8 @@ export class GeneralSettingsService {
   }
 
   /**
-   * 获取审计日志保留天数（供 AuditCleanupService 消费）
-   * 默认 0 表示不自动清理，可通过 settings/general 接口修改
+   * Get the audit log retention in days (consumed by AuditCleanupService)
+   * Defaults to 0, meaning no automatic cleanup; can be changed via the settings/general endpoint
    */
   async getAuditRetentionDays(): Promise<number> {
     const values = await this.readValues([AUDIT_RETENTION_DAYS_KEY]);

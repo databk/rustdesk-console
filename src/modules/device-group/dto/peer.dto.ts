@@ -9,8 +9,8 @@ import {
 import { Type } from 'class-transformer';
 
 /**
- * 设备查询DTO
- * 用于获取可访问设备列表，支持分页和多条件筛选
+ * Device query DTO
+ * Used to fetch the list of accessible devices; supports pagination and multi-condition filtering
  */
 export class PeerQueryDto {
   @IsOptional()
@@ -29,35 +29,35 @@ export class PeerQueryDto {
 
   @IsOptional()
   @IsString()
-  accessible?: string; // 兼容性字段，空字符串表示获取所有可访问设备
+  accessible?: string; // compatibility field; an empty string means fetch all accessible devices
 
   @IsOptional()
   @IsString()
-  id?: string; // 按设备ID筛选（模糊匹配）
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['0', '1'])
-  status?: string; // 按设备状态筛选：'0'=禁用, '1'=正常
+  id?: string; // filter by device ID (fuzzy match)
 
   @IsOptional()
   @IsString()
   @IsIn(['0', '1'])
-  is_online?: string; // 按是否在线筛选：'0'=离线, '1'=在线
+  status?: string; // filter by device status: '0' = disabled, '1' = normal
 
   @IsOptional()
   @IsString()
-  user_name?: string; // 按用户名筛选（模糊匹配）
+  @IsIn(['0', '1'])
+  is_online?: string; // filter by online status: '0' = offline, '1' = online
 
   @IsOptional()
   @IsString()
-  device_group_guid?: string; // 按设备组GUID筛选（精确匹配）
+  user_name?: string; // filter by user name (fuzzy match)
 
   @IsOptional()
   @IsString()
-  device_group_name?: string; // 按设备组名称筛选（模糊匹配）
+  device_group_guid?: string; // filter by device group GUID (exact match)
 
   @IsOptional()
   @IsString()
-  os?: string; // 按操作系统筛选（模糊匹配）
+  device_group_name?: string; // filter by device group name (fuzzy match)
+
+  @IsOptional()
+  @IsString()
+  os?: string; // filter by operating system (fuzzy match)
 }

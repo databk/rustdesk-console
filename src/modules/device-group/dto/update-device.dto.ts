@@ -1,11 +1,11 @@
 import { IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 
 /**
- * 更新设备DTO
- * 用于部分更新设备属性
- * 传字符串值 -> 按名称查找并关联
- * 传 null -> 清除关联
- * 不传某字段 -> 不修改该属性
+ * Update device DTO
+ * Used to partially update device properties
+ * Pass a string value -> look up by name and associate
+ * Pass null -> clear the association
+ * Omit a field -> that property is left unchanged
  */
 export class UpdateDeviceDto {
   @IsOptional()

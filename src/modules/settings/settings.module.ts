@@ -9,14 +9,14 @@ import { GeneralSettingsService } from './services/general-settings.service';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
- * 系统设置模块
- * 管理系统配置，包括 SMTP 配置、通用设置等
+ * System settings module
+ * Manages system configuration, including SMTP settings, general settings, etc.
  *
- * 使用通用 SystemSetting 表存储各类设置项
+ * Uses the generic SystemSetting table to store all kinds of settings
  *
- * 导出服务：
- * - SmtpSettingsService（供 EmailModule 等其他模块使用）
- * - GeneralSettingsService（供 AuditModule / AuthModule 等其他模块使用）
+ * Exported services:
+ * - SmtpSettingsService(for use by other modules such as EmailModule)
+ * - GeneralSettingsService(for use by other modules such as AuditModule / AuthModule)
  */
 @Module({
   imports: [TypeOrmModule.forFeature([SystemSetting])],

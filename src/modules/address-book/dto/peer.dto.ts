@@ -8,60 +8,60 @@ import {
 import { Transform } from 'class-transformer';
 
 /**
- * 添加设备到地址簿的数据传输对象
+ * Data transfer object for adding a device to the address book
  */
 export class AddPeerDto {
   /**
-   * 设备ID
-   * RustDesk客户端的唯一标识，通常为数字格式
-   * 用于关联 sysinfos 表获取设备详细信息（如用户名、主机名、操作系统等）
+   * Device ID
+   * Unique identifier of the RustDesk client, usually numeric
+   * Used to join the sysinfos table for device details (such as username, hostname, operating system)
    */
   @IsString()
   @IsNotEmpty()
   id: string;
 
   /**
-   * 连接哈希值
-   * 用于验证连接的安全哈希值（个人地址簿使用）
+   * Connection hash
+   * Secure hash used to verify the connection (used by personal address books)
    */
   @IsOptional()
   @IsString()
   hash?: string;
 
   /**
-   * 连接密码
-   * 设备的连接密码（共享地址簿使用）
+   * Connection password
+   * Connection password of the device (used by shared address books)
    */
   @IsOptional()
   @IsString()
   password?: string;
 
   /**
-   * 设备别名
-   * 用户自定义的设备显示名称
+   * Device alias
+   * User-defined display name of the device
    */
   @IsOptional()
   @IsString()
   alias?: string;
 
   /**
-   * 备注信息
-   * 设备的详细说明或备注
+   * Remarks
+   * Detailed description or remarks for the device
    */
   @IsOptional()
   @IsString()
   note?: string;
 
   /**
-   * 标签名称列表
-   * 设备关联的标签名称数组
+   * List of tag names
+   * Array of tag names associated with the device
    */
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
 
-  // 以下字段为客户端发送的额外字段，暂不处理
+  // The following fields are extra fields sent by the client and are not processed for now
 
   @IsOptional()
   @IsString()
@@ -102,53 +102,53 @@ export class AddPeerDto {
 }
 
 /**
- * 更新设备信息的数据传输对象
+ * Data transfer object for updating device information
  */
 export class UpdatePeerDto {
   /**
-   * 设备ID
-   * RustDesk客户端的唯一标识
+   * Device ID
+   * Unique identifier of the RustDesk client
    */
   @IsString()
   @IsNotEmpty()
   id: string;
 
   /**
-   * 连接哈希值
-   * 用于验证连接的安全哈希值（个人地址簿使用）
+   * Connection hash
+   * Secure hash used to verify the connection (used by personal address books)
    */
   @IsOptional()
   @IsString()
   hash?: string;
 
   /**
-   * 连接密码
-   * 设备的连接密码（共享地址簿使用）
+   * Connection password
+   * Connection password of the device (used by shared address books)
    */
   @IsOptional()
   @IsString()
   password?: string;
 
   /**
-   * 设备别名
-   * 用户自定义的设备显示名称
+   * Device alias
+   * User-defined display name of the device
    */
   @IsOptional()
   @IsString()
   alias?: string;
 
   /**
-   * 备注信息
-   * 设备的详细说明或备注
+   * Remarks
+   * Detailed description or remarks for the device
    */
   @IsOptional()
   @IsString()
   note?: string;
 
   /**
-   * 标签名称列表
-   * 设备关联的标签名称数组
-   * 更新时会替换原有的标签关联关系
+   * List of tag names
+   * Array of tag names associated with the device
+   * On update, replaces the existing tag associations
    */
   @IsOptional()
   @IsArray()
@@ -156,24 +156,24 @@ export class UpdatePeerDto {
   tags?: string[];
 
   /**
-   * 设备登录用户名
-   * 用于同步设备信息
+   * Device login username
+   * Used to sync device information
    */
   @IsOptional()
   @IsString()
   username?: string;
 
   /**
-   * 设备主机名
-   * 用于同步设备信息
+   * Device hostname
+   * Used to sync device information
    */
   @IsOptional()
   @IsString()
   hostname?: string;
 
   /**
-   * 操作系统
-   * 用于同步设备信息
+   * Operating system
+   * Used to sync device information
    */
   @IsOptional()
   @IsString()

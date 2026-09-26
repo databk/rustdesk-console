@@ -15,10 +15,10 @@ import { Strategy } from '../../strategy/entities/strategy.entity';
 import { UserGroup } from '../../user-group/entities/user-group.entity';
 
 /**
- * 用户状态枚举
- * -1: 未验证邮箱
- * 0: 禁用
- * 1: 正常
+ * User status enum
+ * -1: Email not verified
+ * 0: Disabled
+ * 1: Normal
  */
 export enum UserStatus {
   UNVERIFIED = -1,
@@ -27,7 +27,7 @@ export enum UserStatus {
 }
 
 /**
- * 用户信息设置
+ * User info settings
  */
 export interface UserInfo {
   email_verification?: boolean;
@@ -36,8 +36,8 @@ export interface UserInfo {
 }
 
 /**
- * 用户实体
- * 管理所有用户信息
+ * User entity
+ * Manages all user information
  */
 @Entity('users')
 // DatabaseInitService creates this index after validating legacy owner rows.
@@ -49,59 +49,59 @@ export interface UserInfo {
 } as IndexOptions & { synchronize: false })
 export class User {
   /**
-   * 用户唯一标识符
-   * UUID格式，用于唯一标识一个用户
+   * Unique user identifier
+   * UUID format, uniquely identifies a user
    */
   @PrimaryColumn()
   guid: string;
 
   /**
-   * 用户名
-   * 用于登录的唯一标识
+   * Username
+   * Unique identifier used for login
    */
   @Column()
   @Index({ unique: true })
   username: string;
 
   /**
-   * 显示名称
-   * 用户在客户端显示的名称，区别于登录用户名
+   * Display name
+   * Name shown to the user in the client, distinct from the login username
    */
   @Column({ type: 'varchar', nullable: true })
   displayName: string | null;
 
   /**
-   * 邮箱地址
-   * 用于邮箱验证和通知
+   * Email address
+   * Used for email verification and notifications
    */
   @Column({ type: 'varchar', nullable: true })
   @Index({ unique: true })
   email: string | null;
 
   /**
-   * 密码
-   * 加密存储的用户密码
+   * Password
+   * User password, stored encrypted
    */
   @Column({ select: false, nullable: true })
   password: string;
 
   /**
-   * 备注
-   * 用户的详细说明信息
+   * Note
+   * Detailed description of the user
    */
   @Column({ nullable: true })
   note: string;
 
   /**
-   * 验证器
-   * 双因素认证密钥
+   * Authenticator
+   * Two-factor authentication secret
    */
   @Column({ nullable: true, select: false })
   verifier: string;
 
   /**
-   * 用户状态
-   * -1: 未验证邮箱, 0: 禁用, 1: 正常
+   * User status
+   * -1: Email not verified, 0: Disabled, 1: Normal
    */
   @Column({
     type: 'integer',
@@ -110,45 +110,45 @@ export class User {
   status: UserStatus;
 
   /**
-   * 是否为管理员
-   * true - 拥有管理员权限
-   * false - 普通用户
+   * Whether the user is an administrator
+   * true - has administrator privileges
+   * false - regular user
    */
   @Column({ default: false })
   isAdmin: boolean;
 
   /**
-   * 邮箱验证码
-   * 用于邮箱验证的临时验证码
+   * Email verification code
+   * Temporary code used for email verification
    */
   @Column({ nullable: true, select: false })
   emailVerificationCode: string;
 
   /**
-   * 双因素认证密钥
-   * 用于 TOTP 认证的密钥
+   * Two-factor authentication secret
+   * Secret used for TOTP authentication
    */
   @Column({ nullable: true, select: false })
   tfaSecret: string;
 
   /**
-   * 用户信息设置
-   * JSON 格式存储的用户配置信息
+   * User info settings
+   * User configuration stored as JSON
    */
   @Column({ type: 'text', nullable: true })
   info: string;
 
   /**
-   * 第三方认证类型
-   * 如 oidc, ldap 等
+   * Third-party authentication type
+   * e.g. oidc, ldap
    */
   @Column({ nullable: true })
   thirdAuthType: string;
 
   /**
-   * OIDC 主体标识
-   * 格式: oidc:{providerName}:{sub}
-   * 用于关联OIDC提供商中的用户身份，防止账户接管
+   * OIDC subject identifier
+   * Format: oidc:{providerName}:{sub}
+   * Used to link the user identity at the OIDC provider, preventing account takeover
    */
   @Column({ nullable: true })
   @Index({ unique: true })
@@ -180,19 +180,19 @@ export class User {
   tokens: UserToken[];
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;
 
   /**
-   * 更新时间
+   * Update time
    */
   @UpdateDateColumn()
   updatedAt: Date;
 
   /**
-   * 获取解析后的 UserInfo
+   * Get the parsed UserInfo
    */
   getUserInfo(): UserInfo {
     if (!this.info) {
@@ -214,7 +214,7 @@ export class User {
   }
 
   /**
-   * 设置 UserInfo
+   * Set UserInfo
    */
   setUserInfo(info: UserInfo): void {
     this.info = JSON.stringify(info);

@@ -3,18 +3,18 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 import { UpdateCheckService } from './update-check.service';
 
 /**
- * 更新检查控制器
+ * Update check controller
  *
- * 端点：
- * - GET /api/update-check - 获取缓存的更新检查结果（管理员）
+ * Endpoints:
+ * - GET /api/update-check - Get cached update check result (admin)
  */
 @Controller('update-check')
 export class UpdateCheckController {
   constructor(private readonly updateCheckService: UpdateCheckService) {}
 
   /**
-   * 获取缓存的更新检查结果
-   * 后端每1小时自动检查更新，前端请求时直接返回缓存
+   * Get cached update check result
+   * The backend automatically checks for updates every hour; the frontend request returns the cache directly
    */
   @Get()
   @UseGuards(AdminGuard)

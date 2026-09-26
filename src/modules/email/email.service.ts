@@ -9,30 +9,32 @@ import { resolveAssetPath } from '../../common/utils/runtime-paths';
 @Injectable()
 /**
  * EmailService
- * 负责发送邮件，包括验证码邮件
+ * Responsible for sending emails, including verification code emails
  *
- * 使用场景：
- * 用于邮箱验证码登录功能
+ * Use case:
+ * Used for the email verification code login feature
  *
- * 实现方式：
- * 从数据库动态读取 SMTP 配置，使用 nodemailer 直接发送邮件
+ * Implementation:
+ * Reads SMTP configuration dynamically from the database and sends emails directly with nodemailer
  */
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  /** 模板缓存 */
+  /** Template cache */
   private templateCache: Map<string, HandlebarsTemplateDelegate> = new Map();
 
   constructor(private readonly smtpSettingsService: SmtpSettingsService) {}
 
   /**
-   * 发送验证码邮件
+   * Send verification code email
    */
   async sendVerificationCode(email: string, code: string): Promise<boolean> {
     try {
       const config = await this.smtpSettingsService.getActiveConfig();
       if (!config) {
-        this.logger.warn('SMTP 未配置或未启用，无法发送邮件');
+        this.logger.warn(
+          'SMTP is not configured or not enabled, cannot send email',
+        );
         return false;
       }
 
@@ -45,40 +47,45 @@ export class EmailService {
           : {}),
       });
 
-      // 渲染模板
+      // Render template
       const html = await this.renderTemplate('verification-code', {
         code,
-        expiresIn: '5分钟',
+        expiresIn: '5 minutes',
       });
 
       await transporter.sendMail({
         from: config.from,
         to: email,
-        subject: '登录验证码',
+        subject: 'Login verification code',
         html,
       });
 
       transporter.close();
-      this.logger.log(`验证码邮件已发送至: ${email}`);
+      this.logger.log(`Verification code email sent to: ${email}`);
       return true;
     } catch (error) {
-      this.logger.error(`发送验证码邮件失败: ${email}`, error);
+      this.logger.error(
+        `Failed to send verification code email: ${email}`,
+        error,
+      );
       return false;
     }
   }
 
   /**
-   * 发送邀请邮件
+   * Send invitation email
    */
   async sendInvitation(
     email: string,
     inviteUrl: string,
-    expiresIn: string = '7天',
+    expiresIn: string = '7 days',
   ): Promise<boolean> {
     try {
       const config = await this.smtpSettingsService.getActiveConfig();
       if (!config) {
-        this.logger.warn('SMTP 未配置或未启用，无法发送邀请邮件');
+        this.logger.warn(
+          'SMTP is not configured or not enabled, cannot send invitation email',
+        );
         return false;
       }
 
@@ -100,21 +107,21 @@ export class EmailService {
       await transporter.sendMail({
         from: config.from,
         to: email,
-        subject: '邀请加入 RustDesk Console',
+        subject: 'Invitation to join RustDesk Console',
         html,
       });
 
       transporter.close();
-      this.logger.log(`邀请邮件已发送至: ${email}`);
+      this.logger.log(`Invitation email sent to: ${email}`);
       return true;
     } catch (error) {
-      this.logger.error(`发送邀请邮件失败: ${email}`, error);
+      this.logger.error(`Failed to send invitation email: ${email}`, error);
       return false;
     }
   }
 
   /**
-   * 渲染 Handlebars 邮件模板
+   * Render Handlebars email template
    */
   private async renderTemplate(
     templateName: string,

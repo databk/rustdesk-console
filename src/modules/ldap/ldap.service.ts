@@ -14,33 +14,33 @@ import { TlsOptionsDto } from './dto/ldap-config.dto';
 import { UserGroupService } from '../user-group/user-group.service';
 
 /**
- * LDAP 用户信息接口
- * 从 LDAP 服务器获取的用户属性
+ * LDAP user information interface
+ * User attributes retrieved from the LDAP server
  */
 interface LdapUserInfo {
-  /** 用户 DN */
+  /** User DN */
   dn: string;
-  /** 用户名 */
+  /** Username */
   username: string;
-  /** 邮箱 */
+  /** Email */
   email?: string;
-  /** 显示名称 */
+  /** Display name */
   displayName?: string;
-  /** 用户所属组 DN 列表 */
+  /** List of DNs of groups the user belongs to */
   groups: string[];
 }
 
 /**
- * LDAP 认证服务
- * 负责与 LDAP 服务器的交互，包括连接、搜索、验证和组映射
+ * LDAP authentication service
+ * Handles interaction with the LDAP server, including connection, search, verification, and group mapping
  *
- * 架构说明：
- * - 使用 ldapts 库进行 LDAP 协议交互
- * - 支持多服务器故障转移
- * - 使用服务账号绑定后搜索用户，再以用户 DN 绑定验证密码
- * - 支持组到管理员角色的映射
- * - JIT 自动创建本地用户
- * - authenticate() 仅返回认证后的 User 实体，Token 生成由 AuthService 统一处理
+ * Architecture notes:
+ * - Uses the ldapts library for LDAP protocol interaction
+ * - Supports multi-server failover
+ * - Binds with the service account to search for the user, then binds with the user DN to verify the password
+ * - Supports mapping groups to administrator roles
+ * - JIT automatic creation of local users
+ * - authenticate() only returns the authenticated User entity; token generation is handled uniformly by AuthService
  */
 @Injectable()
 export class LdapService {
@@ -54,59 +54,59 @@ export class LdapService {
   ) {}
 
   /**
-   * LDAP 认证（仅认证，不生成 Token）
-   * 完整的 LDAP 认证流程：查找用户 → 验证密码 → 组映射 → 创建/关联本地用户
-   * Token 生成和设备管理由 AuthService 统一处理，避免循环依赖
+   * LDAP authentication (authentication only, no token generation)
+   * Full LDAP authentication flow: find user -> verify password -> group mapping -> create/link local user
+   * Token generation and device management are handled uniformly by AuthService to avoid circular dependencies
    *
-   * @param username 用户名
-   * @param password 密码
-   * @returns 认证成功后的本地用户实体
-   * @throws BadRequestException 当 LDAP 未启用时抛出
-   * @throws UnauthorizedException 当认证失败时抛出
+   * @param username Username
+   * @param password password
+   * @returns the local user entity after successful authentication
+   * @throws BadRequestException thrown when LDAP is not enabled
+   * @throws UnauthorizedException Thrown when authentication fails
    */
   async authenticate(username: string, password: string): Promise<User> {
     const config = await this.ldapSettingsService.getActiveConfig();
 
     if (!config || !config.enabled) {
-      throw new BadRequestException('LDAP 认证未启用');
+      throw new BadRequestException('LDAP authentication is not enabled');
     }
 
-    // 1. 使用服务账号搜索用户
+    // 1. Search for the user with the service account
     const ldapUserInfo = await this.searchUser(config, username);
 
-    // 2. 使用用户 DN + 密码绑定验证
+    // 2. Verify by binding with the user DN + password
     await this.verifyUserPassword(config, ldapUserInfo.dn, password);
 
-    // 3. 查找用户所属组
+    // 3. Find the groups the user belongs to
     const groups = await this.searchUserGroups(config, ldapUserInfo.dn);
     ldapUserInfo.groups = groups;
 
-    // 4. 查找或创建本地用户
+    // 4. Find or create the local user
     const user = await this.findOrCreateUser(ldapUserInfo, config);
 
-    // 5. 检查用户状态
+    // 5. Check the user status
     if (user.status === UserStatus.DISABLED) {
-      throw new UnauthorizedException({ error: '账户已被禁用' });
+      throw new UnauthorizedException({ error: 'Account has been disabled' });
     }
 
-    this.logger.log(`LDAP 用户认证成功: ${username}`);
+    this.logger.log(`LDAP user authenticated successfully: ${username}`);
 
     return user;
   }
 
   /**
-   * 检查 LDAP 是否已启用
+   * Check whether LDAP is enabled
    */
   async isEnabled(): Promise<boolean> {
     return this.ldapSettingsService.isEnabled();
   }
 
   /**
-   * 检查用户是否为已关联的 LDAP 用户
-   * 通过 oidcSubject 字段判断
+   * Check whether the user is a linked LDAP user
+   * Determined via the oidcSubject field
    *
-   * @param username 用户名
-   * @returns 如果是已关联的 LDAP 用户则返回 true
+   * @param username Username
+   * @returns returns true if the user is a linked LDAP user
    */
   async isLinkedLdapUser(username: string): Promise<boolean> {
     const ldapSubject = `ldap:${username}`;
@@ -117,11 +117,11 @@ export class LdapService {
   }
 
   /**
-   * 测试 LDAP 连接
-   * 使用服务账号绑定到 LDAP 服务器并执行搜索，验证配置是否正确
+   * Test LDAP connection
+   * Binds to the LDAP server with the service account and performs a search to verify the configuration is correct
    *
-   * @param config LDAP 配置（可选，不传则使用当前生效配置）
-   * @returns 测试结果
+   * @param config LDAP configuration (optional; if omitted, the currently active configuration is used)
+   * @returns test result
    */
   async testConnection(
     config?: LdapConfig,
@@ -130,19 +130,22 @@ export class LdapService {
       config || (await this.ldapSettingsService.getActiveConfig());
 
     if (!activeConfig) {
-      return { success: false, message: 'LDAP 配置不存在，请先配置' };
+      return {
+        success: false,
+        message: 'LDAP configuration does not exist, please configure it first',
+      };
     }
 
     if (!activeConfig.urls || activeConfig.urls.length === 0) {
-      return { success: false, message: 'LDAP 服务器 URL 不能为空' };
+      return { success: false, message: 'LDAP server URL cannot be empty' };
     }
 
     try {
       await this.executeWithFailover(activeConfig, async (client) => {
-        // 使用服务账号绑定
+        // Bind with the service account
         await client.bind(activeConfig.bindDN, activeConfig.bindCredentials);
 
-        // 执行搜索验证
+        // Perform a search to verify
         const searchFilter = activeConfig.searchFilter.replace(
           '{{username}}',
           '*',
@@ -155,23 +158,26 @@ export class LdapService {
         });
       });
 
-      this.logger.log('LDAP 连接测试成功');
-      return { success: true, message: 'LDAP 连接测试成功' };
+      this.logger.log('LDAP connection test succeeded');
+      return { success: true, message: 'LDAP connection test succeeded' };
     } catch (error) {
-      const message = error instanceof Error ? error.message : '未知错误';
-      this.logger.error(`LDAP 连接测试失败: ${message}`);
-      return { success: false, message: `LDAP 连接测试失败: ${message}` };
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`LDAP connection test failed: ${message}`);
+      return {
+        success: false,
+        message: `LDAP connection test failed: ${message}`,
+      };
     }
   }
 
   /**
-   * 搜索 LDAP 用户
-   * 使用服务账号绑定后搜索指定用户名的用户信息
+   * Search for an LDAP user
+   * Binds with the service account and searches for the user information of the given username
    *
-   * @param config LDAP 配置
-   * @param username 用户名
-   * @returns LDAP 用户信息
-   * @throws UnauthorizedException 当用户不存在时抛出
+   * @param config LDAP configuration
+   * @param username Username
+   * @returns LDAP user information
+   * @throws UnauthorizedException Thrown when the user does not exist
    */
   private async searchUser(
     config: LdapConfig,
@@ -179,10 +185,10 @@ export class LdapService {
   ): Promise<LdapUserInfo> {
     try {
       return await this.executeWithFailover(config, async (client) => {
-        // 使用服务账号绑定
+        // Bind with the service account
         await client.bind(config.bindDN, config.bindCredentials);
 
-        // 构建搜索过滤器
+        // Build the search filter
         const searchFilter = config.searchFilter.replace(
           '{{username}}',
           this.escapeLdapFilterValue(username),
@@ -203,7 +209,9 @@ export class LdapService {
         );
 
         if (!searchEntries || searchEntries.length === 0) {
-          throw new UnauthorizedException({ error: '用户名或密码错误' });
+          throw new UnauthorizedException({
+            error: 'Incorrect username or password',
+          });
         }
 
         const entry = searchEntries[0] as Record<string, any>;
@@ -237,20 +245,22 @@ export class LdapService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      const message = error instanceof Error ? error.message : '未知错误';
-      this.logger.error(`LDAP 搜索用户失败: ${message}`);
-      throw new UnauthorizedException({ error: 'LDAP 认证失败，请重试' });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`LDAP user search failed: ${message}`);
+      throw new UnauthorizedException({
+        error: 'LDAP authentication failed, please retry',
+      });
     }
   }
 
   /**
-   * 验证用户密码
-   * 使用用户的 DN 和密码尝试绑定到 LDAP 服务器
+   * Verify user password
+   * Attempts to bind to the LDAP server with the user DN and password
    *
-   * @param config LDAP 配置
-   * @param userDN 用户 DN
-   * @param password 密码
-   * @throws UnauthorizedException 当密码错误时抛出
+   * @param config LDAP configuration
+   * @param userDN User DN
+   * @param password password
+   * @throws UnauthorizedException thrown when the password is incorrect
    */
   private async verifyUserPassword(
     config: LdapConfig,
@@ -259,23 +269,25 @@ export class LdapService {
   ): Promise<void> {
     try {
       await this.executeWithFailover(config, async (client) => {
-        // 使用用户 DN + 密码绑定
+        // Bind with the user DN + password
         await client.bind(userDN, password);
       });
-      this.logger.debug(`LDAP 用户密码验证成功: ${userDN}`);
+      this.logger.debug(`LDAP user password verified successfully: ${userDN}`);
     } catch {
-      this.logger.warn(`LDAP 用户密码验证失败: ${userDN}`);
-      throw new UnauthorizedException({ error: '用户名或密码错误' });
+      this.logger.warn(`LDAP user password verification failed: ${userDN}`);
+      throw new UnauthorizedException({
+        error: 'Incorrect username or password',
+      });
     }
   }
 
   /**
-   * 搜索用户所属组
-   * 使用服务账号绑定后搜索用户 DN 所属的组
+   * Search for the groups the user belongs to
+   * Binds with the service account and searches for the groups the user DN belongs to
    *
-   * @param config LDAP 配置
-   * @param userDN 用户 DN
-   * @returns 组 DN 列表
+   * @param config LDAP configuration
+   * @param userDN User DN
+   * @returns list of group DNs
    */
   private async searchUserGroups(
     config: LdapConfig,
@@ -287,10 +299,10 @@ export class LdapService {
 
     try {
       return await this.executeWithFailover(config, async (client) => {
-        // 使用服务账号绑定
+        // Bind with the service account
         await client.bind(config.bindDN, config.bindCredentials);
 
-        // 构建组搜索过滤器
+        // Build the group search filter
         const groupFilter = config.groupSearchFilter.replace(
           '{{dn}}',
           this.escapeLdapFilterValue(userDN),
@@ -307,32 +319,32 @@ export class LdapService {
           .filter(Boolean);
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : '未知错误';
-      this.logger.warn(`LDAP 搜索用户组失败: ${message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`LDAP group search failed: ${message}`);
       return [];
     }
   }
 
   /**
-   * 查找或创建本地用户
-   * 根据 LDAP 用户信息匹配现有用户，不存在则自动创建（JIT Provisioning）
+   * Find or create the local user
+   * Matches an existing user using the LDAP user information; automatically creates one if it does not exist (JIT Provisioning)
    *
-   * 策略：
-   * 1. 通过 thirdAuthType='ldap' + oidcSubject='ldap:{username}' 匹配已关联的 LDAP 用户
-   * 2. 不通过邮箱自动关联已有账户（防止账户接管）
-   * 3. 新用户设置 thirdAuthType 为 'ldap'
-   * 4. 根据组映射决定是否为管理员
-   * 5. 用户名冲突时追加随机后缀
+   * Strategy:
+   * 1. Match linked LDAP users via thirdAuthType='ldap' + oidcSubject='ldap:{username}'
+   * 2. Do not automatically link existing accounts by email (prevents account takeover)
+   * 3. New users get thirdAuthType set to 'ldap'
+   * 4. Group mapping determines whether the user is an administrator
+   * 5. Append a random suffix on username conflict
    *
-   * @param ldapUserInfo LDAP 用户信息
-   * @param config LDAP 配置
-   * @returns 本地用户实体
+   * @param ldapUserInfo LDAP user information
+   * @param config LDAP configuration
+   * @returns the local user entity
    */
   private async findOrCreateUser(
     ldapUserInfo: LdapUserInfo,
     _config: LdapConfig,
   ): Promise<User> {
-    // 通过 LDAP subject 查找已关联的用户
+    // Find the linked user via the LDAP subject
     const ldapSubject = `ldap:${ldapUserInfo.username}`;
     const existingUser = await this.userRepository.findOne({
       where: { oidcSubject: ldapSubject },
@@ -355,14 +367,14 @@ export class LdapService {
       return existingUser;
     }
 
-    // 生成用户名
+    // Generate the username
     const username =
       ldapUserInfo.username ||
       ldapUserInfo.displayName ||
       ldapUserInfo.email?.split('@')[0] ||
       `ldap_${uuidv4().substring(0, 8)}`;
 
-    // 确保用户名唯一
+    // Ensure the username is unique
     let finalUsername = username;
     let suffix = 1;
     const maxRetries = 3;
@@ -388,21 +400,21 @@ export class LdapService {
         user.status = UserStatus.ACTIVE;
         user.isAdmin = false;
         user.note = ldapUserInfo.displayName
-          ? `LDAP用户 (${ldapUserInfo.displayName})`
-          : 'LDAP用户';
+          ? `LDAPUser (${ldapUserInfo.displayName})`
+          : 'LDAPUser';
         user.thirdAuthType = 'ldap';
         user.oidcSubject = ldapSubject;
         user.userGroupGuid = userGroupGuid;
 
         await this.userRepository.save(user);
-        this.logger.log(`LDAP 用户已创建: ${finalUsername}`);
+        this.logger.log(`LDAP user created: ${finalUsername}`);
         return user;
       } catch (err: unknown) {
         if (
           err instanceof QueryFailedError &&
           String(err.message).includes('UNIQUE')
         ) {
-          this.logger.warn(`用户名冲突，重试: ${finalUsername}`);
+          this.logger.warn(`Username conflict, retrying: ${finalUsername}`);
           suffix++;
           finalUsername = `${username}_${suffix}`;
           continue;
@@ -411,18 +423,20 @@ export class LdapService {
       }
     }
 
-    throw new Error(`创建 LDAP 用户失败，用户名冲突已重试 ${maxRetries} 次`);
+    throw new Error(
+      `Failed to create LDAP user, username conflict retried ${maxRetries} times`,
+    );
   }
 
   /**
-   * 使用故障转移执行 LDAP 操作
-   * 遍历所有 URL，在第一个可用服务器上执行操作，失败则尝试下一个
-   * 实际的 TCP 连接在 bind() 调用时建立，因此故障转移在操作级别实现
+   * Execute an LDAP operation with failover
+   * Iterates over all URLs, runs the operation on the first available server, and tries the next one on failure
+   * The actual TCP connection is established when bind() is called, so failover is implemented at the operation level
    *
-   * @param config LDAP 配置
-   * @param operation 要执行的 LDAP 操作（接收已连接的客户端）
-   * @returns 操作的返回值
-   * @throws BadRequestException 当所有服务器都无法连接时抛出
+   * @param config LDAP configuration
+   * @param operation the LDAP operation to execute (receives the connected client)
+   * @returns the return value of the operation
+   * @throws BadRequestException thrown when all servers are unreachable
    */
   private async executeWithFailover<T>(
     config: LdapConfig,
@@ -431,14 +445,14 @@ export class LdapService {
     const urls = config.urls;
 
     if (!urls || urls.length === 0) {
-      throw new BadRequestException('LDAP 服务器 URL 未配置');
+      throw new BadRequestException('LDAP server URL is not configured');
     }
 
-    // 安全检查：非 LDAPS 协议给出警告
+    // Security check: warn when the protocol is not LDAPS
     for (const url of urls) {
       if (url.startsWith('ldap://') && !url.startsWith('ldaps://')) {
         this.logger.warn(
-          `LDAP 连接使用非加密协议: ${url}，建议在生产环境中使用 LDAPS`,
+          `LDAP connection uses an unencrypted protocol: ${url}, LDAPS is recommended in production`,
         );
       }
     }
@@ -451,28 +465,30 @@ export class LdapService {
         return await operation(client);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        this.logger.warn(`LDAP 服务器操作失败: ${url} - ${lastError.message}`);
+        this.logger.warn(
+          `LDAP server operation failed: ${url} - ${lastError.message}`,
+        );
       } finally {
         try {
           await client.unbind();
         } catch {
-          // 忽略 unbind 错误
+          // Ignore unbind errors
         }
       }
     }
 
     throw new BadRequestException(
-      `无法连接到任何 LDAP 服务器: ${lastError?.message || '未知错误'}`,
+      `Unable to connect to any LDAP server: ${lastError?.message || 'Unknown error'}`,
     );
   }
 
   /**
-   * 为单个 URL 创建 LDAP 客户端
-   * 将 TlsOptionsDto 安全映射为 Node.js TLS 选项
+   * Create an LDAP client for a single URL
+   * Safely map TlsOptionsDto to Node.js TLS options
    *
-   * @param url LDAP 服务器 URL
-   * @param config LDAP 配置
-   * @returns LDAP 客户端实例
+   * @param url LDAP server URL
+   * @param config LDAP configuration
+   * @returns LDAP client instance
    */
   private createClientForUrl(url: string, config: LdapConfig): Client {
     const tlsOptions = this.buildTlsOptions(config.tlsOptions);
@@ -485,8 +501,8 @@ export class LdapService {
   }
 
   /**
-   * 将 TlsOptionsDto 安全映射为 Node.js TLS 选项
-   * 仅允许白名单中的属性，防止注入危险选项
+   * Safely map TlsOptionsDto to Node.js TLS options
+   * Only allowlisted properties are permitted, preventing injection of dangerous options
    */
   private buildTlsOptions(
     dto: TlsOptionsDto | Record<string, unknown>,
@@ -508,12 +524,12 @@ export class LdapService {
   }
 
   /**
-   * 转义 LDAP 过滤器中的特殊字符
-   * 防止 LDAP 注入攻击
-   * 参考：RFC 4515 Section 3
+   * Escape special characters in LDAP filters
+   * Prevents LDAP injection attacks
+   * Reference: RFC 4515 Section 3
    *
-   * @param value 原始值
-   * @returns 转义后的值
+   * @param value the raw value
+   * @returns the escaped value
    */
   private escapeLdapFilterValue(value: string): string {
     // eslint-disable-next-line no-control-regex

@@ -1,23 +1,23 @@
 import { IsString, IsNumber, IsOptional, IsNotEmpty } from 'class-validator';
 
 /**
- * 添加标签的数据传输对象
+ * Data transfer object for adding a tag
  */
 export class AddTagDto {
   /**
-   * 标签名称
-   * 用于显示和区分不同的标签
-   * 在同一地址簿内标签名不能重复
+   * Tag name
+   * Used to display and distinguish different tags
+   * Tag names must be unique within the same address book
    */
   @IsString()
   @IsNotEmpty()
   name: string;
 
   /**
-   * 标签颜色
-   * ARGB整数值，用于前端显示
-   * 例如: 4280391411
-   * 默认值: 0
+   * Tag color
+   * ARGB integer value, used for frontend display
+   * e.g. 4280391411
+   * Default value: 0
    */
   @IsOptional()
   @IsNumber()
@@ -25,41 +25,41 @@ export class AddTagDto {
 }
 
 /**
- * 更新标签颜色的数据传输对象
+ * Data transfer object for updating a tag color
  */
 export class UpdateTagDto {
   /**
-   * 标签名称
-   * 用于定位要更新的标签
+   * Tag name
+   * Used to locate the tag to update
    */
   @IsString()
   @IsNotEmpty()
   name: string;
 
   /**
-   * 标签颜色
-   * ARGB整数值，用于前端显示
-   * 例如: 4280391411
+   * Tag color
+   * ARGB integer value, used for frontend display
+   * e.g. 4280391411
    */
   @IsNumber()
   color: number;
 }
 
 /**
- * 重命名标签的数据传输对象
+ * Data transfer object for renaming a tag
  */
 export class RenameTagDto {
   /**
-   * 旧标签名称
-   * 用于定位要重命名的标签
+   * Old tag name
+   * Used to locate the tag to rename
    */
   @IsString()
   @IsNotEmpty()
   old: string;
 
   /**
-   * 新标签名称
-   * 重命名后的标签名，在同一地址簿内不能与现有标签名重复
+   * New tag name
+   * The tag name after renaming; must not duplicate an existing tag name in the same address book
    */
   @IsString()
   @IsNotEmpty()

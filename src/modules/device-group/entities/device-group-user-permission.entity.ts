@@ -10,31 +10,31 @@ import { DeviceGroup } from './device-group.entity';
 import { User } from '../../user/entities/user.entity';
 
 /**
- * 用户设备组权限实体
- * 管理用户对设备组的访问权限
- * 使用复合主键 (deviceGroupGuid, userGuid)
+ * User device group permission entity
+ * Manages a user's access permission to device groups
+ * Uses a composite primary key (deviceGroupGuid, userGuid)
  */
 @Entity('device_group_user_permissions')
 export class DeviceGroupUserPermission {
   /**
-   * 设备组GUID
-   * 关联到 device_groups 表的 guid 字段
+   * Device group GUID
+   * Refers to the guid column of the device_groups table
    */
   @PrimaryColumn()
   @Index()
   deviceGroupGuid: string;
 
   /**
-   * 用户唯一标识符
-   * 关联到 users 表的 guid 字段
+   * User unique identifier
+   * Refers to the guid column of the users table
    */
   @PrimaryColumn()
   @Index()
   userGuid: string;
 
   /**
-   * 关联的设备组实体
-   * 多对一关系，关联到 DeviceGroup
+   * Associated device group entity
+   * Many-to-one relation to DeviceGroup
    */
   @ManyToOne(() => DeviceGroup, (permission) => permission.userPermissions, {
     onDelete: 'CASCADE',
@@ -43,15 +43,15 @@ export class DeviceGroupUserPermission {
   deviceGroup: DeviceGroup;
 
   /**
-   * 关联的用户实体
-   * 多对一关系，关联到 User
+   * Associated user entity
+   * Many-to-one relation to User
    */
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userGuid' })
   user: User;
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;

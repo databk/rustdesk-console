@@ -10,13 +10,13 @@ import { User, UserStatus } from '../../modules/user/entities/user.entity';
 @Injectable()
 /**
  * AdminGuard
- * 验证用户是否具有管理员权限
+ * Verifies that the user has administrator privileges
  *
- * 权限规则：
- * 只有管理员才能访问的路由会使用此守卫
+ * Permission rules:
+ * Routes accessible only to administrators use this guard
  *
- * 验证逻辑：
- * 读取数据库中的当前用户状态和 isAdmin 字段，不信任 JWT 内的旧权限状态
+ * Validation logic:
+ * Reads the current user status and isAdmin field from the database; does not trust the stale permission state inside the JWT
  */
 export class AdminGuard implements CanActivate {
   constructor(private readonly dataSource: DataSource) {}
@@ -28,11 +28,11 @@ export class AdminGuard implements CanActivate {
     const user = request.user;
 
     if (!user) {
-      throw new ForbiddenException('请先登录');
+      throw new ForbiddenException('Please log in first');
     }
 
     if (!user.id) {
-      throw new ForbiddenException('授权服务不可用');
+      throw new ForbiddenException('Authorization service unavailable');
     }
 
     const currentUser = await this.dataSource.getRepository(User).findOne({
@@ -43,7 +43,9 @@ export class AdminGuard implements CanActivate {
       currentUser?.isAdmin === true && currentUser.status === UserStatus.ACTIVE;
 
     if (!isAdmin) {
-      throw new ForbiddenException('无权限访问，需要管理员权限');
+      throw new ForbiddenException(
+        'Access denied: administrator privileges required',
+      );
     }
 
     return true;

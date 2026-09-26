@@ -9,7 +9,7 @@ import {
 } from 'class-validator';
 
 /**
- * 创建 SMTP 配置 DTO
+ * Create SMTP configuration DTO
  */
 export class CreateSmtpConfigDto {
   @IsString()
@@ -43,8 +43,8 @@ export class CreateSmtpConfigDto {
 }
 
 /**
- * 更新 SMTP 配置 DTO
- * 所有字段可选，仅更新传入的字段
+ * Update SMTP configuration DTO
+ * All fields are optional; only the provided fields are updated
  */
 export class UpdateSmtpConfigDto {
   @IsString()
@@ -81,8 +81,8 @@ export class UpdateSmtpConfigDto {
 }
 
 /**
- * 测试 SMTP 连接 DTO
- * 可选传入配置进行测试，不传则测试当前生效配置
+ * Test SMTP connection DTO
+ * A configuration may optionally be provided for testing; if omitted, the currently active configuration is tested
  */
 export class TestSmtpConfigDto {
   @IsString()

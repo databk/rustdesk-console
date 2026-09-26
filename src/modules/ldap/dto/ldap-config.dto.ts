@@ -9,101 +9,101 @@ import {
 import { Type } from 'class-transformer';
 
 /**
- * TLS 配置 DTO
- * 仅允许安全的 TLS 选项，防止注入危险属性如 rejectUnauthorized: false
+ * TLS configuration DTO
+ * Only safe TLS options are allowed, preventing injection of dangerous properties such as rejectUnauthorized: false
  */
 export class TlsOptionsDto {
-  /** CA 证书（PEM 格式字符串或 Buffer） */
+  /** CA certificate (PEM-format string or Buffer) */
   @IsOptional()
   @IsString()
   ca?: string;
 
-  /** 客户端证书（PEM 格式字符串） */
+  /** Client certificate (PEM-format string) */
   @IsOptional()
   @IsString()
   cert?: string;
 
-  /** 客户端私钥（PEM 格式字符串） */
+  /** Client private key (PEM-format string) */
   @IsOptional()
   @IsString()
   key?: string;
 
-  /** 服务器名称指示（SNI） */
+  /** Server Name Indication (SNI) */
   @IsOptional()
   @IsString()
   servername?: string;
 }
 
 /**
- * 更新 LDAP 配置 DTO
- * 所有字段可选，仅更新传入的字段
+ * Update LDAP configuration DTO
+ * All fields are optional; only the provided fields are updated
  */
 export class UpdateLdapConfigDto {
-  /** LDAP 服务器 URL 列表（支持多个服务器故障转移），如 ldaps://ad1.example.com:636 */
+  /** List of LDAP server URLs (multiple servers supported for failover), e.g. ldaps://ad1.example.com:636 */
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   urls?: string[];
 
-  /** 服务账号绑定 DN，如 CN=svc-ldap,OU=ServiceAccounts,DC=example,DC=com */
+  /** Service account bind DN, e.g. CN=svc-ldap,OU=ServiceAccounts,DC=example,DC=com */
   @IsString()
   @IsOptional()
   bindDN?: string;
 
-  /** 服务账号密码 */
+  /** Service account password */
   @IsString()
   @IsOptional()
   bindCredentials?: string;
 
-  /** 搜索基础 DN，如 DC=example,DC=com */
+  /** Search base DN, e.g. DC=example,DC=com */
   @IsString()
   @IsNotEmpty()
   @IsOptional()
   searchBase?: string;
 
-  /** 搜索过滤器，如 (sAMAccountName={{username}}) */
+  /** Search filter, e.g. (sAMAccountName={{username}}) */
   @IsString()
   @IsNotEmpty()
   @IsOptional()
   searchFilter?: string;
 
-  /** 要读取的用户属性列表 */
+  /** List of user attributes to read */
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   searchAttributes?: string[];
 
-  /** 组搜索基础 DN */
+  /** Group search base DN */
   @IsString()
   @IsOptional()
   groupSearchBase?: string;
 
-  /** 组搜索过滤器，如 (member={{dn}}) */
+  /** Group search filter, e.g. (member={{dn}}) */
   @IsString()
   @IsOptional()
   groupSearchFilter?: string;
 
-  /** 映射为管理员的 LDAP 组 DN 列表 */
+  /** List of LDAP group DNs mapped to administrators */
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   adminGroups?: string[];
 
-  /** TLS 配置（仅允许 ca/cert/key/servername 安全选项） */
+  /** TLS configuration (only the safe options ca/cert/key/servername are allowed) */
   @ValidateNested()
   @Type(() => TlsOptionsDto)
   @IsOptional()
   tlsOptions?: TlsOptionsDto;
 
-  /** 是否启用 LDAP 认证 */
+  /** Whether LDAP authentication is enabled */
   @IsBoolean()
   @IsOptional()
   enabled?: boolean;
 }
 
 /**
- * 测试 LDAP 连接 DTO
- * 可选传入配置进行测试，不传则测试当前生效配置
+ * Test LDAP connection DTO
+ * A configuration may optionally be provided for testing; if omitted, the currently active configuration is tested
  */
 export class TestLdapConfigDto {
   @IsArray()

@@ -11,29 +11,29 @@ import { AddressBookTag } from './address-book-tag.entity';
 import { AddressBookRule } from './address-book-rule.entity';
 
 /**
- * 地址簿实体
- * 管理所有地址簿信息
+ * Address book entity
+ * Manages all address book information
  */
 @Entity('address_books')
 export class AddressBook {
   /**
-   * 地址簿唯一标识符
-   * UUID格式，用于唯一标识一个地址簿
+   * Unique address book identifier
+   * UUID format, uniquely identifies an address book
    */
   @PrimaryColumn()
   guid: string;
 
   /**
-   * 所有者用户ID
-   * 标识该地址簿属于哪个用户
+   * Owner user ID
+   * Identifies which user the address book belongs to
    */
   @Column()
   owner: string;
 
   /**
-   * 是否为个人地址簿
-   * true - 个人地址簿（每个用户默认有一个）
-   * false - 自定义地址簿
+   * Whether this is a personal address book
+   * true - personal address book (each user has one by default)
+   * false - custom address book
    */
   @Column({ default: false })
   isPersonal: boolean;
@@ -43,29 +43,29 @@ export class AddressBook {
   isShared: boolean;
 
   /**
-   * 地址簿名称
-   * 用于显示和区分不同的地址簿
+   * Address book name
+   * Used to display and distinguish different address books
    */
   @Column({ nullable: true })
   name: string;
 
   /**
-   * 备注
-   * 地址簿的详细说明信息
+   * Remarks
+   * Detailed description of the address book
    */
   @Column({ type: 'text', nullable: true })
   note: string;
 
   /**
-   * 扩展信息
-   * JSON格式的额外配置信息，用于存储自定义设置
+   * Extended information
+   * Additional configuration in JSON format, used to store custom settings
    */
   @Column({ type: 'text', nullable: true })
   info: string;
 
   /**
-   * 地址簿中的设备列表
-   * 一对多关系，关联到 AddressBookPeer
+   * List of devices in the address book
+   * One-to-many relationship, references AddressBookPeer
    */
   @OneToMany(() => AddressBookPeer, (peer) => peer.addressBook, {
     cascade: true,
@@ -73,15 +73,15 @@ export class AddressBook {
   peers: AddressBookPeer[];
 
   /**
-   * 地址簿中的标签列表
-   * 一对多关系，关联到 AddressBookTag
+   * List of tags in the address book
+   * One-to-many relationship, references AddressBookTag
    */
   @OneToMany(() => AddressBookTag, (tag) => tag.addressBook, { cascade: true })
   tags: AddressBookTag[];
 
   /**
-   * 地址簿的规则列表
-   * 一对多关系，关联到 AddressBookRule
+   * List of rules of the address book
+   * One-to-many relationship, references AddressBookRule
    */
   @OneToMany(() => AddressBookRule, (rule) => rule.addressBook, {
     cascade: true,
@@ -89,13 +89,13 @@ export class AddressBook {
   rules: AddressBookRule[];
 
   /**
-   * 创建时间
+   * Creation time
    */
   @CreateDateColumn()
   createdAt: Date;
 
   /**
-   * 更新时间
+   * Update time
    */
   @UpdateDateColumn()
   updatedAt: Date;

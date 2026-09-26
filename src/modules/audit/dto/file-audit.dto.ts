@@ -12,7 +12,7 @@ import { FileAuditType } from '../entities/file-audit.entity';
 
 /**
  * FileAuditDto
- * 用于记录文件传输审计信息
+ * Used to record file transfer audit information
  */
 export class FileAuditDto {
   @IsString()

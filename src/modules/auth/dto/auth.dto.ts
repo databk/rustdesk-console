@@ -11,26 +11,26 @@ import { LOGIN_TYPE_VALUES } from '../auth.constants';
 
 /**
  * DeviceInfoDto
- * 设备信息数据传输对象
- * 客户端自动填充，包含操作系统、来源类型和设备名称
+ * Device info data transfer object
+ * Auto-filled by the client; contains the operating system, source type, and device name
  */
 export class DeviceInfoDto {
   @IsOptional()
   @IsString()
-  os?: string; // 操作系统（如 linux, windows, android）
+  os?: string; // Operating system (e.g. linux, windows, android)
 
   @IsOptional()
   @IsString()
-  type?: string; // 来源类型（"client" 表示客户端，"browser" 表示浏览器）
+  type?: string; // Source type ("client" for the client app, "browser" for a browser)
 
   @IsOptional()
   @IsString()
-  name?: string; // 设备名称（客户端取自主机名 hostname）
+  name?: string; // Device name (the client uses its hostname)
 }
 
 /**
  * LoginDto
- * 用于用户登录请求，支持多种登录方式
+ * Used for user login requests; supports multiple login methods
  */
 export class LoginDto {
   @IsOptional()
@@ -43,11 +43,11 @@ export class LoginDto {
 
   @IsOptional()
   @IsString()
-  id?: string; // 设备ID
+  id?: string; // Device ID
 
   @IsOptional()
   @IsString()
-  uuid?: string; // 设备UUID
+  uuid?: string; // Device UUID
 
   @IsOptional()
   @IsBoolean()
@@ -77,7 +77,7 @@ export class LoginDto {
 
 /**
  * RegisterDto
- * 用于新用户注册
+ * Used for new user registration
  */
 export class RegisterDto {
   @IsString()
@@ -96,7 +96,7 @@ export class RegisterDto {
 
 /**
  * CurrentUserDto
- * 用于获取当前用户信息
+ * Used to get the current user's info
  */
 export class CurrentUserDto {
   @IsOptional()
@@ -110,7 +110,7 @@ export class CurrentUserDto {
 
 /**
  * LogoutDto
- * 用于用户登出请求
+ * Used for user logout requests
  */
 export class LogoutDto {
   @IsOptional()

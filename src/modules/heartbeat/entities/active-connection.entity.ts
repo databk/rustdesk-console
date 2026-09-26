@@ -9,8 +9,8 @@ import {
 } from 'typeorm';
 
 /**
- * 活跃连接实体
- * 存储客户端心跳上报的当前活跃连接
+ * Active connection entity
+ * Stores the currently active connections reported by client heartbeats
  */
 @Entity('active_connections')
 export class ActiveConnection {
@@ -18,23 +18,23 @@ export class ActiveConnection {
   id: number;
 
   /**
-   * 连接ID
-   * 客户端上报的连接唯一标识
+   * Connection ID
+   * Unique connection identifier reported by the client
    */
   @Column({ type: 'integer' })
   @Index()
   connId: number;
 
   /**
-   * 设备UUID
-   * 关联到 peers 表的 uuid 字段
+   * Device UUID
+   * Linked to the uuid field of the peers table
    */
   @Column({ type: 'varchar', length: 255 })
   @Index()
   deviceUuid: string;
 
   /**
-   * 关联的设备实体
+   * Associated device entity
    */
   @ManyToOne('Peer', undefined, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'deviceUuid' })

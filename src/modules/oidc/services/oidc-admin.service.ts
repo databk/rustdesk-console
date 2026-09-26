@@ -52,7 +52,7 @@ export class OidcAdminService {
       .getOne();
 
     if (!provider) {
-      throw new NotFoundException(`OIDC 提供商 "${guid}" 不存在`);
+      throw new NotFoundException(`OIDC provider "${guid}" does not exist`);
     }
 
     return provider;
@@ -64,7 +64,9 @@ export class OidcAdminService {
     });
 
     if (existing) {
-      throw new BadRequestException(`OIDC 提供商名称 "${dto.name}" 已存在`);
+      throw new BadRequestException(
+        `OIDC provider name "${dto.name}" already exists`,
+      );
     }
 
     const provider = new OidcProvider();
@@ -88,7 +90,7 @@ export class OidcAdminService {
     provider.enabled = dto.enabled !== undefined ? dto.enabled : true;
 
     await this.providerRepository.save(provider);
-    this.logger.log(`OIDC 提供商创建成功: ${dto.name}`);
+    this.logger.log(`OIDC provider created successfully: ${dto.name}`);
     return provider;
   }
 
@@ -101,7 +103,7 @@ export class OidcAdminService {
     });
 
     if (!provider) {
-      throw new NotFoundException(`OIDC 提供商 "${guid}" 不存在`);
+      throw new NotFoundException(`OIDC provider "${guid}" does not exist`);
     }
 
     if (dto.name && dto.name !== provider.name) {
@@ -109,7 +111,9 @@ export class OidcAdminService {
         where: { name: dto.name },
       });
       if (existing) {
-        throw new BadRequestException(`OIDC 提供商名称 "${dto.name}" 已存在`);
+        throw new BadRequestException(
+          `OIDC provider name "${dto.name}" already exists`,
+        );
       }
     }
 
@@ -143,7 +147,7 @@ export class OidcAdminService {
     }
     this.oidcService.clearConfigCache(provider.issuer);
 
-    this.logger.log(`OIDC 提供商更新成功: ${provider.name}`);
+    this.logger.log(`OIDC provider updated successfully: ${provider.name}`);
     return provider;
   }
 
@@ -156,7 +160,7 @@ export class OidcAdminService {
       const existingGuids = new Set(existingProviders.map((p) => p.guid));
       const invalidGuids = guids.filter((g) => !existingGuids.has(g));
       throw new BadRequestException(
-        `以下 OIDC 提供商不存在: ${invalidGuids.join(', ')}`,
+        `The following OIDC providers do not exist: ${invalidGuids.join(', ')}`,
       );
     }
 
@@ -169,7 +173,7 @@ export class OidcAdminService {
         );
       }
     }
-    this.logger.log(`OIDC 提供商排序已更新`);
+    this.logger.log(`OIDC provider order updated`);
   }
 
   async remove(guid: string): Promise<void> {
@@ -178,12 +182,12 @@ export class OidcAdminService {
     });
 
     if (!provider) {
-      throw new NotFoundException(`OIDC 提供商 "${guid}" 不存在`);
+      throw new NotFoundException(`OIDC provider "${guid}" does not exist`);
     }
 
     this.oidcService.clearConfigCache(provider.issuer);
     await this.providerRepository.remove(provider);
-    this.logger.log(`OIDC 提供商删除成功: ${provider.name}`);
+    this.logger.log(`OIDC provider deleted successfully: ${provider.name}`);
   }
 
   async toggle(guid: string, enabled: boolean): Promise<OidcProvider> {
@@ -192,13 +196,13 @@ export class OidcAdminService {
     });
 
     if (!provider) {
-      throw new NotFoundException(`OIDC 提供商 "${guid}" 不存在`);
+      throw new NotFoundException(`OIDC provider "${guid}" does not exist`);
     }
 
     provider.enabled = enabled;
     await this.providerRepository.save(provider);
     this.logger.log(
-      `OIDC 提供商 ${provider.name} 已${enabled ? '启用' : '禁用'}`,
+      `OIDC provider ${provider.name} ${enabled ? 'enabled' : 'disabled'}`,
     );
     return provider;
   }
@@ -215,7 +219,7 @@ export class OidcAdminService {
       .getOne();
 
     if (!provider) {
-      throw new NotFoundException(`OIDC 提供商 "${guid}" 不存在`);
+      throw new NotFoundException(`OIDC provider "${guid}" does not exist`);
     }
 
     try {
@@ -245,17 +249,17 @@ export class OidcAdminService {
 
       return {
         success: true,
-        message: `Discovery 验证成功，已发现 ${Object.keys(endpoints).length} 个端点`,
+        message: `Discovery validation succeeded, ${Object.keys(endpoints).length} endpoints found`,
         endpoints,
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(
-        `OIDC Discovery 测试失败 for ${provider.name}: ${message}`,
+        `OIDC Discovery test failed for ${provider.name}: ${message}`,
       );
       return {
         success: false,
-        message: `Discovery 验证失败: ${message}`,
+        message: `Discovery validation failed: ${message}`,
       };
     }
   }

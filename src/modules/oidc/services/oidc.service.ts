@@ -25,36 +25,36 @@ import { UserGroupService } from '../../user-group/user-group.service';
 import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 /**
- * OIDC配置接口
- * 定义OIDC提供商的配置信息
+ * OIDC configuration interface
+ * Defines the configuration of an OIDC provider
  */
 export interface OidcConfig {
-  /** 提供商名称 */
+  /** Provider name */
   name: string;
-  /** 发行者URL */
+  /** Issuer URL */
   issuer: string;
-  /** 客户端ID */
+  /** Client ID */
   client_id: string;
-  /** 回调URI */
+  /** Callback URI */
   redirect_uri?: string;
-  /** 授权范围 */
+  /** Authorization scope */
   scope?: string;
 }
 
 /**
- * OIDC授权URL响应接口
- * 定义授权请求成功后返回的数据
+ * OIDC authorization URL response interface
+ * Defines the data returned after a successful authorization request
  */
 export interface OidcAuthUrlResponse {
-  /** 授权码 */
+  /** Authorization code */
   code: string;
-  /** 授权URL */
+  /** Authorization URL */
   url: string;
 }
 
 /**
- * OIDC用户信息接口
- * 从OIDC提供商获取的用户信息
+ * OIDC user info interface
+ * User info obtained from the OIDC provider
  */
 interface OidcUserInfo {
   sub: string;
@@ -66,17 +66,17 @@ interface OidcUserInfo {
 }
 
 /**
- * OIDC回调结果接口
- * 认证成功后返回的信息
+ * OIDC callback result interface
+ * Information returned after successful authentication
  */
 export interface OidcCallbackResult {
-  /** 是否为Web前端登录 */
+  /** Whether this is a Web frontend login */
   isWebLogin: boolean;
-  /** 前端重定向URL（仅Web前端登录时有值） */
+  /** Frontend redirect URL (set only for Web frontend login) */
   frontendRedirectUrl?: string;
-  /** 访问令牌 */
+  /** Access token */
   accessToken?: string;
-  /** 用户信息 */
+  /** User info */
   user?: {
     username: string;
     email?: string;
@@ -87,29 +87,29 @@ export interface OidcCallbackResult {
 @Injectable()
 /**
  * OidcService
- * 负责OpenID Connect第三方登录集成的核心服务
+ * Core service for OpenID Connect third-party login integration
  *
- * 功能：
- * - OIDC提供商管理
- * - 授权码流程 + PKCE
- * - 令牌交换与ID Token验证
- * - 用户信息获取
- * - 用户自动创建/关联
- * - 认证状态管理
+ * Features:
+ * - OIDC provider management
+ * - Authorization code flow + PKCE
+ * - Token exchange and ID Token validation
+ * - User info retrieval
+ * - Automatic user creation/linking
+ * - Authentication state management
  *
- * 架构说明：
- * 实现OIDC Authorization Code Flow + PKCE，支持多个OIDC提供商
- * 使用openid-client库进行OIDC协议交互
+ * Architecture notes:
+ * Implements OIDC Authorization Code Flow + PKCE and supports multiple OIDC providers
+ * Uses the openid-client library for OIDC protocol interaction
  */
 export class OidcService {
   private readonly logger = new Logger(OidcService.name);
-  /** 授权码有效期（分钟） */
+  /** Authorization code validity period (minutes) */
   private readonly AUTH_CODE_EXPIRY_MINUTES = 3;
-  /** OIDC配置缓存 */
+  /** OIDC configuration cache */
   private configCache = new Map<string, client.Configuration>();
-  /** 配置缓存有效期（毫秒） */
+  /** Configuration cache validity period (milliseconds) */
   private readonly CONFIG_CACHE_TTL = 24 * 60 * 60 * 1000;
-  /** 配置缓存时间戳 */
+  /** Configuration cache timestamp */
   private configCacheTimestamp = new Map<string, number>();
 
   constructor(
@@ -126,11 +126,11 @@ export class OidcService {
   ) {}
 
   /**
-   * 验证前端回调URL是否在允许的站点地址范围内
-   * 通过 general settings 的 site.frontendUrl 配置允许的前端地址
+   * Verifies that the frontend callback URL is within the allowed site addresses
+   * Allowed frontend addresses are configured via site.frontendUrl in general settings
    *
-   * @param callbackUrl 前端回调URL
-   * @returns 是否允许
+   * @param callbackUrl frontend callback URL
+   * @returns whether it is allowed
    */
   private async isCallbackUrlAllowed(callbackUrl: string): Promise<boolean> {
     const { frontendUrl } = await this.generalSettingsService.getSiteSettings();
@@ -155,14 +155,14 @@ export class OidcService {
   }
 
   /**
-   * 获取所有启用的OIDC提供商
-   * 返回可供用户选择的OIDC登录选项列表
+   * Get all enabled OIDC providers
+   * Returns the list of OIDC login options users can choose from
    *
-   * 当所有提供商均为内置（无自定义 icon）时，使用简单的 oidc/{name} 格式
-   * 当存在自定义提供商（有 icon）时，使用 common-oidc/{json} 格式包含图标信息
-   * 客户端优先查找 common-oidc/ 前缀，未找到时回退到 oidc/ 前缀
+   * When all providers are built-in (no custom icon), the simple oidc/{name} format is used
+   * When custom providers (with an icon) exist, the common-oidc/{json} format is used to include icon information
+   * The client looks for the common-oidc/ prefix first and falls back to the oidc/ prefix if not found
    *
-   * @returns OIDC配置选项列表
+   * @returns list of OIDC configuration options
    */
   async getLoginOptions(): Promise<string[]> {
     const providers = await this.providerRepository.find({
@@ -185,12 +185,12 @@ export class OidcService {
   }
 
   /**
-   * 请求OIDC授权
-   * 发起OIDC认证流程，生成授权码和授权URL（含PKCE）
+   * Request OIDC authorization
+   * Starts the OIDC authentication flow and generates the authorization code and authorization URL (with PKCE)
    *
-   * @param authRequest OIDC授权请求，包含提供商标识和设备信息
-   * @returns 授权码和授权URL
-   * @throws BadRequestException 当提供商不存在或未启用时抛出
+   * @param authRequest OIDC authorization request, containing the provider identifier and device info
+   * @returns authorization code and authorization URL
+   * @throws BadRequestException thrown when the provider does not exist or is not enabled
    */
   async requestAuth(
     authRequest: OidcAuthRequestDto,
@@ -199,51 +199,51 @@ export class OidcService {
 
     const providerName = op.replace(/^(oidc|oauth2)\//, '');
 
-    // 使用getProviderWithSecret获取包含clientSecret的完整配置
-    // 确保缓存的OIDC配置包含clientSecret，避免handleCallback获取到不完整的缓存
+    // Use getProviderWithSecret to get the full configuration including clientSecret
+    // Ensure the cached OIDC configuration includes clientSecret so handleCallback does not get an incomplete cache
     const provider = await this.getProviderWithSecret(providerName);
 
     if (!provider) {
       throw new BadRequestException(
-        `OIDC 提供商 "${providerName}" 不存在或未启用`,
+        `OIDC provider "${providerName}" does not exist or is not enabled`,
       );
     }
 
-    // 验证并保存前端回调URL
+    // Validate and save the frontend callback URL
     let frontendRedirectUrl: string | null = null;
     if (callbackUrl) {
       if (!(await this.isCallbackUrlAllowed(callbackUrl))) {
         throw new BadRequestException(
-          'callbackUrl 不在允许的站点地址范围内，请检查 general settings 中的 site.frontendUrl 配置',
+          'callbackUrl is not within the allowed site addresses; please check the site.frontendUrl setting in general settings',
         );
       }
       frontendRedirectUrl = callbackUrl;
     }
 
-    // 生成授权码（用于客户端轮询）
+    // Generate the authorization code (used for client polling)
     const code = uuidv4();
 
-    // 生成PKCE code verifier和challenge
+    // Generate the PKCE code verifier and challenge
     const codeVerifier = client.randomPKCECodeVerifier();
     const codeChallenge = await client.calculatePKCECodeChallenge(codeVerifier);
 
-    // 生成OIDC state和nonce参数
+    // Generate the OIDC state and nonce parameters
     const state = client.randomState();
     const isOidc = provider.type === OidcProviderType.OIDC;
     const nonce = isOidc ? client.randomNonce() : undefined;
 
-    // 计算过期时间
+    // Compute the expiration time
     const expiresAt = new Date();
     expiresAt.setMinutes(
       expiresAt.getMinutes() + this.AUTH_CODE_EXPIRY_MINUTES,
     );
 
-    // 构建回调URL
+    // Build the callback URL
     const { effectiveBackendUrl } =
       await this.generalSettingsService.getSiteSettings();
     const redirectUri = `${effectiveBackendUrl}/api/oidc/callback`;
 
-    // 保存授权状态
+    // Save the authorization state
     const authState = this.authStateRepository.create({
       guid: uuidv4(),
       code,
@@ -263,7 +263,7 @@ export class OidcService {
 
     await this.authStateRepository.save(authState);
 
-    // 获取OIDC配置并构建授权URL
+    // Get the OIDC configuration and build the authorization URL
     const oidcConfig = await this.getOidcConfig(provider);
     const defaultScope =
       provider.type === OidcProviderType.OAUTH2
@@ -287,61 +287,69 @@ export class OidcService {
   }
 
   /**
-   * 处理OIDC回调
-   * OIDC提供商授权后回调，交换授权码获取令牌和用户信息
+   * Handle the OIDC callback
+   * Callback after OIDC provider authorization; exchanges the authorization code for tokens and user info
    *
-   * @param callbackUrl 回调完整URL（包含code和state参数）
-   * @returns 认证结果，包含是否为Web登录、重定向URL、访问令牌和用户信息
-   * @throws BadRequestException 当state无效或授权已过期时抛出
-   * @throws UnauthorizedException 当令牌交换失败时抛出
+   * @param callbackUrl full callback URL (including the code and state parameters)
+   * @returns authentication result, including whether it is a Web login, the redirect URL, the access token and user info
+   * @throws BadRequestException thrown when the state is invalid or the authorization has expired
+   * @throws UnauthorizedException thrown when the token exchange fails
    */
   async handleCallback(callbackUrl: string): Promise<OidcCallbackResult> {
-    // 从回调URL中提取state参数
+    // Extract the state parameter from the callback URL
     const urlObj = new URL(callbackUrl);
     const state = urlObj.searchParams.get('state');
     const error = urlObj.searchParams.get('error');
 
-    // 处理OIDC提供商返回的错误
+    // Handle errors returned by the OIDC provider
     if (error) {
       const errorDescription =
         urlObj.searchParams.get('error_description') || error;
       this.logger.error(
         `OIDC provider returned error: ${error} - ${errorDescription}`,
       );
-      throw new BadRequestException('OIDC 认证失败，请重试');
+      throw new BadRequestException(
+        'OIDC authentication failed, please try again',
+      );
     }
 
     if (!state) {
-      throw new BadRequestException('OIDC 回调缺少 state 参数');
+      throw new BadRequestException(
+        'OIDC callback is missing the state parameter',
+      );
     }
 
-    // 查找授权状态
+    // Look up the authorization state
     const authState = await this.authStateRepository.findOne({
       where: { state },
     });
 
     if (!authState) {
-      throw new BadRequestException('无效的 OIDC state 参数');
+      throw new BadRequestException('Invalid OIDC state parameter');
     }
 
-    // 检查授权状态是否已过期
+    // Check whether the authorization state has expired
     if (authState.expiresAt < new Date()) {
       authState.status = OidcAuthStatus.EXPIRED;
       await this.authStateRepository.save(authState);
-      throw new BadRequestException('OIDC 授权已过期，请重新发起授权');
+      throw new BadRequestException(
+        'OIDC authorization has expired, please start the authorization again',
+      );
     }
 
-    // 检查授权状态是否已被使用
+    // Check whether the authorization state has already been used
     if (authState.status !== OidcAuthStatus.PENDING) {
-      throw new BadRequestException('OIDC 授权状态异常');
+      throw new BadRequestException('OIDC authorization state is invalid');
     }
 
-    // 获取OIDC提供商配置（包含clientSecret）
+    // Get the OIDC provider configuration (including clientSecret)
     const providerName = authState.op.replace(/^(oidc|oauth2)\//, '');
     const provider = await this.getProviderWithSecret(providerName);
 
     if (!provider) {
-      throw new BadRequestException(`OIDC 提供商 "${providerName}" 不存在`);
+      throw new BadRequestException(
+        `OIDC provider "${providerName}" does not exist`,
+      );
     }
 
     try {
@@ -364,10 +372,10 @@ export class OidcService {
         );
       }
 
-      // 查找或创建本地用户
+      // Find or create the local user
       const user = await this.findOrCreateUser(userInfo, providerName);
 
-      // 创建或更新设备记录（参考 auth.service.ts 实现）
+      // Create or update the device record (see the implementation in auth.service.ts)
       if (authState.deviceId || authState.deviceUuid) {
         await this.deviceService.createOrUpdateDevice(
           user.guid,
@@ -379,14 +387,14 @@ export class OidcService {
         );
       }
 
-      // 生成JWT Token
+      // Generate the JWT token
       const accessToken = await this.generateTokenForUser(
         user,
         authState.deviceId,
         authState.deviceUuid,
       );
 
-      // 更新授权状态为已授权
+      // Update the authorization state to authorized
       authState.status = OidcAuthStatus.AUTHORIZED;
       authState.userGuid = user.guid;
       authState.accessToken = accessToken;
@@ -396,11 +404,11 @@ export class OidcService {
         `OIDC auth successful: user=${user.username}, provider=${providerName}`,
       );
 
-      // 判断是否为Web前端登录
+      // Determine whether this is a Web frontend login
       const isWebLogin = !!authState.frontendRedirectUrl;
 
       if (isWebLogin) {
-        // Web前端登录：返回完整信息供controller设置Cookie
+        // Web frontend login: return the full information for the controller to set the cookie
         return {
           isWebLogin: true,
           frontendRedirectUrl: authState.frontendRedirectUrl!,
@@ -412,7 +420,7 @@ export class OidcService {
           },
         };
       } else {
-        // 客户端登录：返回简单信息
+        // Client login: return simple information
         return {
           isWebLogin: false,
         };
@@ -424,8 +432,10 @@ export class OidcService {
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
       this.logger.error(`OIDC callback error: ${message}`, stack);
-      // 不向客户端暴露内部错误详情
-      throw new UnauthorizedException('OIDC 认证失败，请重试');
+      // Do not expose internal error details to the client
+      throw new UnauthorizedException(
+        'OIDC authentication failed, please try again',
+      );
     }
   }
 
@@ -496,7 +506,7 @@ export class OidcService {
 
     if (!accessToken) {
       throw new UnauthorizedException(
-        'OAuth2 令牌交换失败：未获取到 access_token',
+        'OAuth2 token exchange failed: no access_token received',
       );
     }
 
@@ -504,7 +514,9 @@ export class OidcService {
     const provider = await this.getProviderWithSecret(providerName);
 
     if (!provider) {
-      throw new BadRequestException(`OAuth2 提供商 "${providerName}" 不存在`);
+      throw new BadRequestException(
+        `OAuth2 provider "${providerName}" does not exist`,
+      );
     }
 
     return this.fetchOAuth2UserInfo(accessToken, provider);
@@ -518,7 +530,7 @@ export class OidcService {
 
     if (!userinfoEndpoint) {
       throw new BadRequestException(
-        'OAuth2 提供商未配置用户信息端点，无法获取用户信息',
+        'The OAuth2 provider has no user info endpoint configured, unable to get user info',
       );
     }
 
@@ -560,26 +572,26 @@ export class OidcService {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`OAuth2 userinfo fetch error: ${message}`);
-      throw new UnauthorizedException('获取用户信息失败');
+      throw new UnauthorizedException('Failed to get user info');
     }
   }
 
   /**
-   * 查询OIDC授权状态
-   * 查询OIDC授权是否成功，如果成功则返回访问令牌
+   * Query OIDC authorization state
+   * Checks whether the OIDC authorization succeeded and returns the access token if so
    *
-   * @param code 授权码
-   * @param deviceId 设备ID
-   * @param deviceUuid 设备UUID
-   * @returns 认证响应，包含访问令牌和用户信息
-   * @throws UnauthorizedException 当授权失败、过期或取消时抛出
+   * @param code Authorization code
+   * @param deviceId device ID
+   * @param deviceUuid Device UUID
+   * @returns authentication response, including the access token and user info
+   * @throws UnauthorizedException thrown when the authorization fails, expires or is cancelled
    */
   async queryAuth(
     code: string,
     deviceId: string,
     deviceUuid: string,
   ): Promise<LoginResponse> {
-    // 原子操作：将AUTHORIZED状态标记为CONSUMED，防止并发重复获取Token
+    // Atomic operation: mark the AUTHORIZED state as CONSUMED to prevent concurrent repeated token retrieval
     const updateResult = await this.authStateRepository
       .createQueryBuilder()
       .update(OidcAuthState)
@@ -597,7 +609,7 @@ export class OidcService {
       .execute();
 
     if (!updateResult.affected) {
-      // 没有匹配到AUTHORIZED状态，检查其他状态以返回适当的错误信息
+      // No AUTHORIZED state matched; check other states to return an appropriate error message
       const authState = await this.authStateRepository.findOne({
         where: { code, deviceId, deviceUuid },
       });
@@ -623,7 +635,7 @@ export class OidcService {
       throw new UnauthorizedException({ error: 'No authed oidc is found' });
     }
 
-    // 查询已标记为CONSUMED的记录
+    // Query the record already marked as CONSUMED
     const authState = await this.authStateRepository.findOne({
       where: { code, deviceId, deviceUuid, status: OidcAuthStatus.CONSUMED },
     });
@@ -640,7 +652,7 @@ export class OidcService {
       throw new UnauthorizedException({ error: 'User not found' });
     }
 
-    // 清理授权状态
+    // Clean up the authorization state
     await this.authStateRepository.remove(authState);
 
     return {
@@ -660,8 +672,8 @@ export class OidcService {
   }
 
   /**
-   * 清除指定issuer的OIDC配置缓存
-   * 当管理员修改提供商配置时调用
+   * Clear the OIDC configuration cache for the specified issuer
+   * Called when an administrator modifies the provider configuration
    */
   clearConfigCache(issuer?: string): void {
     if (issuer) {
@@ -674,18 +686,18 @@ export class OidcService {
   }
 
   /**
-   * 获取OIDC客户端配置
-   * 优先使用OIDC Discovery获取配置，失败时使用数据库中存储的端点
+   * Get the OIDC client configuration
+   * Prefer OIDC Discovery to get the configuration; on failure, use the endpoints stored in the database
    *
-   * @param provider OIDC提供商实体（需包含clientSecret）
-   * @returns openid-client Configuration对象
+   * @param provider OIDC provider entity (must include clientSecret)
+   * @returns openid-client Configuration object
    */
   private async getOidcConfig(
     provider: OidcProvider,
   ): Promise<client.Configuration> {
     const cacheKey = provider.issuer;
 
-    // 检查缓存是否有效
+    // Check whether the cache is valid
     const cachedConfig = this.configCache.get(cacheKey);
     const cachedTimestamp = this.configCacheTimestamp.get(cacheKey);
     if (
@@ -715,7 +727,7 @@ export class OidcService {
         `OIDC discovery failed for ${provider.name}: ${err instanceof Error ? err.message : String(err)}, using manual configuration`,
       );
 
-      // Discovery失败，使用数据库中存储的端点构建手动配置
+      // Discovery failed; build a manual configuration from the endpoints stored in the database
       const metadata: client.ServerMetadata = {
         issuer: provider.issuer,
         authorization_endpoint: provider.authorizationEndpoint,
@@ -737,11 +749,11 @@ export class OidcService {
   }
 
   /**
-   * 获取包含clientSecret的OIDC提供商信息
-   * clientSecret列默认不查询（select: false），需要显式添加
+   * Get OIDC provider info including clientSecret
+   * The clientSecret column is not selected by default (select: false) and must be added explicitly
    *
-   * @param name 提供商名称
-   * @returns 包含clientSecret的提供商实体
+   * @param name Provider name
+   * @returns provider entity including clientSecret
    */
   private async getProviderWithSecret(
     name: string,
@@ -757,24 +769,24 @@ export class OidcService {
   }
 
   /**
-   * 查找或创建本地用户
-   * 根据OIDC用户信息匹配现有用户，不存在则自动创建
+   * Find or create the local user
+   * Matches an existing user based on the OIDC user info, creating one automatically if none exists
    *
-   * 策略：
-   * 1. 仅通过OIDC sub + provider匹配已关联的OIDC用户
-   * 2. 不通过邮箱自动关联已有账户（防止账户接管）
-   * 3. 新用户设置thirdAuthType为'oidc'
-   * 4. 用户名冲突时追加随机后缀，处理并发竞态
+   * Strategy:
+   * 1. Only match already-linked OIDC users by OIDC sub + provider
+   * 2. Do not automatically link existing accounts by email (prevents account takeover)
+   * 3. New users get thirdAuthType set to 'oidc'
+   * 4. On username conflict, append a random suffix to handle concurrency races
    *
-   * @param oidcUserInfo OIDC用户信息
-   * @param providerName 提供商名称
-   * @returns 本地用户实体
+   * @param oidcUserInfo OIDC user info
+   * @param providerName Provider name
+   * @returns local user entity
    */
   private async findOrCreateUser(
     oidcUserInfo: OidcUserInfo,
     providerName: string,
   ): Promise<User> {
-    // 通过OIDC sub查找已关联的用户（不通过邮箱关联，防止账户接管）
+    // Look up the linked user by OIDC sub (not linked by email, to prevent account takeover)
     const oidcSubject = `oidc:${providerName}:${oidcUserInfo.sub}`;
     const existingUser = await this.userRepository.findOne({
       where: { oidcSubject },
@@ -783,21 +795,21 @@ export class OidcService {
       return existingUser;
     }
 
-    // 生成用户名
+    // Generate the username
     const username =
       oidcUserInfo.preferred_username ||
       oidcUserInfo.name ||
       oidcUserInfo.email?.split('@')[0] ||
       `oidc_${oidcUserInfo.sub.substring(0, 8)}`;
 
-    // 确保用户名唯一，最多重试3次以处理并发竞态
+    // Ensure the username is unique, retrying up to 3 times to handle concurrency races
     let finalUsername = username;
     let suffix = 1;
     const maxRetries = 3;
     const userGroupGuid = await this.userGroupService.resolveUserGroupGuid();
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      // 检查用户名是否已存在
+      // Check whether the username already exists
       while (
         await this.userRepository.findOne({
           where: { username: finalUsername },
@@ -808,19 +820,19 @@ export class OidcService {
       }
 
       try {
-        // 创建新用户
+        // Create a new user
         const userGuid = uuidv4();
         const user = new User();
         user.guid = userGuid;
         user.username = finalUsername;
-        // 仅当邮箱已验证时才存储，避免未验证邮箱被用于身份关联
+        // Store the email only if it is verified, so unverified emails are not used for identity linking
         user.email = (
           oidcUserInfo.email_verified ? oidcUserInfo.email : null
         ) as string;
         user.password = null as unknown as string;
         user.status = UserStatus.ACTIVE;
         user.isAdmin = false;
-        user.note = `OIDC用户 (${providerName})`;
+        user.note = `OIDC user (${providerName})`;
         user.thirdAuthType = 'oidc';
         user.oidcSubject = oidcSubject;
         user.userGroupGuid = userGroupGuid;
@@ -831,7 +843,7 @@ export class OidcService {
         );
         return user;
       } catch (err: unknown) {
-        // 处理并发场景下的唯一约束冲突
+        // Handle unique constraint conflicts under concurrency
         if (
           err instanceof QueryFailedError &&
           String(err.message).includes('UNIQUE')
@@ -853,13 +865,13 @@ export class OidcService {
   }
 
   /**
-   * 为用户生成JWT token
-   * 委托给AuthTokenService处理，确保与密码登录的token生成逻辑一致
+   * Generate a JWT token for the user
+   * Delegates to AuthTokenService to ensure token generation is consistent with password login
    *
-   * @param user 用户对象
-   * @param deviceId 设备ID（可选）
-   * @param deviceUuid 设备UUID（可选）
-   * @returns 生成的JWT Token字符串
+   * @param user user object
+   * @param deviceId device ID (optional)
+   * @param deviceUuid Device UUID (optional)
+   * @returns generated JWT token string
    */
   private async generateTokenForUser(
     user: User,

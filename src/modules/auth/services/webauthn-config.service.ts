@@ -9,11 +9,11 @@ export interface WebAuthnConfig {
 }
 
 /**
- * WebAuthn 配置服务
- * 从 general settings 读取站点地址与 WebAuthn 开关，推导 RP 配置
+ * WebAuthn configuration service
+ * Reads the site URL and WebAuthn toggle from general settings and derives the RP configuration
  *
- * - rpId / rpOrigins 从 site.frontendUrl 自动推导
- * - enabled 默认 true，但 site.frontendUrl 未配置时自动降级为 false 并告警
+ * - rpId / rpOrigins derived automatically from site.frontendUrl
+ * - enabled defaults to true, but falls back to false with a warning when site.frontendUrl is not configured
  */
 @Injectable()
 export class WebAuthnConfigService {
@@ -27,7 +27,7 @@ export class WebAuthnConfigService {
   ) {}
 
   /**
-   * 获取 WebAuthn RP 配置
+   * Get the WebAuthn RP configuration
    */
   async getConfig(): Promise<WebAuthnConfig> {
     if (
@@ -63,7 +63,7 @@ export class WebAuthnConfigService {
   }
 
   /**
-   * 检查 WebAuthn 是否已启用
+   * Check whether WebAuthn is enabled
    */
   async isEnabled(): Promise<boolean> {
     const config = await this.getConfig();
@@ -71,8 +71,8 @@ export class WebAuthnConfigService {
   }
 
   /**
-   * 使配置缓存失效
-   * 管理员更新配置后调用
+   * Invalidate the configuration cache
+   * Called after an administrator updates the configuration
    */
   invalidateCache(): void {
     this.cachedConfig = null;

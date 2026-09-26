@@ -1,6 +1,6 @@
 /**
- * 共享实体模块
- * 导出所有被多个模块使用的实体
+ * Shared entities module
+ * Exports all entities used by multiple modules
  */
 export { Peer, PeerStatus } from './peer.entity';
 export { Sysinfo } from './sysinfo.entity';
