@@ -20,6 +20,7 @@ const rootDir = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
 const isMacos = process.platform === 'darwin';
 const exeName = isWindows ? 'rustdesk-console.exe' : 'rustdesk-console';
+const isMusl = familySync() === 'musl';
 
 function run(cmd, opts = {}) {
   console.log(`> ${cmd}`);
@@ -67,6 +68,14 @@ await build({
       '    throw e;',
       '  }',
       '};',
+      ...(isMusl
+        ? [
+            '// musl dlopen patch: use RTLD_GLOBAL so native addons can resolve',
+            '// Node-API symbols exported by the host (PIE) executable.',
+            'var __origDlopen = process.dlopen.bind(process);',
+            'process.dlopen = function(mod, fn, fl) { return __origDlopen(mod, fn, (fl || 1) | 256); };',
+          ]
+        : []),
     ].join('\n'),
   },
   define: {
@@ -151,10 +160,10 @@ const pkgJson = JSON.parse(
 // binary directly references Node-API C symbols (e.g. napi_set_named_property)
 // that must be resolved from the host Node.js executable at dlopen time.
 // Some musl dynamic linkers (notably OpenWrt's) cannot resolve these symbols
-// from a PIE executable, causing ERR_DLOPEN_FAILED. Fall back to the wasm
-// build of sharp on musl to avoid native module loading issues entirely.
-
-const isMusl = familySync() === 'musl';
+// from a PIE executable, causing ERR_DLOPEN_FAILED. The dlopen patch above
+// uses RTLD_GLOBAL to expose the host's napi symbols to native addons.
+// Additionally, fall back to the wasm build of sharp to avoid native module
+// loading issues for sharp specifically (which has a wasm alternative).
 
 const nativePkg = {
   name: pkgJson.name,
