@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, And, MoreThanOrEqual, LessThan } from 'typeorm';
 import { promises as fs, type StatsFs } from 'fs';
 import * as os from 'os';
 import * as si from 'systeminformation';
@@ -167,7 +167,7 @@ export class DashboardService {
       nextDate.setDate(nextDate.getDate() + 1);
 
       const count = await this.connectionAuditRepository.count({
-        where: { createdAt: Between(date, nextDate) },
+        where: { createdAt: And(MoreThanOrEqual(date), LessThan(nextDate)) },
       });
 
       trend.push({
@@ -187,7 +187,7 @@ export class DashboardService {
       nextDate.setDate(nextDate.getDate() + 1);
 
       const newUsers = await this.userRepository.count({
-        where: { createdAt: Between(date, nextDate) },
+        where: { createdAt: And(MoreThanOrEqual(date), LessThan(nextDate)) },
       });
 
       trend.push({
@@ -207,7 +207,7 @@ export class DashboardService {
       nextDate.setDate(nextDate.getDate() + 1);
 
       const total = await this.alarmAuditRepository.count({
-        where: { createdAt: Between(date, nextDate) },
+        where: { createdAt: And(MoreThanOrEqual(date), LessThan(nextDate)) },
       });
 
       trend.push({
