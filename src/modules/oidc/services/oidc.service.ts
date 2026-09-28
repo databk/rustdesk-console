@@ -632,9 +632,12 @@ export class OidcService {
       throw new UnauthorizedException({ error: 'No authed oidc is found' });
     }
 
-    const user = await this.userRepository.findOne({
-      where: { guid: authState.userGuid },
-    });
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .where('user.guid = :guid', { guid: authState.userGuid })
+      .addSelect('user.password')
+      .addSelect('user.tfaSecret')
+      .getOne();
 
     if (!user) {
       throw new UnauthorizedException({ error: 'User not found' });
@@ -655,6 +658,8 @@ export class OidcService {
         info: user.getUserInfo(),
         is_admin: user.isAdmin,
         third_auth_type: user.thirdAuthType || undefined,
+        tfa_enabled: !!user.tfaSecret,
+        has_password: !!user.password,
       },
     };
   }

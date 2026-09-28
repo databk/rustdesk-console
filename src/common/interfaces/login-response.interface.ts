@@ -39,5 +39,9 @@ export interface LoginResponse {
     is_admin: boolean;
     /** 第三方认证类型 */
     third_auth_type?: string;
+    /** 是否已启用 TOTP 2FA（仅在服务端已加载 TFA 密钥字段时返回） */
+    tfa_enabled?: boolean;
+    /** 是否已设置本地密码（仅在服务端已加载密码字段时返回） */
+    has_password?: boolean;
   };
 }

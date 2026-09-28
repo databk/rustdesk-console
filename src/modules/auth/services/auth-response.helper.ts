@@ -14,8 +14,17 @@ export class AuthResponseHelper {
   /**
    * 构建登录响应中的用户信息载荷
    * 用于 login / TFA / 邮箱验证码 / Passkey 等所有登录流程
+   *
+   * tfaSecret / password 在实体上是 select:false 字段：
+   * 只有查询确实加载了该字段时才返回对应状态，
+   * 避免把“未查询”误报成“未启用”。
    */
   buildUserPayload(user: User): UserPayload {
+    const secretFields = user as unknown as {
+      tfaSecret?: string | null;
+      password?: string | null;
+    };
+
     return {
       guid: user.guid,
       name: user.username,
@@ -27,16 +36,27 @@ export class AuthResponseHelper {
       is_admin: user.isAdmin,
       third_auth_type: user.thirdAuthType || undefined,
       ...(user.avatar ? { avatar: user.avatar } : {}),
+      ...(secretFields.tfaSecret !== undefined
+        ? { tfa_enabled: !!secretFields.tfaSecret }
+        : {}),
+      ...(secretFields.password !== undefined
+        ? { has_password: !!secretFields.password }
+        : {}),
     };
   }
 
   /**
    * 构建 currentUser 接口的响应载荷
    * 在 buildUserPayload 基础上额外包含 verifier 字段
+   *
+   * 调用方需加载 tfaSecret / password 字段，
+   * 保证前端安全设置页能拿到准确的 2FA 状态。
    */
   buildCurrentUserPayload(user: User): Record<string, unknown> {
     return {
       ...this.buildUserPayload(user),
+      tfa_enabled: !!user.tfaSecret,
+      has_password: !!user.password,
       verifier: user.verifier || undefined,
     };
   }
