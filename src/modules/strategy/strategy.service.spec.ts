@@ -252,11 +252,25 @@ describe('Strategy candidate and target contracts', () => {
     ).not.toHaveLength(0);
   });
 
-  it('caps target candidate pages at 200 records', async () => {
+  it('caps strategy list pages at 1000 records', async () => {
+    const valid = plainToInstance(StrategyQueryDto, {
+      current: 1,
+      pageSize: 1000,
+    });
+    expect(await validate(valid)).toHaveLength(0);
+
+    const invalid = plainToInstance(StrategyQueryDto, {
+      current: 1,
+      pageSize: 1001,
+    });
+    expect(await validate(invalid)).not.toHaveLength(0);
+  });
+
+  it('caps target candidate pages at 1000 records', async () => {
     const invalid = plainToInstance(StrategyTargetCandidateQueryDto, {
       target_type: 'device',
       current: 1,
-      pageSize: 201,
+      pageSize: 1001,
     });
 
     expect(await validate(invalid)).not.toHaveLength(0);

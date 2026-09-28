@@ -64,7 +64,7 @@ export class StrategyQueryDto {
 
   @IsNumber()
   @Min(1)
-  @Max(200)
+  @Max(1000)
   @IsInt()
   @Type(() => Number)
   pageSize: number;
@@ -95,7 +95,7 @@ export class StrategyTargetCandidateQueryDto {
 
   @IsNumber()
   @Min(1)
-  @Max(200)
+  @Max(1000)
   @IsInt()
   @Type(() => Number)
   pageSize: number;
@@ -116,7 +116,7 @@ export class AssignmentQueryDto {
 
   @IsNumber()
   @Min(1)
-  @Max(200)
+  @Max(1000)
   @IsInt()
   @Type(() => Number)
   pageSize: number;
