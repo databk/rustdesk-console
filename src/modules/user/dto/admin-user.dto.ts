@@ -2,6 +2,7 @@ import {
   IsString,
   IsNumber,
   Min,
+  Max,
   IsInt,
   IsOptional,
   IsIn,
@@ -11,17 +12,19 @@ import { Type } from 'class-transformer';
 import { UserStatus } from '../entities/user.entity';
 
 export class AdminUserQueryDto {
-  @IsNumber()
-  @Min(1)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  current: number;
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  current?: number = 1;
 
-  @IsNumber()
-  @Min(1)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  pageSize: number;
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 20;
 
   @IsEnum(UserStatus)
   @IsOptional()

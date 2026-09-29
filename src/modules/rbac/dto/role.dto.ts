@@ -17,6 +17,7 @@ export class RoleQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100000)
   current = 1;
 
   @IsOptional()

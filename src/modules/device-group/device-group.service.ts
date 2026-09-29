@@ -66,14 +66,14 @@ export class DeviceGroupService {
    */
   async getAccessibleDeviceGroups(
     userGuid: string,
-    query: { current: number; pageSize: number; name?: string },
+    query: { current?: number; pageSize?: number; name?: string },
     isAdmin: boolean = false,
     rbacScope?: PermissionScope,
   ): Promise<{
     data: { guid: string; name: string; note?: string }[];
     total: number;
   }> {
-    const { current, pageSize, name } = query;
+    const { current = 1, pageSize = 20, name } = query;
     const skip = (current - 1) * pageSize;
 
     // 管理员可以看到所有设备组
@@ -159,15 +159,15 @@ export class DeviceGroupService {
   async getAccessibleUsers(
     userGuid: string,
     query: {
-      current: number;
-      pageSize: number;
+      current?: number;
+      pageSize?: number;
       status?: string;
       name?: string;
       group_name?: string;
     },
     isAdmin: boolean = false,
   ): Promise<{ data: any[]; total: number }> {
-    const { current, pageSize, status, name, group_name } = query;
+    const { current = 1, pageSize = 20, status, name, group_name } = query;
     const skip = (current - 1) * pageSize;
 
     // 管理员可以看到所有用户
@@ -462,8 +462,8 @@ export class DeviceGroupService {
   async getDevices(
     userGuid: string,
     query: {
-      current: number;
-      pageSize: number;
+      current?: number;
+      pageSize?: number;
       id?: string;
       status?: string;
       is_online?: string;
@@ -479,8 +479,8 @@ export class DeviceGroupService {
     rbacScope?: PermissionScope,
   ): Promise<{ data: any[]; total: number }> {
     const {
-      current,
-      pageSize,
+      current = 1,
+      pageSize = 20,
       id,
       status,
       is_online,

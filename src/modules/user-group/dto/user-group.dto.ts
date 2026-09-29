@@ -17,6 +17,7 @@ export class UserGroupQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100000)
   current?: number = 1;
 
   @IsOptional()

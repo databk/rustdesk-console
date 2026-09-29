@@ -123,7 +123,7 @@ export class StrategyService {
   }
 
   async getStrategies(query: StrategyQueryDto) {
-    const { current, pageSize, name } = query;
+    const { current = 1, pageSize = 20, name } = query;
     const skip = (current - 1) * pageSize;
 
     let queryBuilder = this.strategyRepository
@@ -166,7 +166,7 @@ export class StrategyService {
     query: StrategyTargetCandidateQueryDto,
     actorGuid: string,
   ) {
-    const { target_type, current, pageSize } = query;
+    const { target_type, current = 1, pageSize = 20 } = query;
     const skip = (current - 1) * pageSize;
 
     if (target_type === 'device') {
@@ -587,7 +587,7 @@ export class StrategyService {
     query: AssignmentQueryDto,
     actorGuid: string,
   ) {
-    const { target_type, current, pageSize } = query;
+    const { target_type, current = 1, pageSize = 20 } = query;
     const skip = (current - 1) * pageSize;
     const scope = await this.rbacAuthorizationService.requirePermission(
       actorGuid,

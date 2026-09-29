@@ -380,7 +380,7 @@ export class AuditService {
       type,
       startTime,
       endTime,
-      pageSize = 10,
+      pageSize = 20,
       current = 1,
     } = filters;
     const skip = (current - 1) * pageSize;
@@ -568,7 +568,7 @@ export class AuditService {
       type,
       startTime,
       endTime,
-      pageSize = 10,
+      pageSize = 20,
       current = 1,
     } = filters;
     const skip = (current - 1) * pageSize;
@@ -641,7 +641,7 @@ export class AuditService {
       type,
       startTime,
       endTime,
-      pageSize = 10,
+      pageSize = 20,
       current = 1,
     } = filters;
     const skip = (current - 1) * pageSize;

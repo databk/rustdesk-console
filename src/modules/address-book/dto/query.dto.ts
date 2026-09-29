@@ -3,6 +3,7 @@ import {
   IsString,
   IsOptional,
   Min,
+  Max,
   IsNotEmpty,
   IsArray,
   IsEnum,
@@ -23,18 +24,20 @@ export class PaginationDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(100000)
   current?: number = 1;
 
   /**
    * 每页数量
    * 控制每页返回的数据条数
-   * 默认值: 100
+   * 默认值: 20
    */
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  pageSize?: number = 100;
+  @Max(100)
+  pageSize?: number = 20;
 
   /**
    * 名称过滤

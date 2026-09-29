@@ -2,6 +2,7 @@ import {
   IsString,
   IsNumber,
   Min,
+  Max,
   IsInt,
   IsOptional,
   IsIn,
@@ -18,6 +19,7 @@ export class PeerQueryDto {
   @IsNumber()
   @Min(1)
   @IsInt()
+  @Max(100000)
   current?: number = 1;
 
   @IsOptional()
@@ -25,7 +27,8 @@ export class PeerQueryDto {
   @IsNumber()
   @Min(1)
   @IsInt()
-  pageSize?: number = 100;
+  @Max(100)
+  pageSize?: number = 20;
 
   @IsOptional()
   @IsString()

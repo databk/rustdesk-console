@@ -252,11 +252,11 @@ describe('Strategy candidate and target contracts', () => {
     ).not.toHaveLength(0);
   });
 
-  it('caps target candidate pages at 200 records', async () => {
+  it('caps target candidate pages at 100 records', async () => {
     const invalid = plainToInstance(StrategyTargetCandidateQueryDto, {
       target_type: 'device',
       current: 1,
-      pageSize: 201,
+      pageSize: 101,
     });
 
     expect(await validate(invalid)).not.toHaveLength(0);

@@ -303,16 +303,16 @@ describe('Console audit controller contract', () => {
     } as unknown as AuditService);
 
     await expect(
-      controller.queryConsoleAudits(
-        'alice',
-        'role.update',
-        'role',
-        'allowed',
-        10,
-        2,
-        '2026-01-01',
-        '2026-01-02',
-      ),
+      controller.queryConsoleAudits({
+        operator: 'alice',
+        action: 'role.update',
+        target_type: 'role',
+        result: 'allowed',
+        pageSize: 10,
+        current: 2,
+        start_time: '2026-01-01',
+        end_time: '2026-01-02',
+      }),
     ).resolves.toEqual({ data: [], total: 0 });
     expect(queryConsoleAudits).toHaveBeenCalledWith({
       operator: 'alice',

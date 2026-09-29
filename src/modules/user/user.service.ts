@@ -71,15 +71,15 @@ export class UserService {
   async getAccessibleUsers(
     userGuid: string,
     query: {
-      current: number;
-      pageSize: number;
+      current?: number;
+      pageSize?: number;
       status?: string;
       name?: string;
       group_name?: string;
     },
     isAdmin: boolean = false,
   ): Promise<{ data: any[]; total: number }> {
-    const { current, pageSize, status, name, group_name } = query;
+    const { current = 1, pageSize = 20, status, name, group_name } = query;
     const skip = (current - 1) * pageSize;
 
     if (isAdmin) {

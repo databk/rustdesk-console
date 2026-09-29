@@ -30,7 +30,7 @@ export class OidcAdminService {
   ) {}
 
   async findAll(query: OidcProviderQueryDto) {
-    const { current, pageSize } = query;
+    const { current = 1, pageSize = 20 } = query;
     const skip = (current - 1) * pageSize;
 
     const [data, total] = await this.providerRepository

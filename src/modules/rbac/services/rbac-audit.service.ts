@@ -177,9 +177,10 @@ export class RbacAuditService {
 
   private boundCurrent(value: number | undefined): number {
     const DEFAULT_CURRENT = 1;
+    const MAX_CURRENT = 100000;
     if (value === undefined || value === null) return DEFAULT_CURRENT;
     if (!Number.isFinite(value) || value <= 0) return DEFAULT_CURRENT;
-    return Math.floor(value);
+    return Math.min(Math.floor(value), MAX_CURRENT);
   }
 
   private parseDate(

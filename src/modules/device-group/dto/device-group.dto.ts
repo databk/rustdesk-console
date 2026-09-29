@@ -1,4 +1,4 @@
-import { IsNumber, Min, IsInt, IsString, IsOptional } from 'class-validator';
+import { IsNumber, Min, Max, IsInt, IsString, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -6,17 +6,19 @@ import { Type } from 'class-transformer';
  * 用于获取可访问设备组列表
  */
 export class DeviceGroupQueryDto {
-  @IsNumber()
-  @Min(1)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  current: number;
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  current?: number = 1;
 
-  @IsNumber()
-  @Min(1)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  pageSize: number;
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 20;
 
   @IsString()
   @IsOptional()

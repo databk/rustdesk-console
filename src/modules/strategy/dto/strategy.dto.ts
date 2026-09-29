@@ -3,7 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsObject,
-  IsNumber,
+
   Min,
   IsInt,
   IsArray,
@@ -55,19 +55,19 @@ export class AssignStrategyDto {
 }
 
 export class StrategyQueryDto {
-  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   @Min(1)
   @Max(100000)
-  @IsInt()
-  @Type(() => Number)
-  current: number;
+  current?: number = 1;
 
-  @IsNumber()
-  @Min(1)
-  @Max(200)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  pageSize: number;
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 20;
 
   @IsString()
   @IsOptional()
@@ -86,19 +86,19 @@ export class StrategyTargetCandidateQueryDto {
   @IsIn(['device', 'user'])
   target_type: 'device' | 'user';
 
-  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   @Min(1)
   @Max(100000)
-  @IsInt()
-  @Type(() => Number)
-  current: number;
+  current?: number = 1;
 
-  @IsNumber()
-  @Min(1)
-  @Max(200)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  pageSize: number;
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 20;
 }
 
 export class AssignmentQueryDto {
@@ -107,17 +107,17 @@ export class AssignmentQueryDto {
   @IsIn(['device', 'user', 'device_group'])
   target_type: 'device' | 'user' | 'device_group';
 
-  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   @Min(1)
   @Max(100000)
-  @IsInt()
-  @Type(() => Number)
-  current: number;
+  current?: number = 1;
 
-  @IsNumber()
-  @Min(1)
-  @Max(200)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  pageSize: number;
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 20;
 }

@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsInt,
   Min,
+  Max,
   IsUrl,
   IsEnum,
 } from 'class-validator';
@@ -132,15 +133,17 @@ export class ToggleOidcProviderDto {
 }
 
 export class OidcProviderQueryDto {
-  @IsNumber()
-  @Min(1)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  current: number;
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  current?: number = 1;
 
-  @IsNumber()
-  @Min(1)
-  @IsInt()
+  @IsOptional()
   @Type(() => Number)
-  pageSize: number;
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 20;
 }

@@ -59,7 +59,7 @@ export class PeerService {
   ): Promise<{ data: any[]; total: number }> {
     const {
       current = 1,
-      pageSize = 100,
+      pageSize = 20,
       id,
       status,
       is_online,

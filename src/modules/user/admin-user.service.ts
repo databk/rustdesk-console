@@ -28,8 +28,8 @@ export class AdminUserService {
   ): Promise<{ data: any[]; total: number }> {
     await this.authorizationService.getCurrentUser(actorGuid);
     const {
-      current,
-      pageSize,
+      current = 1,
+      pageSize = 20,
       status,
       name,
       email,

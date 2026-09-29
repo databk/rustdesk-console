@@ -8,6 +8,7 @@ import {
   IsNumber,
   MaxLength,
   IsDateString,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -87,7 +88,11 @@ export class UpdateConnectionAuditDto {
   note: string;
 }
 
-export class ActiveConnectionQueryDto {
+/**
+ * 审计分页查询基类
+ * 统一 current / pageSize 的定义、默认值与约束
+ */
+export class AuditPaginationQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -101,13 +106,15 @@ export class ActiveConnectionQueryDto {
   @Min(1)
   @Max(100)
   pageSize?: number = 20;
+}
 
+export class ActiveConnectionQueryDto extends AuditPaginationQueryDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
 }
 
-export class ConnectionAuditQueryDto {
+export class ConnectionAuditQueryDto extends AuditPaginationQueryDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
@@ -126,18 +133,72 @@ export class ConnectionAuditQueryDto {
   @IsOptional()
   @IsDateString()
   endTime?: string;
+}
+
+export class FileAuditQueryDto extends AuditPaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
-  @Max(1000)
-  pageSize?: number = 10;
+  @Min(0)
+  @Max(1)
+  type?: number;
+
+  @IsOptional()
+  @IsString()
+  startTime?: string;
+
+  @IsOptional()
+  @IsString()
+  endTime?: string;
+}
+
+export class AlarmAuditQueryDto extends AuditPaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
-  @Max(100000)
-  current?: number = 1;
+  @Min(0)
+  @Max(10)
+  type?: number;
+
+  @IsOptional()
+  @IsString()
+  startTime?: string;
+
+  @IsOptional()
+  @IsString()
+  endTime?: string;
+}
+
+export class ConsoleAuditQueryDto extends AuditPaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  operator?: string;
+
+  @IsOptional()
+  @IsString()
+  action?: string;
+
+  @IsOptional()
+  @IsString()
+  target_type?: string;
+
+  @IsOptional()
+  @IsIn(['allowed', 'denied'])
+  result?: 'allowed' | 'denied';
+
+  @IsOptional()
+  @IsString()
+  start_time?: string;
+
+  @IsOptional()
+  @IsString()
+  end_time?: string;
 }

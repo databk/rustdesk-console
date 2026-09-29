@@ -15,6 +15,9 @@ import {
   ActiveConnectionQueryDto,
   ConnectionAuditQueryDto,
   UpdateConnectionAuditDto,
+  FileAuditQueryDto,
+  AlarmAuditQueryDto,
+  ConsoleAuditQueryDto,
 } from './dto/connection-audit.dto';
 import { FileAuditDto } from './dto/file-audit.dto';
 import { AlarmAuditDto } from './dto/alarm-audit.dto';
@@ -215,32 +218,13 @@ export class AuditsController {
    * - 需要 audit.view 权限
    * - 只有管理员可以查询审计记录
    *
-   * @param deviceId 被控端设备ID（模糊匹配）
-   * @param type 文件传输类型（0: SEND, 1: RECEIVE）
-   * @param startTime 开始时间（ISO 8601格式）
-   * @param endTime 结束时间（ISO 8601格式）
-   * @param pageSize 每页记录数
-   * @param current 当前页码
+   * @param query 查询参数（含分页与过滤条件）
    * @returns 文件审计列表
    */
   @RequirePermission('audit.view')
   @Get('file')
-  async queryFileAudits(
-    @Query('deviceId') deviceId?: string,
-    @Query('type') type?: number,
-    @Query('startTime') startTime?: string,
-    @Query('endTime') endTime?: string,
-    @Query('pageSize') pageSize?: number,
-    @Query('current') current?: number,
-  ) {
-    return await this.auditService.queryFileAudits({
-      deviceId,
-      type,
-      startTime,
-      endTime,
-      pageSize,
-      current,
-    });
+  async queryFileAudits(@Query() query: FileAuditQueryDto) {
+    return await this.auditService.queryFileAudits(query);
   }
 
   /**
@@ -257,32 +241,13 @@ export class AuditsController {
    * - 需要 audit.view 权限
    * - 只有管理员可以查询审计记录
    *
-   * @param deviceId 被控端设备ID（模糊匹配）
-   * @param type 告警类型
-   * @param startTime 开始时间（ISO 8601格式）
-   * @param endTime 结束时间（ISO 8601格式）
-   * @param pageSize 每页记录数
-   * @param current 当前页码
+   * @param query 查询参数（含分页与过滤条件）
    * @returns 告警审计列表
    */
   @RequirePermission('audit.view')
   @Get('alarm')
-  async queryAlarmAudits(
-    @Query('deviceId') deviceId?: string,
-    @Query('type') type?: number,
-    @Query('startTime') startTime?: string,
-    @Query('endTime') endTime?: string,
-    @Query('pageSize') pageSize?: number,
-    @Query('current') current?: number,
-  ) {
-    return await this.auditService.queryAlarmAudits({
-      deviceId,
-      type,
-      startTime,
-      endTime,
-      pageSize,
-      current,
-    });
+  async queryAlarmAudits(@Query() query: AlarmAuditQueryDto) {
+    return await this.auditService.queryAlarmAudits(query);
   }
 
   /**
@@ -298,34 +263,21 @@ export class AuditsController {
    * - 需要 audit.view 权限
    * - 只有管理员可以查询审计记录
    *
-   * @param operator 操作人（模糊匹配）
-   * @param pageSize 每页记录数
-   * @param current 当前页码
-   * @param start_time 开始时间（UTC时间字符串）
-   * @param end_time 结束时间（UTC时间字符串）
+   * @param query 查询参数（含分页与过滤条件）
    * @returns 控制台审计列表
    */
   @RequirePermission('audit.view')
   @Get('console')
-  queryConsoleAudits(
-    @Query('operator') operator?: string,
-    @Query('action') action?: string,
-    @Query('target_type') targetType?: string,
-    @Query('result') result?: 'allowed' | 'denied',
-    @Query('pageSize') pageSize?: number,
-    @Query('current') current?: number,
-    @Query('start_time') startTime?: string,
-    @Query('end_time') endTime?: string,
-  ) {
+  queryConsoleAudits(@Query() query: ConsoleAuditQueryDto) {
     return this.auditService.queryConsoleAudits({
-      operator,
-      action,
-      targetType,
-      result,
-      pageSize,
-      current,
-      startTime,
-      endTime,
+      operator: query.operator,
+      action: query.action,
+      targetType: query.target_type,
+      result: query.result,
+      pageSize: query.pageSize,
+      current: query.current,
+      startTime: query.start_time,
+      endTime: query.end_time,
     });
   }
 }

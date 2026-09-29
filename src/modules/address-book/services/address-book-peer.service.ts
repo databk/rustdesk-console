@@ -63,7 +63,7 @@ export class AddressBookPeerService {
   ) {
     const {
       current = 1,
-      pageSize = 100,
+      pageSize = 20,
       ab,
       id,
       alias,
