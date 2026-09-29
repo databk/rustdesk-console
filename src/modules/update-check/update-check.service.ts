@@ -51,14 +51,19 @@ const EMPTY_RESPONSE: UpdateCheckResponse = {
 
 /**
  * 更新检查服务
- * 每1小时自动检查更新并缓存结果，前端请求时直接返回缓存
+ * 每1小时自动检查更新并缓存结果，前端版本变化时重新检查
  */
 @Injectable()
 export class UpdateCheckService implements OnModuleInit {
   private readonly logger = new Logger(UpdateCheckService.name);
   private cachedResult: UpdateCheckResponse = { ...EMPTY_RESPONSE };
+  private cachedFrontendVersion?: string;
   private lastKnownFrontendVersion?: string;
-  private isChecking = false;
+  private frontendVersionUpdate = Promise.resolve();
+  private pendingUpdate?: {
+    frontendVersion?: string;
+    promise: Promise<void>;
+  };
 
   constructor(
     @InjectRepository(SystemSetting)
@@ -116,15 +121,37 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   async checkUpdate(frontendVersion?: string): Promise<UpdateCheckResponse> {
-    if (frontendVersion && frontendVersion !== this.lastKnownFrontendVersion) {
-      this.lastKnownFrontendVersion = frontendVersion;
-      await this.setSetting(
-        'update_check',
-        'frontend_version',
-        frontendVersion,
-      );
+    if (frontendVersion) {
+      await this.saveFrontendVersion(frontendVersion);
+      while (frontendVersion !== this.cachedFrontendVersion) {
+        const pending = this.pendingUpdate;
+        if (pending && pending.frontendVersion !== frontendVersion) {
+          // 旧版本的检查完成后，仍需为当前请求的版本重新检查。
+          await pending.promise;
+          continue;
+        }
+        await this.fetchUpdate(frontendVersion);
+        break;
+      }
     }
     return this.cachedResult;
+  }
+
+  private async saveFrontendVersion(frontendVersion: string): Promise<void> {
+    // 串行保存，避免并发写入乱序或重复创建设置。
+    const update = this.frontendVersionUpdate
+      .catch(() => undefined)
+      .then(async () => {
+        if (frontendVersion === this.lastKnownFrontendVersion) return;
+        await this.setSetting(
+          'update_check',
+          'frontend_version',
+          frontendVersion,
+        );
+        this.lastKnownFrontendVersion = frontendVersion;
+      });
+    this.frontendVersionUpdate = update;
+    await update;
   }
 
   private async loadPersistedFrontendVersion(): Promise<void> {
@@ -136,14 +163,20 @@ export class UpdateCheckService implements OnModuleInit {
     }
   }
 
-  private async fetchUpdate(): Promise<void> {
-    if (this.isChecking) return;
-    this.isChecking = true;
+  private fetchUpdate(
+    frontendVersion = this.lastKnownFrontendVersion,
+  ): Promise<void> {
+    if (this.pendingUpdate) return this.pendingUpdate.promise;
+    const promise = this.performUpdateCheck(frontendVersion).finally(() => {
+      this.pendingUpdate = undefined;
+    });
+    this.pendingUpdate = { frontendVersion, promise };
+    return promise;
+  }
 
+  private async performUpdateCheck(frontendVersion?: string): Promise<void> {
     try {
-      const payload = await this.buildRequestPayload(
-        this.lastKnownFrontendVersion,
-      );
+      const payload = await this.buildRequestPayload(frontendVersion);
 
       const response = await fetch(UPDATE_API_URL, {
         method: 'POST',
@@ -161,12 +194,11 @@ export class UpdateCheckService implements OnModuleInit {
 
       const data = (await response.json()) as UpdateCheckResponse;
       this.cachedResult = data;
+      this.cachedFrontendVersion = frontendVersion;
       this.logger.log('Update check completed successfully');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Update check failed: ${message}`);
-    } finally {
-      this.isChecking = false;
     }
   }
 
