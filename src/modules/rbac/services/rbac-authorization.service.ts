@@ -456,6 +456,7 @@ export class RbacAuthorizationService {
       select: ['guid', 'isAdmin'],
     });
     if (!target) throw new NotFoundException('用户不存在');
+    this.assertSystemOwnerIsNotRemoved(target, permissionCode);
     if (await this.isProtectedUser(targetGuid, target.isAdmin, manager)) {
       try {
         await this.requireSuperAdmin(actorGuid, manager);
@@ -492,6 +493,9 @@ export class RbacAuthorizationService {
       where: { guid: In(uniqueGuids) },
       select: ['guid', 'isAdmin'],
     });
+    for (const user of users) {
+      this.assertSystemOwnerIsNotRemoved(user, permissionCode);
+    }
     const protectedGuids = await this.getProtectedUserGuids(
       users.map((user) => user.guid),
       users.filter((user) => user.isAdmin).map((user) => user.guid),
@@ -510,6 +514,18 @@ export class RbacAuthorizationService {
           error,
         );
       }
+    }
+  }
+
+  private assertSystemOwnerIsNotRemoved(
+    target: Pick<User, 'isAdmin'>,
+    permissionCode: PermissionCode,
+  ): void {
+    if (
+      target.isAdmin &&
+      (permissionCode === 'users.status' || permissionCode === 'users.delete')
+    ) {
+      throw new ForbiddenException('系统所有者账号不能被禁用或删除');
     }
   }
 
