@@ -148,11 +148,11 @@ export class FileAuditQueryDto extends AuditPaginationQueryDto {
   type?: number;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startTime?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endTime?: string;
 }
 
@@ -169,11 +169,11 @@ export class AlarmAuditQueryDto extends AuditPaginationQueryDto {
   type?: number;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startTime?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endTime?: string;
 }
 
