@@ -1,25 +1,11 @@
-import { Min, Max, IsInt, IsString, IsOptional } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsOptional } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 /**
  * 用户查询DTO
  * 用于获取可访问用户列表
  */
-export class UserQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100000)
-  current?: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  pageSize?: number = 20;
-
+export class UserQueryDto extends PaginationQueryDto {
   @IsString()
   @IsOptional()
   accessible?: string; // 空字符串表示获取可访问的用户

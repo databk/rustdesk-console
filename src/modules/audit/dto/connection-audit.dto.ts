@@ -11,6 +11,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 /**
  * ConnectionAuditDto
@@ -88,33 +89,13 @@ export class UpdateConnectionAuditDto {
   note: string;
 }
 
-/**
- * 审计分页查询基类
- * 统一 current / pageSize 的定义、默认值与约束
- */
-export class AuditPaginationQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100000)
-  current?: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  pageSize?: number = 20;
-}
-
-export class ActiveConnectionQueryDto extends AuditPaginationQueryDto {
+export class ActiveConnectionQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
 }
 
-export class ConnectionAuditQueryDto extends AuditPaginationQueryDto {
+export class ConnectionAuditQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
@@ -135,7 +116,7 @@ export class ConnectionAuditQueryDto extends AuditPaginationQueryDto {
   endTime?: string;
 }
 
-export class FileAuditQueryDto extends AuditPaginationQueryDto {
+export class FileAuditQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
@@ -156,7 +137,7 @@ export class FileAuditQueryDto extends AuditPaginationQueryDto {
   endTime?: string;
 }
 
-export class AlarmAuditQueryDto extends AuditPaginationQueryDto {
+export class AlarmAuditQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
@@ -177,7 +158,7 @@ export class AlarmAuditQueryDto extends AuditPaginationQueryDto {
   endTime?: string;
 }
 
-export class ConsoleAuditQueryDto extends AuditPaginationQueryDto {
+export class ConsoleAuditQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   operator?: string;

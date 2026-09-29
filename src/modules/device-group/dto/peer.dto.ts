@@ -1,35 +1,11 @@
-import {
-  IsString,
-  IsNumber,
-  Min,
-  Max,
-  IsInt,
-  IsOptional,
-  IsIn,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsOptional, IsIn } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 /**
  * 设备查询DTO
  * 用于获取可访问设备列表，支持分页和多条件筛选
  */
-export class PeerQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  @IsInt()
-  @Max(100000)
-  current?: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  @IsInt()
-  @Max(100)
-  pageSize?: number = 20;
-
+export class PeerQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   accessible?: string; // 兼容性字段，空字符串表示获取所有可访问设备

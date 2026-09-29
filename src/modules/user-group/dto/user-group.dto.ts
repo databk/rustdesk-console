@@ -1,32 +1,15 @@
-import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
-  IsInt,
   IsOptional,
   IsString,
   IsUUID,
-  Max,
   MaxLength,
-  Min,
 } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
-export class UserGroupQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100000)
-  current?: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  pageSize?: number = 20;
-
+export class UserGroupQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)

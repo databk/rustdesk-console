@@ -1,31 +1,9 @@
-import {
-  IsString,
-  IsNumber,
-  Min,
-  Max,
-  IsInt,
-  IsOptional,
-  IsIn,
-  IsEnum,
-} from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsIn, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { UserStatus } from '../entities/user.entity';
 
-export class AdminUserQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100000)
-  current?: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  pageSize?: number = 20;
-
+export class AdminUserQueryDto extends PaginationQueryDto {
   @IsEnum(UserStatus)
   @IsOptional()
   @Type(() => Number)

@@ -1,44 +1,18 @@
 import {
-  IsNumber,
   IsString,
   IsOptional,
-  Min,
-  Max,
   IsNotEmpty,
   IsArray,
   IsEnum,
 } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Transform } from 'class-transformer';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 /**
  * 分页查询数据传输对象
  * 用于支持列表数据的分页查询
  */
-export class PaginationDto {
-  /**
-   * 当前页码
-   * 从1开始计数
-   * 默认值: 1
-   */
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  @Max(100000)
-  current?: number = 1;
-
-  /**
-   * 每页数量
-   * 控制每页返回的数据条数
-   * 默认值: 20
-   */
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  @Max(100)
-  pageSize?: number = 20;
-
+export class PaginationDto extends PaginationQueryDto {
   /**
    * 名称过滤
    * 用于按名称筛选地址簿

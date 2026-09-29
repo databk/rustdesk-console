@@ -4,15 +4,12 @@ import {
   IsBoolean,
   IsEnum,
   IsArray,
-  Min,
-  Max,
-  IsInt,
   MinLength,
   IsUUID,
   IsEmail,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import { UserStatus } from '../entities/user.entity';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 export class CreateUserDto {
   @IsString()
@@ -139,21 +136,7 @@ export class UpdateCurrentUserDto {
   note?: string;
 }
 
-export class UserQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100000)
-  current?: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  pageSize?: number = 20;
-
+export class UserQueryDto extends PaginationQueryDto {
   @IsString()
   @IsOptional()
   accessible?: string;
