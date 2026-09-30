@@ -32,8 +32,9 @@ async function main() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      username: process.env.ADMIN_USERNAME,
-      password: process.env.ADMIN_PASSWORD,
+      // 空数据库由 DatabaseInitService 创建此初始账户；测试容器禁用外部网络。
+      username: 'databk',
+      password: 'databk',
       type: 'account',
       deviceInfo: { os: 'linux', type: 'browser', name: '验收容器' },
     }),

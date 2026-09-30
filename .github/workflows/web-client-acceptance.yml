@@ -49,11 +49,9 @@ jobs:
         shell: bash
         run: |
           export JWT_SECRET=$(openssl rand -hex 32)
-          export ADMIN_PASSWORD=$(openssl rand -hex 24)
           echo "::add-mask::$JWT_SECRET"
-          echo "::add-mask::$ADMIN_PASSWORD"
-          docker run -d --name web-client-backend-smoke --cpus 2 --memory 1g \
-            -e JWT_SECRET -e ADMIN_PASSWORD -e ADMIN_USERNAME=webclient-smoke \
+          docker run -d --name web-client-backend-smoke --network none --cpus 2 --memory 1g \
+            -e JWT_SECRET \
             -e WEB_CLIENT_ENABLED=true \
             -e WEB_CLIENT_ID_SERVER_URL=wss://example.invalid/id \
             -e WEB_CLIENT_RELAY_SERVER_URL=wss://example.invalid/relay \
@@ -82,6 +80,9 @@ jobs:
             smoke-result.json
             image-digests.json
           retention-days: 14
+      - name: 失败时记录临时容器状态
+        if: failure()
+        run: docker logs --tail 80 web-client-backend-smoke || true
       - name: 清理本次临时容器
         if: always()
         run: docker rm -f web-client-backend-smoke || true

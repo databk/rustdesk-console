@@ -4,7 +4,7 @@ services:
     image: ${WEBCLIENT_BACKEND_IMAGE:?请填写已发布的后端验收镜像}
     platform: linux/amd64
     environment:
-      WEB_CLIENT_ENABLED: 'true'
+      WEB_CLIENT_ENABLED: ${WEB_CLIENT_ENABLED:-true}
       WEB_CLIENT_ID_SERVER_URL: ${WEB_CLIENT_ID_SERVER_URL:?请填写浏览器可访问的 ID WSS 地址}
       WEB_CLIENT_RELAY_SERVER_URL: ${WEB_CLIENT_RELAY_SERVER_URL:?请填写浏览器可访问的中继 WSS 地址}
       WEB_CLIENT_SERVER_PUBLIC_KEY: ${WEB_CLIENT_SERVER_PUBLIC_KEY:?请填写 hbbs 公钥}
