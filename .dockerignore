@@ -19,3 +19,21 @@ coverage
 !README.md
 Dockerfile
 .dockerignore
+
+# 本机验收、开发工具和数据备份不进入构建上下文。
+.tmp
+.trellis
+.agents
+.codex
+.claude
+.playwright-mcp
+data
+data.*
+rd-server-scan
+rd-upstream-temp
+*.sqlite
+*.sqlite-*
+*.db-*
+*.pem
+id_ed25519
+deploy

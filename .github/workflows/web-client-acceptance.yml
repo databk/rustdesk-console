@@ -1,0 +1,87 @@
+name: Web Client 验收镜像
+
+on:
+  push:
+    branches: [web-client-v2-acceptance]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: web-client-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository_owner == 'yardbirds0' && github.ref == 'refs/heads/web-client-v2-acceptance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - name: 生成可追溯的验收标签
+        id: meta
+        shell: bash
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=web-client-v2-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: 从本次源码构建 Linux amd64 检查阶段
+        run: docker build --platform linux/amd64 --target builder -t web-client-backend-check:local .
+      - name: 串行执行后端回归
+        run: docker run --rm --network none --cpus 2 --memory 3g web-client-backend-check:local npm test -- --runInBand
+      - name: 构建生产镜像
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          APP_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          docker build --platform linux/amd64 --build-arg "APP_VERSION=$APP_VERSION" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.version=$TAG" \
+            -t "$IMAGE:$TAG" -t "$IMAGE:web-client-v2-acceptance" .
+      - name: 使用临时数据库验收真实容器
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        shell: bash
+        run: |
+          export JWT_SECRET=$(openssl rand -hex 32)
+          export ADMIN_PASSWORD=$(openssl rand -hex 24)
+          echo "::add-mask::$JWT_SECRET"
+          echo "::add-mask::$ADMIN_PASSWORD"
+          docker run -d --name web-client-backend-smoke --cpus 2 --memory 1g \
+            -e JWT_SECRET -e ADMIN_PASSWORD -e ADMIN_USERNAME=webclient-smoke \
+            -e WEB_CLIENT_ENABLED=true \
+            -e WEB_CLIENT_ID_SERVER_URL=wss://example.invalid/id \
+            -e WEB_CLIENT_RELAY_SERVER_URL=wss://example.invalid/relay \
+            -e WEB_CLIENT_SERVER_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+            "$IMAGE:$TAG"
+          docker exec -i web-client-backend-smoke node < deploy/web-client/smoke.cjs | tee smoke-result.json
+      - name: 登录并推送验收镜像
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        shell: bash
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:web-client-v2-acceptance"
+          docker image inspect "$IMAGE:$TAG" --format '{{json .RepoDigests}}' > image-digests.json
+          printf '### 后端验收镜像\n\n`%s:%s`\n\n源码：`%s`\n' "$IMAGE" "$TAG" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          cat image-digests.json >> "$GITHUB_STEP_SUMMARY"
+      - name: 保存验收证据
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-image-evidence
+          path: |
+            smoke-result.json
+            image-digests.json
+          retention-days: 14
+      - name: 清理本次临时容器
+        if: always()
+        run: docker rm -f web-client-backend-smoke || true
