@@ -51,7 +51,7 @@ const EMPTY_RESPONSE: UpdateCheckResponse = {
 
 /**
  * Update check service
- * Automatically checks for updates every hour and caches the results; rechecks when the frontend version changes
+ * Automatically checks for updates every hour and caches the result; rechecks when the frontend version changes
  */
 @Injectable()
 export class UpdateCheckService implements OnModuleInit {
