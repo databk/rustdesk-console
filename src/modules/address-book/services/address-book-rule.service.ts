@@ -518,7 +518,7 @@ export class AddressBookRuleService {
     sharedOnly: boolean,
     guid?: string,
   ) {
-    const { current = 1, pageSize = 20, name } = query;
+    const { current = 1, pageSize = 20, name, note } = query;
     const skip = (current - 1) * pageSize;
 
     const user = await this.userRepository.findOne({
@@ -571,6 +571,13 @@ export class AddressBookRuleService {
     if (trimmedName) {
       queryBuilder.andWhere('addressBook.name LIKE :name', {
         name: `%${trimmedName}%`,
+      });
+    }
+
+    const trimmedNote = note?.trim();
+    if (trimmedNote) {
+      queryBuilder.andWhere('addressBook.note LIKE :note', {
+        note: `%${trimmedNote}%`,
       });
     }
 
