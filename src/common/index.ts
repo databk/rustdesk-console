@@ -6,8 +6,6 @@
 // Entities
 export * from './entities';
 
-// Decorators
-export * from './decorators';
 
 // Interfaces
 export * from './interfaces';
