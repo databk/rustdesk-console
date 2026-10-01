@@ -20,6 +20,10 @@ export class PaginationDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
 
 /**
