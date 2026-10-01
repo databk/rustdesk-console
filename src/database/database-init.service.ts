@@ -85,11 +85,17 @@ export class DatabaseInitService implements OnModuleInit {
 
     const adminUsername = 'databk';
     const adminEmail = 'databk@github.com';
-    const adminPassword = 'databk';
+    const configuredPassword = process.env.ADMIN_PASSWORD;
+    const adminPassword = configuredPassword ?? 'databk';
+    if (adminPassword.length === 0) {
+      throw new Error('ADMIN_PASSWORD must not be empty');
+    }
 
-    this.logger.warn(
-      'WARNING: Using default admin password "databk". Please change it immediately after first login!',
-    );
+    if (configuredPassword === undefined) {
+      this.logger.warn(
+        'ADMIN_PASSWORD is not set; using the legacy default. Please change it immediately after first login!',
+      );
+    }
 
     const admin = this.userRepository.create({
       guid: uuidv4(),
@@ -116,9 +122,6 @@ export class DatabaseInitService implements OnModuleInit {
       throw error;
     }
     this.logger.log(`Default admin user created: ${adminUsername}`);
-    this.logger.warn(
-      `Please change the default password for user: ${adminUsername}`,
-    );
   }
 
   /**

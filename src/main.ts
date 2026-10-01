@@ -1,36 +1,23 @@
 import 'dotenv/config';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ValidationPipe, Logger } from '@nestjs/common';
-import cookieParser from 'cookie-parser';
+import { safeError } from './updater/errors';
+import { waitForApplicationStart } from './updater/maintenance';
 
-async function bootstrap() {
-  const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
-
-  // 配置 Cookie 解析中间件
-  app.use(cookieParser());
-
-  // 设置全局路由前缀
-  app.setGlobalPrefix('api');
-
-  // 启用 CORS
-  app.enableCors({
-    origin: true,
-    credentials: true,
-  });
-
-  // 全局验证管道
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
-
-  const port = process.env.PORT ?? 3000;
-  await app.listen(port);
-  logger.log(`Application is running on: http://localhost:${port}/api`);
+async function main(): Promise<void> {
+  const mode = process.argv
+    .find((value) => value.startsWith('--system-update-mode='))
+    ?.split('=')[1];
+  if (mode) {
+    // 在加载业务模块和 TypeORM 前分派，助手不能连接或同步业务数据库。
+    const { updaterMain } = await import('./updater/entrypoint.js');
+    await updaterMain(mode);
+    return;
+  }
+  await waitForApplicationStart();
+  const { bootstrap } = await import('./application.js');
+  await bootstrap();
 }
-void bootstrap();
+void main().catch((error: unknown) => {
+  const failure = safeError(error);
+  process.stderr.write(failure.code + ': ' + failure.message + '\n');
+  process.exitCode = 1;
+});

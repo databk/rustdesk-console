@@ -1,3 +1,4 @@
+import { businessWritesAllowed } from '../../../updater/maintenance';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -15,6 +16,7 @@ export class TokenCleanupService {
 
   @Cron('0 0 * * *')
   async handleCleanupExpiredTokens() {
+    if (!businessWritesAllowed()) return;
     try {
       const now = new Date();
       const result = await this.tokenRepository.delete({

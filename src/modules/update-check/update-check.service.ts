@@ -1,3 +1,4 @@
+import { businessWritesAllowed } from '../../updater/maintenance';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
@@ -137,6 +138,7 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   private async fetchUpdate(): Promise<void> {
+    if (!businessWritesAllowed()) return;
     if (this.isChecking) return;
     this.isChecking = true;
 

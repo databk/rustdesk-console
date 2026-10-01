@@ -8,17 +8,31 @@
  * 4. Copy the Node.js binary and inject the blob
  * 5. Assemble the distribution directory with templates and native modules
  */
-import { build } from 'esbuild';
-import { execSync } from 'child_process';
+import { build, stop } from 'esbuild';
+import { execFileSync, execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { prepareSeaArchive } from './prepare-sea-archive.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
 const isMacos = process.platform === 'darwin';
 const exeName = isWindows ? 'rustdesk-console.exe' : 'rustdesk-console';
+const packageInfo = JSON.parse(
+  fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'),
+);
+const sourceCommit =
+  process.env.SOURCE_COMMIT ||
+  execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: rootDir,
+    encoding: 'utf8',
+  }).trim();
+if (!/^[a-f0-9]{40}$/.test(sourceCommit))
+  throw new Error('A full source commit is required');
+if (process.env.APP_VERSION && process.env.APP_VERSION !== packageInfo.version)
+  throw new Error('APP_VERSION differs from package.json');
 
 function run(cmd, opts = {}) {
   console.log(`> ${cmd}`);
@@ -28,7 +42,9 @@ function run(cmd, opts = {}) {
 function copyDir(src, dest) {
   if (fs.existsSync(src)) {
     fs.cpSync(src, dest, { recursive: true });
-    console.log(`  Copied ${path.relative(rootDir, src)} -> ${path.relative(rootDir, dest)}`);
+    console.log(
+      `  Copied ${path.relative(rootDir, src)} -> ${path.relative(rootDir, dest)}`,
+    );
   }
 }
 
@@ -70,9 +86,12 @@ await build({
   },
   define: {
     'process.env.NODE_ENV': '"production"',
+    'process.env.APP_VERSION': JSON.stringify(packageInfo.version),
+    'process.env.SOURCE_COMMIT': JSON.stringify(sourceCommit),
   },
   logLevel: 'info',
 });
+stop();
 
 // --- Step 3: Generate SEA blob ---
 console.log('\n[3/6] Generating SEA blob...');
@@ -89,16 +108,20 @@ if (isWindows) {
   console.log('  Removing signature from executable...');
   try {
     const signtool = execSync(
-      'powershell -NoProfile -Command "(Get-ChildItem \'C:\\\\Program Files (x86)\\\\Windows Kits\\\\10\\\\bin\' -Recurse -Filter \'signtool.exe\' -ErrorAction SilentlyContinue | Where-Object { $_.DirectoryName -match \'x64\' } | Select-Object -First 1).FullName"',
+      "powershell -NoProfile -Command \"(Get-ChildItem 'C:\\\\Program Files (x86)\\\\Windows Kits\\\\10\\\\bin' -Recurse -Filter 'signtool.exe' -ErrorAction SilentlyContinue | Where-Object { $_.DirectoryName -match 'x64' } | Select-Object -First 1).FullName\"",
       { encoding: 'utf-8' },
     ).trim();
     if (signtool) {
       run(`"${signtool}" remove /s "${exeName}"`);
     } else {
-      console.warn('  Warning: signtool.exe not found, continuing without signature removal');
+      console.warn(
+        '  Warning: signtool.exe not found, continuing without signature removal',
+      );
     }
   } catch {
-    console.warn('  Warning: signtool not found or failed, continuing without signature removal');
+    console.warn(
+      '  Warning: signtool not found or failed, continuing without signature removal',
+    );
   }
 }
 
@@ -108,7 +131,9 @@ if (isMacos) {
   run(`codesign --remove-signature "${exeName}"`);
 }
 
-run(`npx postject "${exeName}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`);
+run(
+  `npx postject "${exeName}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`,
+);
 
 // Re-sign ad-hoc on macOS so the modified binary can run
 if (isMacos) {
@@ -139,6 +164,33 @@ copyDir(
   path.join(rootDir, 'dist/modules/oidc/templates'),
   path.join(templatesDir, 'oidc'),
 );
+copyDir(path.join(rootDir, 'deployment'), path.join(distDir, 'deployment'));
+if (!isWindows) {
+  for (const file of ['install-linux.sh', 'rustdesk-console-recover']) {
+    fs.chmodSync(path.join(distDir, 'deployment', file), 0o755);
+  }
+}
+fs.writeFileSync(
+  path.join(distDir, 'build-info.json'),
+  JSON.stringify({
+    component: 'backend',
+    version: packageInfo.version,
+    sourceCommit,
+    bundleFormat: 1,
+    platform: process.platform,
+    arch: process.arch,
+    libc:
+      process.platform === 'linux'
+        ? process.report.getReport().header.glibcVersionRuntime
+          ? 'glibc'
+          : 'musl'
+        : null,
+  }) + '\n',
+);
+fs.writeFileSync(
+  path.join(distDir, 'release-metadata.json'),
+  JSON.stringify({ version: packageInfo.version, sourceCommit }) + '\n',
+);
 
 // --- Step 6: Install native modules ---
 console.log('\n[6/6] Installing native modules (sqlite3, sharp)...');
@@ -153,8 +205,18 @@ const nativePkg = {
   license: pkgJson.license,
   private: true,
   dependencies: {
-    sqlite3: pkgJson.dependencies.sqlite3,
-    sharp: pkgJson.dependencies.sharp,
+    sqlite3: JSON.parse(
+      fs.readFileSync(
+        path.join(rootDir, 'node_modules/sqlite3/package.json'),
+        'utf8',
+      ),
+    ).version,
+    sharp: JSON.parse(
+      fs.readFileSync(
+        path.join(rootDir, 'node_modules/sharp/package.json'),
+        'utf8',
+      ),
+    ).version,
   },
 };
 fs.writeFileSync(
@@ -164,9 +226,32 @@ fs.writeFileSync(
 console.log('  Wrote dist-sea/package.json');
 
 run('npm install --omit=dev', { cwd: distDir });
+if (
+  process.platform === 'linux' &&
+  process.report.getReport().header.glibcVersionRuntime
+) {
+  // Published addons can require newer glibc than the release build baseline.
+  run('npm rebuild sqlite3 --build-from-source', { cwd: distDir });
+}
+execFileSync(
+  process.execPath,
+  ['-e', "require('sqlite3'); require('sharp');"],
+  {
+    cwd: distDir,
+    stdio: 'inherit',
+  },
+);
 
-// Remove the temporary package-lock.json to keep the dist clean
-fs.rmSync(path.join(distDir, 'package-lock.json'), { force: true });
+// Keep the native dependency lockfile as part of the complete release bundle.
+if (
+  !fs.existsSync(
+    path.join(distDir, 'node_modules/sqlite3/build/Release/node_sqlite3.node'),
+  )
+) {
+  throw new Error('The complete bundle is missing the sqlite3 native addon');
+}
+
+prepareSeaArchive(distDir);
 
 // --- Cleanup intermediate files ---
 console.log('\nCleaning up...');

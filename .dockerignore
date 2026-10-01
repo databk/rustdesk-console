@@ -19,3 +19,17 @@ coverage
 !README.md
 Dockerfile
 .dockerignore
+data
+backups
+updater-state
+installation.json
+*.pem
+*.key
+.trellis
+.agents
+.codex
+test
+**/__pycache__
+**/*.pyc
+deployment/test_*.py
+deployment/*.test.mjs

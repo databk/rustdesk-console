@@ -1,0 +1,24 @@
+[Unit]
+Description=RustDesk Console independent update job %i
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=rustdesk-console
+EnvironmentFile=/etc/rustdesk-console/updater.env
+# The supervisor creates this immutable link to the OLD complete backend bundle.
+# This service is intentionally independent of the updater service lifecycle.
+ExecStart=/var/lib/rustdesk-console-updater/workers/%i/worker --system-update-mode=worker --job-id=%i
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=120s
+UMask=0077
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

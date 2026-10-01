@@ -51,7 +51,7 @@ export class OidcAuthState {
 
   @Column({
     type: 'text',
-    default: OidcProviderType.OIDC,
+    default: () => `('${OidcProviderType.OIDC}')`,
   })
   providerType: OidcProviderType;
 
@@ -99,7 +99,7 @@ export class OidcAuthState {
    */
   @Column({
     type: 'text',
-    default: OidcAuthStatus.PENDING,
+    default: () => `('${OidcAuthStatus.PENDING}')`,
   })
   status: OidcAuthStatus;
 

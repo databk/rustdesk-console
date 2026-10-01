@@ -82,22 +82,35 @@ Connection · File transfer · Security alarm · Console operation logging
 
 ## 🚀 Quick Start
 
-> **Default Admin Credentials**: username `databk`, password `databk` — please change before production!
+> **Administrator account**: username `databk`. Standard Docker installations use the `ADMIN_PASSWORD` you configure; the Linux installer generates or accepts an initial password. Existing installations retain their current credentials. Manual installations without `ADMIN_PASSWORD` retain the legacy default `databk`, which must be changed before production.
 
 ### Docker (Recommended)
 
-Grab the [`docker-compose.yml`](docker-compose.yml) and launch:
+Download [`docker-compose.yml`](docker-compose.yml), [`docker-compose.override.yml`](docker-compose.override.yml) and [`.env.example`](.env.example) into a dedicated directory on the Linux Docker host. Create a protected configuration file:
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
+
+In `.env`, set a unique `JWT_SECRET`, your initial `ADMIN_PASSWORD`, and `CONSOLE_INSTALL_DIR` to this directory's actual absolute host path. Then start the standard deployment:
 
 ```bash
 docker compose up -d
 ```
 
-That's it. The frontend is accessible at `http://localhost:21114`.
+The frontend is accessible at `http://localhost:21114`. The updater is included and starts by default. Administrators initiate coordinated backend/frontend updates from **Update system**; only compatible official stable releases with complete manifests are eligible. Startup does not initiate an upgrade.
+
+See [Managed system updates](docs/system-update.md) for SQLite/MySQL prerequisites, data protection, supported installations and recovery. Existing deployments must follow that guide before adopting the managed layout. The override file is reserved for the updater's pinned image digests.
+
+Legacy Docker deployments retain their configured user and data permissions. The managed layout uses UID/GID 1000; its adoption guide includes an explicit offline data migration and write check.
 
 Images are published to both Docker Hub (`databk/rustdesk-console`) and GitHub Container Registry (`ghcr.io/databk/rustdesk-console`) for `linux/amd64` and `linux/arm64`. To use the GitHub Container Registry mirror, replace `databk/rustdesk-console` with `ghcr.io/databk/rustdesk-console`.
 
 <details>
 <summary>📋 Docker CLI (without Compose)</summary>
+
+This manual layout uses the original version check and manual update process. Use the standard Compose deployment above for managed system updates.
 
 ```bash
 docker network create rustdesk-net
@@ -121,7 +134,11 @@ docker run -d \
 
 ### Pre-built Binaries
 
-Each release ships standalone Single Executable Application (SEA) archives for Linux (x64/arm64), Windows (x64), and macOS (x64/arm64). Download the archive matching your platform from the [Releases page](https://github.com/databk/rustdesk-console/releases), extract it, and run the executable directly — no Node.js runtime required.
+Each release ships complete Single Executable Application (SEA) archives for Linux (x64/arm64), Windows (x64), and macOS (x64/arm64). Download the archive matching your CPU and, on Linux, libc from the [Releases page](https://github.com/databk/rustdesk-console/releases), and verify its published SHA-256. Preserve the full extracted directory, including native modules and templates; no separate Node.js runtime is required.
+
+For a fresh standard Linux installation booted with systemd, run `sudo ./deployment/install-linux.sh` from the extracted backend bundle. It installs the backend, frontend, required tools and updater service together. Initial credentials are kept in the protected `/etc/rustdesk-console/backend.env` file. See [the installation and recovery guide](docs/system-update.md#standard-linux-installation) for configuration and existing-data migration.
+
+Direct executable launches, source deployments and Windows/macOS installations retain manual updates.
 
 <details>
 <summary>🔧 Build from Source</summary>

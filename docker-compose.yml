@@ -1,22 +1,48 @@
-version: '3.8'
-
 services:
   rustdesk-console:
     image: databk/rustdesk-console:latest
-    container_name: rustdesk-console
     restart: unless-stopped
     environment:
-      - JWT_SECRET=your-super-secret-key
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      DB_TYPE: ${DB_TYPE:-sqlite}
+      DB_HOST: ${DB_HOST:-localhost}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USERNAME: ${DB_USERNAME:-rustdesk_console}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_DATABASE: ${DB_DATABASE:-rustdesk_console}
+      SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA: ${SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA:-false}
+      SYSTEM_UPDATE_SOCKET: /run/rustdesk-console-updater/control.sock
+      SYSTEM_UPDATE_MAINTENANCE_FILE: /var/lib/rustdesk-console-maintenance/maintenance.json
     volumes:
       - ./data:/data
+      - ./updater-ipc:/run/rustdesk-console-updater:ro
+      - ./updater-maintenance:/var/lib/rustdesk-console-maintenance:ro
 
   rustdesk-console-web:
     image: databk/rustdesk-console-web:latest
-    container_name: rustdesk-console-web
     ports:
-      - "21114:80"
+      - '21114:80'
     environment:
       - BACKEND_URL=http://rustdesk-console:3000
     depends_on:
       - rustdesk-console
     restart: unless-stopped
+
+  updater:
+    image: databk/rustdesk-console:latest
+    restart: unless-stopped
+    command: ['node', '/app/deployment/compose-bootstrap.mjs']
+    environment:
+      SYSTEM_UPDATE_ROLE: updater
+      SYSTEM_UPDATE_INSTALLATION: ${CONSOLE_INSTALL_DIR:?Set absolute host project path in .env}/updater-state/installation.json
+      SYSTEM_UPDATE_SOCKET: ${CONSOLE_INSTALL_DIR:?Set absolute host project path in .env}/updater-ipc/control.sock
+      SYSTEM_UPDATE_MAINTENANCE_FILE: ${CONSOLE_INSTALL_DIR:?Set absolute host project path in .env}/updater-maintenance/maintenance.json
+      SYSTEM_UPDATE_COMPOSE_ROOT: ${CONSOLE_INSTALL_DIR:?Set absolute host project path in .env}
+      SYSTEM_UPDATE_SOCKET_GID: 1000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/install
+      - ${CONSOLE_INSTALL_DIR:?Set absolute host project path in .env}:${CONSOLE_INSTALL_DIR:?Set absolute host project path in .env}
+    healthcheck:
+      disable: true

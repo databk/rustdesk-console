@@ -1,3 +1,4 @@
+import { businessWritesAllowed } from '../../../updater/maintenance';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -31,6 +32,7 @@ export class AuditCleanupService {
 
   @Cron('0 0 * * *')
   async handleCleanupExpiredAudits() {
+    if (!businessWritesAllowed()) return;
     try {
       const retentionDays =
         await this.generalSettingsService.getAuditRetentionDays();

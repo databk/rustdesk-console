@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      peer_version_range:
+        description: 'Tested web version range, e.g. >=1.7.0 <2.0.0'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,6 +19,7 @@ jobs:
     outputs:
       version: ${{ steps.changelog.outputs.version }}
       skipped: ${{ steps.changelog.outputs.skipped }}
+      source_commit: ${{ steps.identity.outputs.source_commit }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -32,9 +38,6 @@ jobs:
       - name: Run linter
         run: npm run lint
 
-      - name: Build application
-        run: npm run build
-
       - name: Generate App Token
         uses: actions/create-github-app-token@v3
         id: app-token
@@ -52,26 +55,46 @@ jobs:
           tag-prefix: ''
           version-file: './package.json,./package-lock.json'
 
+      - name: Pin release identity before building
+        if: ${{ steps.changelog.outputs.skipped == 'false' }}
+        id: identity
+        env:
+          RELEASE_VERSION: ${{ steps.changelog.outputs.version }}
+        run: |
+          set -eu
+          COMMIT=$(git rev-parse "$RELEASE_VERSION^{commit}")
+          test "$COMMIT" = "$(git rev-parse HEAD)"
+          test "$RELEASE_VERSION" = "$(node -p 'require("./package.json").version')"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          echo "source_commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          npm run build
+
       - name: Build and push Docker images
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
+        env:
+          RELEASE_VERSION: ${{ steps.changelog.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.identity.outputs.source_commit }}
         run: |
-          VERSION=${{ steps.changelog.outputs.version }}
+          set -eu
+          VERSION=$RELEASE_VERSION
           MAJOR=$(echo $VERSION | cut -d. -f1)
           MINOR=$(echo $VERSION | cut -d. -f2)
           MAJOR_MINOR="${MAJOR}.${MINOR}"
-          
+
           docker buildx create --use
-          
+
           # Login to Docker Hub
           echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-          
+
           # Login to GitHub Container Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          
+
           # Build and push to Docker Hub and GitHub Container Registry
           docker buildx build --push \
             --platform linux/amd64,linux/arm64 \
             --build-arg APP_VERSION=$VERSION \
+            --build-arg SOURCE_COMMIT=$SOURCE_COMMIT \
+            --metadata-file docker-metadata.json \
             --tag databk/rustdesk-console:latest \
             --tag databk/rustdesk-console:$VERSION \
             --tag databk/rustdesk-console:$MAJOR_MINOR \
@@ -83,6 +106,15 @@ jobs:
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             .
+          node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync("docker-metadata.json"));const d=m["containerimage.descriptor"];if(!d||d.digest!==m["containerimage.digest"])throw Error("Missing OCI descriptor");fs.writeFileSync("docker-evidence.json",JSON.stringify({version:process.env.RELEASE_VERSION,sourceCommit:process.env.SOURCE_COMMIT,digest:d.digest,size:d.size,platforms:["linux/amd64","linux/arm64"]}));'
+
+      - name: Retain immutable Docker build evidence
+        if: ${{ steps.changelog.outputs.skipped == 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-build-evidence
+          path: docker-evidence.json
+          if-no-files-found: error
 
       - name: Create GitHub Release
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
@@ -117,7 +149,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release.outputs.version }}
+          ref: ${{ needs.release.outputs.source_commit }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -126,10 +158,28 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        if: runner.os != 'Linux'
         run: npm ci
 
       - name: Build SEA executable
-        run: npm run build:sea
+        if: runner.os != 'Linux'
+        env:
+          APP_VERSION: ${{ needs.release.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.release.outputs.source_commit }}
+        run: node --test scripts/prepare-sea-archive.test.mjs && npm run build:sea
+
+      - name: Build SEA on the Linux glibc baseline
+        if: runner.os == 'Linux'
+        env:
+          APP_VERSION: ${{ needs.release.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.release.outputs.source_commit }}
+        run: |
+          docker run --rm \
+            -e APP_VERSION -e SOURCE_COMMIT \
+            -v "$PWD":/workspace \
+            -w /workspace \
+            node:24-bookworm \
+            sh -c 'npm ci && node --test scripts/prepare-sea-archive.test.mjs && npm run build:sea'
 
       - name: Create archive (tar.gz)
         if: runner.os != 'Windows'
@@ -167,15 +217,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release.outputs.version }}
+          ref: ${{ needs.release.outputs.source_commit }}
 
       - name: Build SEA in Alpine container
+        env:
+          APP_VERSION: ${{ needs.release.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.release.outputs.source_commit }}
         run: |
           docker run --rm \
+            -e APP_VERSION -e SOURCE_COMMIT \
             -v "$PWD":/workspace \
             -w /workspace \
             node:24-alpine \
-            sh -c 'apk add --no-cache python3 make g++ bash tar && npm ci && npm run build:sea && cd dist-sea && tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .'
+            sh -c 'apk add --no-cache python3 make g++ bash tar && npm ci && node --test scripts/prepare-sea-archive.test.mjs && npm run build:sea && cd dist-sea && tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .'
 
       - name: Upload to release
         uses: softprops/action-gh-release@v3
@@ -184,3 +238,30 @@ jobs:
           files: |
             rustdesk-console-${{ matrix.target }}.tar.gz
           fail_on_unmatched_files: false
+
+  finalize:
+    name: Finalize executable update manifest
+    needs: [release, sea-build, sea-build-musl]
+    if: ${{ needs.release.outputs.skipped == 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.source_commit }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+      - uses: actions/download-artifact@v4
+        with:
+          name: docker-build-evidence
+      - name: Download and verify all final release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+          PEER_VERSION_RANGE: ${{ inputs.peer_version_range }}
+        run: |
+          set -eu
+          gh api "repos/databk/rustdesk-console/releases/tags/$RELEASE_VERSION" > release.json
+          gh release download "$RELEASE_VERSION" --repo databk/rustdesk-console --pattern 'rustdesk-console-linux-*.tar.gz' --dir release-artifacts
+          node scripts/finalize-release.mjs --release=release.json --docker=docker-evidence.json --artifacts=release-artifacts --peer-range="$PEER_VERSION_RANGE" --out=update-manifest.json
+          gh release upload "$RELEASE_VERSION" update-manifest.json --repo databk/rustdesk-console

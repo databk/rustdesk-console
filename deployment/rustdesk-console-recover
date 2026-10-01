@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+if [ "$(id -u)" != 0 ]; then
+  echo 'Run this recovery command as root.' >&2
+  exit 1
+fi
+if [ "$#" != 1 ] || ! printf '%s' "$1" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
+  echo 'Usage: rustdesk-console-recover <job-uuid>' >&2
+  exit 2
+fi
+worker="/var/lib/rustdesk-console-updater/workers/$1/worker"
+if [ ! -x "$worker" ]; then
+  echo 'The immutable worker for this job is missing; retain the backup and inspect the installation.' >&2
+  exit 1
+fi
+# The immutable CLI validates the journal and requests the same supervised job.
+# It must refuse an uncertain restore or an active execution lock.
+export SYSTEM_UPDATE_INSTALLATION=/etc/rustdesk-console/installation.json
+"$worker" --system-update-mode=recover "--job-id=$1"
+exec systemctl show --no-pager --property=ActiveState,Result,ExecMainStatus "rustdesk-console-update-job@$1.service"

@@ -1,0 +1,22 @@
+[Unit]
+Description=RustDesk Console update control service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=rustdesk-console
+EnvironmentFile=/etc/rustdesk-console/updater.env
+RuntimeDirectory=rustdesk-console-updater
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+ExecStart=/opt/rustdesk-console/current-updater/rustdesk-console --system-update-mode=updater
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

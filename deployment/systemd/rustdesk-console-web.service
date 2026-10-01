@@ -1,0 +1,21 @@
+[Unit]
+Description=RustDesk Console web
+After=network-online.target rustdesk-console-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rustdesk-console
+Group=rustdesk-console
+WorkingDirectory=/opt/rustdesk-console/current-web
+EnvironmentFile=/etc/rustdesk-console/web.env
+ExecStart=/opt/rustdesk-console/current-web/rustdesk-console-web
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

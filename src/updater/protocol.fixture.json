@@ -1,0 +1,538 @@
+{
+  "protocolVersion": 1,
+  "routes": {
+    "GET /api/system-update/capabilities": "Capabilities",
+    "POST /api/system-update/plans": { "body": {}, "response": "UpdatePlan" },
+    "POST /api/system-update/jobs": {
+      "body": {
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "idempotencyKey": "22222222-2222-4222-8222-222222222222",
+        "acknowledgeDowntime": true
+      },
+      "status": 202,
+      "response": "CreateJobResponse"
+    },
+    "GET /api/system-update/jobs/current": "CurrentJobResponse",
+    "GET /api/system-update/jobs/:id": "JobView"
+  },
+  "entrypoints": [
+    "--system-update-mode=updater",
+    "--system-update-mode=worker --job-id=<UUID>",
+    "--system-update-mode=recover --job-id=<UUID>"
+  ],
+  "environment": {
+    "SYSTEM_UPDATE_INSTALLATION": "/etc/rustdesk-console/installation.json",
+    "SYSTEM_UPDATE_SOCKET": "/run/rustdesk-console-updater/control.sock",
+    "SYSTEM_UPDATE_MAINTENANCE_FILE": "/var/lib/rustdesk-console-maintenance/maintenance.json"
+  },
+  "manifest": {
+    "schemaVersion": 1,
+    "repository": "databk/rustdesk-console",
+    "component": "backend",
+    "version": "1.10.0",
+    "releaseId": 123,
+    "tag": "v1.10.0",
+    "sourceCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "publishedAt": "2026-09-29T00:00:00.000Z",
+    "peerVersionRange": ">=1.7.0 <2.0.0",
+    "updaterProtocol": 1,
+    "maintenanceProtocol": 1,
+    "bundleFormat": 1,
+    "artifacts": [
+      {
+        "kind": "oci",
+        "platform": { "os": "linux", "arch": "x64", "libc": "musl" },
+        "name": "backend-linux-x64",
+        "url": "ghcr.io/databk/rustdesk-console@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "size": 1
+      }
+    ]
+  },
+  "verification": {
+    "backend": "GET /api/system-update/health -> { component: backend, version, sourceCommit, ready, maintenanceProtocol: 1 }",
+    "web": "GET /system-update-health.json -> { component: web, version, sourceCommit, ready, maintenanceProtocol: 1 }; GET /api/system-update/health proxies backend"
+  },
+  "examples": {
+    "capabilities": {
+      "ready": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "supported": true,
+        "ready": true,
+        "deployment": "managed-compose",
+        "database": "sqlite",
+        "current": {
+          "backend": "1.0.0",
+          "web": "1.0.0"
+        },
+        "blockers": [],
+        "activeJobId": null
+      },
+      "helperMissing": {
+        "protocolVersion": 1,
+        "installationId": null,
+        "supported": false,
+        "ready": false,
+        "deployment": null,
+        "database": null,
+        "current": null,
+        "blockers": [
+          {
+            "code": "HELPER_NOT_INSTALLED",
+            "message": "The update helper is not installed. Follow the official managed-deployment migration instructions."
+          }
+        ],
+        "activeJobId": null
+      },
+      "activeJob": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "supported": true,
+        "ready": false,
+        "deployment": "managed-compose",
+        "database": "sqlite",
+        "current": {
+          "backend": "1.0.0",
+          "web": "1.0.0"
+        },
+        "blockers": [
+          {
+            "code": "JOB_ACTIVE",
+            "message": "An update or recovery is already active."
+          }
+        ],
+        "activeJobId": "44444444-4444-4444-8444-444444444444"
+      }
+    },
+    "plans": {
+      "both": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "expiresAt": "2026-09-29T00:15:00.000Z",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "changes": true,
+        "downtime": true,
+        "backup": {
+          "database": "sqlite",
+          "method": "consistent-sqlite-and-business-files",
+          "includesBusinessFiles": true
+        },
+        "blockers": [],
+        "executable": true
+      },
+      "backendOnly": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "expiresAt": "2026-09-29T00:15:00.000Z",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "unchanged",
+            "current": "1.0.0",
+            "target": "1.0.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.0.0"
+          }
+        ],
+        "changes": true,
+        "downtime": true,
+        "backup": {
+          "database": "sqlite",
+          "method": "consistent-sqlite-and-business-files",
+          "includesBusinessFiles": true
+        },
+        "blockers": [],
+        "executable": true
+      },
+      "webOnly": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "expiresAt": "2026-09-29T00:15:00.000Z",
+        "components": [
+          {
+            "component": "backend",
+            "action": "unchanged",
+            "current": "1.0.0",
+            "target": "1.0.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.0.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "changes": true,
+        "downtime": true,
+        "backup": {
+          "database": "sqlite",
+          "method": "consistent-sqlite-and-business-files",
+          "includesBusinessFiles": true
+        },
+        "blockers": [],
+        "executable": true
+      },
+      "noUpdates": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "expiresAt": "2026-09-29T00:15:00.000Z",
+        "components": [
+          {
+            "component": "backend",
+            "action": "unchanged",
+            "current": "1.0.0",
+            "target": "1.0.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.0.0"
+          },
+          {
+            "component": "web",
+            "action": "unchanged",
+            "current": "1.0.0",
+            "target": "1.0.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.0.0"
+          }
+        ],
+        "changes": false,
+        "downtime": false,
+        "backup": {
+          "database": "sqlite",
+          "method": "consistent-sqlite-and-business-files",
+          "includesBusinessFiles": true
+        },
+        "blockers": [],
+        "executable": false
+      },
+      "blocked": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "expiresAt": "2026-09-29T00:15:00.000Z",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "changes": true,
+        "downtime": true,
+        "backup": {
+          "database": "sqlite",
+          "method": "consistent-sqlite-and-business-files",
+          "includesBusinessFiles": true
+        },
+        "blockers": [
+          {
+            "code": "INCOMPATIBLE_RELEASES",
+            "message": "The latest official frontend and backend releases are not mutually compatible."
+          }
+        ],
+        "executable": false
+      }
+    },
+    "createJob": {
+      "jobId": "44444444-4444-4444-8444-444444444444",
+      "statusUrl": "/api/system-update/jobs/44444444-4444-4444-8444-444444444444",
+      "job": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "jobId": "44444444-4444-4444-8444-444444444444",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "status": "queued",
+        "phase": "preparing",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "updatedAt": "2026-09-29T00:00:00.000Z",
+        "finishedAt": null,
+        "resultCode": null,
+        "safeMessage": "The update request is durably accepted.",
+        "recoveryGuidance": null
+      }
+    },
+    "currentJob": {
+      "active": {
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "job": {
+          "protocolVersion": 1,
+          "installationId": "33333333-3333-4333-8333-333333333333",
+          "jobId": "44444444-4444-4444-8444-444444444444",
+          "planId": "11111111-1111-4111-8111-111111111111",
+          "status": "queued",
+          "phase": "preparing",
+          "components": [
+            {
+              "component": "backend",
+              "action": "update",
+              "current": "1.0.0",
+              "target": "1.1.0",
+              "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+            },
+            {
+              "component": "web",
+              "action": "update",
+              "current": "1.0.0",
+              "target": "1.1.0",
+              "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+            }
+          ],
+          "createdAt": "2026-09-29T00:00:00.000Z",
+          "updatedAt": "2026-09-29T00:00:00.000Z",
+          "finishedAt": null,
+          "resultCode": null,
+          "safeMessage": "The update request is durably accepted.",
+          "recoveryGuidance": null
+        }
+      },
+      "none": {
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "job": null
+      }
+    },
+    "jobs": {
+      "queued": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "jobId": "44444444-4444-4444-8444-444444444444",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "status": "queued",
+        "phase": "preparing",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "updatedAt": "2026-09-29T00:00:00.000Z",
+        "finishedAt": null,
+        "resultCode": null,
+        "safeMessage": "The update request is durably accepted.",
+        "recoveryGuidance": null
+      },
+      "running": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "jobId": "44444444-4444-4444-8444-444444444444",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "status": "running",
+        "phase": "switching",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "updatedAt": "2026-09-29T00:00:00.000Z",
+        "finishedAt": null,
+        "resultCode": null,
+        "safeMessage": "The update request is durably accepted.",
+        "recoveryGuidance": null
+      },
+      "succeeded": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "jobId": "44444444-4444-4444-8444-444444444444",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "status": "succeeded",
+        "phase": "committing",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "updatedAt": "2026-09-29T00:00:00.000Z",
+        "finishedAt": "2026-09-29T00:00:00.000Z",
+        "resultCode": "UPDATED",
+        "safeMessage": "The system update was verified and committed.",
+        "recoveryGuidance": null
+      },
+      "failed": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "jobId": "44444444-4444-4444-8444-444444444444",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "status": "failed",
+        "phase": "preparing",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "updatedAt": "2026-09-29T00:00:00.000Z",
+        "finishedAt": "2026-09-29T00:00:00.000Z",
+        "resultCode": "ARTIFACT_DIGEST_MISMATCH",
+        "safeMessage": "The release archive did not match its official integrity metadata.",
+        "recoveryGuidance": null
+      },
+      "rolled_back": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "jobId": "44444444-4444-4444-8444-444444444444",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "status": "rolled_back",
+        "phase": "restoring",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "updatedAt": "2026-09-29T00:00:00.000Z",
+        "finishedAt": "2026-09-29T00:00:00.000Z",
+        "resultCode": "RESTORED",
+        "safeMessage": "The previous applications, database and business files were restored and verified.",
+        "recoveryGuidance": null
+      },
+      "recovery_required": {
+        "protocolVersion": 1,
+        "installationId": "33333333-3333-4333-8333-333333333333",
+        "jobId": "44444444-4444-4444-8444-444444444444",
+        "planId": "11111111-1111-4111-8111-111111111111",
+        "status": "recovery_required",
+        "phase": "restoring",
+        "components": [
+          {
+            "component": "backend",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console/releases/tag/v1.1.0"
+          },
+          {
+            "component": "web",
+            "action": "update",
+            "current": "1.0.0",
+            "target": "1.1.0",
+            "releaseUrl": "https://github.com/databk/rustdesk-console-web/releases/tag/v1.1.0"
+          }
+        ],
+        "createdAt": "2026-09-29T00:00:00.000Z",
+        "updatedAt": "2026-09-29T00:00:00.000Z",
+        "finishedAt": "2026-09-29T00:00:00.000Z",
+        "resultCode": "RECOVERY_REQUIRED",
+        "safeMessage": "Automatic recovery could not be proved. Business access remains fenced; preserve backups and use host recovery.",
+        "recoveryGuidance": "Keep business services isolated. Use the installed host recovery command with job 44444444-4444-4444-8444-444444444444; retain the protected updater state and backup."
+      }
+    }
+  },
+  "invariants": [
+    "Only official stable releases",
+    "No browser version, URL, component or command input",
+    "One durable active job per installation",
+    "No database restoration after commit_decided or restore_decided",
+    "Backend health route is safe public version/readiness only"
+  ]
+}

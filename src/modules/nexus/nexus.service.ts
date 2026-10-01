@@ -1,7 +1,9 @@
+import { businessWritesAllowed } from '../../updater/maintenance';
 import {
   Injectable,
   Logger,
   OnModuleInit,
+  OnModuleDestroy,
   BadRequestException,
   UnauthorizedException,
   ForbiddenException,
@@ -37,7 +39,7 @@ const NEXUS_BASE_URL = 'https://api.databk.top';
 const POLL_INTERVAL_MS = 10_000;
 
 @Injectable()
-export class NexusService implements OnModuleInit {
+export class NexusService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NexusService.name);
   private readonly storagePath: string;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -72,7 +74,13 @@ export class NexusService implements OnModuleInit {
    * 定时轮询所有进行中的构建任务
    * 每隔 10 秒查询一次 Nexus，更新状态并下载产物
    */
+  onModuleDestroy() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = null;
+  }
+
   private async pollActiveBuilds() {
+    if (!businessWritesAllowed()) return;
     try {
       const activeBuilds = await this.nexusBuildRepository.find({
         where: [{ status: 'pending' }, { status: 'building' }],

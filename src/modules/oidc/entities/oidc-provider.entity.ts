@@ -35,7 +35,7 @@ export class OidcProvider {
 
   @Column({
     type: 'text',
-    default: OidcProviderType.OIDC,
+    default: () => `('${OidcProviderType.OIDC}')`,
   })
   type: OidcProviderType;
 

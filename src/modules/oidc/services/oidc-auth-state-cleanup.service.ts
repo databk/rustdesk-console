@@ -1,3 +1,4 @@
+import { businessWritesAllowed } from '../../../updater/maintenance';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -26,6 +27,7 @@ export class OidcAuthStateCleanupService {
 
   @Cron('0 0 * * *')
   async handleCleanupExpiredAuthStates() {
+    if (!businessWritesAllowed()) return;
     try {
       const now = new Date();
 
