@@ -88,7 +88,7 @@
     "@types/node": "^24.13.3",
     "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",
-    "@types/supertest": "^6.0.3",
+    "@types/supertest": "^7.2.1",
     "@types/uuid": "^10.0.0",
     "esbuild": "^0.28.1",
     "eslint": "^9.39.5",
