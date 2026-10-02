@@ -25,7 +25,9 @@ export class HeartbeatCacheService implements OnModuleDestroy {
   private readonly logger = new Logger(HeartbeatCacheService.name);
   private readonly peerBuffer = new Map<string, BufferedPeerUpdate>();
   private readonly connsBuffer = new Map<string, number[]>();
+  private flushingConns = new Map<string, number[]>();
   private flushing = false;
+  private activeFlush?: Promise<void>;
 
   constructor(private readonly dataSource: DataSource) {}
 
@@ -48,7 +50,7 @@ export class HeartbeatCacheService implements OnModuleDestroy {
    * Used to serve reads with in-memory freshness before the next flush.
    */
   getBufferedConns(uuid: string): number[] | undefined {
-    return this.connsBuffer.get(uuid);
+    return this.connsBuffer.get(uuid) ?? this.flushingConns.get(uuid);
   }
 
   @Interval(HEARTBEAT_FLUSH_INTERVAL_MS)
@@ -62,6 +64,7 @@ export class HeartbeatCacheService implements OnModuleDestroy {
    */
   async flush(): Promise<void> {
     if (this.flushing) {
+      await this.activeFlush;
       return;
     }
     if (this.peerBuffer.size === 0 && this.connsBuffer.size === 0) {
@@ -71,36 +74,56 @@ export class HeartbeatCacheService implements OnModuleDestroy {
     this.flushing = true;
     const peerSnapshot = new Map(this.peerBuffer);
     const connsSnapshot = new Map(this.connsBuffer);
+    this.flushingConns = connsSnapshot;
     this.peerBuffer.clear();
     this.connsBuffer.clear();
 
-    try {
-      await this.dataSource.transaction(async (manager) => {
+    const run = (async (): Promise<void> => {
+      try {
+        await this.dataSource.transaction(async (manager) => {
+          for (const [uuid, update] of peerSnapshot) {
+            await manager.update(Peer, { uuid }, update);
+          }
+          for (const [uuid, conns] of connsSnapshot) {
+            const peer = await manager.findOne(Peer, {
+              where: { uuid },
+              select: ['uuid'],
+            });
+            if (!peer) {
+              this.logger.warn(
+                `Skipping connection sync for device ${uuid}: peer no longer exists`,
+              );
+              continue;
+            }
+            await this.syncConnectionsWithManager(manager, uuid, conns);
+          }
+        });
+        this.logger.debug(
+          `Flushed ${peerSnapshot.size} peer updates and ${connsSnapshot.size} connection syncs`,
+        );
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Failed to flush heartbeat buffer: ${msg}`);
         for (const [uuid, update] of peerSnapshot) {
-          await manager.update(Peer, { uuid }, update);
+          if (!this.peerBuffer.has(uuid)) {
+            this.peerBuffer.set(uuid, update);
+          }
         }
         for (const [uuid, conns] of connsSnapshot) {
-          await this.syncConnectionsWithManager(manager, uuid, conns);
-        }
-      });
-      this.logger.debug(
-        `Flushed ${peerSnapshot.size} peer updates and ${connsSnapshot.size} connection syncs`,
-      );
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Failed to flush heartbeat buffer: ${msg}`);
-      for (const [uuid, update] of peerSnapshot) {
-        if (!this.peerBuffer.has(uuid)) {
-          this.peerBuffer.set(uuid, update);
+          if (!this.connsBuffer.has(uuid)) {
+            this.connsBuffer.set(uuid, conns);
+          }
         }
       }
-      for (const [uuid, conns] of connsSnapshot) {
-        if (!this.connsBuffer.has(uuid)) {
-          this.connsBuffer.set(uuid, conns);
-        }
-      }
+    })();
+
+    this.activeFlush = run;
+    try {
+      await run;
     } finally {
       this.flushing = false;
+      this.activeFlush = undefined;
+      this.flushingConns = new Map();
     }
   }
 
@@ -134,6 +157,7 @@ export class HeartbeatCacheService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
+    await this.flush();
     await this.flush();
   }
 }
