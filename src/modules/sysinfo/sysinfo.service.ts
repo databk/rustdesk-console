@@ -8,6 +8,7 @@ import {
   AddressBook,
   AddressBookPeer,
   AddressBookTag,
+  AddressBookPeerTag,
 } from '../address-book/entities';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 
@@ -249,10 +250,19 @@ export class SysinfoService {
       alias: alias || hostname,
       password: password,
       note: note,
-      tags: existingTags,
     });
 
-    await this.addressBookPeerRepository.save(peer);
+    await this.addressBookPeerRepository.manager.transaction(
+      async (manager) => {
+        await manager.save(peer);
+        if (existingTags.length > 0) {
+          await manager.insert(
+            AddressBookPeerTag,
+            existingTags.map((tag) => ({ peerGuid, tagGuid: tag.guid })),
+          );
+        }
+      },
+    );
     this.logger.log(
       `Device ${deviceId} added to address book ${addressBook.name}${existingTags.length > 0 ? `, bound tags: ${existingTags.map((t) => t.name).join(', ')}` : ''}`,
     );

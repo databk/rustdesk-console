@@ -77,7 +77,7 @@ export class AddressBookLegacyService {
     // Get all devices and their tags
     const peers = await this.addressBookPeerRepository.find({
       where: { addressBookGuid: addressBook.guid },
-      relations: ['tags'],
+      relations: ['tagLinks', 'tagLinks.tag'],
     });
 
     // Get all device IDs, used to fetch info from the sysinfos table
@@ -122,7 +122,7 @@ export class AddressBookLegacyService {
         hostname: sysinfo?.hostname || '',
         platform: mapOsToPlatform(sysinfo?.os),
         alias: p.alias || '',
-        tags: p.tags?.map((t) => t.name) || [],
+        tags: p.tagLinks?.map((link) => link.tag.name) || [],
       };
     });
 

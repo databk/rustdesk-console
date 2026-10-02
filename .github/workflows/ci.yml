@@ -68,6 +68,42 @@ jobs:
       - name: Build application
         run: npm run build
 
+  mysql-migrations:
+    name: MySQL Migrations
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptest-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test fresh and existing MySQL databases
+        env:
+          RUN_MYSQL_MIGRATION_TESTS: '1'
+          DB_HOST: 127.0.0.1
+          DB_USERNAME: root
+          DB_PASSWORD: test-password
+        run: npx jest --runInBand src/database/mysql-migration.integration.spec.ts
+
   docker-build:
     name: Docker Build Check
     runs-on: ubuntu-latest
