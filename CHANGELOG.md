@@ -1,3 +1,16 @@
+## [1.9.1](https://github.com/databk/rustdesk-console/compare/1.9.0...1.9.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **address-book:** add missing note filter to shared address book list API ([#385](https://github.com/databk/rustdesk-console/issues/385)) ([4b1f74d](https://github.com/databk/rustdesk-console/commit/4b1f74d4674c76a6e6cbbecbec1651ce314dd294))
+* **auth:** expose 2FA status in currentUser and login payloads ([#377](https://github.com/databk/rustdesk-console/issues/377)) ([d13b918](https://github.com/databk/rustdesk-console/commit/d13b9182293ec7a5bd58f9317dd450e9a07aaf79))
+* **auth:** prevent locking out system owner ([#382](https://github.com/databk/rustdesk-console/issues/382)) ([d07e8bc](https://github.com/databk/rustdesk-console/commit/d07e8bcc7640c098dbd168ee73d6b228f8c7744c))
+* **update-check:** refresh cached results after frontend upgrades ([#383](https://github.com/databk/rustdesk-console/issues/383)) ([7eeea9c](https://github.com/databk/rustdesk-console/commit/7eeea9c19252e4cb28b9f06ecc69c8fbc23ab9b4))
+* **update-check:** use singular 'result' to match cachedResult field ([#384](https://github.com/databk/rustdesk-console/issues/384)) ([f2caf89](https://github.com/databk/rustdesk-console/commit/f2caf892b3e1ddac207043a736e9c381578735fe))
+
+
+
 # [1.9.0](https://github.com/databk/rustdesk-console/compare/1.8.1...1.9.0) (2026-09-27)
 
 
@@ -89,22 +102,6 @@
 * **user:** adapt display_name field in user APIs ([#215](https://github.com/databk/rustdesk-console/issues/215)) ([7daf01b](https://github.com/databk/rustdesk-console/commit/7daf01b2243bc3a04580c220254ed9dee12ab3cd))
 * **user:** add user group update to updateUser API ([#224](https://github.com/databk/rustdesk-console/issues/224)) ([1aecf6b](https://github.com/databk/rustdesk-console/commit/1aecf6bd2d5428f7df8e09ccb1dd23d367fd5ed2))
 * **user:** implement complete invite user flow ([#223](https://github.com/databk/rustdesk-console/issues/223)) ([0a966e4](https://github.com/databk/rustdesk-console/commit/0a966e466b04b4090e51d95385bb4194c6ffb3f4))
-
-
-
-# [1.6.0](https://github.com/databk/rustdesk-console/compare/1.5.1...1.6.0) (2026-07-15)
-
-
-### Bug Fixes
-
-* make SMTP username and password fields optional ([#194](https://github.com/databk/rustdesk-console/issues/194)) ([eae647c](https://github.com/databk/rustdesk-console/commit/eae647c464ddc08019c4f7063e7cd425ec7503c1)), closes [#193](https://github.com/databk/rustdesk-console/issues/193)
-* **update-check:** fix update check API URL and package.json path issues ([#207](https://github.com/databk/rustdesk-console/issues/207)) ([1d1bc6e](https://github.com/databk/rustdesk-console/commit/1d1bc6e92ec881c88d2c32ab129dba81cf686fad))
-
-
-### Features
-
-* add nexus module for custom client generation ([#192](https://github.com/databk/rustdesk-console/issues/192)) ([a8c0fcf](https://github.com/databk/rustdesk-console/commit/a8c0fcfede80ee2d5a591e283361540ddfa1edb3))
-* add update check module ([#182](https://github.com/databk/rustdesk-console/issues/182)) ([b952d41](https://github.com/databk/rustdesk-console/commit/b952d414071635675c328ce22cbbb1cf4e8ed64a))
 
 
 

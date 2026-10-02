@@ -533,7 +533,9 @@ export class RbacAuthorizationService {
       target.isAdmin &&
       (permissionCode === 'users.status' || permissionCode === 'users.delete')
     ) {
-      throw new ForbiddenException('The system owner account cannot be disabled or deleted');
+      throw new ForbiddenException(
+        'The system owner account cannot be disabled or deleted',
+      );
     }
   }
 
