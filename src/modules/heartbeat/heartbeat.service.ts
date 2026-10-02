@@ -5,6 +5,7 @@ import { HeartbeatDto } from './dto/heartbeat.dto';
 import { Peer } from '../../common/entities';
 import { ActiveConnection } from './entities/active-connection.entity';
 import { DisconnectStoreService } from './services/disconnect-store.service';
+import { HeartbeatCacheService } from './services/heartbeat-cache.service';
 import { StrategyService } from '../strategy/strategy.service';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class HeartbeatService {
     private activeConnectionRepository: Repository<ActiveConnection>,
     private disconnectStoreService: DisconnectStoreService,
     private strategyService: StrategyService,
+    private heartbeatCacheService: HeartbeatCacheService,
   ) {}
 
   async handleHeartbeat(data: HeartbeatDto) {
@@ -30,15 +32,12 @@ export class HeartbeatService {
     });
 
     if (existingPeer) {
-      await this.peerRepository.update(
-        { uuid: data.uuid },
-        {
-          id: data.id,
-          ver: data.ver,
-          modifiedAt: data.modified_at,
-          lastHeartbeat: new Date(),
-        },
-      );
+      this.heartbeatCacheService.bufferPeerUpdate(data.uuid, {
+        id: data.id,
+        ver: data.ver,
+        modifiedAt: data.modified_at,
+        lastHeartbeat: new Date(),
+      });
       this.logger.debug(`Device ${data.uuid} heartbeat updated`);
     } else {
       const peer = this.peerRepository.create({
@@ -53,7 +52,7 @@ export class HeartbeatService {
     }
 
     if (data.conns !== undefined) {
-      await this.syncActiveConnections(data.uuid, data.conns);
+      this.heartbeatCacheService.bufferConns(data.uuid, data.conns);
       this.disconnectStoreService.removeDisconnected(data.uuid, data.conns);
     }
 
@@ -78,6 +77,10 @@ export class HeartbeatService {
   }
 
   async getActiveConnectionIds(deviceUuid: string): Promise<number[]> {
+    const buffered = this.heartbeatCacheService.getBufferedConns(deviceUuid);
+    if (buffered !== undefined) {
+      return buffered;
+    }
     const connections = await this.activeConnectionRepository.find({
       where: { deviceUuid },
       select: ['connId'],
@@ -119,24 +122,4 @@ export class HeartbeatService {
     }
   }
 
-  private async syncActiveConnections(
-    deviceUuid: string,
-    conns: number[],
-  ): Promise<void> {
-    await this.activeConnectionRepository.delete({ deviceUuid });
-
-    if (conns.length > 0) {
-      const entities = conns.map((connId) =>
-        this.activeConnectionRepository.create({
-          connId,
-          deviceUuid,
-        }),
-      );
-      await this.activeConnectionRepository.save(entities);
-    }
-
-    this.logger.debug(
-      `Device ${deviceUuid} active connections synced: ${conns.length}`,
-    );
-  }
 }
