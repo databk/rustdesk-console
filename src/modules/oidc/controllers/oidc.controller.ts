@@ -17,6 +17,11 @@ import { OidcAuthRequestDto } from '../dto/oidc.dto';
 import { Public } from '../../auth/decorators/public.decorator';
 import { resolveAssetPath } from '../../../common/utils/runtime-paths';
 import { GeneralSettingsService } from '../../settings/services/general-settings.service';
+import { RbacAuditService } from '../../rbac/services/rbac-audit.service';
+import {
+  AuditAction,
+  AuditTargetType,
+} from '../../rbac/constants/audit-action.constants';
 
 /**
  * Escapes HTML special characters to prevent XSS attacks
@@ -49,6 +54,7 @@ export class OidcController {
   constructor(
     private readonly oidcService: OidcService,
     private readonly generalSettingsService: GeneralSettingsService,
+    private readonly auditService: RbacAuditService,
   ) {
     this.successHtml = fs.readFileSync(
       resolveAssetPath(
@@ -133,6 +139,8 @@ export class OidcController {
 
       const result = await this.oidcService.handleCallback(callbackUrl);
 
+      await this.recordOidcAudit(req, result.userGuid ?? null, 'allowed');
+
       if (result.isWebLogin) {
         // Web frontend login: return a page with a script that stores the token and then redirects
         const html = this.successHtml
@@ -167,10 +175,50 @@ export class OidcController {
           : 'An error occurred during third-party authentication. Please try again.';
       this.logger.error(`OIDC callback error: ${message}`);
 
+      await this.recordOidcAudit(req, null, 'denied', message);
+
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res
         .status(400)
         .send(this.errorHtml.replace('{{message}}', escapeHtml(message)));
     }
+  }
+
+  private async recordOidcAudit(
+    req: Request,
+    userGuid: string | null,
+    result: 'allowed' | 'denied',
+    reason?: string,
+  ): Promise<void> {
+    try {
+      await this.auditService.record({
+        actorUserGuid: userGuid,
+        targetType: AuditTargetType.AUTH,
+        targetGuid: userGuid,
+        action: AuditAction.AUTH_OIDC_LOGIN,
+        result,
+        reason,
+        ip: this.extractIp(req),
+        userAgent: this.extractUserAgent(req),
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Unable to persist OIDC audit: ${message}`);
+    }
+  }
+
+  private extractIp(req: Request): string | null {
+    if (req.ip) return req.ip;
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') {
+      const first = forwarded.split(',')[0].trim();
+      if (first) return first;
+    }
+    return null;
+  }
+
+  private extractUserAgent(req: Request): string | null {
+    const header = req.headers['user-agent'];
+    return typeof header === 'string' ? header : null;
   }
 }

@@ -11,12 +11,14 @@ import { User } from '../user/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { UserGroupModule } from '../user-group/user-group.module';
 import { SettingsModule } from '../settings/settings.module';
+import { RbacModule } from '../rbac/rbac.module';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([OidcProvider, OidcAuthState, User]),
     AuthModule,
+    RbacModule,
     UserGroupModule,
     SettingsModule,
   ],

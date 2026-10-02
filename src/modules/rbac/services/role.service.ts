@@ -21,6 +21,10 @@ import {
 } from '../constants/permission-catalog';
 import { RbacAuditService } from './rbac-audit.service';
 import { RbacAuthorizationService } from './rbac-authorization.service';
+import {
+  AuditAction,
+  AuditTargetType,
+} from '../constants/audit-action.constants';
 
 @Injectable()
 export class RoleService {
@@ -112,9 +116,9 @@ export class RoleService {
       await this.auditService.record(
         {
           actorUserGuid: actorGuid,
-          targetType: 'role',
+          targetType: AuditTargetType.ROLE,
           targetGuid: role.guid,
-          action: 'role.create',
+          action: AuditAction.ROLE_CREATE,
           result: 'allowed',
           afterState: {
             name: role.name,
@@ -209,9 +213,9 @@ export class RoleService {
       await this.auditService.record(
         {
           actorUserGuid: actorGuid,
-          targetType: 'role',
+          targetType: AuditTargetType.ROLE,
           targetGuid: guid,
-          action: 'role.update',
+          action: AuditAction.ROLE_UPDATE,
           result: 'allowed',
           beforeState: {
             name: beforeName,
@@ -308,9 +312,9 @@ export class RoleService {
       await this.auditService.record(
         {
           actorUserGuid: actorGuid,
-          targetType: 'role',
+          targetType: AuditTargetType.ROLE,
           targetGuid: guid,
-          action: 'role.delete',
+          action: AuditAction.ROLE_DELETE,
           result: 'allowed',
           beforeState,
         },

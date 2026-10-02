@@ -17,6 +17,14 @@ export class ConsoleAudit {
   @Index()
   actorUserGuid: string | null;
 
+  /**
+   * Snapshot of the actor's username at the time of the operation.
+   * Keeps audit rows readable even after the user is deleted.
+   * Falls back to the joined `User.username` when null (legacy rows).
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  actorUsername: string | null;
+
   @Column({ type: 'varchar' })
   targetType: string;
 
@@ -40,6 +48,19 @@ export class ConsoleAudit {
 
   @Column({ type: 'varchar', nullable: true })
   requestId: string | null;
+
+  /**
+   * Originating client IP of the audited request, for source attribution.
+   */
+  @Column({ type: 'varchar', length: 45, nullable: true })
+  @Index()
+  ip: string | null;
+
+  /**
+   * Originating User-Agent of the audited request, truncated to 512 chars.
+   */
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  userAgent: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
