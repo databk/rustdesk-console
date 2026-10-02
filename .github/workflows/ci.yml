@@ -99,6 +99,7 @@ jobs:
       - name: Test fresh and existing MySQL databases
         env:
           RUN_MYSQL_MIGRATION_TESTS: '1'
+          DB_TYPE: mysql
           DB_HOST: 127.0.0.1
           DB_USERNAME: root
           DB_PASSWORD: test-password
