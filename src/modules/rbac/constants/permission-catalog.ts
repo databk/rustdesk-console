@@ -30,7 +30,12 @@ export type PermissionCode =
   | 'strategies.assign'
   | 'audit.view'
   | 'roles.view'
-  | 'roles.assign';
+  | 'roles.assign'
+  | 'servers.view'
+  | 'servers.control'
+  | 'servers.config'
+  | 'servers.disconnect'
+  | 'servers.ban';
 
 export type SystemPermissionCode =
   'roles.create' | 'roles.edit' | 'roles.delete';
@@ -85,6 +90,34 @@ const systemDefinition = (
 });
 
 export const PERMISSION_CATALOG: readonly PermissionDefinition[] = [
+  definition('servers.view', 'servers', 'view', 'View servers'),
+  definition(
+    'servers.control',
+    'servers',
+    'control',
+    'Control server services',
+    'global',
+    ['servers.view'],
+  ),
+  definition(
+    'servers.config',
+    'servers',
+    'config',
+    'Configure servers',
+    'global',
+    ['servers.view'],
+  ),
+  definition(
+    'servers.disconnect',
+    'servers',
+    'disconnect',
+    'Disconnect relay sessions',
+    'global',
+    ['servers.view'],
+  ),
+  definition('servers.ban', 'servers', 'ban', 'Manage server bans', 'global', [
+    'servers.view',
+  ]),
   definition('users.view', 'users', 'view', 'View users'),
   definition('users.create', 'users', 'create', 'Create users', 'global', [
     'users.view',
