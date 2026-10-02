@@ -278,7 +278,8 @@ export class AuthController {
   }
 
   private extractActorUsername(req: Request): string | null {
-    const username = (req.user as { username?: unknown } | undefined)?.username;
+    const user: unknown = req.user;
+    const username = (user as { username?: unknown } | undefined)?.username;
     return typeof username === 'string' ? username : null;
   }
 

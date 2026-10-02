@@ -15,7 +15,7 @@ import {
   resolveTargetTypeFromRoute,
 } from '../constants/audit-action.constants';
 
-type AuditedRequest = Request & {
+type AuditedRequest = Omit<Request, 'params' | 'user'> & {
   user?: { id?: string; username?: string };
   params?: Record<string, string>;
   route?: { path?: string };
@@ -124,7 +124,7 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
   }
 
   private readTargetGuid(request: AuditedRequest): string | null {
-    const params = (request.params ?? {}) as Record<string, string>;
+    const params = request.params ?? {};
     return params.guid || params.uuid || params.id || null;
   }
 }
