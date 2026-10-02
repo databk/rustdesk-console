@@ -147,10 +147,9 @@ export class RbacAuditService {
     };
   }
 
-  private truncateUserAgent(value: unknown): string | null {
-    if (value === undefined || value === null) return null;
-    const text = String(value);
-    return text.length > 512 ? text.slice(0, 512) : text;
+  private truncateUserAgent(value: string | null | undefined): string | null {
+    if (!value) return null;
+    return value.length > 512 ? value.slice(0, 512) : value;
   }
 
   private serializeState(value: unknown): string | null {

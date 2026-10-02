@@ -278,8 +278,8 @@ export class AuthController {
   }
 
   private extractActorUsername(req: Request): string | null {
-    const username = (req.user as { username?: string } | undefined)?.username;
-    return username ?? null;
+    const username = (req.user as { username?: unknown } | undefined)?.username;
+    return typeof username === 'string' ? username : null;
   }
 
   private extractIp(req: Request): string | null {

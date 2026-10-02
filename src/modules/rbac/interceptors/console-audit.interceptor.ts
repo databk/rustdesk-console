@@ -80,11 +80,7 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
       actorUserGuid: request.user?.id ?? null,
       actorUsername: request.user?.username ?? null,
       targetType: resolveTargetTypeFromRoute(rawTarget),
-      targetGuid:
-        request.params?.guid ||
-        request.params?.uuid ||
-        request.params?.id ||
-        null,
+      targetGuid: this.readTargetGuid(request),
       action: buildRouteAction(request.method, basePath, routePath),
       ip: this.extractIp(request),
       userAgent: this.extractUserAgent(request),
@@ -125,5 +121,10 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
   private extractUserAgent(request: AuditedRequest): string | null {
     const header = request.headers['user-agent'];
     return typeof header === 'string' ? header : null;
+  }
+
+  private readTargetGuid(request: AuditedRequest): string | null {
+    const params = (request.params ?? {}) as Record<string, string>;
+    return params.guid || params.uuid || params.id || null;
   }
 }
