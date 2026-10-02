@@ -129,7 +129,7 @@ export class DockerDriver {
 
   // Keep the old container until the replacement passes its authenticated API
   // health check. Preserve mounts, image, resources, network and host ports.
-  async apply(service, port, ready, beforeRollback) {
+  async apply(service, port, ready, beforeRollback, commit = async () => {}) {
     const info = await this.inspect(service);
     const oldPort = Number(
       info.Config.Labels['io.rustdesk.console.port'] ||
@@ -152,6 +152,7 @@ export class DockerDriver {
       try {
         await this.action(service, info.State.Running ? 'restart' : 'start');
         await ready(port);
+        await commit();
       } catch (error) {
         await recover('configuration', beforeRollback);
         if (info.State.Running) {
@@ -247,6 +248,7 @@ export class DockerDriver {
       );
       await this.request('POST', `/containers/${replacement.Id}/start`);
       await ready(port);
+      await commit();
     } catch (error) {
       // Recovery steps are independent: cleanup or rename failure must not
       // prevent reconnecting networks or attempting to start the old service.

@@ -265,7 +265,11 @@ export function createAgent({
         service,
         port,
         (expectedPort) => ready(service, expectedPort),
-        () => save(`${service}-config`, previous),
+        async () => {
+          await save(`${service}-config`, previous);
+          await save(`${service}-applied`, previous);
+        },
+        () => save(`${service}-applied`, desired),
       );
     } catch (error) {
       // Failed application restores the last applied override, including secrets.
@@ -276,7 +280,6 @@ export function createAgent({
       }
       throw error;
     }
-    await save(`${service}-applied`, desired);
     return { state: 'applied' };
   };
   const config = async (service) => {
@@ -294,7 +297,9 @@ export function createAgent({
         { values: { ...(effective?.values || {}), ...desired.values } },
         service,
       ),
-      effective_values: effective?.values || null,
+      effective_values: effective
+        ? redacted({ values: effective.values || {} }, service).values
+        : null,
       pending_restart:
         applied === null
           ? Object.keys(desired.values).length > 0

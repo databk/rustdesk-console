@@ -46,7 +46,10 @@ async function fixture(t, overrides = {}) {
   const calls = [];
   const docker = {
     inspect: async (service) => container(service),
-    apply: async (_service, port, ready) => ready(port),
+    apply: async (_service, port, ready, _rollback, commit) => {
+      await ready(port);
+      await commit();
+    },
     logs: async () => `Key: private-value\ntoken=${serverToken}\nnormal log`,
     action: async () => {},
   };
@@ -317,9 +320,10 @@ test('removing a port override restores the immutable deployment port', async (t
     JSON.stringify({ values: {} }),
   );
   let appliedPort;
-  docker.apply = async (_service, port, ready) => {
+  docker.apply = async (_service, port, ready, _rollback, commit) => {
     appliedPort = port;
     await ready(port);
+    await commit();
   };
   assert.equal((await request('/v1/services/hbbr/apply', 'POST')).status, 200);
   assert.equal(appliedPort, 21117);
@@ -432,3 +436,58 @@ test('same-port rollback still restarts and checks the old service if restoring 
     2,
   );
 });
+
+test('every returned configuration representation masks schema-marked secrets', async (t) => {
+  const { request } = await fixture(t, {
+    fetcher: async () =>
+      Response.json({
+        values: { key: 'unmasked-server-secret', port: '21116' },
+      }),
+  });
+  const response = await request('/v1/services/hbbs/config');
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.values.key, REDACTED);
+  assert.equal(result.effective_values.key, REDACTED);
+  assert.ok(!JSON.stringify(result).includes('unmasked-server-secret'));
+});
+
+for (const port of [21116, 22016]) {
+  test(`failed applied-state checkpoint rolls back the runtime before deleting backup (port ${port})`, async () => {
+    const docker = new DockerDriver({ nodeId: 'local' });
+    docker.inspect = async () => container();
+    const calls = [];
+    docker.request = async (method, route) => {
+      calls.push({ method, route });
+      if (route.startsWith('/containers/create')) return { Id: 'replacement' };
+      return {};
+    };
+    const checked = [];
+    let restored = false;
+    const failure = new Error('Checkpoint write failed');
+    await assert.rejects(
+      docker.apply(
+        'hbbs',
+        port,
+        async (value) => checked.push(value),
+        async () => {
+          restored = true;
+        },
+        async () => {
+          throw failure;
+        },
+      ),
+      (error) => error === failure,
+    );
+    assert.equal(restored, true);
+    assert.deepEqual(checked, [port, 21116]);
+    assert.ok(
+      !calls.some(
+        ({ method, route }) =>
+          method === 'DELETE' && route.startsWith('/containers/old?'),
+      ),
+    );
+    if (port !== 21116)
+      assert.ok(calls.some(({ route }) => route === '/containers/old/start'));
+  });
+}
