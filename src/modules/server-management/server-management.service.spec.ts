@@ -5,6 +5,12 @@ import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { ServerManagementController } from './server-management.controller';
 import { ServerManagementService } from './server-management.service';
 
+jest.mock('uuid', () => {
+  const cryptoModule =
+    jest.requireActual<typeof import('node:crypto')>('node:crypto');
+  return { v4: cryptoModule.randomUUID };
+});
+
 const node = {
   id: 'local',
   name: 'Local server',
