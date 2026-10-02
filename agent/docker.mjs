@@ -135,18 +135,32 @@ export class DockerDriver {
       info.Config.Labels['io.rustdesk.console.port'] ||
         (service === 'hbbs' ? 21116 : 21117),
     );
+    const rollbackFailures = [];
+    const recover = async (step, operation) => {
+      try {
+        await operation();
+      } catch {
+        rollbackFailures.push(step);
+        console.error(`Service rollback step failed: ${service}/${step}`);
+      }
+    };
+    const reportRollback = (error) => {
+      if (rollbackFailures.length && error instanceof Error)
+        error.rollbackFailures = rollbackFailures;
+    };
     if (port === oldPort) {
       try {
         await this.action(service, info.State.Running ? 'restart' : 'start');
-        await ready();
+        await ready(port);
       } catch (error) {
-        await beforeRollback();
+        await recover('configuration', beforeRollback);
         if (info.State.Running) {
-          await this.action(service, 'restart');
-          await ready();
+          await recover('restart', () => this.action(service, 'restart'));
+          await recover('readiness', () => ready(oldPort));
         } else {
-          await this.action(service, 'stop');
+          await recover('stop', () => this.action(service, 'stop'));
         }
+        reportRollback(error);
         throw error;
       }
       return;
@@ -187,6 +201,7 @@ export class DockerDriver {
         config.ExposedPorts[newKey] = exposed[oldKey];
       }
     }
+    config.Labels['io.rustdesk.console.deployment-port'] ||= String(oldPort);
     config.Labels['io.rustdesk.console.port'] = String(port);
     const endpoints = Object.fromEntries(
       Object.entries(info.NetworkSettings.Networks).map(
@@ -231,30 +246,38 @@ export class DockerDriver {
         },
       );
       await this.request('POST', `/containers/${replacement.Id}/start`);
-      await ready();
+      await ready(port);
     } catch (error) {
-      await beforeRollback();
+      // Recovery steps are independent: cleanup or rename failure must not
+      // prevent reconnecting networks or attempting to start the old service.
+      await recover('configuration', beforeRollback);
       if (replacement)
-        await this.request(
-          'DELETE',
-          `/containers/${replacement.Id}?force=1&v=0`,
+        await recover('remove-replacement', () =>
+          this.request('DELETE', `/containers/${replacement.Id}?force=1&v=0`),
         );
       if (renamed) {
-        await this.request(
-          'POST',
-          `/containers/${info.Id}/rename?name=${encodeURIComponent(name)}`,
+        await recover('restore-name', () =>
+          this.request(
+            'POST',
+            `/containers/${info.Id}/rename?name=${encodeURIComponent(name)}`,
+          ),
         );
         for (const network of disconnected)
-          await this.request(
-            'POST',
-            `/networks/${encodeURIComponent(network)}/connect`,
-            { Container: info.Id, EndpointConfig: endpoints[network] },
+          await recover(`reconnect-${network}`, () =>
+            this.request(
+              'POST',
+              `/networks/${encodeURIComponent(network)}/connect`,
+              { Container: info.Id, EndpointConfig: endpoints[network] },
+            ),
           );
       }
       if (info.State.Running) {
-        await this.request('POST', `/containers/${info.Id}/start`);
-        await ready();
+        await recover('start', () =>
+          this.request('POST', `/containers/${info.Id}/start`),
+        );
+        await recover('readiness', () => ready(oldPort));
       }
+      reportRollback(error);
       throw error;
     }
     try {

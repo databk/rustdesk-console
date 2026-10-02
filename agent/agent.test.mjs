@@ -46,7 +46,7 @@ async function fixture(t, overrides = {}) {
   const calls = [];
   const docker = {
     inspect: async (service) => container(service),
-    apply: async (_service, _port, ready) => ready(),
+    apply: async (_service, port, ready) => ready(port),
     logs: async () => `Key: private-value\ntoken=${serverToken}\nnormal log`,
     action: async () => {},
   };
@@ -245,6 +245,7 @@ test('port recreation preserves host bindings and volumes even for overlapping r
     'hbbs',
   ]);
   assert.equal(creation.Labels['io.rustdesk.console.port'], '21117');
+  assert.equal(creation.Labels['io.rustdesk.console.deployment-port'], '21116');
   assert.ok(
     calls.some((call) => call.method === 'DELETE' && call.path.includes('v=0')),
   );
@@ -299,4 +300,135 @@ test('invalid server JSON is reported as an upstream failure', async (t) => {
     fetcher: async () => new Response('not JSON'),
   });
   assert.equal((await request('/v1/peers')).status, 502);
+});
+
+test('removing a port override restores the immutable deployment port', async (t) => {
+  const { request, directory, docker } = await fixture(t);
+  const info = container('hbbr');
+  info.Config.Labels['io.rustdesk.console.port'] = '22117';
+  info.Config.Labels['io.rustdesk.console.deployment-port'] = '21117';
+  docker.inspect = async () => info;
+  await fs.writeFile(
+    path.join(directory, 'hbbr-applied.json'),
+    JSON.stringify({ values: { port: '22117' } }),
+  );
+  await fs.writeFile(
+    path.join(directory, 'hbbr-config.json'),
+    JSON.stringify({ values: {} }),
+  );
+  let appliedPort;
+  docker.apply = async (_service, port, ready) => {
+    appliedPort = port;
+    await ready(port);
+  };
+  assert.equal((await request('/v1/services/hbbr/apply', 'POST')).status, 200);
+  assert.equal(appliedPort, 21117);
+  assert.deepEqual(
+    JSON.parse(
+      await fs.readFile(path.join(directory, 'hbbr-applied.json'), 'utf8'),
+    ),
+    { values: {} },
+  );
+});
+
+test('management readiness rejects a listener that does not match container bindings', async (t) => {
+  const { request, directory } = await fixture(t);
+  await request('/v1/services/hbbs/config', 'PUT', {
+    values: { port: '22016' },
+  });
+  const response = await request('/v1/services/hbbs/apply', 'POST');
+  assert.equal(response.status, 503);
+  assert.deepEqual(
+    JSON.parse(
+      await fs.readFile(path.join(directory, 'hbbs-config.json'), 'utf8'),
+    ),
+    { values: {} },
+  );
+  assert.deepEqual(
+    JSON.parse(
+      await fs.readFile(path.join(directory, 'hbbs-applied.json'), 'utf8'),
+    ),
+    { values: {} },
+  );
+});
+
+test('rollback attempts every recovery step and preserves the original failure', async () => {
+  const original = new Error('Unhealthy replacement');
+  const calls = [];
+  const ports = [];
+  const info = container();
+  info.NetworkSettings.Networks.second = { Aliases: ['hbbs'] };
+  const docker = new DockerDriver({
+    request: async (method, route, body) => {
+      calls.push({ method, route, body });
+      if (route.endsWith('/json')) return info;
+      if (route.startsWith('/containers/create')) return { Id: 'new' };
+      if (
+        route === '/containers/new?force=1&v=0' ||
+        route === '/containers/old/rename?name=hbbs' ||
+        route === '/networks/net/connect' ||
+        route === '/containers/old/start'
+      )
+        throw new Error('Recovery step failed');
+    },
+  });
+  await assert.rejects(
+    docker.apply(
+      'hbbs',
+      22016,
+      async (port) => {
+        ports.push(port);
+        if (ports.length === 1) throw original;
+      },
+      async () => {
+        throw new Error('Configuration restore failed');
+      },
+    ),
+    (error) => {
+      assert.equal(error, original);
+      assert.deepEqual(error.rollbackFailures, [
+        'configuration',
+        'remove-replacement',
+        'restore-name',
+        'reconnect-net',
+        'start',
+      ]);
+      return true;
+    },
+  );
+  assert.deepEqual(ports, [22016, 21116]);
+  assert.ok(calls.some((call) => call.route === '/networks/second/connect'));
+  assert.ok(calls.some((call) => call.route === '/containers/old/start'));
+});
+
+test('same-port rollback still restarts and checks the old service if restoring configuration fails', async () => {
+  const calls = [];
+  const original = new Error('Unhealthy service');
+  let checks = 0;
+  const docker = new DockerDriver({
+    request: async (method, route) => {
+      calls.push({ method, route });
+      if (route.endsWith('/json')) return container();
+    },
+  });
+  await assert.rejects(
+    docker.apply(
+      'hbbs',
+      21116,
+      async (port) => {
+        assert.equal(port, 21116);
+        if (++checks === 1) throw original;
+      },
+      async () => {
+        throw new Error('Configuration restore failed');
+      },
+    ),
+    (error) => error === original,
+  );
+  assert.equal(checks, 2);
+  assert.equal(
+    calls.filter((call) => call.route === '/containers/old/restart?t=10')
+      .length,
+    2,
+  );
 });

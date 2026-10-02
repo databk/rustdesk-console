@@ -218,7 +218,7 @@ export function createAgent({
     );
     return { ...bans, synchronization: Object.fromEntries(results) };
   };
-  const ready = async (service) => {
+  const ready = async (service, expectedPort) => {
     for (let attempt = 0; attempt < readinessAttempts; attempt++) {
       try {
         const status = await serverRequest(service, '/v1/status');
@@ -229,6 +229,12 @@ export function createAgent({
           status.uptime_seconds < 1
         )
           throw new AgentError(502, 'Incompatible server management API');
+        const effective = await serverRequest(service, '/v1/config');
+        if (Number(effective.values?.port) !== expectedPort)
+          throw new AgentError(
+            502,
+            'Server listener port does not match container bindings',
+          );
         await serverRequest(
           service,
           '/v1/bans',
@@ -251,19 +257,23 @@ export function createAgent({
     const container = await docker.inspect(service);
     const port = Number(
       desired.values.port ||
-        container.Config.Labels['io.rustdesk.console.port'] ||
+        container.Config.Labels['io.rustdesk.console.deployment-port'] ||
         (service === 'hbbs' ? 21116 : 21117),
     );
     try {
       await docker.apply(
         service,
         port,
-        () => ready(service),
+        (expectedPort) => ready(service, expectedPort),
         () => save(`${service}-config`, previous),
       );
     } catch (error) {
       // Failed application restores the last applied override, including secrets.
-      await save(`${service}-config`, previous);
+      try {
+        await save(`${service}-config`, previous);
+      } catch {
+        console.error(`Unable to restore saved configuration: ${service}`);
+      }
       throw error;
     }
     await save(`${service}-applied`, desired);

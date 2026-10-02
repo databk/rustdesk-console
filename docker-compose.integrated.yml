@@ -43,6 +43,7 @@ services:
     labels:
       io.rustdesk.console.node: local
       io.rustdesk.console.service: hbbs
+      io.rustdesk.console.deployment-port: '21116'
       io.rustdesk.console.port: '21116'
     environment:
       RD_MANAGEMENT_BIND: 0.0.0.0:21120
@@ -66,6 +67,7 @@ services:
     labels:
       io.rustdesk.console.node: local
       io.rustdesk.console.service: hbbr
+      io.rustdesk.console.deployment-port: '21117'
       io.rustdesk.console.port: '21117'
     environment:
       RD_MANAGEMENT_BIND: 0.0.0.0:21121
