@@ -38,11 +38,7 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
       SKIP_CONSOLE_AUDIT_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (
-      skip ||
-      !request.user?.id ||
-      !AUDITED_METHODS.has(request.method)
-    ) {
+    if (skip || !request.user?.id || !AUDITED_METHODS.has(request.method)) {
       return next.handle();
     }
 
@@ -58,8 +54,7 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
       }),
       catchError((error: unknown) =>
         defer(async () => {
-          const reason =
-            error instanceof Error ? error.message : String(error);
+          const reason = error instanceof Error ? error.message : String(error);
           await this.persist({
             ...base,
             result: 'denied',
@@ -84,7 +79,7 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
       action: buildRouteAction(request.method, basePath, routePath),
       ip: this.extractIp(request),
       userAgent: this.extractUserAgent(request),
-      afterState: request.body,
+      afterState: request.body as unknown,
     };
   }
 
