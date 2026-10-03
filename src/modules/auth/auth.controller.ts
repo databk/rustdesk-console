@@ -34,6 +34,10 @@ import { extractBearerToken } from './auth.utils';
 import type { Request } from 'express';
 import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { SkipConsoleAudit } from '../rbac/decorators/skip-console-audit.decorator';
+import {
+  AuditAction,
+  AuditTargetType,
+} from '../rbac/constants/audit-action.constants';
 
 @Controller()
 export class AuthController {
@@ -51,37 +55,34 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto) {
+  async login(@Body() loginDto: LoginDto, @Req() req: Request) {
     let response: Awaited<ReturnType<AuthService['login']>>;
     try {
       response = await this.authService.login(loginDto);
     } catch (error: unknown) {
-      await this.auditService.recordDenied({
-        targetType: 'auth',
-        action: 'auth.login',
+      await this.recordAuthAudit(AuditAction.AUTH_LOGIN, null, req, {
+        result: 'denied',
         reason: error instanceof Error ? error.message : String(error),
         afterState: { username: loginDto.username, login_type: loginDto.type },
       });
       throw error;
     }
-    try {
-      await this.auditService.record({
-        actorUserGuid: response.user?.guid ?? null,
-        targetType: 'auth',
+    await this.recordAuthAudit(
+      AuditAction.AUTH_LOGIN,
+      response.user?.guid ?? null,
+      req,
+      {
         targetGuid: response.user?.guid ?? null,
-        action: 'auth.login',
-        result: 'allowed',
+        actorUsername: response.user?.name ?? null,
         afterState: { username: loginDto.username, login_type: loginDto.type },
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Unable to persist login audit: ${message}`);
-    }
+      },
+    );
     return response;
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @SkipConsoleAudit()
   async logout(
     @CurrentUser('id') userId: string,
     @Body() logoutDto: LogoutDto,
@@ -90,6 +91,9 @@ export class AuthController {
     const token = extractBearerToken(req);
 
     await this.authService.logout(userId, logoutDto, token);
+    await this.recordAuthAudit(AuditAction.AUTH_LOGOUT, userId, req, {
+      targetGuid: userId,
+    });
     return { message: 'Logged out successfully' };
   }
 
@@ -164,14 +168,35 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('passkey/auth/verify')
   @HttpCode(HttpStatus.OK)
-  async verifyPasskeyAuth(@Body() dto: VerifyPasskeyAuthDto) {
-    return this.passkeyService.verifyAuthLogin(
-      dto.secret,
-      dto.response,
-      dto.id,
-      dto.uuid,
-      dto.deviceInfo,
-    );
+  async verifyPasskeyAuth(
+    @Body() dto: VerifyPasskeyAuthDto,
+    @Req() req: Request,
+  ) {
+    try {
+      const response = await this.passkeyService.verifyAuthLogin(
+        dto.secret,
+        dto.response,
+        dto.id,
+        dto.uuid,
+        dto.deviceInfo,
+      );
+      await this.recordAuthAudit(
+        AuditAction.AUTH_PASSKEY_LOGIN,
+        response.user?.guid ?? null,
+        req,
+        {
+          targetGuid: response.user?.guid ?? null,
+          actorUsername: response.user?.name ?? null,
+        },
+      );
+      return response;
+    } catch (error: unknown) {
+      await this.recordAuthAudit(AuditAction.AUTH_PASSKEY_LOGIN, null, req, {
+        result: 'denied',
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
   // ==================== Passkey credential management ====================
@@ -218,5 +243,58 @@ export class AuthController {
   ) {
     await this.tokenService.revokeSession(userId, jti);
     return { message: 'Session revoked' };
+  }
+
+  private async recordAuthAudit(
+    action: string,
+    actorUserGuid: string | null,
+    req: Request,
+    options: {
+      targetGuid?: string | null;
+      actorUsername?: string | null;
+      result?: 'allowed' | 'denied';
+      reason?: string;
+      afterState?: unknown;
+    } = {},
+  ): Promise<void> {
+    try {
+      await this.auditService.record({
+        actorUserGuid,
+        actorUsername:
+          options.actorUsername ?? this.extractActorUsername(req),
+        targetType: AuditTargetType.AUTH,
+        targetGuid: options.targetGuid ?? null,
+        action,
+        result: options.result ?? 'allowed',
+        reason: options.reason,
+        afterState: options.afterState,
+        ip: this.extractIp(req),
+        userAgent: this.extractUserAgent(req),
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Unable to persist auth audit: ${message}`);
+    }
+  }
+
+  private extractActorUsername(req: Request): string | null {
+    const user: unknown = req.user;
+    const username = (user as { username?: unknown } | undefined)?.username;
+    return typeof username === 'string' ? username : null;
+  }
+
+  private extractIp(req: Request): string | null {
+    if (req.ip) return req.ip;
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') {
+      const first = forwarded.split(',')[0].trim();
+      if (first) return first;
+    }
+    return null;
+  }
+
+  private extractUserAgent(req: Request): string | null {
+    const header = req.headers['user-agent'];
+    return typeof header === 'string' ? header : null;
   }
 }

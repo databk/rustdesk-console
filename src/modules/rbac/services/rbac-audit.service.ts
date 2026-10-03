@@ -7,6 +7,7 @@ import { ConsoleAudit } from '../entities/console-audit.entity';
 
 export interface RbacAuditEvent {
   actorUserGuid?: string | null;
+  actorUsername?: string | null;
   targetType: string;
   targetGuid?: string | null;
   action: string;
@@ -15,6 +16,8 @@ export interface RbacAuditEvent {
   beforeState?: unknown;
   afterState?: unknown;
   requestId?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
 }
 
 interface ConsoleAuditQueryRaw {
@@ -43,6 +46,7 @@ export class RbacAuditService {
     const audit = repository.create({
       guid: uuidv4(),
       actorUserGuid: event.actorUserGuid ?? null,
+      actorUsername: event.actorUsername ?? null,
       targetType: event.targetType,
       targetGuid: event.targetGuid ?? null,
       action: event.action,
@@ -51,6 +55,8 @@ export class RbacAuditService {
       beforeState: this.serializeState(event.beforeState),
       afterState: this.serializeState(event.afterState),
       requestId: event.requestId ?? null,
+      ip: event.ip ?? null,
+      userAgent: this.truncateUserAgent(event.userAgent),
     });
     return repository.save(audit);
   }
@@ -123,7 +129,8 @@ export class RbacAuditService {
       data: rows.map((row) => ({
         guid: row.guid,
         actor_user_guid: row.actorUserGuid,
-        actor_user_name: actorNames.get(row.guid) ?? null,
+        actor_user_name: row.actorUsername ?? actorNames.get(row.guid) ?? null,
+        actor_username: row.actorUsername,
         target_type: row.targetType,
         target_guid: row.targetGuid,
         action: row.action,
@@ -132,10 +139,17 @@ export class RbacAuditService {
         before_state: this.parseState(row.beforeState),
         after_state: this.parseState(row.afterState),
         request_id: row.requestId,
+        ip: row.ip,
+        user_agent: row.userAgent,
         created_at: row.createdAt,
       })),
       total,
     };
+  }
+
+  private truncateUserAgent(value: string | null | undefined): string | null {
+    if (!value) return null;
+    return value.length > 512 ? value.slice(0, 512) : value;
   }
 
   private serializeState(value: unknown): string | null {

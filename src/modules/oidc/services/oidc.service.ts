@@ -76,6 +76,8 @@ export interface OidcCallbackResult {
   frontendRedirectUrl?: string;
   /** Access token */
   accessToken?: string;
+  /** Authenticated user GUID (for audit attribution) */
+  userGuid?: string;
   /** User info */
   user?: {
     username: string;
@@ -413,6 +415,7 @@ export class OidcService {
           isWebLogin: true,
           frontendRedirectUrl: authState.frontendRedirectUrl!,
           accessToken,
+          userGuid: user.guid,
           user: {
             username: user.username,
             email: user.email || undefined,
@@ -423,6 +426,7 @@ export class OidcService {
         // Client login: return simple information
         return {
           isWebLogin: false,
+          userGuid: user.guid,
         };
       }
     } catch (err: unknown) {

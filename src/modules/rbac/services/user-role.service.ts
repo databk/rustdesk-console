@@ -25,6 +25,10 @@ import {
   PermissionCode,
 } from '../constants/permission-catalog';
 import { RbacAuditService } from './rbac-audit.service';
+import {
+  AuditAction,
+  AuditTargetType,
+} from '../constants/audit-action.constants';
 import { RbacAuthorizationService } from './rbac-authorization.service';
 
 @Injectable()
@@ -559,9 +563,9 @@ export class UserRoleService {
       await this.auditService.record(
         {
           actorUserGuid: actorGuid,
-          targetType: 'user',
+          targetType: AuditTargetType.USER,
           targetGuid: userGuid,
-          action: 'user_role.replace',
+          action: AuditAction.USER_ROLE_REPLACE,
           result: 'allowed',
           beforeState: before,
           afterState: normalized,
