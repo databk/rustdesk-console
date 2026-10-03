@@ -37,11 +37,12 @@ index that permits multiple ordinary user groups while enforcing a single
 default group.
 
 Existing databases created with `synchronize: true` are automatically
-baselined if their current schema matches this release's entities. The
-baseline records the initial migration without recreating tables. If schema
-comparison detects drift or an incomplete database, migration stops without
-marking the baseline. Inspect and repair a backup copy before retrying; do
-not force a baseline on an unknown schema.
+baselined. When the schema already matches this release's entities, the
+baseline records the initial migration without recreating tables. When schema
+drift is detected and no migration history table exists, one final
+synchronization repairs the drift before baselining. When drift is detected
+and a migration history table already exists, migration stops without marking
+the baseline; inspect and repair a backup copy before retrying.
 
 MySQL schema changes can commit independently of a transaction. If a
 migration fails, inspect the database and restore the backup if needed before
