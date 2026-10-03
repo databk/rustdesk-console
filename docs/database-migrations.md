@@ -28,7 +28,8 @@ The provided Docker image runs the migration command before starting its
 single server process. For multiple replicas sharing MySQL, run a single
 migration job first, set `DB_MIGRATE_ON_START=0` on every replica, and then
 start the replicas. MySQL migration commands take an advisory lock so an
-accidental concurrent run waits for the first to finish. SQLite deployments
+accidental concurrent run waits up to 120 seconds for the first to finish, then
+fails if it cannot acquire the lock. SQLite deployments
 should use one writer process.
 
 MySQL deployments require version 8.0.13 or later for the functional unique
