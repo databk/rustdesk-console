@@ -49,4 +49,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/login-options', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start the application
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "if [ \"${DB_MIGRATE_ON_START:-1}\" = 1 ]; then node dist/main.js migrate || exit $?; fi; exec node dist/main.js"]

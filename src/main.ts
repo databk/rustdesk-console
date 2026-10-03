@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
+import { runMigrationCommand } from './database/migration-command';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -36,4 +37,22 @@ async function bootstrap() {
   await app.listen(port);
   logger.log(`Application is running on: http://localhost:${port}/api`);
 }
-void bootstrap();
+const command = process.argv[2];
+if (
+  command === 'migrate' ||
+  command === 'baseline' ||
+  command === 'show-migrations'
+) {
+  void runMigrationCommand(
+    command === 'migrate'
+      ? 'run'
+      : command === 'baseline'
+        ? 'baseline'
+        : 'show',
+  ).catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+} else {
+  void bootstrap();
+}

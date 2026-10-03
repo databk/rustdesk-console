@@ -6,10 +6,10 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  ManyToMany,
+  OneToMany,
 } from 'typeorm';
 import { AddressBook } from './address-book.entity';
-import { AddressBookPeer } from './address-book-peer.entity';
+import { AddressBookPeerTag } from './address-book-peer-tag.entity';
 
 /**
  * Address book tag entity
@@ -62,8 +62,8 @@ export class AddressBookTag {
    * Many-to-many relationship, linked through the address_book_peer_tags join table
    * A tag can map to multiple devices, and a device can have multiple tags
    */
-  @ManyToMany(() => AddressBookPeer, (peer) => peer.tags)
-  peers: AddressBookPeer[];
+  @OneToMany(() => AddressBookPeerTag, (link) => link.tag)
+  peerLinks: AddressBookPeerTag[];
 
   /**
    * Creation time

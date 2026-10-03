@@ -87,7 +87,8 @@ export class AddressBookPeerService {
 
     const queryBuilder = this.addressBookPeerRepository
       .createQueryBuilder('abp')
-      .leftJoinAndSelect('abp.tags', 'tags')
+      .leftJoinAndSelect('abp.tagLinks', 'tagLinks')
+      .leftJoinAndSelect('tagLinks.tag', 'tags')
       .where('abp.addressBookGuid = :addressBookGuid', { addressBookGuid: ab });
 
     // Filter by alias (fuzzy match)
@@ -172,7 +173,7 @@ export class AddressBookPeerService {
         hostname: sysinfo?.hostname || '',
         platform: mapOsToPlatform(sysinfo?.os),
         alias: p.alias,
-        tags: p.tags?.map((t) => t.name) || [],
+        tags: p.tagLinks?.map((link) => link.tag.name) || [],
         note: p.note,
       };
     });

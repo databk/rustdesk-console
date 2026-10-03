@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm';
+import { getDbType } from '../../../common/utils/data-dir.util';
 
 /**
  * OIDC authorization state enum
@@ -50,7 +51,7 @@ export class OidcAuthState {
   op: string;
 
   @Column({
-    type: 'text',
+    type: getDbType() === 'mysql' ? 'varchar' : 'text',
     default: OidcProviderType.OIDC,
   })
   providerType: OidcProviderType;
@@ -98,7 +99,7 @@ export class OidcAuthState {
    * cancelled - cancelled
    */
   @Column({
-    type: 'text',
+    type: getDbType() === 'mysql' ? 'varchar' : 'text',
     default: OidcAuthStatus.PENDING,
   })
   status: OidcAuthStatus;

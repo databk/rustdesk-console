@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm';
+import { getDbType } from '../../../common/utils/data-dir.util';
 
 /**
  * OIDC provider entity
@@ -34,7 +35,7 @@ export class OidcProvider {
   name: string;
 
   @Column({
-    type: 'text',
+    type: getDbType() === 'mysql' ? 'varchar' : 'text',
     default: OidcProviderType.OIDC,
   })
   type: OidcProviderType;

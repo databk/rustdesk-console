@@ -121,7 +121,7 @@ docker run -d \
 
 ### Pre-built Binaries
 
-Each release ships standalone Single Executable Application (SEA) archives for Linux (x64/arm64), Windows (x64), and macOS (x64/arm64). Download the archive matching your platform from the [Releases page](https://github.com/databk/rustdesk-console/releases), extract it, and run the executable directly — no Node.js runtime required.
+Each release ships standalone Single Executable Application (SEA) archives for Linux (x64/arm64), Windows (x64), and macOS (x64/arm64). Download the archive matching your platform from the [Releases page](https://github.com/databk/rustdesk-console/releases), extract it, run `./rustdesk-console migrate`, then start the executable. No Node.js runtime is required. Back up an existing database before upgrading; see [database migrations](docs/database-migrations.md).
 
 <details>
 <summary>🔧 Build from Source</summary>
@@ -133,6 +133,7 @@ npm install
 cp .env.example .env
 # Edit .env with your configuration
 npm run build
+node dist/main.js migrate
 npm run start:prod
 ```
 
