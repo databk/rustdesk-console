@@ -27,8 +27,13 @@ migration is pending.
 The provided Docker image runs the migration command before starting its
 single server process. For multiple replicas sharing MySQL, run a single
 migration job first, set `DB_MIGRATE_ON_START=0` on every replica, and then
-start the replicas. Do not run migration jobs concurrently. SQLite deployments
+start the replicas. MySQL migration commands take an advisory lock so an
+accidental concurrent run waits for the first to finish. SQLite deployments
 should use one writer process.
+
+MySQL deployments require version 8.0.13 or later for the functional unique
+index that permits multiple ordinary user groups while enforcing a single
+default group.
 
 Existing databases created with `synchronize: true` are automatically
 baselined if their current schema matches this release's entities. The

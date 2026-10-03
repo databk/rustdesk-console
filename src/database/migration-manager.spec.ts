@@ -5,6 +5,7 @@ import { join } from 'path';
 import { DataSource } from 'typeorm';
 import { DATABASE_ENTITIES } from './entities';
 import { InitialSchema1790985600000 } from '../migrations/1790985600000-InitialSchema';
+import { FixMySqlDefaultUserGroupIndex1790985600001 } from '../migrations/1790985600001-FixMySqlDefaultUserGroupIndex';
 import { AddressBookPeer } from '../modules/address-book/entities/address-book-peer.entity';
 import { migrateDatabase } from './migration-manager';
 
@@ -22,7 +23,10 @@ describe('database migrations', () => {
       type: 'sqlite',
       database,
       entities: DATABASE_ENTITIES,
-      migrations: [InitialSchema1790985600000],
+      migrations: [
+        InitialSchema1790985600000,
+        FixMySqlDefaultUserGroupIndex1790985600001,
+      ],
       synchronize,
     });
   }
@@ -45,7 +49,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(1);
+      ).toHaveLength(2);
       await dataSource.query(
         "INSERT INTO address_books (guid, owner) VALUES ('book', 'owner')",
       );
@@ -88,7 +92,7 @@ describe('database migrations', () => {
       ).toEqual([{ name: 'retained' }]);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(1);
+      ).toHaveLength(2);
     } finally {
       await dataSource.destroy();
     }

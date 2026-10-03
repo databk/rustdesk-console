@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { DATABASE_ENTITIES } from './entities';
 import { InitialSchema1790985600000 } from '../migrations/1790985600000-InitialSchema';
+import { FixMySqlDefaultUserGroupIndex1790985600001 } from '../migrations/1790985600001-FixMySqlDefaultUserGroupIndex';
 import { migrateDatabase } from './migration-manager';
 
 const describeMysql = process.env.RUN_MYSQL_MIGRATION_TESTS
@@ -16,7 +17,10 @@ describeMysql('MySQL database migrations', () => {
     username: process.env.DB_USERNAME || 'root',
     password: process.env.DB_PASSWORD || '',
     entities: DATABASE_ENTITIES,
-    migrations: [InitialSchema1790985600000],
+    migrations: [
+      InitialSchema1790985600000,
+      FixMySqlDefaultUserGroupIndex1790985600001,
+    ],
   };
   const databases = ['rustdesk_migration_fresh', 'rustdesk_migration_legacy'];
 
@@ -51,22 +55,41 @@ describeMysql('MySQL database migrations', () => {
 
   it('creates a fresh schema without drift', async () => {
     const dataSource = source(databases[0]);
+    const concurrent = source(databases[0]);
     await dataSource.initialize();
+    await concurrent.initialize();
     try {
-      await migrateDatabase(dataSource);
-      await migrateDatabase(dataSource);
+      await Promise.all([
+        migrateDatabase(dataSource),
+        migrateDatabase(concurrent),
+      ]);
       expect(await dataSource.showMigrations()).toBe(false);
       expect(
         (await dataSource.driver.createSchemaBuilder().log()).upQueries,
       ).toHaveLength(0);
+      expect(
+        await dataSource.query('SELECT name FROM migrations'),
+      ).toHaveLength(2);
+      await dataSource.query(
+        "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0), ('d', 'D', 'd', 1)",
+      );
+      await expect(
+        dataSource.query(
+          "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('e', 'E', 'e', 1)",
+        ),
+      ).rejects.toThrow();
     } finally {
       await dataSource.destroy();
+      await concurrent.destroy();
     }
   });
 
   it('baselines an existing schema and preserves rows', async () => {
     const legacy = source(databases[1], true);
     await legacy.initialize();
+    await legacy.query(
+      'CREATE UNIQUE INDEX `UQ_user_groups_single_default` ON `user_groups` (`isDefault`)',
+    );
     await legacy.query(
       "INSERT INTO strategies (guid, name) VALUES ('keep-me', 'retained')",
     );
@@ -83,7 +106,10 @@ describeMysql('MySQL database migrations', () => {
       ).toEqual([{ name: 'retained' }]);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(1);
+      ).toHaveLength(2);
+      await dataSource.query(
+        "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0)",
+      );
     } finally {
       await dataSource.destroy();
     }

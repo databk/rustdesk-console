@@ -4,7 +4,11 @@ import { mkdirSync } from 'fs';
 import { dirname } from 'path';
 import { DataSource } from 'typeorm';
 import { createDataSourceOptions } from './data-source-options';
-import { baselineExistingDatabase, migrateDatabase } from './migration-manager';
+import {
+  baselineExistingDatabase,
+  migrateDatabase,
+  withMigrationLock,
+} from './migration-manager';
 
 export async function runMigrationCommand(command = 'run'): Promise<void> {
   const options = createDataSourceOptions();
@@ -16,7 +20,9 @@ export async function runMigrationCommand(command = 'run'): Promise<void> {
     if (command === 'run') {
       await migrateDatabase(dataSource);
     } else if (command === 'baseline') {
-      const adopted = await baselineExistingDatabase(dataSource);
+      const adopted = await withMigrationLock(dataSource, () =>
+        baselineExistingDatabase(dataSource),
+      );
       if (!adopted)
         throw new Error('There is no unbaselined existing database');
     } else if (command === 'show') {

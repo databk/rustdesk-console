@@ -2,6 +2,37 @@ import { DataSource, MigrationExecutor } from 'typeorm';
 import { InitialSchema1790985600000 } from '../migrations/1790985600000-InitialSchema';
 
 const INITIAL_MIGRATION = new InitialSchema1790985600000().name;
+const MYSQL_MIGRATION_LOCK = 'rustdesk_migrations';
+
+/** Hold one MySQL connection's advisory lock for the entire migration flow. */
+export async function withMigrationLock<T>(
+  dataSource: DataSource,
+  action: () => Promise<T>,
+): Promise<T> {
+  if (dataSource.options.type !== 'mysql') return action();
+
+  const runner = dataSource.createQueryRunner();
+  let locked = false;
+  try {
+    await runner.connect();
+    const rows = (await runner.query('SELECT GET_LOCK(?, 120) AS acquired', [
+      MYSQL_MIGRATION_LOCK,
+    ])) as Array<{ acquired: number | null }>;
+    if (Number(rows[0]?.acquired) !== 1) {
+      throw new Error('Timed out waiting for the MySQL migration lock');
+    }
+    locked = true;
+    return await action();
+  } finally {
+    try {
+      if (locked) {
+        await runner.query('SELECT RELEASE_LOCK(?)', [MYSQL_MIGRATION_LOCK]);
+      }
+    } finally {
+      await runner.release();
+    }
+  }
+}
 
 /**
  * Adopt a database created by the old synchronize configuration only when its
@@ -51,11 +82,13 @@ export async function baselineExistingDatabase(
 }
 
 export async function migrateDatabase(dataSource: DataSource): Promise<void> {
-  await baselineExistingDatabase(dataSource);
-  await dataSource.runMigrations({
-    transaction: dataSource.options.type === 'sqlite' ? 'all' : 'none',
+  await withMigrationLock(dataSource, async () => {
+    await baselineExistingDatabase(dataSource);
+    await dataSource.runMigrations({
+      transaction: dataSource.options.type === 'sqlite' ? 'all' : 'none',
+    });
+    if (await dataSource.showMigrations()) {
+      throw new Error('Database migrations remain pending');
+    }
   });
-  if (await dataSource.showMigrations()) {
-    throw new Error('Database migrations remain pending');
-  }
 }
