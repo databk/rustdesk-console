@@ -1,0 +1,195 @@
+{
+  "version": 1,
+  "hbbs": [
+    {
+      "name": "port",
+      "default": "21116",
+      "kind": "integer",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 3,
+      "maximum": 65533
+    },
+    {
+      "name": "bind",
+      "default": "",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "relay-servers",
+      "default": "",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "key",
+      "default": "-",
+      "kind": "string",
+      "secret": true,
+      "restart_required": true
+    },
+    {
+      "name": "rmem",
+      "default": "0",
+      "kind": "integer",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    {
+      "name": "serial",
+      "default": "0",
+      "kind": "integer",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    {
+      "name": "rendezvous-servers",
+      "default": "",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "software-url",
+      "default": "",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "mask",
+      "default": "",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "local-ip",
+      "default": "",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "db-url",
+      "default": "./db_v2.sqlite3",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "max-database-connections",
+      "default": "1",
+      "kind": "integer",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 1,
+      "maximum": 1024
+    },
+    {
+      "name": "test-hbbs",
+      "default": "",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "always-use-relay",
+      "default": "N",
+      "kind": "relay-mode",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "log",
+      "default": "info",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    }
+  ],
+  "hbbr": [
+    {
+      "name": "port",
+      "default": "21117",
+      "kind": "integer",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 1,
+      "maximum": 65533
+    },
+    {
+      "name": "bind",
+      "default": "",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    },
+    {
+      "name": "key",
+      "default": "",
+      "kind": "string",
+      "secret": true,
+      "restart_required": true
+    },
+    {
+      "name": "downgrade-threshold",
+      "default": "0.66",
+      "kind": "number",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 0.01,
+      "maximum": 1
+    },
+    {
+      "name": "downgrade-start-check",
+      "default": "1800",
+      "kind": "integer",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 1,
+      "maximum": 4294967
+    },
+    {
+      "name": "limit-speed",
+      "default": "32",
+      "kind": "number",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 0.01,
+      "maximum": 1000000
+    },
+    {
+      "name": "total-bandwidth",
+      "default": "1024",
+      "kind": "number",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 0.01,
+      "maximum": 1000000
+    },
+    {
+      "name": "single-bandwidth",
+      "default": "128",
+      "kind": "number",
+      "secret": false,
+      "restart_required": true,
+      "minimum": 0.01,
+      "maximum": 1000000
+    },
+    {
+      "name": "log",
+      "default": "info",
+      "kind": "string",
+      "secret": false,
+      "restart_required": true
+    }
+  ]
+}

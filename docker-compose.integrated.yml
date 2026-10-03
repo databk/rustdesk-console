@@ -1,0 +1,83 @@
+# Run from rustdesk-console; the server and web repositories are siblings.
+services:
+  rustdesk-console:
+    build: .
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      RUSTDESK_NODES: '[{"id":"local","name":"Local RustDesk","url":"http://rustdesk-agent:3001","token":"${NODE_AGENT_TOKEN:?Set NODE_AGENT_TOKEN}"}]'
+    volumes:
+      - ./data/console:/data
+    networks: [rustdesk]
+
+  rustdesk-console-web:
+    build: ../rustdesk-console-web
+    restart: unless-stopped
+    ports: ['127.0.0.1:21114:80']
+    environment:
+      BACKEND_URL: http://rustdesk-console:3000
+    depends_on: [rustdesk-console]
+    networks: [rustdesk]
+
+  rustdesk-agent:
+    build: ./agent
+    restart: unless-stopped
+    environment:
+      NODE_ID: local
+      NODE_AGENT_TOKEN: ${NODE_AGENT_TOKEN:?Set NODE_AGENT_TOKEN}
+      SERVER_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:?Set SERVER_MANAGEMENT_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/management:/data/management
+    depends_on: [hbbs, hbbr]
+    networks: [rustdesk]
+
+  hbbs:
+    build:
+      context: ../rustdesk-server
+      dockerfile: docker-managed/Dockerfile
+    image: rustdesk-server-managed:local
+    container_name: hbbs
+    command: [hbbs, -r, '${RUSTDESK_RELAY_ADDRESS:?Set RUSTDESK_RELAY_ADDRESS}']
+    restart: unless-stopped
+    labels:
+      io.rustdesk.console.node: local
+      io.rustdesk.console.service: hbbs
+      io.rustdesk.console.deployment-port: '21116'
+      io.rustdesk.console.port: '21116'
+    environment:
+      RD_MANAGEMENT_BIND: 0.0.0.0:21120
+      RD_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:?Set SERVER_MANAGEMENT_TOKEN}
+      RD_MANAGEMENT_DIR: /data/management
+    ports: ['21115:21115', '21116:21116', '21116:21116/udp', '21118:21118']
+    volumes:
+      - ./data/server:/data
+      - ./data/management:/data/management
+    depends_on: [hbbr]
+    networks: [rustdesk]
+
+  hbbr:
+    build:
+      context: ../rustdesk-server
+      dockerfile: docker-managed/Dockerfile
+    image: rustdesk-server-managed:local
+    container_name: hbbr
+    command: [hbbr]
+    restart: unless-stopped
+    labels:
+      io.rustdesk.console.node: local
+      io.rustdesk.console.service: hbbr
+      io.rustdesk.console.deployment-port: '21117'
+      io.rustdesk.console.port: '21117'
+    environment:
+      RD_MANAGEMENT_BIND: 0.0.0.0:21121
+      RD_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:?Set SERVER_MANAGEMENT_TOKEN}
+      RD_MANAGEMENT_DIR: /data/management
+    ports: ['21117:21117', '21119:21119']
+    volumes:
+      - ./data/server:/data
+      - ./data/management:/data/management
+    networks: [rustdesk]
+
+networks:
+  rustdesk:

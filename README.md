@@ -154,3 +154,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions
 <p align="center">
   <strong>Built with ❤️ using NestJS | Data Block</strong>
 </p>
+
+### Integrated hbbs / hbbr management
+
+See [Server management](docs/server-management.md) for the authenticated server APIs, Docker node agent, server permissions, integrated Compose deployment and CI validation.

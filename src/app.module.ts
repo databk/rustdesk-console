@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ServerManagementModule } from './modules/server-management/server-management.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@nestjs/config';
@@ -97,6 +98,7 @@ import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-aud
     NexusModule,
     UserGroupModule,
     RbacModule,
+    ServerManagementModule,
   ],
   providers: [
     {
