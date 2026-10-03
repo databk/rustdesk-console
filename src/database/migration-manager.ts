@@ -74,11 +74,29 @@ export async function baselineExistingDatabase(
       // ordering). When no migration history table exists, run one final
       // synchronization to repair the schema before baselining instead of
       // forcing a manual repair.
-      const migrationsTable =
-        (dataSource.options as { migrationsTable?: string })
-          .migrationsTable ?? 'migrations';
-      const hasMigrationHistory = await runner.hasTable(migrationsTable);
+      const migrationsTableName =
+        dataSource.options.migrationsTableName ?? 'migrations';
+      const hasMigrationHistory = await runner.hasTable(migrationsTableName);
       if (!hasMigrationHistory) {
+        // Refuse to synchronize if any entity table has columns that the
+        // current entities do not define — synchronize would drop them and
+        // their data. Require an explicit, data-preserving migration instead.
+        for (const metadata of dataSource.entityMetadatas) {
+          if (!metadata.synchronize || metadata.tableType !== 'regular')
+            continue;
+          const table = await runner.getTable(metadata.tablePath);
+          if (!table) continue;
+          const entityColumns = new Set(
+            metadata.columns.map((column) => column.databaseName),
+          );
+          for (const dbColumn of table.columns) {
+            if (!entityColumns.has(dbColumn.name)) {
+              throw new Error(
+                `Table "${metadata.tableName}" has column "${dbColumn.name}" that is not defined in the current entities. Synchronizing would drop this column and its data. Remove the column manually or add a data-preserving migration before baselining.`,
+              );
+            }
+          }
+        }
         await dataSource.synchronize();
         const remainingDiff = await dataSource.driver
           .createSchemaBuilder()

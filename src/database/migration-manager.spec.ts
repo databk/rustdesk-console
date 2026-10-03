@@ -161,4 +161,24 @@ describe('database migrations', () => {
       await dataSource.destroy();
     }
   });
+
+  it('refuses to synchronize when a legacy column would be dropped', async () => {
+    const database = databasePath();
+    const legacy = source(database, true);
+    await legacy.initialize();
+    await legacy.query(
+      'ALTER TABLE strategies ADD COLUMN legacyField varchar',
+    );
+    await legacy.destroy();
+
+    const dataSource = source(database);
+    await dataSource.initialize();
+    try {
+      await expect(migrateDatabase(dataSource)).rejects.toThrow(
+        'not defined in the current entities',
+      );
+    } finally {
+      await dataSource.destroy();
+    }
+  });
 });
