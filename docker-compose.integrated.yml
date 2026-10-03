@@ -13,7 +13,7 @@ services:
   rustdesk-console-web:
     build: ../rustdesk-console-web
     restart: unless-stopped
-    ports: ['21114:80']
+    ports: ['127.0.0.1:21114:80']
     environment:
       BACKEND_URL: http://rustdesk-console:3000
     depends_on: [rustdesk-console]
