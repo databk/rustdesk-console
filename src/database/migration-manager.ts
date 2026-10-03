@@ -35,9 +35,11 @@ export async function withMigrationLock<T>(
 }
 
 /**
- * Adopt a database created by the old synchronize configuration only when its
- * schema already matches the current entities. This runs before any later
- * migrations and records only the initial migration as completed.
+ * Adopt a database created by the old synchronize configuration. When the
+ * schema already matches the current entities, record the initial migration as
+ * completed. When schema drift is detected and no migration history table
+ * exists, run one final synchronization to repair the drift before baselining.
+ * This runs before any later migrations.
  */
 export async function baselineExistingDatabase(
   dataSource: DataSource,
@@ -65,13 +67,32 @@ export async function baselineExistingDatabase(
     const existingTables = await runner.getTables(tablePaths);
     if (existingTables.length === 0) return false;
 
-    // A partial or drifted database must be repaired explicitly. Marking it as
-    // migrated would conceal missing tables or columns.
     const schemaDiff = await dataSource.driver.createSchemaBuilder().log();
     if (schemaDiff.upQueries.length > 0) {
-      throw new Error(
-        `Existing database schema differs from this release (${schemaDiff.upQueries.length} pending schema changes). Restore or repair the schema before baselining.`,
-      );
+      // A database created by an older synchronize-based release may carry
+      // historical schema drift (renamed constraints, residual columns, column
+      // ordering). When no migration history table exists, run one final
+      // synchronization to repair the schema before baselining instead of
+      // forcing a manual repair.
+      const migrationsTable =
+        (dataSource.options as { migrationsTable?: string })
+          .migrationsTable ?? 'migrations';
+      const hasMigrationHistory = await runner.hasTable(migrationsTable);
+      if (!hasMigrationHistory) {
+        await dataSource.synchronize();
+        const remainingDiff = await dataSource.driver
+          .createSchemaBuilder()
+          .log();
+        if (remainingDiff.upQueries.length > 0) {
+          throw new Error(
+            `Existing database schema still differs from this release after synchronization (${remainingDiff.upQueries.length} pending schema changes). Restore or repair the schema before baselining.`,
+          );
+        }
+      } else {
+        throw new Error(
+          `Existing database schema differs from this release (${schemaDiff.upQueries.length} pending schema changes). Restore or repair the schema before baselining.`,
+        );
+      }
     }
     await executor.showMigrations(); // Creates the migration history table.
     await executor.insertMigration(initial);
