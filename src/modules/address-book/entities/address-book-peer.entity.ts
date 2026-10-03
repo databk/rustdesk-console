@@ -6,11 +6,10 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  ManyToMany,
-  JoinTable,
+  OneToMany,
 } from 'typeorm';
 import { AddressBook } from './address-book.entity';
-import { AddressBookTag } from './address-book-tag.entity';
+import { AddressBookPeerTag } from './address-book-peer-tag.entity';
 
 /**
  * Address book peer (device) entity
@@ -83,13 +82,8 @@ export class AddressBookPeer {
    * Many-to-many relationship, linked through the address_book_peer_tags join table
    * A device can have multiple tags, and a tag can map to multiple devices
    */
-  @ManyToMany(() => AddressBookTag, (tag) => tag.peers)
-  @JoinTable({
-    name: 'address_book_peer_tags',
-    joinColumn: { name: 'peerGuid', referencedColumnName: 'guid' },
-    inverseJoinColumn: { name: 'tagGuid', referencedColumnName: 'guid' },
-  })
-  tags: AddressBookTag[];
+  @OneToMany(() => AddressBookPeerTag, (link) => link.peer)
+  tagLinks: AddressBookPeerTag[];
 
   /**
    * Creation time

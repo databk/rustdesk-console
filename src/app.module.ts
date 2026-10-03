@@ -16,45 +16,16 @@ import { OidcModule } from './modules/oidc/oidc.module';
 import { SysinfoModule } from './modules/sysinfo/sysinfo.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
-import { getDbPath, getDbType } from './common/utils/data-dir.util';
-import { Sysinfo, Peer } from './common/entities';
-import { ConnectionAudit } from './modules/audit/entities/connection-audit.entity';
-import { FileAudit } from './modules/audit/entities/file-audit.entity';
-import { AlarmAudit } from './modules/audit/entities/alarm-audit.entity';
-import { AddressBook } from './modules/address-book/entities/address-book.entity';
-import { AddressBookPeer } from './modules/address-book/entities/address-book-peer.entity';
-import { AddressBookTag } from './modules/address-book/entities/address-book-tag.entity';
-import { AddressBookPeerTag } from './modules/address-book/entities/address-book-peer-tag.entity';
-import { AddressBookRule } from './modules/address-book/entities/address-book-rule.entity';
-import { User } from './modules/user/entities/user.entity';
-import { UserToken } from './modules/user/entities/user-token.entity';
-import { Invitation } from './modules/user/entities/invitation.entity';
-import { OidcProvider } from './modules/oidc/entities/oidc-provider.entity';
-import { OidcAuthState } from './modules/oidc/entities/oidc-auth-state.entity';
-import { DeviceGroup } from './modules/device-group/entities/device-group.entity';
-import { DeviceGroupUserPermission } from './modules/device-group/entities/device-group-user-permission.entity';
-import { UserUserPermission } from './modules/device-group/entities/user-user-permission.entity';
+import { DataSource } from 'typeorm';
+import { createDataSourceOptions } from './database/data-source-options';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
-import { LoginSession } from './modules/auth/entities/login-session.entity';
-import { PasskeyCredential } from './modules/auth/entities/passkey-credential.entity';
-import { SystemSetting } from './modules/settings/entities/system-setting.entity';
-import { ActiveConnection } from './modules/heartbeat/entities/active-connection.entity';
 import { SettingsModule } from './modules/settings/settings.module';
 import { LdapModule } from './modules/ldap/ldap.module';
 import { StrategyModule } from './modules/strategy/strategy.module';
-import { Strategy } from './modules/strategy/entities/strategy.entity';
 import { UpdateCheckModule } from './modules/update-check/update-check.module';
 import { NexusModule } from './modules/nexus/nexus.module';
-import { NexusToken } from './modules/nexus/entities/nexus-token.entity';
-import { NexusBuild } from './modules/nexus/entities/nexus-build.entity';
 import { UserGroupModule } from './modules/user-group/user-group.module';
-import { UserGroup } from './modules/user-group/entities/user-group.entity';
 import { RbacModule } from './modules/rbac/rbac.module';
-import { Role } from './modules/rbac/entities/role.entity';
-import { RolePermission } from './modules/rbac/entities/role-permission.entity';
-import { UserRoleAssignment } from './modules/rbac/entities/user-role-assignment.entity';
-import { UserRoleAssignmentDeviceGroup } from './modules/rbac/entities/user-role-assignment-device-group.entity';
-import { ConsoleAudit } from './modules/rbac/entities/console-audit.entity';
 import { RbacGuard } from './modules/rbac/guards/rbac.guard';
 import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-audit.interceptor';
 
@@ -91,92 +62,25 @@ import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-aud
         limit: 100,
       },
     ]),
-    TypeOrmModule.forRoot(
-      getDbType() === 'mysql'
-        ? {
-            type: 'mysql',
-            host: process.env.DB_HOST || 'localhost',
-            port: parseInt(process.env.DB_PORT || '3306', 10),
-            username: process.env.DB_USERNAME || 'root',
-            password: process.env.DB_PASSWORD || '',
-            database: process.env.DB_DATABASE || 'rustdesk_console',
-            entities: [
-              Sysinfo,
-              Peer,
-              ConnectionAudit,
-              FileAudit,
-              AlarmAudit,
-              AddressBook,
-              AddressBookPeer,
-              AddressBookTag,
-              AddressBookPeerTag,
-              AddressBookRule,
-              User,
-              UserToken,
-              Invitation,
-              OidcProvider,
-              OidcAuthState,
-              DeviceGroup,
-              DeviceGroupUserPermission,
-              UserUserPermission,
-              LoginSession,
-              PasskeyCredential,
-              SystemSetting,
-              ActiveConnection,
-              Strategy,
-              NexusToken,
-              NexusBuild,
-              UserGroup,
-              Role,
-              RolePermission,
-              UserRoleAssignment,
-              UserRoleAssignmentDeviceGroup,
-              ConsoleAudit,
-            ],
-            synchronize: true,
-            logging: false,
-            charset: 'utf8mb4',
+    TypeOrmModule.forRootAsync({
+      useFactory: () => ({ ...createDataSourceOptions(), retryAttempts: 0 }),
+      dataSourceFactory: async (options) => {
+        if (!options) throw new Error('Missing database configuration');
+        const dataSource = new DataSource(options);
+        await dataSource.initialize();
+        try {
+          if (await dataSource.showMigrations()) {
+            throw new Error(
+              'Database migrations are pending. Run the migration command before starting the server.',
+            );
           }
-        : {
-            type: 'sqlite',
-            database: getDbPath(),
-            entities: [
-              Sysinfo,
-              Peer,
-              ConnectionAudit,
-              FileAudit,
-              AlarmAudit,
-              AddressBook,
-              AddressBookPeer,
-              AddressBookTag,
-              AddressBookPeerTag,
-              AddressBookRule,
-              User,
-              UserToken,
-              Invitation,
-              OidcProvider,
-              OidcAuthState,
-              DeviceGroup,
-              DeviceGroupUserPermission,
-              UserUserPermission,
-              LoginSession,
-              PasskeyCredential,
-              SystemSetting,
-              ActiveConnection,
-              Strategy,
-              NexusToken,
-              NexusBuild,
-              UserGroup,
-              Role,
-              RolePermission,
-              UserRoleAssignment,
-              UserRoleAssignmentDeviceGroup,
-              ConsoleAudit,
-            ],
-            synchronize: true,
-            logging: false,
-          },
-    ),
+          return dataSource;
+        } catch (error) {
+          await dataSource.destroy();
+          throw error;
+        }
+      },
+    }),
     DatabaseModule,
     HeartbeatModule,
     AddressBookModule,
