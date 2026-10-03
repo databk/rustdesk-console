@@ -8,6 +8,9 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
+  // Enable graceful shutdown so SIGTERM triggers onModuleDestroy flushes
+  app.enableShutdownHooks();
+
   // Configure cookie parsing middleware
   app.use(cookieParser());
 
