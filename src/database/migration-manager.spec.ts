@@ -98,19 +98,20 @@ describe('database migrations', () => {
     }
   });
 
-  it('refuses to baseline an incomplete schema', async () => {
+  it('repairs and baselines an incomplete legacy schema', async () => {
     const dataSource = source(databasePath());
     await dataSource.initialize();
     try {
       await dataSource.query(
         'CREATE TABLE strategies (guid varchar PRIMARY KEY, name varchar)',
       );
-      await expect(migrateDatabase(dataSource)).rejects.toThrow(
-        'Existing database schema differs',
-      );
+      await migrateDatabase(dataSource);
       expect(await dataSource.createQueryRunner().hasTable('migrations')).toBe(
-        false,
+        true,
       );
+      expect(
+        (await dataSource.driver.createSchemaBuilder().log()).upQueries,
+      ).toHaveLength(0);
     } finally {
       await dataSource.destroy();
     }

@@ -65,13 +65,14 @@ export async function baselineExistingDatabase(
     const existingTables = await runner.getTables(tablePaths);
     if (existingTables.length === 0) return false;
 
-    // A partial or drifted database must be repaired explicitly. Marking it as
-    // migrated would conceal missing tables or columns.
+    // Legacy synchronize databases may have schema differences from the current
+    // release's entities (e.g. column types, indexes, foreign keys created by
+    // different database engines or older entity definitions). Apply the
+    // remaining schema changes once to bridge the gap between the old
+    // synchronize mode and the migration system, then record the baseline.
     const schemaDiff = await dataSource.driver.createSchemaBuilder().log();
     if (schemaDiff.upQueries.length > 0) {
-      throw new Error(
-        `Existing database schema differs from this release (${schemaDiff.upQueries.length} pending schema changes). Restore or repair the schema before baselining.`,
-      );
+      await dataSource.driver.createSchemaBuilder().build();
     }
     await executor.showMigrations(); // Creates the migration history table.
     await executor.insertMigration(initial);
