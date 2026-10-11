@@ -28,6 +28,8 @@ import { RolePermission } from '../modules/rbac/entities/role-permission.entity'
 import { UserRoleAssignment } from '../modules/rbac/entities/user-role-assignment.entity';
 import { UserRoleAssignmentDeviceGroup } from '../modules/rbac/entities/user-role-assignment-device-group.entity';
 import { ConsoleAudit } from '../modules/rbac/entities/console-audit.entity';
+import { ServerNode } from '../modules/server-management/entities/server-node.entity';
+import { ServerBanPolicy } from '../modules/server-management/entities/server-ban-policy.entity';
 
 // Keep the runtime and migration CLI on the same entity set.
 export const DATABASE_ENTITIES = [
@@ -62,4 +64,6 @@ export const DATABASE_ENTITIES = [
   UserRoleAssignment,
   UserRoleAssignmentDeviceGroup,
   ConsoleAudit,
+  ServerNode,
+  ServerBanPolicy,
 ];

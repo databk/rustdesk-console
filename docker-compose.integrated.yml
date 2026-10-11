@@ -5,7 +5,6 @@ services:
     restart: unless-stopped
     environment:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
-      RUSTDESK_NODES: '[{"id":"local","name":"Local RustDesk","url":"http://rustdesk-agent:3001","token":"${NODE_AGENT_TOKEN:?Set NODE_AGENT_TOKEN}"}]'
     volumes:
       - ./data/console:/data
     networks: [rustdesk]
@@ -19,19 +18,6 @@ services:
     depends_on: [rustdesk-console]
     networks: [rustdesk]
 
-  rustdesk-agent:
-    build: ./agent
-    restart: unless-stopped
-    environment:
-      NODE_ID: local
-      NODE_AGENT_TOKEN: ${NODE_AGENT_TOKEN:?Set NODE_AGENT_TOKEN}
-      SERVER_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:?Set SERVER_MANAGEMENT_TOKEN}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./data/management:/data/management
-    depends_on: [hbbs, hbbr]
-    networks: [rustdesk]
-
   hbbs:
     build:
       context: ../rustdesk-server
@@ -40,11 +26,6 @@ services:
     container_name: hbbs
     command: [hbbs, -r, '${RUSTDESK_RELAY_ADDRESS:?Set RUSTDESK_RELAY_ADDRESS}']
     restart: unless-stopped
-    labels:
-      io.rustdesk.console.node: local
-      io.rustdesk.console.service: hbbs
-      io.rustdesk.console.deployment-port: '21116'
-      io.rustdesk.console.port: '21116'
     environment:
       RD_MANAGEMENT_BIND: 0.0.0.0:21120
       RD_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:?Set SERVER_MANAGEMENT_TOKEN}
@@ -64,11 +45,6 @@ services:
     container_name: hbbr
     command: [hbbr]
     restart: unless-stopped
-    labels:
-      io.rustdesk.console.node: local
-      io.rustdesk.console.service: hbbr
-      io.rustdesk.console.deployment-port: '21117'
-      io.rustdesk.console.port: '21117'
     environment:
       RD_MANAGEMENT_BIND: 0.0.0.0:21121
       RD_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:?Set SERVER_MANAGEMENT_TOKEN}

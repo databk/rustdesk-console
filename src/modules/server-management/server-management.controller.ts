@@ -1,25 +1,18 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Delete,
   Get,
   Param,
-  ParseEnumPipe,
-  ParseIntPipe,
+  Patch,
   Post,
   Put,
-  Query,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 import { SkipConsoleAudit } from '../rbac/decorators/skip-console-audit.decorator';
-import {
-  RustdeskService,
-  ServerBansDto,
-  ServerConfigDto,
-  ServiceAction,
-} from './server-management.dto';
+import { CreateServerNodeDto, UpdateServerNodeDto } from './server-node.dto';
+import { ServerBansDto, ServerConfigDto } from './server-management.dto';
 import { ServerManagementService } from './server-management.service';
 
 @Controller('servers')
@@ -33,109 +26,74 @@ export class ServerManagementController {
     return this.service.list();
   }
 
-  @Get(':node/peers')
-  @RequirePermission('servers.view')
-  peers(@Param('node') node: string) {
-    return this.service.request(node, '/v1/peers');
+  @Post()
+  @RequirePermission('servers.manage')
+  create(@Body() dto: CreateServerNodeDto) {
+    return this.service.create(dto.role, dto.name, dto.url, dto.managementToken);
   }
 
-  @Get(':node/sessions')
-  @RequirePermission('servers.view')
-  sessions(@Param('node') node: string) {
-    return this.service.request(node, '/v1/sessions');
+  @Patch(':id')
+  @RequirePermission('servers.manage')
+  update(@Param('id') id: string, @Body() dto: UpdateServerNodeDto) {
+    return this.service.update(id, dto);
   }
 
-  @Delete(':node/sessions/:uuid')
+  @Delete(':id')
+  @RequirePermission('servers.manage')
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
+  }
+
+  @Get(':id/peers')
+  @RequirePermission('servers.view')
+  peers(@Param('id') id: string) {
+    return this.service.getPeers(id);
+  }
+
+  @Get(':id/sessions')
+  @RequirePermission('servers.view')
+  sessions(@Param('id') id: string) {
+    return this.service.getSessions(id);
+  }
+
+  @Delete(':id/sessions/:uuid')
   @RequirePermission('servers.disconnect')
   disconnect(
-    @Param('node') node: string,
+    @Param('id') id: string,
     @Param('uuid') uuid: string,
     @CurrentUser('id') actor: string,
   ) {
-    return this.service.mutate(
-      actor,
-      node,
-      `/v1/sessions/${encodeURIComponent(uuid)}`,
-      'DELETE',
-    );
+    return this.service.disconnectSession(actor, id, uuid);
   }
 
-  @Get(':node/services/:service/logs')
-  @RequirePermission('servers.view')
-  logs(
-    @Param('node') node: string,
-    @Param('service', new ParseEnumPipe(RustdeskService))
-    service: RustdeskService,
-    @Query('tail', new DefaultValuePipe(200), ParseIntPipe) tail: number,
-  ) {
-    return this.service.request(
-      node,
-      `/v1/services/${service}/logs?tail=${tail}`,
-    );
-  }
-
-  @Get(':node/services/:service/config')
+  @Get(':id/config')
   @RequirePermission('servers.config')
-  config(
-    @Param('node') node: string,
-    @Param('service', new ParseEnumPipe(RustdeskService))
-    service: RustdeskService,
-  ) {
-    return this.service.request(node, `/v1/services/${service}/config`);
+  config(@Param('id') id: string) {
+    return this.service.getConfig(id);
   }
 
-  @Put(':node/services/:service/config')
+  @Put(':id/config')
   @RequirePermission('servers.config')
   saveConfig(
-    @Param('node') node: string,
-    @Param('service', new ParseEnumPipe(RustdeskService))
-    service: RustdeskService,
+    @Param('id') id: string,
     @Body() dto: ServerConfigDto,
     @CurrentUser('id') actor: string,
   ) {
-    return this.service.mutate(
-      actor,
-      node,
-      `/v1/services/${service}/config`,
-      'PUT',
-      dto,
-      { settings: Object.keys(dto.values) },
-    );
+    return this.service.saveConfig(actor, id, dto);
   }
 
-  @Post(':node/services/:service/:action')
-  @RequirePermission('servers.control')
-  action(
-    @Param('node') node: string,
-    @Param('service', new ParseEnumPipe(RustdeskService))
-    service: RustdeskService,
-    @Param('action', new ParseEnumPipe(ServiceAction)) action: ServiceAction,
-    @CurrentUser('id') actor: string,
-  ) {
-    return this.service.mutate(
-      actor,
-      node,
-      `/v1/services/${service}/${action}`,
-      'POST',
-    );
-  }
-
-  @Get(':node/bans')
+  @Get('bans')
   @RequirePermission('servers.ban')
-  bans(@Param('node') node: string) {
-    return this.service.request(node, '/v1/bans');
+  bans() {
+    return this.service.getBans();
   }
 
-  @Put(':node/bans')
+  @Put('bans')
   @RequirePermission('servers.ban')
   saveBans(
-    @Param('node') node: string,
     @Body() dto: ServerBansDto,
     @CurrentUser('id') actor: string,
   ) {
-    return this.service.mutate(actor, node, '/v1/bans', 'PUT', dto, {
-      device_ids: dto.device_ids,
-      ips: dto.ips,
-    });
+    return this.service.applyBans(actor, dto);
   }
 }

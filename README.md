@@ -173,4 +173,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions
 
 ### Integrated hbbs / hbbr management
 
-See [Server management](docs/server-management.md) for the authenticated server APIs, Docker node agent, server permissions, integrated Compose deployment and CI validation.
+See [Server management](docs/server-management.md) for the authenticated server APIs, server registry, server permissions, integrated Compose deployment and CI validation.

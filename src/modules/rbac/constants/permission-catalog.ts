@@ -32,6 +32,7 @@ export type PermissionCode =
   | 'roles.view'
   | 'roles.assign'
   | 'servers.view'
+  | 'servers.manage'
   | 'servers.control'
   | 'servers.config'
   | 'servers.disconnect'
@@ -92,6 +93,14 @@ const systemDefinition = (
 
 export const PERMISSION_CATALOG: readonly PermissionDefinition[] = [
   definition('servers.view', 'servers', 'view', 'View servers'),
+  definition(
+    'servers.manage',
+    'servers',
+    'manage',
+    'Manage server registry',
+    'global',
+    ['servers.view'],
+  ),
   definition(
     'servers.control',
     'servers',

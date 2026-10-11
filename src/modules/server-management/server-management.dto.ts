@@ -9,17 +9,6 @@ import {
   MaxLength,
 } from 'class-validator';
 
-export enum RustdeskService {
-  HBBS = 'hbbs',
-  HBBR = 'hbbr',
-}
-
-export enum ServiceAction {
-  START = 'start',
-  STOP = 'stop',
-  RESTART = 'restart',
-  APPLY = 'apply',
-}
 
 export class ServerConfigDto {
   @IsObject()
