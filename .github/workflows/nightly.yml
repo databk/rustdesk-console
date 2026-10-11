@@ -236,8 +236,9 @@ jobs:
           docker run --rm \
             -v "$PWD":/workspace \
             -w /workspace \
+            -e SOURCE_COMMIT=${{ github.sha }} \
             node:24-alpine \
-            sh -c 'apk add --no-cache python3 make g++ bash tar git && npm ci && npm run build:sea && cd dist-sea && tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .'
+            sh -c 'apk add --no-cache python3 make g++ bash tar && npm ci && npm run build:sea && cd dist-sea && tar czf ../rustdesk-console-${{ matrix.target }}.tar.gz .'
 
       - name: Upload to release
         uses: softprops/action-gh-release@v3
