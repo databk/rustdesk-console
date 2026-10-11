@@ -356,6 +356,7 @@ export class DeviceGroupService {
    */
   async deleteDeviceGroup(guid: string, actorGuid: string) {
     await this.rbacAuthorizationService.requireSuperAdmin(actorGuid);
+    const affectedUuids: string[] = [];
     await this.dataSource.transaction(async (manager) => {
       const deviceGroupRepository = manager.getRepository(DeviceGroup);
       const deviceGroup = await deviceGroupRepository.findOne({
@@ -374,8 +375,16 @@ export class DeviceGroupService {
         );
       }
 
+      const affectedPeers = await manager
+        .getRepository(Peer)
+        .find({ where: { deviceGroupGuid: guid }, select: ['uuid'] });
+      affectedUuids.push(...affectedPeers.map((p) => p.uuid));
+
       await deviceGroupRepository.remove(deviceGroup);
     });
+    for (const uuid of affectedUuids) {
+      this.strategyService.invalidateDeviceStrategyCache(uuid);
+    }
   }
 
   /**
