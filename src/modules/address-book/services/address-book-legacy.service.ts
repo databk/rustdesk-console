@@ -108,7 +108,6 @@ export class AddressBookLegacyService {
         : [];
     const peerMap = new Map(peerRecords.map((p) => [p.uuid, p]));
 
-
     // If the address book is empty, return "null"
     if (tags.length === 0 && peers.length === 0) {
       return 'null';
