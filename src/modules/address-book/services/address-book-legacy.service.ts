@@ -100,6 +100,49 @@ export class AddressBookLegacyService {
         : [];
     const peerMap = new Map(peerRecords.map((p) => [p.uuid, p]));
 
+    // Fallback: for peers whose deviceId doesn't match any sysinfo (e.g. the
+    // peer was created by the address book before the device sent a heartbeat,
+    // so peers.uuid was server-generated and doesn't match sysinfos.uuid),
+    // look up all peers records by peers.id and find the one with a heartbeat
+    // (created by the heartbeat with the client-reported uuid).
+    const peersNeedingFallback = peers.filter(
+      (p) => !sysinfoMap.has(p.deviceId),
+    );
+    const fallbackPeerIds = peersNeedingFallback
+      .map((p) => peerMap.get(p.deviceId)?.id)
+      .filter((id): id is string => !!id);
+    const fallbackPeers =
+      fallbackPeerIds.length > 0
+        ? await this.peerRepository.find({
+            where: { id: In(fallbackPeerIds) },
+            order: { lastHeartbeat: 'DESC' },
+          })
+        : [];
+    const fallbackPeerByDeviceId = new Map<string, Peer>();
+    for (const fp of fallbackPeers) {
+      const existing = fallbackPeerByDeviceId.get(fp.id);
+      if (
+        !existing ||
+        (fp.lastHeartbeat &&
+          (!existing.lastHeartbeat ||
+            fp.lastHeartbeat > existing.lastHeartbeat))
+      ) {
+        fallbackPeerByDeviceId.set(fp.id, fp);
+      }
+    }
+    const fallbackUuids = [...fallbackPeerByDeviceId.values()].map(
+      (p) => p.uuid,
+    );
+    const fallbackSysinfos =
+      fallbackUuids.length > 0
+        ? await this.sysinfoRepository.find({
+            where: { uuid: In(fallbackUuids) },
+          })
+        : [];
+    const fallbackSysinfoMap = new Map(
+      fallbackSysinfos.map((s) => [s.uuid, s]),
+    );
+
     // If the address book is empty, return "null"
     if (tags.length === 0 && peers.length === 0) {
       return 'null';
@@ -113,8 +156,14 @@ export class AddressBookLegacyService {
 
     // Build the device list
     const peersData = peers.map((p) => {
-      const sysinfo = sysinfoMap.get(p.deviceId);
       const peerRecord = peerMap.get(p.deviceId);
+      let sysinfo = sysinfoMap.get(p.deviceId);
+      if (!sysinfo && peerRecord) {
+        const fallbackPeer = fallbackPeerByDeviceId.get(peerRecord.id);
+        if (fallbackPeer) {
+          sysinfo = fallbackSysinfoMap.get(fallbackPeer.uuid);
+        }
+      }
       return {
         id: peerRecord?.id || '',
         hash: p.hash || '',
@@ -305,6 +354,7 @@ export class AddressBookLegacyService {
   private async findOrCreatePeer(id: string): Promise<Peer> {
     const peerRecord = await this.peerRepository.findOne({
       where: { id },
+      order: { lastHeartbeat: 'DESC' },
     });
 
     if (peerRecord) {
