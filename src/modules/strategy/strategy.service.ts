@@ -29,7 +29,8 @@ import {
 @Injectable()
 export class StrategyService {
   private readonly logger = new Logger(StrategyService.name);
-  private readonly strategyCache = new Map<string, Strategy | null>();
+  private readonly strategyObjectCache = new Map<string, Strategy>();
+  private readonly deviceStrategyCache = new Map<string, string | null>();
 
   constructor(
     @InjectRepository(Strategy)
@@ -98,7 +99,7 @@ export class StrategyService {
     }
 
     await this.strategyRepository.save(strategy);
-    this.invalidateDeviceStrategyCache();
+    this.strategyObjectCache.set(guid, strategy);
 
     const configOptions: Record<string, string> = dto.config_options
       ? dto.config_options
@@ -122,7 +123,12 @@ export class StrategyService {
     }
 
     await this.strategyRepository.remove(strategy);
-    this.invalidateDeviceStrategyCache();
+    this.strategyObjectCache.delete(guid);
+    for (const [uuid, sGuid] of this.deviceStrategyCache) {
+      if (sGuid === guid) {
+        this.deviceStrategyCache.delete(uuid);
+      }
+    }
   }
 
   async getStrategies(query: StrategyQueryDto) {
@@ -741,14 +747,21 @@ export class StrategyService {
   }
 
   async findStrategyForPeer(peer: Peer): Promise<Strategy | null> {
-    const cached = this.strategyCache.get(peer.uuid);
-    if (cached !== undefined) {
-      return cached;
+    const cachedGuid = this.deviceStrategyCache.get(peer.uuid);
+    if (cachedGuid !== undefined) {
+      if (cachedGuid === null) return null;
+      const strategy = this.strategyObjectCache.get(cachedGuid);
+      if (strategy) return strategy;
     }
 
     const result = await this.resolveStrategyForPeer(peer);
 
-    this.strategyCache.set(peer.uuid, result);
+    if (result) {
+      this.strategyObjectCache.set(result.guid, result);
+      this.deviceStrategyCache.set(peer.uuid, result.guid);
+    } else {
+      this.deviceStrategyCache.set(peer.uuid, null);
+    }
     return result;
   }
 
@@ -795,9 +808,9 @@ export class StrategyService {
 
   invalidateDeviceStrategyCache(deviceUuid?: string): void {
     if (deviceUuid) {
-      this.strategyCache.delete(deviceUuid);
+      this.deviceStrategyCache.delete(deviceUuid);
     } else {
-      this.strategyCache.clear();
+      this.deviceStrategyCache.clear();
     }
   }
 }
