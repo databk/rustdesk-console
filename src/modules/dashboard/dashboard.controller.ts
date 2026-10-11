@@ -1,7 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RequireSuperAdmin } from '../rbac/decorators/require-permission.decorator';
+import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 import {
   DashboardDataDto,
   DashboardTrendsDto,
@@ -9,7 +9,7 @@ import {
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard)
-@RequireSuperAdmin()
+@RequirePermission('dashboard.view')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 

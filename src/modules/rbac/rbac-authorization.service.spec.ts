@@ -1156,10 +1156,13 @@ describe('RbacAuditService', () => {
     );
   });
 
-  it('keeps global dashboard aggregates super-administrator-only', () => {
+  it('requires dashboard.view permission instead of super-administrator', () => {
     expect(
       Reflect.getMetadata(REQUIRE_SUPER_ADMIN_KEY, DashboardController),
-    ).toBe(true);
+    ).toBeUndefined();
+    expect(
+      Reflect.getMetadata(REQUIRE_PERMISSION_KEY, DashboardController),
+    ).toEqual(['dashboard.view']);
   });
 
   it('separates delegated role viewing/assignment from owner-only definitions', () => {

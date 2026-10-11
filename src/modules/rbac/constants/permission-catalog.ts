@@ -35,7 +35,8 @@ export type PermissionCode =
   | 'servers.control'
   | 'servers.config'
   | 'servers.disconnect'
-  | 'servers.ban';
+  | 'servers.ban'
+  | 'dashboard.view';
 
 export type SystemPermissionCode =
   'roles.create' | 'roles.edit' | 'roles.delete';
@@ -281,6 +282,7 @@ export const PERMISSION_CATALOG: readonly PermissionDefinition[] = [
     'roles.view',
     'users.view',
   ]),
+  definition('dashboard.view', 'dashboard', 'view', 'View dashboard'),
 ];
 
 export const PERMISSION_CODES: readonly PermissionCode[] =
