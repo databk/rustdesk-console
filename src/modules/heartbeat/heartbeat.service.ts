@@ -60,10 +60,9 @@ export class HeartbeatService {
       data.uuid,
     );
 
-    const strategyResult = await this.resolveStrategy(
-      data.uuid,
-      data.modified_at,
-    );
+    const strategyResult = existingPeer
+      ? await this.resolveStrategy(existingPeer, data.modified_at)
+      : null;
 
     return {
       ...(disconnect.length > 0 ? { disconnect } : {}),
@@ -89,7 +88,7 @@ export class HeartbeatService {
   }
 
   private async resolveStrategy(
-    deviceUuid: string,
+    peer: Peer,
     clientModifiedAt: number,
   ): Promise<{
     config_options: Record<string, string>;
@@ -97,7 +96,7 @@ export class HeartbeatService {
   } | null> {
     try {
       const strategy =
-        await this.strategyService.findStrategyForDevice(deviceUuid);
+        await this.strategyService.findStrategyForPeer(peer);
       if (!strategy) {
         return null;
       }
@@ -116,7 +115,7 @@ export class HeartbeatService {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        `Device ${deviceUuid} strategy resolution failed: ${msg}`,
+        `Device ${peer.uuid} strategy resolution failed: ${msg}`,
       );
       return null;
     }

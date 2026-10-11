@@ -22,6 +22,7 @@ import { UpdateDeviceDto } from './dto/update-device.dto';
 import type { PermissionScope } from '../rbac/services/rbac-authorization.service';
 import { UserRoleAssignmentDeviceGroup } from '../rbac/entities/user-role-assignment-device-group.entity';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
+import { StrategyService } from '../strategy/strategy.service';
 
 @Injectable()
 /**
@@ -53,6 +54,7 @@ export class DeviceGroupService {
     private strategyRepository: Repository<Strategy>,
     private readonly dataSource: DataSource,
     private readonly rbacAuthorizationService: RbacAuthorizationService,
+    private readonly strategyService: StrategyService,
   ) {}
 
   /**
@@ -409,6 +411,7 @@ export class DeviceGroupService {
         { uuid: peer.uuid },
         { deviceGroupGuid: guid },
       );
+      this.strategyService.invalidateDeviceStrategyCache(peer.uuid);
     }
 
     return { message: 'Devices added successfully' };
@@ -449,6 +452,7 @@ export class DeviceGroupService {
         { uuid: peer.uuid },
         { deviceGroupGuid: null },
       );
+      this.strategyService.invalidateDeviceStrategyCache(peer.uuid);
     }
 
     return { message: 'Devices removed successfully' };
@@ -806,6 +810,7 @@ export class DeviceGroupService {
           'Device information has changed, please retry',
         );
       }
+      this.strategyService.invalidateDeviceStrategyCache(guid);
     }
   }
 

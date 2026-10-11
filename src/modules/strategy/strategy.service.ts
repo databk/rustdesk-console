@@ -29,6 +29,7 @@ import {
 @Injectable()
 export class StrategyService {
   private readonly logger = new Logger(StrategyService.name);
+  private readonly strategyCache = new Map<string, Strategy | null>();
 
   constructor(
     @InjectRepository(Strategy)
@@ -97,6 +98,7 @@ export class StrategyService {
     }
 
     await this.strategyRepository.save(strategy);
+    this.invalidateDeviceStrategyCache();
 
     const configOptions: Record<string, string> = dto.config_options
       ? dto.config_options
@@ -120,6 +122,7 @@ export class StrategyService {
     }
 
     await this.strategyRepository.remove(strategy);
+    this.invalidateDeviceStrategyCache();
   }
 
   async getStrategies(query: StrategyQueryDto) {
@@ -390,6 +393,7 @@ export class StrategyService {
         );
     }
 
+    this.invalidateDeviceStrategyCache();
     return { success, errors };
   }
 
@@ -568,6 +572,7 @@ export class StrategyService {
         );
     }
 
+    this.invalidateDeviceStrategyCache();
     return { success, errors };
   }
 
@@ -732,6 +737,22 @@ export class StrategyService {
       return null;
     }
 
+    return this.findStrategyForPeer(peer);
+  }
+
+  async findStrategyForPeer(peer: Peer): Promise<Strategy | null> {
+    const cached = this.strategyCache.get(peer.uuid);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const result = await this.resolveStrategyForPeer(peer);
+
+    this.strategyCache.set(peer.uuid, result);
+    return result;
+  }
+
+  private async resolveStrategyForPeer(peer: Peer): Promise<Strategy | null> {
     if (peer.strategyGuid) {
       const strategy = await this.strategyRepository.findOne({
         where: { guid: peer.strategyGuid },
@@ -770,5 +791,13 @@ export class StrategyService {
     }
 
     return null;
+  }
+
+  invalidateDeviceStrategyCache(deviceUuid?: string): void {
+    if (deviceUuid) {
+      this.strategyCache.delete(deviceUuid);
+    } else {
+      this.strategyCache.clear();
+    }
   }
 }

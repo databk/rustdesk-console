@@ -159,7 +159,14 @@ export class HeartbeatCacheService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.flush();
-    await this.flush();
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (this.peerBuffer.size === 0 && this.connsBuffer.size === 0) return;
+      await this.flush();
+    }
+    if (this.peerBuffer.size > 0 || this.connsBuffer.size > 0) {
+      this.logger.warn(
+        `Flush failed after 3 attempts on shutdown; ${this.peerBuffer.size} peer updates and ${this.connsBuffer.size} connection syncs lost`,
+      );
+    }
   }
 }

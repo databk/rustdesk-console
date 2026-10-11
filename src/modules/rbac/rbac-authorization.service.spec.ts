@@ -1401,6 +1401,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await service.getDevices(
@@ -1438,6 +1439,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       { createQueryBuilder: jest.fn().mockReturnValue(builder) } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -1503,6 +1505,7 @@ describe('DeviceGroupService scoped writes', () => {
       {} as never,
       dataSource as never,
       authorizationService as never,
+      {} as never,
     );
     return { service, manager, authorizationService };
   };

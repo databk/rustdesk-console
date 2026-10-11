@@ -12,6 +12,7 @@ import { Strategy } from '../strategy/entities/strategy.entity';
 import { AuthModule } from '../auth/auth.module';
 import { HeartbeatModule } from '../heartbeat/heartbeat.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { StrategyModule } from '../strategy/strategy.module';
 import { AdminGuard } from '../../common/guards/admin.guard';
 
 /**
@@ -45,6 +46,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
     AuthModule,
     HeartbeatModule,
     RbacModule,
+    StrategyModule,
   ],
   controllers: [DeviceGroupController],
   providers: [DeviceGroupService, PeerService, AdminGuard],
