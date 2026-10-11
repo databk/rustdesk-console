@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,6 +15,7 @@ import {
 } from '../entities';
 import { Sysinfo, Peer } from '../../../common/entities';
 import { mapOsToPlatform } from '../../../common/utils/platform.util';
+import { isIpDevice } from '../../../common/utils/ip.util';
 
 @Injectable()
 /**
@@ -23,6 +29,8 @@ import { mapOsToPlatform } from '../../../common/utils/platform.util';
  * Provides compatibility support for legacy clients
  */
 export class AddressBookLegacyService {
+  private readonly logger = new Logger(AddressBookLegacyService.name);
+
   constructor(
     @InjectRepository(AddressBook)
     private addressBookRepository: Repository<AddressBook>,
@@ -100,48 +108,6 @@ export class AddressBookLegacyService {
         : [];
     const peerMap = new Map(peerRecords.map((p) => [p.uuid, p]));
 
-    // Fallback: for peers whose deviceId doesn't match any sysinfo (e.g. the
-    // peer was created by the address book before the device sent a heartbeat,
-    // so peers.uuid was server-generated and doesn't match sysinfos.uuid),
-    // look up all peers records by peers.id and find the one with a heartbeat
-    // (created by the heartbeat with the client-reported uuid).
-    const peersNeedingFallback = peers.filter(
-      (p) => !sysinfoMap.has(p.deviceId),
-    );
-    const fallbackPeerIds = peersNeedingFallback
-      .map((p) => peerMap.get(p.deviceId)?.id)
-      .filter((id): id is string => !!id);
-    const fallbackPeers =
-      fallbackPeerIds.length > 0
-        ? await this.peerRepository.find({
-            where: { id: In(fallbackPeerIds) },
-            order: { lastHeartbeat: 'DESC' },
-          })
-        : [];
-    const fallbackPeerByDeviceId = new Map<string, Peer>();
-    for (const fp of fallbackPeers) {
-      const existing = fallbackPeerByDeviceId.get(fp.id);
-      if (
-        !existing ||
-        (fp.lastHeartbeat &&
-          (!existing.lastHeartbeat ||
-            fp.lastHeartbeat > existing.lastHeartbeat))
-      ) {
-        fallbackPeerByDeviceId.set(fp.id, fp);
-      }
-    }
-    const fallbackUuids = [...fallbackPeerByDeviceId.values()].map(
-      (p) => p.uuid,
-    );
-    const fallbackSysinfos =
-      fallbackUuids.length > 0
-        ? await this.sysinfoRepository.find({
-            where: { uuid: In(fallbackUuids) },
-          })
-        : [];
-    const fallbackSysinfoMap = new Map(
-      fallbackSysinfos.map((s) => [s.uuid, s]),
-    );
 
     // If the address book is empty, return "null"
     if (tags.length === 0 && peers.length === 0) {
@@ -156,14 +122,8 @@ export class AddressBookLegacyService {
 
     // Build the device list
     const peersData = peers.map((p) => {
+      const sysinfo = sysinfoMap.get(p.deviceId);
       const peerRecord = peerMap.get(p.deviceId);
-      let sysinfo = sysinfoMap.get(p.deviceId);
-      if (!sysinfo && peerRecord) {
-        const fallbackPeer = fallbackPeerByDeviceId.get(peerRecord.id);
-        if (fallbackPeer) {
-          sysinfo = fallbackSysinfoMap.get(fallbackPeer.uuid);
-        }
-      }
       return {
         id: peerRecord?.id || '',
         hash: p.hash || '',
@@ -312,7 +272,19 @@ export class AddressBookLegacyService {
         for (const peerData of parsedData.peers) {
           // Look up or create the peer record via findOrCreatePeer, using its uuid as deviceId
           // Consistent with the new API: deviceId always references peers.uuid
-          const peerRecord = await this.findOrCreatePeer(peerData.id);
+          // Non-IP devices that have never sent a heartbeat are skipped
+          let peerRecord: Peer;
+          try {
+            peerRecord = await this.findOrCreatePeer(peerData.id);
+          } catch (e) {
+            if (e instanceof NotFoundException) {
+              this.logger.warn(
+                `Skipping device ${peerData.id}: not registered (no heartbeat)`,
+              );
+              continue;
+            }
+            throw e;
+          }
 
           const peerGuid = uuidv4();
           const peer = peerRepository.create({
@@ -346,10 +318,17 @@ export class AddressBookLegacyService {
 
   /**
    * Find or create a device record
-   * Look up the device with the given id in the peers table; create it automatically if not found
+   * Look up the device with the given id in the peers table; if not found and
+   * the id is in IP format, create it automatically.
    *
-   * @param id Device ID (RustDesk numeric ID, IP address, or any format of an existing record)
+   * Consistent with the new API: non-IP devices must have sent a heartbeat
+   * (i.e. already exist in the peers table) before they can be added to the
+   * address book. IP-format devices are created on demand because they are
+   * reached via direct IP and never register through heartbeats.
+   *
+   * @param id Device ID (RustDesk numeric ID or IP address)
    * @returns Peer record
+   * @throws NotFoundException Thrown when the device does not exist and the id is not in IP format
    */
   private async findOrCreatePeer(id: string): Promise<Peer> {
     const peerRecord = await this.peerRepository.findOne({
@@ -361,16 +340,18 @@ export class AddressBookLegacyService {
       return peerRecord;
     }
 
-    // For devices not in the peers table, create a peer record automatically
-    // This includes IP-format devices (such as 192.168.1.94) and numeric-ID devices that have not sent a heartbeat yet
-    const newPeer = this.peerRepository.create({
-      uuid: uuidv4(),
-      id,
-      ver: 0,
-      modifiedAt: 0,
-      lastHeartbeat: null,
-    });
-    await this.peerRepository.save(newPeer);
-    return newPeer;
+    if (isIpDevice(id)) {
+      const newPeer = this.peerRepository.create({
+        uuid: uuidv4(),
+        id,
+        ver: 0,
+        modifiedAt: 0,
+        lastHeartbeat: null,
+      });
+      await this.peerRepository.save(newPeer);
+      return newPeer;
+    }
+
+    throw new NotFoundException(`Device ${id} does not exist`);
   }
 }
