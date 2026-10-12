@@ -4,6 +4,7 @@ import {
   DefaultValuePipe,
   Delete,
   Get,
+  Header,
   Param,
   ParseEnumPipe,
   ParseIntPipe,
@@ -31,6 +32,20 @@ export class ServerManagementController {
   @RequirePermission('servers.view')
   list() {
     return this.service.list();
+  }
+
+  @Get('network/tcp')
+  @Header('Cache-Control', 'no-store')
+  @RequirePermission('servers.view')
+  localNetwork() {
+    return this.service.networkSettings();
+  }
+
+  @Get(':node/network/tcp')
+  @Header('Cache-Control', 'no-store')
+  @RequirePermission('servers.view')
+  network(@Param('node') node: string) {
+    return this.service.networkSettings(node);
   }
 
   @Get(':node/peers')

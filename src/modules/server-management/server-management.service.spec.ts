@@ -35,6 +35,70 @@ describe('server management boundary', () => {
     expect(await create([]).list()).toEqual({ data: [] });
   });
 
+  it('routes enabled local management in-process and retains mutation audit', async () => {
+    const service = new ServerManagementService(
+      new ConfigService({ SERVER_MANAGEMENT_LOCAL: '1' }),
+      audit as unknown as RbacAuditService,
+    );
+    const request = jest
+      .fn()
+      .mockResolvedValue({ api_version: 1, node_id: 'local', services: [] });
+    Object.defineProperty(service, 'localManagement', {
+      value: { request },
+      configurable: true,
+    });
+    const result = await service.list();
+    expect(result.data[0]).toMatchObject({
+      id: 'local',
+      name: 'RustDesk',
+      reachable: true,
+      local: true,
+    });
+    const fetcher = jest.spyOn(globalThis, 'fetch');
+    await service.mutate('actor', 'local', '/v1/services/hbbs/restart', 'POST');
+    expect(request).toHaveBeenLastCalledWith(
+      'POST',
+      '/v1/services/hbbs/restart',
+      undefined,
+    );
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ targetGuid: 'local', result: 'allowed' }),
+    );
+    expect(JSON.stringify(result)).not.toContain('token');
+  });
+
+  it('rejects local node collisions and keeps unavailable local management explicit', async () => {
+    expect(
+      () =>
+        new ServerManagementService(
+          new ConfigService({
+            SERVER_MANAGEMENT_LOCAL: '1',
+            RUSTDESK_NODES: JSON.stringify([node]),
+          }),
+          audit as unknown as RbacAuditService,
+        ),
+    ).toThrow('duplicate local');
+    const service = new ServerManagementService(
+      new ConfigService({ SERVER_MANAGEMENT_LOCAL: '1' }),
+      audit as unknown as RbacAuditService,
+    );
+    expect(await service.list()).toEqual({
+      data: [
+        {
+          id: 'local',
+          name: 'RustDesk',
+          local: true,
+          reachable: false,
+          services: [],
+        },
+      ],
+    });
+    await expect(
+      service.request('unknown', '/v1/status'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('rejects duplicate nodes, credentials in URLs and weak tokens', () => {
     expect(() => create([node, node])).toThrow();
     expect(() =>

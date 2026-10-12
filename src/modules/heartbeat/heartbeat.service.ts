@@ -95,8 +95,7 @@ export class HeartbeatService {
     modified_at: number;
   } | null> {
     try {
-      const strategy =
-        await this.strategyService.findStrategyForPeer(peer);
+      const strategy = await this.strategyService.findStrategyForPeer(peer);
       if (!strategy) {
         return null;
       }

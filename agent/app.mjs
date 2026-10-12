@@ -5,11 +5,11 @@ import path from 'node:path';
 import { isIP } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { AgentError, DockerDriver } from './docker.mjs';
+import tcp from '../network/tcp-observation.js';
+import managementSchema from './schema.json' with { type: 'json' };
 
 export const REDACTED = '__REDACTED__';
-export const schema = JSON.parse(
-  await fs.readFile(new URL('./schema.json', import.meta.url), 'utf8'),
-);
+export const schema = managementSchema;
 const services = ['hbbs', 'hbbr'];
 
 export function validateConfig(service, input, previous = {}) {
@@ -113,6 +113,7 @@ export function createAgent({
   urls = { hbbs: 'http://hbbs:21120', hbbr: 'http://hbbr:21121' },
   fetcher = fetch,
   readinessAttempts = 10,
+  observer = tcp.createObserver(),
 } = {}) {
   if (
     typeof token !== 'string' ||
@@ -308,6 +309,44 @@ export function createAgent({
     };
   };
   const dispatch = async (method, pathname, input, query) => {
+    if (pathname === '/v1/network/tcp' && method === 'GET') {
+      if (query.size || input !== undefined)
+        throw new AgentError(400, 'Invalid network query');
+      return observer.system();
+    }
+    if (pathname === '/v1/network/tcp/relay' && method === 'GET') {
+      const names = [
+        'local_address',
+        'local_port',
+        'remote_address',
+        'remote_port',
+      ];
+      if (
+        input !== undefined ||
+        query.size !== names.length ||
+        names.some((name) => query.getAll(name).length !== 1) ||
+        [...query.keys()].some((name) => !names.includes(name))
+      )
+        throw new AgentError(400, 'Invalid network query');
+      const tuple = {
+        local: {
+          address: query.get('local_address'),
+          port: Number(query.get('local_port')),
+        },
+        remote: {
+          address: query.get('remote_address'),
+          port: Number(query.get('remote_port')),
+        },
+      };
+      if (!tcp.validTuple(tuple))
+        throw new AgentError(400, 'Invalid TCP connection');
+      // Existing enrolled Docker access only. Never add a mount or accept a command/container ID.
+      try {
+        return await docker.observeTcpRelay(tuple);
+      } catch {
+        return tcp.unavailable('connection', 'namespace_unobservable');
+      }
+    }
     if (method === 'GET' && pathname === '/v1/status') {
       const status = await Promise.all(
         services.map(async (service) => {
@@ -461,6 +500,10 @@ export function createAgent({
   };
   return {
     handler,
+    request: (method, path, input) => {
+      const url = new URL(path, 'http://agent');
+      return dispatch(method, url.pathname, input, url.searchParams);
+    },
     syncPolicy: () => locked(syncPolicy),
     server: () => http.createServer(handler),
   };

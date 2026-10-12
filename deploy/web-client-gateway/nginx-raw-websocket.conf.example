@@ -1,0 +1,35 @@
+# 可挂载到与 rustdesk-hbbs / rustdesk-hbbr 同网的现有 Nginx。
+# 先移除原生容器的公开 21118 / 21119 映射，再由此入口接管。
+# 原生 TCP/UDP 端口不受此示例影响；最外层旧 WSS 路径也要做同样分流。
+server {
+    listen 21118;
+    server_name _;
+
+    location / {
+        # 浏览器必须走 Console 票据网关，不能匿名直通原生入口。
+        if ($http_origin != "") { return 403; }
+        proxy_pass http://rustdesk-hbbs:21118;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+}
+
+server {
+    listen 21119;
+    server_name _;
+
+    location / {
+        if ($http_origin != "") { return 403; }
+        proxy_pass http://rustdesk-hbbr:21119;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+}

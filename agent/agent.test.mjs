@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createAgent, REDACTED, validateBans, validateConfig } from './app.mjs';
 import { DockerDriver } from './docker.mjs';
+import tcp from '../network/tcp-observation.js';
 
 const token = 'a'.repeat(40);
 const serverToken = 'b'.repeat(40);
@@ -105,6 +106,185 @@ test('authorization is required even for status; arbitrary Docker commands are u
       .status,
     404,
   );
+});
+
+test('in-process management uses the same enrolled service routes without another listener', async (t) => {
+  const { agent, calls, directory } = await fixture(t);
+  const status = await agent.request('GET', '/v1/status');
+  assert.equal(status.node_id, 'local');
+  assert.deepEqual(
+    status.services.map((s) => s.service),
+    ['hbbs', 'hbbr'],
+  );
+  assert.equal((await agent.request('GET', '/v1/peers')).data.length, 0);
+  assert.equal((await agent.request('GET', '/v1/sessions')).data.length, 0);
+  const logs = await agent.request('GET', '/v1/services/hbbs/logs?tail=30');
+  assert(!logs.text.includes(serverToken));
+  assert(!logs.text.includes('private-value'));
+  await agent.request('PUT', '/v1/services/hbbs/config', {
+    values: { port: '21116' },
+  });
+  assert.equal(
+    JSON.parse(await fs.readFile(path.join(directory, 'hbbs-config.json')))
+      .values.port,
+    '21116',
+  );
+  assert.equal(
+    (await agent.request('POST', '/v1/services/hbbs/apply')).state,
+    'applied',
+  );
+  await agent.request('PUT', '/v1/bans', {
+    device_ids: ['test-peer'],
+    ips: [],
+  });
+  assert(
+    calls.some((c) => c.url.endsWith('/v1/bans') && c.options.method === 'PUT'),
+  );
+  await assert.rejects(
+    agent.request('POST', '/v1/containers/arbitrary/restart'),
+    { status: 404 },
+  );
+  await assert.rejects(agent.request('GET', '/v1/services/console/logs'), {
+    status: 404,
+  });
+});
+
+test('TCP information is authenticated, read-only and works without a host helper', async (t) => {
+  let reads = 0;
+  const state = tcp.unavailable('system', 'source_unavailable');
+  const { request, calls } = await fixture(t, {
+    observer: {
+      system: async () => {
+        reads++;
+        return state;
+      },
+    },
+  });
+  assert.equal(
+    (await request('/v1/network/tcp', 'GET', undefined, false)).status,
+    401,
+  );
+  assert.deepEqual(await (await request('/v1/network/tcp')).json(), state);
+  assert.equal((await request('/v1/network/tcp?path=other')).status, 400);
+  assert.equal(
+    (await request('/v1/network/tcp', 'PUT', { algorithm: 'bbr' })).status,
+    404,
+  );
+  assert.equal((await request('/v1/network/deployment')).status, 404);
+  assert.equal(reads, 1);
+  assert.deepEqual(calls, []);
+});
+
+test('relay observation accepts only a fixed validated tuple and enrolled read query', async (t) => {
+  const queried = [];
+  const state = tcp.unavailable('connection', 'namespace_unobservable');
+  const { request } = await fixture(t, {
+    docker: {
+      observeTcpRelay: async (tuple) => {
+        queried.push(tuple);
+        return state;
+      },
+    },
+  });
+  const query =
+    'local_address=10.0.0.2&local_port=21119&remote_address=10.0.0.3&remote_port=53000';
+  assert.deepEqual(
+    await (await request(`/v1/network/tcp/relay?${query}`)).json(),
+    state,
+  );
+  for (const extra of ['&command=rm', '&local_port=1', '&container=other'])
+    assert.equal(
+      (await request(`/v1/network/tcp/relay?${query}${extra}`)).status,
+      400,
+    );
+  assert.equal(
+    (await request('/v1/network/tcp/relay?local_address=not-an-ip')).status,
+    400,
+  );
+  assert.equal(
+    (await request(`/v1/network/tcp/relay?${query}`, 'GET', undefined, false))
+      .status,
+    401,
+  );
+  assert.equal(queried.length, 1);
+});
+
+test('relay TCP probe stays in the enrolled hbbr container and returns the actual sending algorithm', async () => {
+  const tuple = {
+    local: { address: '10.0.0.2', port: 21119 },
+    remote: { address: '10.0.0.3', port: 53000 },
+  };
+  const calls = [];
+  const docker = new DockerDriver({
+    nodeId: 'local',
+    request: async (method, route, body) => {
+      calls.push({ method, route, body });
+      if (route.endsWith('/json')) return container('hbbr');
+      if (route.endsWith('/exec')) return { Id: 'readonly' };
+      if (route.endsWith('/start')) {
+        const data = Buffer.from(
+          'Linux\n6.8\nreno cubic bbr\n0 0 10.0.0.2:21119 10.0.0.3:53000 users:(("hbbr",pid=1,fd=4))\n cubic wscale:7,7 rtt:20 send 10Mbps\n',
+        );
+        const frame = Buffer.alloc(8);
+        frame[0] = 1;
+        frame.writeUInt32BE(data.length, 4);
+        return Buffer.concat([frame, data]);
+      }
+    },
+  });
+  const result = await docker.observeTcpRelay(tuple);
+  assert.equal(result.algorithm, 'cubic');
+  assert.equal(result.environment.scope, 'container');
+  const execution = calls.find((call) => call.route.endsWith('/exec'));
+  assert.ok(execution.body.Cmd.includes(':21119'));
+  assert.ok(execution.body.Cmd.includes(':53000'));
+  assert.ok(
+    !calls.some(
+      (call) =>
+        call.route.includes('/restart') || call.route.includes('/update'),
+    ),
+  );
+});
+
+test('relay topology distinguishes a named bridge, host networking and unreadable network metadata', async () => {
+  const tuple = {
+    local: { address: '10.0.0.2', port: 21119 },
+    remote: { address: '10.0.0.3', port: 53000 },
+  };
+  for (const [mode, readable, expected, scope] of [
+    ['project_rustdesk-net', true, 'bridge', 'container'],
+    ['host', true, 'host', 'host'],
+    ['project_rustdesk-net', false, 'unknown', 'container'],
+  ]) {
+    const docker = new DockerDriver({
+      request: async (_method, route) => {
+        if (route.endsWith('/json')) {
+          const info = container('hbbr');
+          info.HostConfig.NetworkMode = mode;
+          info.NetworkSettings.Networks = {
+            [mode]: { NetworkID: 'test-network' },
+          };
+          return info;
+        }
+        if (route.startsWith('/networks/')) {
+          if (!readable) throw new Error('Network metadata unavailable');
+          return { Driver: 'bridge' };
+        }
+        if (route.endsWith('/exec')) return { Id: 'readonly' };
+        if (route.endsWith('/start')) {
+          const data = Buffer.from('Linux\n6.8\nreno cubic\n__NO_SS__\n');
+          const frame = Buffer.alloc(8);
+          frame[0] = 1;
+          frame.writeUInt32BE(data.length, 4);
+          return Buffer.concat([frame, data]);
+        }
+      },
+    });
+    const result = await docker.observeTcpRelay(tuple);
+    assert.equal(result.environment.network_mode, expected);
+    assert.equal(result.environment.scope, scope);
+    assert.equal(result.reason, 'tool_unavailable');
+  }
 });
 
 test('saving configuration preserves redacted keys and does not restart a service', async (t) => {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -85,6 +86,56 @@ test(
       env,
     );
     assert.equal(output, '1234');
+  },
+);
+
+test(
+  'opt-in local management uses the mounted socket group without root or updater-state access',
+  { skip: requiresRootLinux },
+  async (t) => {
+    const { root, env } = await fixture(t);
+    const socket = join(root, 'docker.sock');
+    const server = createServer();
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(socket, resolve);
+    });
+    t.after(() => new Promise((resolve) => server.close(resolve)));
+    await fs.chown(socket, 0, 1234);
+    await fs.chmod(socket, 0o660);
+    const output = run(
+      'sh',
+      [
+        entrypoint,
+        'sh',
+        '-ec',
+        'id -u; id -g; test -w "$DOCKER_SOCKET"; test ! -r "$TEST_STATE"; test ! -w "$TEST_STATE"',
+      ],
+      {
+        ...env,
+        SERVER_MANAGEMENT_LOCAL: '1',
+        DOCKER_SOCKET: socket,
+      },
+    );
+    assert.equal(output, '1000\n1234');
+  },
+);
+
+test(
+  'opt-in local management fails before startup without a mounted socket',
+  { skip: requiresRootLinux },
+  async (t) => {
+    const { root, env } = await fixture(t);
+    const result = spawnSync('sh', [entrypoint, 'id', '-u'], {
+      encoding: 'utf8',
+      env: {
+        ...env,
+        SERVER_MANAGEMENT_LOCAL: '1',
+        DOCKER_SOCKET: join(root, 'missing.sock'),
+      },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /requires a mounted Docker socket/);
   },
 );
 

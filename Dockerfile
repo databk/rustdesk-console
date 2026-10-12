@@ -23,7 +23,7 @@ WORKDIR /app
 # The same immutable image runs the API, updater and independent job worker.
 # No tools are downloaded while an update is in progress.
 RUN apk add --no-cache docker-cli docker-cli-compose sqlite mariadb-client \
-    mariadb-connector-c util-linux ca-certificates tar su-exec
+    mariadb-connector-c util-linux ca-certificates tar su-exec iproute2
 
 # Copy package files
 COPY package*.json ./
@@ -36,6 +36,8 @@ COPY --from=builder /app/dist ./dist
 COPY deployment/compose-bootstrap.mjs ./deployment/compose-bootstrap.mjs
 COPY deployment/docker-entrypoint.sh /usr/local/bin/console-entrypoint
 RUN chmod 755 /usr/local/bin/console-entrypoint
+COPY network/tcp-observation.js ./network/
+COPY agent/*.mjs agent/schema.json ./agent/
 
 # Expose the application port
 EXPOSE 3000

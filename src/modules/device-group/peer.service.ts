@@ -5,6 +5,7 @@ import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { PeerQueryDto } from './dto/peer.dto';
+import type { PermissionScope } from '../rbac/services/rbac-authorization.service';
 
 /**
  * Device service
@@ -56,6 +57,7 @@ export class PeerService {
     userGuid: string,
     query: PeerQueryDto,
     isAdmin: boolean = false,
+    webClientScope?: PermissionScope,
   ): Promise<{ data: any[]; total: number }> {
     const {
       current = 1,
@@ -79,7 +81,20 @@ export class PeerService {
       .leftJoinAndSelect('peer.deviceGroup', 'deviceGroup');
 
     // Administrators can see all devices
-    if (!isAdmin) {
+    if (webClientScope) {
+      // 网页授权不继承设备所有权或旧客户端 ACL，且排除重号设备。
+      queryBuilder.where('peer.status = :webActive', { webActive: 1 });
+      queryBuilder.andWhere(
+        'NOT EXISTS (SELECT 1 FROM peers duplicate WHERE duplicate.id = peer.id AND duplicate.uuid <> peer.uuid)',
+      );
+      if (!webClientScope.global) {
+        const groups = [...webClientScope.deviceGroupGuids];
+        if (!groups.length) return { data: [], total: 0 };
+        queryBuilder.andWhere('peer.deviceGroupGuid IN (:...webGroups)', {
+          webGroups: groups,
+        });
+      }
+    } else if (!isAdmin) {
       queryBuilder.where(
         `(
           -- The user's own devices

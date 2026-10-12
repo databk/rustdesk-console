@@ -3,6 +3,8 @@
  * fixed: roles may compose these values, but callers cannot create new ones.
  */
 export type PermissionCode =
+  | 'web_client.connect'
+  | 'web_client.file_transfer'
   | 'users.view'
   | 'users.create'
   | 'users.edit'
@@ -91,6 +93,21 @@ const systemDefinition = (
 });
 
 export const PERMISSION_CATALOG: readonly PermissionDefinition[] = [
+  definition(
+    'web_client.connect',
+    'web_client',
+    'connect',
+    'Use web remote control',
+    'device_group',
+  ),
+  definition(
+    'web_client.file_transfer',
+    'web_client',
+    'file_transfer',
+    'Use web file channel',
+    'device_group',
+    ['web_client.connect'],
+  ),
   definition('servers.view', 'servers', 'view', 'View servers'),
   definition(
     'servers.control',

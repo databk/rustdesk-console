@@ -1,11 +1,27 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
+import tcp from '../network/tcp-observation.js';
 
 export class AgentError extends Error {
   constructor(status, message) {
     super(message);
     this.status = status;
   }
+}
+
+function decodeDockerOutput(buffer) {
+  let offset = 0;
+  const chunks = [];
+  while (offset + 8 <= buffer.length) {
+    const size = buffer.readUInt32BE(offset + 4);
+    if (offset + 8 + size > buffer.length)
+      throw new AgentError(502, 'Invalid Docker output frame');
+    chunks.push(buffer.subarray(offset + 8, offset + 8 + size));
+    offset += 8 + size;
+  }
+  if (offset !== buffer.length)
+    throw new AgentError(502, 'Invalid Docker output frame');
+  return Buffer.concat(chunks).toString();
 }
 
 // This driver accepts service names, never arbitrary container IDs or commands.
@@ -106,6 +122,103 @@ export class DockerDriver {
     await this.request('POST', `/containers/${info.Id}/${action}?t=10`);
   }
 
+  async observeTcpRelay(tuple) {
+    if (!tcp.validTuple(tuple))
+      throw new AgentError(400, 'Invalid TCP connection');
+    const info = await this.inspect('hbbr');
+    if (!info.State?.Running)
+      return tcp.unavailable('connection', 'not_connected');
+    const mode = info.HostConfig?.NetworkMode;
+    let networkMode =
+      mode === 'host'
+        ? 'host'
+        : mode === 'bridge' || mode === 'default'
+          ? 'bridge'
+          : mode === 'none' || mode?.startsWith('container:')
+            ? 'isolated'
+            : 'unknown';
+    if (networkMode === 'unknown' && typeof mode === 'string' && mode) {
+      // A named Compose network can still be a bridge. Inspect its driver,
+      // rather than treating every custom network as an isolated mode.
+      const endpoint = info.NetworkSettings?.Networks?.[mode];
+      if (endpoint?.NetworkID) {
+        try {
+          const network = await this.request(
+            'GET',
+            `/networks/${encodeURIComponent(endpoint.NetworkID)}`,
+          );
+          if (network.Driver === 'bridge') networkMode = 'bridge';
+          else if (['overlay', 'macvlan', 'ipvlan'].includes(network.Driver))
+            networkMode = 'isolated';
+        } catch {
+          // A missing topology read must not erase an actual socket observation.
+        }
+      }
+    }
+    const environment = {
+      system: 'linux',
+      release: null,
+      deployment: 'container',
+      network_mode: networkMode,
+      scope: mode === 'host' ? 'host' : 'container',
+      source: 'ss',
+    };
+    const execution = await this.request(
+      'POST',
+      `/containers/${info.Id}/exec`,
+      {
+        AttachStdout: true,
+        AttachStderr: true,
+        Cmd: [
+          'sh',
+          '-c',
+          'uname -s; uname -r; cat /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null || printf "\\n"; command -v ss >/dev/null || { printf "__NO_SS__\\n"; exit 0; }; ss "$@" 2>&1 || printf "__SS_ERROR__\\n"',
+          'tcp-observation',
+          ...tcp.connectionArgs(tuple),
+        ],
+      },
+    );
+    const buffer = await this.request(
+      'POST',
+      `/exec/${encodeURIComponent(execution.Id)}/start`,
+      { Detach: false, Tty: false },
+      true,
+    );
+    const output = decodeDockerOutput(buffer).split(/\r?\n/);
+    if (output[0]?.trim() !== 'Linux')
+      return tcp.unavailable('connection', 'platform_unobservable', {
+        ...environment,
+        system: 'unknown',
+      });
+    environment.release = output[1]?.trim() || null;
+    if (output.includes('__NO_SS__'))
+      return tcp.unavailable('connection', 'tool_unavailable', environment);
+    if (output.includes('__SS_ERROR__'))
+      return tcp.unavailable(
+        'connection',
+        /permission denied|operation not permitted/i.test(output.join('\n'))
+          ? 'permission_denied'
+          : 'source_unavailable',
+        environment,
+      );
+    const result = tcp.parseSocket(output.slice(3).join('\n'), tuple, 'hbbr');
+    const algorithms = output[2]?.trim().split(/\s+/) || [];
+    const verified =
+      algorithms.length > 0 &&
+      algorithms.length <= 128 &&
+      algorithms.every((name) =>
+        /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/.test(name),
+      );
+    return {
+      ...tcp.unavailable('connection', result.reason, environment),
+      status: result.algorithm ? 'identified' : 'unavailable',
+      reason: result.reason,
+      algorithm: result.algorithm,
+      algorithms: verified ? [...new Set(algorithms)] : [],
+      algorithms_verified: verified,
+    };
+  }
+
   async logs(service, tail = 200) {
     const info = await this.inspect(service);
     const buffer = await this.request(
@@ -115,16 +228,7 @@ export class DockerDriver {
       true,
     );
     if (info.Config.Tty) return buffer.toString();
-    let offset = 0;
-    const chunks = [];
-    while (offset + 8 <= buffer.length) {
-      const size = buffer.readUInt32BE(offset + 4);
-      if (offset + 8 + size > buffer.length)
-        throw new AgentError(502, 'Invalid Docker log frame');
-      chunks.push(buffer.subarray(offset + 8, offset + 8 + size));
-      offset += 8 + size;
-    }
-    return Buffer.concat(chunks).toString();
+    return decodeDockerOutput(buffer);
   }
 
   // Keep the old container until the replacement passes its authenticated API

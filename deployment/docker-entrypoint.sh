@@ -28,6 +28,16 @@ if [ "$(id -u)" = 0 ]; then
   mkdir -p "${DATA_DIR:-/data}"
   find "${DATA_DIR:-/data}" -xdev \( \! -user 1000 -o \! -group 1000 \) \
     -exec chown -h 1000:1000 {} +
-  exec su-exec 1000:1000 "$@"
+  runtime_gid=1000
+  if [ "${SERVER_MANAGEMENT_LOCAL:-0}" = 1 ]; then
+    socket=${DOCKER_SOCKET:-/var/run/docker.sock}
+    if [ ! -S "$socket" ]; then
+      echo "Local server management requires a mounted Docker socket" >&2
+      exit 1
+    fi
+    # su-exec clears supplementary groups; retain only the explicitly mounted socket group.
+    runtime_gid=$(stat -c '%g' "$socket")
+  fi
+  exec su-exec "1000:$runtime_gid" "$@"
 fi
 exec "$@"

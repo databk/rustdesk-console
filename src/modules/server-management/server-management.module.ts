@@ -7,5 +7,6 @@ import { ServerManagementService } from './server-management.service';
   imports: [RbacModule],
   controllers: [ServerManagementController],
   providers: [ServerManagementService],
+  exports: [ServerManagementService],
 })
 export class ServerManagementModule {}
