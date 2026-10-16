@@ -51,13 +51,13 @@ export class ServerManagementController {
   @Get(':node/peers')
   @RequirePermission('servers.view')
   peers(@Param('node') node: string) {
-    return this.service.request(node, '/v1/peers');
+    return this.service.peers(node);
   }
 
   @Get(':node/sessions')
   @RequirePermission('servers.view')
   sessions(@Param('node') node: string) {
-    return this.service.request(node, '/v1/sessions');
+    return this.service.sessions(node);
   }
 
   @Delete(':node/sessions/:uuid')
@@ -67,12 +67,7 @@ export class ServerManagementController {
     @Param('uuid') uuid: string,
     @CurrentUser('id') actor: string,
   ) {
-    return this.service.mutate(
-      actor,
-      node,
-      `/v1/sessions/${encodeURIComponent(uuid)}`,
-      'DELETE',
-    );
+    return this.service.disconnect(actor, node, uuid);
   }
 
   @Get(':node/services/:service/logs')
@@ -83,10 +78,7 @@ export class ServerManagementController {
     service: RustdeskService,
     @Query('tail', new DefaultValuePipe(200), ParseIntPipe) tail: number,
   ) {
-    return this.service.request(
-      node,
-      `/v1/services/${service}/logs?tail=${tail}`,
-    );
+    return this.service.logs(node, service, tail);
   }
 
   @Get(':node/services/:service/config')
@@ -96,7 +88,7 @@ export class ServerManagementController {
     @Param('service', new ParseEnumPipe(RustdeskService))
     service: RustdeskService,
   ) {
-    return this.service.request(node, `/v1/services/${service}/config`);
+    return this.service.config(node, service);
   }
 
   @Put(':node/services/:service/config')
@@ -108,14 +100,7 @@ export class ServerManagementController {
     @Body() dto: ServerConfigDto,
     @CurrentUser('id') actor: string,
   ) {
-    return this.service.mutate(
-      actor,
-      node,
-      `/v1/services/${service}/config`,
-      'PUT',
-      dto,
-      { settings: Object.keys(dto.values) },
-    );
+    return this.service.saveConfig(actor, node, service, dto);
   }
 
   @Post(':node/services/:service/:action')
@@ -127,18 +112,13 @@ export class ServerManagementController {
     @Param('action', new ParseEnumPipe(ServiceAction)) action: ServiceAction,
     @CurrentUser('id') actor: string,
   ) {
-    return this.service.mutate(
-      actor,
-      node,
-      `/v1/services/${service}/${action}`,
-      'POST',
-    );
+    return this.service.serviceAction(actor, node, service, action);
   }
 
   @Get(':node/bans')
   @RequirePermission('servers.ban')
   bans(@Param('node') node: string) {
-    return this.service.request(node, '/v1/bans');
+    return this.service.bans(node);
   }
 
   @Put(':node/bans')
@@ -148,9 +128,6 @@ export class ServerManagementController {
     @Body() dto: ServerBansDto,
     @CurrentUser('id') actor: string,
   ) {
-    return this.service.mutate(actor, node, '/v1/bans', 'PUT', dto, {
-      device_ids: dto.device_ids,
-      ips: dto.ips,
-    });
+    return this.service.saveBans(actor, node, dto);
   }
 }

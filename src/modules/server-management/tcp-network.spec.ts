@@ -6,6 +6,7 @@ import {
   REQUIRE_SUPER_ADMIN_KEY,
 } from '../rbac/decorators/require-permission.decorator';
 import { RbacAuditService } from '../rbac/services/rbac-audit.service';
+import { ServerEventsService } from './server-events.service';
 import { ServerManagementController } from './server-management.controller';
 import { ServerManagementService } from './server-management.service';
 import { unavailable } from '../../../network/tcp-observation.js';
@@ -14,23 +15,27 @@ jest.mock('uuid', () => ({
   v4: jest.requireActual<typeof import('node:crypto')>('node:crypto')
     .randomUUID,
 }));
-const node = {
-  id: 'relay',
-  name: 'Relay',
-  url: 'http://agent:3001',
-  token: 'a'.repeat(40),
+
+const base = {
+  HBBS_MANAGEMENT_URL: 'http://hbbs:21120',
+  SERVER_MANAGEMENT_TOKEN: 'a'.repeat(40),
+  SERVER_MANAGEMENT_NODE_ID: 'main',
 };
+
 describe('read-only TCP observations', () => {
   const audit = { record: jest.fn(), recordDenied: jest.fn() };
-  const create = (extra: Record<string, string> = {}) =>
+  const create = () =>
     new ServerManagementService(
-      new ConfigService({ RUSTDESK_NODES: JSON.stringify([node]), ...extra }),
+      new ConfigService(base),
       audit as unknown as RbacAuditService,
+      new ServerEventsService(new ConfigService({})),
     );
+
   afterEach(() => {
     jest.restoreAllMocks();
     jest.clearAllMocks();
   });
+
   it('uses servers.view and exposes no network write handler', () => {
     for (const method of [
       ServerManagementController.prototype.network,
@@ -46,52 +51,40 @@ describe('read-only TCP observations', () => {
     expect('applyNetwork' in ServerManagementController.prototype).toBe(false);
     expect('applyTcpNetwork' in ServerManagementService.prototype).toBe(false);
   });
-  it('accepts arbitrary observed algorithms and never performs mutation/persistence/audit writes', async () => {
-    const state = {
-      ...unavailable('system', 'source_unavailable'),
-      status: 'identified',
-      reason: null,
-      algorithm: 'vegas',
-      algorithms: ['reno', 'cubic', 'vegas'],
-      algorithms_verified: true,
-    };
-    const mock = jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(Response.json({ ...state, token: 'secret' }));
-    const value = await create().networkSettings(node.id);
-    expect(value.algorithm).toBe('vegas');
-    expect(value).not.toHaveProperty('token');
-    expect(mock).toHaveBeenCalledTimes(1);
-    expect(mock.mock.calls[0][1]?.method).toBe('GET');
+
+  it('reads the console runtime scope for the primary node', async () => {
+    const service = create();
+    const observer = (
+      service as unknown as {
+        observer: { system: (...args: unknown[]) => Promise<unknown> };
+      }
+    ).observer;
+    const system = jest
+      .spyOn(observer, 'system')
+      .mockResolvedValue(unavailable('system', 'source_unavailable'));
+    await service.networkSettings();
+    await service.networkSettings('main');
+    expect(system).toHaveBeenCalledTimes(2);
     expect(audit.record).not.toHaveBeenCalled();
     expect(audit.recordDenied).not.toHaveBeenCalled();
   });
-  it('rejects wrong-kind/old default responses and bounds malformed or oversized responses', async () => {
-    const mock = jest.spyOn(global, 'fetch');
-    const service = create();
-    for (const value of [
-      unavailable('connection', 'source_unavailable'),
-      { scope: 'host_new_tcp_connections', current_algorithm: 'bbr' },
-      { data: 'x'.repeat(40000) },
-    ]) {
-      mock.mockResolvedValueOnce(Response.json(value));
-      expect((await service.networkSettings(node.id)).reason).toBe(
-        'invalid_response',
-      );
-    }
-  });
-  it('does not reinterpret an unreachable agent as a BBR default and rejects unknown node IDs', async () => {
-    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('Offline'));
-    const service = create();
-    expect((await service.networkSettings(node.id)).algorithm).toBeNull();
-    expect((await service.networkSettings(node.id)).reason).toBe(
-      'source_unavailable',
-    );
-    await expect(service.networkSettings('missing')).rejects.toBeInstanceOf(
+
+  it('reports relay namespaces as unobservable instead of guessing', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation((input: unknown) => {
+      const url = String(input);
+      if (url.endsWith('/v1/relays'))
+        return Promise.resolve(Response.json({ data: [{ id: 'relay-a' }] }));
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
+    const value = await create().networkSettings('relay-a');
+    expect(value.status).toBe('unavailable');
+    expect(value.reason).toBe('namespace_unobservable');
+    await expect(create().networkSettings('missing')).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
-  it('does not associate an arbitrary sole node with a live relay connection', async () => {
+
+  it('observes only the local hbbr socket and never dials out', async () => {
     const service = create();
     const observer = (
       service as unknown as {
@@ -101,44 +94,31 @@ describe('read-only TCP observations', () => {
     jest
       .spyOn(observer, 'connection')
       .mockResolvedValue(unavailable('connection', 'connection_not_found'));
-    const mock = jest.spyOn(global, 'fetch');
-    await service.relayConnection({
+    const mock = jest.spyOn(globalThis, 'fetch');
+    const value = await service.relayConnection({
       local: { address: '127.0.0.1', port: 21119 },
       remote: { address: '127.0.0.1', port: 53000 },
     });
-    expect(mock).not.toHaveBeenCalled();
     expect(observer.connection).toHaveBeenCalledWith(
       expect.any(Object),
       'hbbr',
     );
-  });
-  it('an explicitly associated enrolled agent reads only the bound relay sending tuple', async () => {
-    const service = create({ WEB_CLIENT_TCP_RELAY_NODE_ID: node.id });
-    const observer = (
-      service as unknown as {
-        observer: { connection: (...args: unknown[]) => Promise<unknown> };
-      }
-    ).observer;
-    jest
-      .spyOn(observer, 'connection')
-      .mockResolvedValue(unavailable('connection', 'connection_not_found'));
-    const observed = {
+    expect(value.status).toBe('unavailable');
+    expect(value.reason).toBe('connection_not_found');
+    expect(mock).not.toHaveBeenCalled();
+    const identified = {
       ...unavailable('connection', 'source_unavailable'),
       status: 'identified',
       reason: null,
       algorithm: 'cubic',
     };
-    const mock = jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue(Response.json(observed));
-    const value = await service.relayConnection({
-      local: { address: '10.0.0.2', port: 21119 },
-      remote: { address: '10.0.0.3', port: 53000 },
-    });
-    expect(value.algorithm).toBe('cubic');
-    const url = new URL(mock.mock.calls[0][0] as string);
-    expect(url.searchParams.get('local_address')).toBe('10.0.0.2');
-    expect(url.searchParams.get('local_port')).toBe('21119');
-    expect(mock.mock.calls[0][1]?.method).toBe('GET');
+    jest.spyOn(observer, 'connection').mockResolvedValue(identified);
+    await expect(
+      service.relayConnection({
+        local: { address: '127.0.0.1', port: 21119 },
+        remote: { address: '127.0.0.1', port: 53001 },
+      }),
+    ).resolves.toMatchObject({ status: 'identified', algorithm: 'cubic' });
+    expect(mock).not.toHaveBeenCalled();
   });
 });
