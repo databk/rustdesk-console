@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   test:
-    name: Backend and node agent tests
+    name: Backend and network tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,19 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test -- --runInBand
-      - run: node --test agent/*.test.mjs network/*.test.mjs
-
-  agent-build:
-    name: Node agent image
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: agent/Dockerfile
-          push: false
+      - run: node --test network/*.test.mjs
 
   lint:
     name: Lint
