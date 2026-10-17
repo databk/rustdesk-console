@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
+import { PasswordResetController } from './password-reset.controller';
 import {
   AuthService,
   AuthTokenService,
@@ -16,6 +17,7 @@ import {
   LoginSessionService,
   AuthUserHelper,
   AuthLoginHelper,
+  PasswordResetService,
 } from './services';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../user/entities/user.entity';
@@ -23,6 +25,7 @@ import { UserToken } from '../user/entities/user-token.entity';
 import { Peer } from '../../common/entities';
 import { LoginSession } from './entities/login-session.entity';
 import { PasskeyCredential } from './entities/passkey-credential.entity';
+import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
@@ -57,6 +60,7 @@ import { RbacModule } from '../rbac/rbac.module';
       Peer,
       LoginSession,
       PasskeyCredential,
+      PasswordResetToken,
     ]),
     EmailModule,
     LdapModule,
@@ -71,7 +75,7 @@ import { RbacModule } from '../rbac/rbac.module';
       },
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, PasswordResetController],
   providers: [
     AuthService,
     AuthTokenService,
@@ -85,6 +89,7 @@ import { RbacModule } from '../rbac/rbac.module';
     LoginSessionService,
     AuthUserHelper,
     AuthLoginHelper,
+    PasswordResetService,
     JwtStrategy,
   ],
   exports: [AuthService, AuthTokenService, AuthDeviceService, JwtModule],

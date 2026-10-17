@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { DATABASE_ENTITIES } from './entities';
 import { InitialSchema1790985600000 } from '../migrations/1790985600000-InitialSchema';
 import { FixMySqlDefaultUserGroupIndex1790985600001 } from '../migrations/1790985600001-FixMySqlDefaultUserGroupIndex';
+import { AddPasswordResetTokens1790985600002 } from '../migrations/1790985600002-AddPasswordResetTokens';
 import { AddressBookPeer } from '../modules/address-book/entities/address-book-peer.entity';
 import { migrateDatabase } from './migration-manager';
 
@@ -26,6 +27,7 @@ describe('database migrations', () => {
       migrations: [
         InitialSchema1790985600000,
         FixMySqlDefaultUserGroupIndex1790985600001,
+        AddPasswordResetTokens1790985600002,
       ],
       synchronize,
     });
@@ -49,7 +51,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(2);
+      ).toHaveLength(3);
       await dataSource.query(
         "INSERT INTO address_books (guid, owner) VALUES ('book', 'owner')",
       );
@@ -92,7 +94,7 @@ describe('database migrations', () => {
       ).toEqual([{ name: 'retained' }]);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(2);
+      ).toHaveLength(3);
     } finally {
       await dataSource.destroy();
     }
@@ -111,7 +113,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(2);
+      ).toHaveLength(3);
     } finally {
       await dataSource.destroy();
     }
@@ -148,7 +150,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(2);
+      ).toHaveLength(3);
       const indexes = await dataSource.query(
         "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'strategies' AND sql IS NOT NULL",
       );

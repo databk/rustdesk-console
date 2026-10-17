@@ -15,6 +15,12 @@ export const EMAIL_VERIFICATION_CODE_EXPIRY_MINUTES = 5;
 /** Passkey session validity period (minutes) */
 export const PASSKEY_SESSION_EXPIRY_MINUTES = 5;
 
+/** Password reset token length (bytes; hex-encoded in links) */
+export const PASSWORD_RESET_TOKEN_BYTES = 32;
+
+/** Password reset token validity period (minutes) */
+export const PASSWORD_RESET_EXPIRY_MINUTES = 30;
+
 /** Default JWT secret (development only; must be overridden via JWT_SECRET in production) */
 export const JWT_DEFAULT_SECRET =
   'rustdesk-api-secret-key-change-in-production';

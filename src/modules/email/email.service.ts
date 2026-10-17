@@ -121,6 +121,54 @@ export class EmailService {
   }
 
   /**
+   * Send password reset email
+   */
+  async sendPasswordResetEmail(
+    email: string,
+    resetUrl: string,
+    expiresIn: string = '30 minutes',
+  ): Promise<boolean> {
+    try {
+      const config = await this.smtpSettingsService.getActiveConfig();
+      if (!config) {
+        this.logger.warn(
+          'SMTP is not configured or not enabled, cannot send password reset email',
+        );
+        return false;
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        ...(config.user || config.pass
+          ? { auth: { user: config.user, pass: config.pass } }
+          : {}),
+      });
+
+      const html = await this.renderTemplate('reset-password', {
+        serviceName: 'RustDesk Console',
+        resetUrl,
+        expiresIn,
+      });
+
+      await transporter.sendMail({
+        from: config.from,
+        to: email,
+        subject: 'Reset your RustDesk Console password',
+        html,
+      });
+
+      transporter.close();
+      this.logger.log(`Password reset email sent to: ${email}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send password reset email: ${email}`, error);
+      return false;
+    }
+  }
+
+  /**
    * Render Handlebars email template
    */
   private async renderTemplate(

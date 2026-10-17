@@ -17,6 +17,7 @@ import { DeviceGroupUserPermission } from '../modules/device-group/entities/devi
 import { UserUserPermission } from '../modules/device-group/entities/user-user-permission.entity';
 import { LoginSession } from '../modules/auth/entities/login-session.entity';
 import { PasskeyCredential } from '../modules/auth/entities/passkey-credential.entity';
+import { PasswordResetToken } from '../modules/auth/entities/password-reset-token.entity';
 import { SystemSetting } from '../modules/settings/entities/system-setting.entity';
 import { ActiveConnection } from '../modules/heartbeat/entities/active-connection.entity';
 import { Strategy } from '../modules/strategy/entities/strategy.entity';
@@ -51,6 +52,7 @@ export const DATABASE_ENTITIES = [
   UserUserPermission,
   LoginSession,
   PasskeyCredential,
+  PasswordResetToken,
   SystemSetting,
   ActiveConnection,
   Strategy,
