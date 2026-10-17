@@ -99,7 +99,7 @@ In `.env`, set a unique `JWT_SECRET`, your initial `ADMIN_PASSWORD`, and `CONSOL
 docker compose up -d
 ```
 
-The frontend is accessible at `http://localhost:21114`. The updater is included and starts by default. Administrators initiate coordinated backend/frontend updates from **Update system**; only compatible official stable releases with complete manifests are eligible. Startup does not initiate an upgrade.
+The frontend is accessible at `http://localhost:21114`. The updater is included and starts by default. Administrators initiate coordinated backend/frontend updates from **Update system**; only compatible official stable releases with complete manifests are eligible. Startup does not initiate an upgrade. To also run the RustDesk server (hbbs/hbbr) beside the Console, set `COMPOSE_PROFILES=server` in `.env`; see [Server management](docs/server-management.md).
 
 See [Managed system updates](docs/system-update.md) for SQLite/MySQL prerequisites, data protection, supported installations and recovery. The backend runs as UID/GID 1000. The override file is reserved for the updater's pinned image digests.
 
@@ -173,4 +173,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions
 
 ### Integrated hbbs / hbbr management
 
-See [Server management](docs/server-management.md) for the authenticated server APIs, hub-and-spoke server topology, server permissions, integrated Compose deployment and CI validation.
+See [Server management](docs/server-management.md) for the authenticated server APIs, hub-and-spoke server topology, server permissions, the Compose server profile and CI validation.

@@ -2,23 +2,26 @@
 
 The Console web application calls `/api/servers`; the NestJS backend authenticates the user and checks global server permissions. The backend talks to a single upstream: the hbbs management API (`/v1`). Relay nodes (hbbr) register with hbbs over an outbound WebSocket and are proxied through it, so Console needs one credential and one URL for the whole deployment. There is no per-node agent, no Docker socket mount, and no shared management volume. Client protocol messages remain compatible. No browser receives server management credentials.
 
-## Integrated deployment
+## Compose deployment with the server profile
 
-Place `rustdesk-console`, `rustdesk-console-web`, and `rustdesk-server` beside each other. Initialize the server's submodules. Copy `.env.integrated.example` to a deployment environment file and replace each secret with a different random value (tokens require at least 32 characters). Set the public relay address. The deployment command is:
+Use the standard `docker-compose.yml` and `.env` from the Docker installation. To run the RustDesk server (hbbs/hbbr) beside the Console, set `COMPOSE_PROFILES=server` in `.env` together with a public `RUSTDESK_RELAY_ADDRESS`, a `SERVER_MANAGEMENT_TOKEN` (at least 32 random characters) and `HBBS_MANAGEMENT_URL=http://hbbs:21120`, then start the deployment:
 
 ```sh
-docker compose --env-file .env.integrated -f docker-compose.integrated.yml up -d --build
+docker compose up -d
 ```
 
-Console HTTP is bound to `127.0.0.1:21114` for local access and a host-local TLS reverse proxy. Before enabling remote access, sign in locally and replace the default `databk/databk` administrator password. Keep the loopback binding; publish only the proxy HTTPS endpoint with a valid certificate. Proxy all paths, including `/api/`, to `http://127.0.0.1:21114`. Do not publish the HTTP login directly. TLS protects login credentials and bearer tokens in transit; password rotation is required separately. Protocol ports are 21115-21119. The management listener has no host publication.
+Without `COMPOSE_PROFILES` the deployment keeps the standard three-service layout (backend, web, updater); hbbs/hbbr stay inactive and publish no ports. Keep `COMPOSE_PROFILES` in `.env` rather than in a shell variable so every later `docker compose` invocation — including the updater's — resolves the same service set.
 
-The integrated template runs exactly four containers:
+The server profile uses the `databk/rustdesk-server` image and requires a build that includes the management API (any release newer than 1.0.1). It runs exactly two additional containers:
 
-- **Console** is configured with `HBBS_MANAGEMENT_URL` (origin only), `SERVER_MANAGEMENT_TOKEN`, and `SERVER_MANAGEMENT_NODE_ID` (the display id of the primary node, `main` by default in the template). Management is disabled when `HBBS_MANAGEMENT_URL` is unset.
-- **hbbs** enables its management API with `RD_MANAGEMENT_BIND`, `RD_MANAGEMENT_TOKEN`, and `RD_MANAGEMENT_DIR` (a persistent directory on its own volume).
+- **hbbs** enables its management API with `RD_MANAGEMENT_BIND`, `RD_MANAGEMENT_TOKEN`, and `RD_MANAGEMENT_DIR` (a persistent directory on its own volume `./data/server`).
 - **hbbr** registers with hbbs through `RD_HBBS_API_URL`, authenticated by the same `RD_MANAGEMENT_TOKEN`. Its identity comes from `RD_RELAY_ID` and its published address from `RD_RELAY_ADDRESS`. Additional relay instances repeat this block with distinct ids; no further Console configuration is needed.
 
-Server management is independent of the updater's Docker socket usage in `docker-compose.yml`; the management feature itself mounts nothing.
+**Console** is configured with `HBBS_MANAGEMENT_URL` (origin only), `SERVER_MANAGEMENT_TOKEN`, and `SERVER_MANAGEMENT_NODE_ID` (the display id of the primary node, `main` by default). Management is disabled when `HBBS_MANAGEMENT_URL` is unset.
+
+Before enabling remote access, sign in and replace the default `databk` administrator password. Protocol ports are 21115-21119; the management listener 21120 stays inside the Compose network with no host publication. For production, terminate TLS at a host-local reverse proxy in front of the web port and do not publish unencrypted logins; adjust port bindings in `docker-compose.yml` before registering the managed updater, because later Compose changes block the update flow. The server containers write `./data/server` and `./data/server-relay` as root.
+
+Server management is independent of the updater's Docker socket usage in `docker-compose.yml`; the management feature itself mounts nothing. The managed updater never starts, stops or upgrades the hbbs/hbbr services.
 
 ## Permissions and endpoints
 
