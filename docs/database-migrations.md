@@ -45,10 +45,14 @@ once before baselining: missing columns and tables are added, and table-level
 through column definitions instead of the unique indexes the entities now
 declare) are rebuilt as those indexes. The repair preserves data and refuses
 to run when the database holds columns the current entities do not define —
-that case needs an explicit, data-preserving migration. When drift is detected
-and a migration history table already exists, migration stops without marking
-the baseline; inspect and repair a backup copy before retrying. Take a backup
-before upgrading so unexpected repairs can be rolled back.
+that case needs an explicit, data-preserving migration. On MySQL the repair
+applies additive statements only (missing tables, indexes, and foreign keys,
+as left behind by releases that failed mid-synchronize on MySQL 8); any
+destructive statement fails closed and requires manual repair. When drift is
+detected and a migration history table already exists, migration stops
+without marking the baseline; inspect and repair a backup copy before
+retrying. Take a backup before upgrading so unexpected repairs can be rolled
+back.
 
 MySQL schema changes can commit independently of a transaction. If a
 migration fails, inspect the database and restore the backup if needed before

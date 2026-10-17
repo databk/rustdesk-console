@@ -22,7 +22,12 @@ describeMysql('MySQL database migrations', () => {
       FixMySqlDefaultUserGroupIndex1790985600001,
     ],
   };
-  const databases = ['rustdesk_migration_fresh', 'rustdesk_migration_legacy'];
+  const databases = [
+    'rustdesk_migration_fresh',
+    'rustdesk_migration_legacy',
+    'rustdesk_migration_partial',
+    'rustdesk_migration_destructive',
+  ];
 
   function source(database: string, synchronize = false): DataSource {
     return new DataSource({ ...common, database, synchronize });
@@ -109,6 +114,78 @@ describeMysql('MySQL database migrations', () => {
       ).toHaveLength(2);
       await dataSource.query(
         "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0)",
+      );
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('repairs a half-initialized database before baselining', async () => {
+    // Older releases failed mid-synchronize on MySQL 8 (TEXT column with a
+    // literal default), leaving the database with only part of the tables.
+    const legacy = source(databases[2], true);
+    await legacy.initialize();
+    await legacy.query('SET FOREIGN_KEY_CHECKS = 0');
+    for (const table of [
+      'oidc_providers',
+      'oidc_auth_states',
+      'device_groups',
+      'device_group_user_permissions',
+      'login_sessions',
+      'passkey_credentials',
+      'system_settings',
+      'active_connections',
+      'roles',
+      'role_permissions',
+      'user_role_assignments',
+      'user_role_assignment_device_groups',
+      'console_audits',
+      'user_user_permissions',
+      'nexus_tokens',
+      'nexus_builds',
+    ]) {
+      await legacy.query(`DROP TABLE IF EXISTS \`${table}\``);
+    }
+    await legacy.query('SET FOREIGN_KEY_CHECKS = 1');
+    await legacy.query(
+      "INSERT INTO strategies (guid, name) VALUES ('keep-me', 'retained')",
+    );
+    await legacy.destroy();
+
+    const dataSource = source(databases[2]);
+    await dataSource.initialize();
+    try {
+      await migrateDatabase(dataSource);
+      expect(
+        await dataSource.query(
+          "SELECT name FROM strategies WHERE guid = 'keep-me'",
+        ),
+      ).toEqual([{ name: 'retained' }]);
+      expect(
+        (await dataSource.driver.createSchemaBuilder().log()).upQueries,
+      ).toHaveLength(0);
+      expect(
+        await dataSource.query('SELECT name FROM migrations'),
+      ).toHaveLength(2);
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('refuses a repair that needs destructive statements', async () => {
+    const legacy = source(databases[3], true);
+    await legacy.initialize();
+    await legacy.query('CREATE INDEX `legacy_manual_idx` ON `users` (`email`)');
+    await legacy.destroy();
+
+    const dataSource = source(databases[3]);
+    await dataSource.initialize();
+    try {
+      await expect(migrateDatabase(dataSource)).rejects.toThrow(
+        'requires destructive statements',
+      );
+      expect(await dataSource.createQueryRunner().hasTable('migrations')).toBe(
+        false,
       );
     } finally {
       await dataSource.destroy();

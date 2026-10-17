@@ -107,6 +107,11 @@ export async function baselineExistingDatabase(
   }
 }
 
+/**
+ * Collect the names of the table-level UNIQUE constraints the current
+ * entities declare. Constraints missing from this set are considered stray
+ * legacy artifacts during a SQLite schema repair.
+ */
 function entityUniqueConstraintNames(dataSource: DataSource): Set<string> {
   const names = new Set<string>();
   for (const metadata of dataSource.entityMetadatas) {
@@ -140,10 +145,21 @@ function stripStrayUniqueConstraints(
 }
 
 /**
- * One-off repair for a database created by the old synchronize configuration.
- * Applies the pending schema diff, preserving all data: tables are rebuilt
- * through the full column list, and a rebuild is rejected up front when the
- * database holds columns the current entities do not define.
+ * One-off repair for a database created by the old synchronize
+ * configuration. Applies the pending schema diff, preserving all data: tables
+ * are rebuilt through the full column list, and a rebuild is rejected up
+ * front when the database holds columns the current entities do not define.
+ *
+ * On SQLite the repair runs inside one transaction with foreign-key checks
+ * disabled, mirroring TypeORM's own table-rebuild behavior; the diff may drop
+ * and recreate indexes to converge the legacy stray-constraint drift.
+ *
+ * On MySQL the DDL commits implicitly and cannot be rolled back, so the
+ * repair is restricted to additive statements (CREATE TABLE / CREATE INDEX /
+ * ALTER TABLE ... ADD); any DROP statement fails closed and requires an
+ * explicit, data-preserving migration instead. This still lets a MySQL
+ * database left half-initialized by older releases (see the TEXT-default
+ * failure) complete its missing tables automatically.
  */
 async function repairSynchronizedSchema(
   dataSource: DataSource,
@@ -175,30 +191,46 @@ async function repairSynchronizedSchema(
     query: stripStrayUniqueConstraints(query.query, entityUniques),
   }));
 
-  const isSqlite = dataSource.options.type === 'sqlite';
-  if (isSqlite) {
-    // Rebuilding parent tables trips immediate foreign-key checks; disable
-    // them for the duration, as TypeORM's own table rebuilds do.
-    await runner.query('PRAGMA foreign_keys = OFF');
+  if (dataSource.options.type === 'mysql') {
+    // MySQL DDL is non-transactional; only apply additive changes so a
+    // failure can be retried safely and no data can be lost.
+    for (const query of queries) {
+      if (/^\s*DROP\s/i.test(query.query)) {
+        throw new Error(
+          `Repairing this MySQL database requires destructive statements (for example: ${query.query}). Restore or repair the schema manually, or add a data-preserving migration, before baselining.`,
+        );
+      }
+    }
+    for (const query of queries) {
+      await runner.query(query.query, query.parameters);
+    }
+    return;
   }
+
+  // SQLite: rebuilding parent tables trips immediate foreign-key checks;
+  // disable them for the duration, as TypeORM's own table rebuilds do.
+  await runner.query('PRAGMA foreign_keys = OFF');
   try {
-    if (isSqlite) await runner.startTransaction();
+    await runner.startTransaction();
     try {
       for (const query of queries) {
         await runner.query(query.query, query.parameters);
       }
-      if (isSqlite) await runner.commitTransaction();
+      await runner.commitTransaction();
     } catch (error) {
-      if (isSqlite) await runner.rollbackTransaction();
+      await runner.rollbackTransaction();
       throw error;
     }
   } finally {
-    if (isSqlite) {
-      await runner.query('PRAGMA foreign_keys = ON');
-    }
+    await runner.query('PRAGMA foreign_keys = ON');
   }
 }
 
+/**
+ * Bring the database schema up to date: baseline a legacy synchronized
+ * database when needed, then run all pending migrations, failing when any
+ * remain pending afterwards.
+ */
 export async function migrateDatabase(dataSource: DataSource): Promise<void> {
   await withMigrationLock(dataSource, async () => {
     await baselineExistingDatabase(dataSource);
