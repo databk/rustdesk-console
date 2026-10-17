@@ -222,6 +222,9 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   private async run(): Promise<void> {
     let backoff = RECONNECT_BASE_MS;
     while (!this.stopping) {
+      // Entering a new iteration re-reads the settings and reconnects, so
+      // restart requests from the previous iteration are already served.
+      this.restartRequested = false;
       const connection = await this.loadConnection();
       if (!connection) {
         // Settings are absent or incomplete; poll until they appear.
@@ -285,6 +288,9 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     const reader = response.body.getReader();
     this.activeReader = reader;
     try {
+      // A restart that arrived while the response was pending must not run
+      // the baseline with the stale URL and token.
+      if (this.restartRequested) return;
       // Reconnect on a fresh baseline: hbbs may have restarted and replayed
       // nothing while this connection was down.
       await this.refreshBaseline();

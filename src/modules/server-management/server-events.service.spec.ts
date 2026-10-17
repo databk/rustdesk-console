@@ -222,6 +222,86 @@ describe('server event stream', () => {
     await service.onModuleDestroy();
   });
 
+  it('skips the stale baseline when a restart arrived while the response was pending', async () => {
+    let cancelled = false;
+    let relaysCalls = 0;
+    let eventsCalls = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      start: () => {},
+      cancel: () => {
+        cancelled = true;
+      },
+    });
+    let releaseFetch!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseFetch = resolve;
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation((input: unknown) => {
+      const url = String(input);
+      if (url === 'http://hbbs:21120/v1/events') {
+        eventsCalls += 1;
+        if (eventsCalls === 1)
+          return gate.then(() => new Response(stream, { status: 200 }));
+        return Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start: (controller) => controller.close(),
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      if (url === 'http://hbbs:21120/v1/relays') {
+        relaysCalls += 1;
+        return Promise.resolve(Response.json({ data: [] }));
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
+    const service = events(base);
+    service.onModuleInit();
+    service.restart();
+    releaseFetch();
+    await waitFor(() => cancelled);
+    await waitFor(() => eventsCalls === 2);
+    await waitFor(() => relaysCalls === 1);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(eventsCalls).toBe(2);
+    expect(relaysCalls).toBe(1);
+    await service.onModuleDestroy();
+  });
+
+  it('does not abandon the reconnected stream when a restart lands during the backoff sleep', async () => {
+    const now = 1_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    let eventsCalls = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        controller.enqueue(new TextEncoder().encode(': keep-alive\n\n'));
+      },
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation((input: unknown) => {
+      const url = String(input);
+      if (url === 'http://hbbs:21120/v1/events') {
+        eventsCalls += 1;
+        if (eventsCalls === 1) return Promise.reject(new Error('network down'));
+        return Promise.resolve(new Response(stream, { status: 200 }));
+      }
+      if (url === 'http://hbbs:21120/v1/relays')
+        return Promise.resolve(Response.json({ data: [] }));
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
+    const service = events(base);
+    service.onModuleInit();
+    await waitFor(() => eventsCalls === 1);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    service.restart();
+    await waitFor(() => eventsCalls === 2);
+    await waitFor(() => service.isFresh());
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(eventsCalls).toBe(2);
+    await service.onModuleDestroy();
+  });
+
   it('shuts down promptly while waiting to reconnect', async () => {
     const mock = jest
       .spyOn(globalThis, 'fetch')
