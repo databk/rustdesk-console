@@ -8,7 +8,6 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import {
   createObserver,
@@ -19,6 +18,8 @@ import type {
   TcpTuple,
 } from '../../../network/tcp-observation.js';
 import { ServerEventsService } from './server-events.service';
+import type { ServerManagementRuntimeConfig } from './server-management-settings.service';
+import { ServerManagementSettingsService } from './server-management-settings.service';
 import {
   RustdeskService,
   ServiceAction,
@@ -61,57 +62,25 @@ function objectField(value: unknown): Record<string, unknown> {
 export class ServerManagementService {
   private readonly logger = new Logger(ServerManagementService.name);
   private readonly observer = createObserver();
-  private readonly url?: string;
-  private readonly token: string;
-  private readonly nodeId: string;
-  private readonly nodeName: string;
 
   constructor(
-    config: ConfigService,
+    private readonly settings: ServerManagementSettingsService,
     private readonly audit: RbacAuditService,
     private readonly events: ServerEventsService,
-  ) {
-    const nodeId =
-      config.get<string>('SERVER_MANAGEMENT_NODE_ID') || 'rustdesk';
-    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(nodeId))
-      throw new Error('Invalid SERVER_MANAGEMENT_NODE_ID');
-    this.nodeId = nodeId;
-    this.nodeName =
-      config.get<string>('SERVER_MANAGEMENT_NODE_NAME') || 'RustDesk';
-    const raw = config.get<string>('HBBS_MANAGEMENT_URL');
-    if (raw) {
-      let url: URL;
-      try {
-        url = new URL(raw);
-      } catch {
-        throw new Error('HBBS_MANAGEMENT_URL must be an HTTP(S) origin');
-      }
-      if (
-        !['http:', 'https:'].includes(url.protocol) ||
-        url.username ||
-        url.password ||
-        url.search ||
-        url.hash ||
-        (url.pathname !== '/' && url.pathname !== '')
-      )
-        throw new Error('HBBS_MANAGEMENT_URL must be an HTTP(S) origin');
-      const token = config.get<string>('SERVER_MANAGEMENT_TOKEN') || '';
-      if (token.length < 32)
-        throw new Error(
-          'SERVER_MANAGEMENT_TOKEN must contain at least 32 characters',
-        );
-      this.url = url.origin;
-      this.token = token;
-    } else {
-      this.token = '';
-    }
+  ) {}
+
+  // The runtime configuration lives in the database and can change at any
+  // time; it is resolved per request so settings updates apply immediately.
+  private async runtime(): Promise<ServerManagementRuntimeConfig> {
+    return this.settings.getActiveConfig();
   }
 
   async list() {
-    if (!this.url) return { data: [] };
+    const config = await this.runtime();
+    if (!config.url) return { data: [] };
     let status: Record<string, unknown> | null = null;
     try {
-      status = await this.fetchJson('/v1/status');
+      status = await this.fetchJson(config, '/v1/status');
     } catch {
       status = null;
     }
@@ -119,8 +88,8 @@ export class ServerManagementService {
       return {
         data: [
           {
-            id: this.nodeId,
-            name: this.nodeName,
+            id: config.nodeId,
+            name: config.nodeName,
             reachable: false,
             services: [],
           },
@@ -128,23 +97,23 @@ export class ServerManagementService {
       };
     const data: Array<Record<string, unknown>> = [
       {
-        id: this.nodeId,
-        name: this.nodeName,
+        id: config.nodeId,
+        name: config.nodeName,
         reachable: true,
         api_version: 1,
-        node_id: this.nodeId,
+        node_id: config.nodeId,
         services: [this.serviceEntry('hbbs', status)],
       },
     ];
     let relays: RelaySummary[] = [];
     try {
-      relays = await this.relaySummaries();
+      relays = await this.relaySummaries(config);
     } catch {
       relays = [];
     }
     for (const relay of relays) {
       // A relay that registered with the primary node id never shadows it.
-      if (relay.id === this.nodeId) continue;
+      if (relay.id === config.nodeId) continue;
       data.push({
         id: relay.id,
         name: relay.id,
@@ -167,8 +136,9 @@ export class ServerManagementService {
   }
 
   async networkSettings(nodeId?: string): Promise<TcpObservation> {
-    if (!nodeId || nodeId === this.nodeId) return this.observer.system();
-    const node = await this.requireNode(nodeId);
+    const config = await this.runtime();
+    if (!nodeId || nodeId === config.nodeId) return this.observer.system();
+    const node = await this.requireNode(config, nodeId);
     // The integrated deployment shares one host network configuration; relay
     // namespaces are not observable through the v2 management API.
     return node.kind === 'relay'
@@ -186,14 +156,16 @@ export class ServerManagementService {
   }
 
   async peers(nodeId: string) {
-    const node = await this.requireNode(nodeId);
+    const config = await this.runtime();
+    const node = await this.requireNode(config, nodeId);
     // hbbr has no peers endpoint; only hbbs registrations exist.
     if (node.kind === 'relay') return { data: [] };
-    return this.fetchJson('/v1/peers');
+    return this.fetchJson(config, '/v1/peers');
   }
 
   async sessions(nodeId: string) {
-    const node = await this.requireNode(nodeId);
+    const config = await this.runtime();
+    const node = await this.requireNode(config, nodeId);
     if (node.kind === 'relay') {
       if (this.events.isFresh())
         return {
@@ -203,6 +175,7 @@ export class ServerManagementService {
             .map((session) => session.info),
         };
       return this.fetchJson(
+        config,
         `/v1/relays/${encodeURIComponent(node.relayId)}/sessions`,
       );
     }
@@ -212,13 +185,14 @@ export class ServerManagementService {
           .getSessions()
           .map((session) => ({ ...session.info, relay_id: session.relayId })),
       };
-    const relays = await this.relaySummaries();
+    const relays = await this.relaySummaries(config);
     // Query every relay in parallel and tolerate individual failures so one
     // unresponsive relay cannot blank the whole session list.
     const batches = await Promise.all(
       relays.map(async (relay) => {
         try {
           const result = await this.fetchJson(
+            config,
             `/v1/relays/${encodeURIComponent(relay.id)}/sessions`,
           );
           return asArray(result['data'])
@@ -239,7 +213,8 @@ export class ServerManagementService {
   }
 
   async disconnect(actor: string, nodeId: string, uuid: string) {
-    const node = await this.requireNode(nodeId);
+    const config = await this.runtime();
+    const node = await this.requireNode(config, nodeId);
     return this.audited(
       actor,
       nodeId,
@@ -247,9 +222,12 @@ export class ServerManagementService {
       undefined,
       async () => {
         const relayId =
-          node.kind === 'relay' ? node.relayId : await this.locateSession(uuid);
+          node.kind === 'relay'
+            ? node.relayId
+            : await this.locateSession(config, uuid);
         if (!relayId) throw new NotFoundException('Server session not found');
         return this.fetchJson(
+          config,
           `/v1/relays/${encodeURIComponent(relayId)}/sessions/${encodeURIComponent(uuid)}`,
           'DELETE',
         );
@@ -260,12 +238,14 @@ export class ServerManagementService {
   async logs(nodeId: string, service: RustdeskService, tail: number) {
     if (!Number.isInteger(tail) || tail < 1 || tail > LOG_LIMIT_MAX)
       throw new BadRequestException('Invalid log limit');
-    const target = await this.requireService(nodeId, service);
+    const config = await this.runtime();
+    const target = await this.requireService(config, nodeId, service);
     const query = `?tail=${tail}`;
     const result =
       target.kind === 'direct'
-        ? await this.fetchJson(`/v1/logs${query}`)
+        ? await this.fetchJson(config, `/v1/logs${query}`)
         : await this.fetchJson(
+            config,
             `/v1/relays/${encodeURIComponent(target.relayId)}/logs${query}`,
           );
     const lines = asArray(result['data']).filter(
@@ -275,11 +255,13 @@ export class ServerManagementService {
   }
 
   async config(nodeId: string, service: RustdeskService) {
-    const target = await this.requireService(nodeId, service);
+    const config = await this.runtime();
+    const target = await this.requireService(config, nodeId, service);
     const result =
       target.kind === 'direct'
-        ? await this.fetchJson('/v1/config')
+        ? await this.fetchJson(config, '/v1/config')
         : await this.fetchJson(
+            config,
             `/v1/relays/${encodeURIComponent(target.relayId)}/config`,
           );
     return this.configView(result);
@@ -291,7 +273,8 @@ export class ServerManagementService {
     service: RustdeskService,
     dto: ServerConfigDto,
   ) {
-    const target = await this.requireService(nodeId, service);
+    const config = await this.runtime();
+    const target = await this.requireService(config, nodeId, service);
     const path =
       target.kind === 'direct'
         ? '/v1/config'
@@ -302,8 +285,8 @@ export class ServerManagementService {
       `PUT /v1/services/${service}/config`,
       { settings: Object.keys(dto.values) },
       async () => {
-        await this.fetchJson(path, 'PUT', { values: dto.values });
-        return this.configView(await this.fetchJson(path));
+        await this.fetchJson(config, path, 'PUT', { values: dto.values });
+        return this.configView(await this.fetchJson(config, path));
       },
     );
   }
@@ -314,7 +297,8 @@ export class ServerManagementService {
     service: RustdeskService,
     action: ServiceAction,
   ) {
-    const target = await this.requireService(nodeId, service);
+    const config = await this.runtime();
+    const target = await this.requireService(config, nodeId, service);
     if (action === ServiceAction.START || action === ServiceAction.STOP)
       throw new NotImplementedException(
         'Container lifecycle actions are not supported by this deployment',
@@ -329,7 +313,7 @@ export class ServerManagementService {
         nodeId,
         `POST /v1/services/${service}/${action}`,
         undefined,
-        () => this.fetchJson(path, 'POST'),
+        () => this.fetchJson(config, path, 'POST'),
       );
     }
     // Apply: dynamic entries are already live; a restart is only required
@@ -344,32 +328,34 @@ export class ServerManagementService {
       `POST /v1/services/${service}/${action}`,
       undefined,
       async () => {
-        const config = await this.fetchJson(configPath);
-        if (!Object.keys(objectField(config['pending_restart'])).length)
+        const current = await this.fetchJson(config, configPath);
+        if (!Object.keys(objectField(current['pending_restart'])).length)
           return { state: 'applied' };
         const path =
           target.kind === 'direct'
             ? '/v1/restart'
             : `/v1/relays/${encodeURIComponent(target.relayId)}/restart`;
-        return this.fetchJson(path, 'POST');
+        return this.fetchJson(config, path, 'POST');
       },
     );
   }
 
   async bans(nodeId: string) {
-    await this.requireNode(nodeId);
-    return this.bansView(await this.fetchJson('/v1/bans'));
+    const config = await this.runtime();
+    await this.requireNode(config, nodeId);
+    return this.bansView(await this.fetchJson(config, '/v1/bans'));
   }
 
   async saveBans(actor: string, nodeId: string, dto: ServerBansDto) {
-    await this.requireNode(nodeId);
+    const config = await this.runtime();
+    await this.requireNode(config, nodeId);
     return this.audited(
       actor,
       nodeId,
       'PUT /v1/bans',
       { device_ids: dto.device_ids, ips: dto.ips },
       async () => {
-        await this.fetchJson('/v1/bans', 'PUT', {
+        await this.fetchJson(config, '/v1/bans', 'PUT', {
           device_ids: dto.device_ids,
           ips: dto.ips,
         });
@@ -430,18 +416,24 @@ export class ServerManagementService {
     };
   }
 
-  private async requireNode(nodeId: string): Promise<ResolvedNode> {
-    const node = await this.resolveNode(nodeId);
+  private async requireNode(
+    config: ServerManagementRuntimeConfig,
+    nodeId: string,
+  ): Promise<ResolvedNode> {
+    const node = await this.resolveNode(config, nodeId);
     if (!node) throw new NotFoundException('Server node not found');
     return node;
   }
 
-  private async resolveNode(nodeId: string): Promise<ResolvedNode | null> {
-    if (!this.url) return null;
-    if (nodeId === this.nodeId) return { kind: 'primary' };
+  private async resolveNode(
+    config: ServerManagementRuntimeConfig,
+    nodeId: string,
+  ): Promise<ResolvedNode | null> {
+    if (!config.url) return null;
+    if (nodeId === config.nodeId) return { kind: 'primary' };
     if (this.events.isFresh() && this.events.hasRelay(nodeId))
       return { kind: 'relay', relayId: nodeId };
-    const relays = await this.relaySummaries().catch(
+    const relays = await this.relaySummaries(config).catch(
       () => [] as RelaySummary[],
     );
     return relays.some((relay) => relay.id === nodeId)
@@ -450,10 +442,11 @@ export class ServerManagementService {
   }
 
   private async requireService(
+    config: ServerManagementRuntimeConfig,
     nodeId: string,
     service: RustdeskService,
   ): Promise<ServiceTarget> {
-    const node = await this.requireNode(nodeId);
+    const node = await this.requireNode(config, nodeId);
     if (node.kind === 'primary') {
       if (service !== RustdeskService.HBBS)
         throw new NotFoundException('Service not available on this node');
@@ -464,8 +457,10 @@ export class ServerManagementService {
     return { kind: 'relay', relayId: node.relayId };
   }
 
-  private async relaySummaries(): Promise<RelaySummary[]> {
-    const result = await this.fetchJson('/v1/relays');
+  private async relaySummaries(
+    config: ServerManagementRuntimeConfig,
+  ): Promise<RelaySummary[]> {
+    const result = await this.fetchJson(config, '/v1/relays');
     return asArray(result['data']).filter(
       (relay): relay is RelaySummary =>
         !!relay &&
@@ -475,13 +470,17 @@ export class ServerManagementService {
     );
   }
 
-  private async locateSession(uuid: string): Promise<string | undefined> {
+  private async locateSession(
+    config: ServerManagementRuntimeConfig,
+    uuid: string,
+  ): Promise<string | undefined> {
     if (this.events.isFresh()) return this.events.getSessionRelay(uuid);
-    const relays = await this.relaySummaries().catch(
+    const relays = await this.relaySummaries(config).catch(
       () => [] as RelaySummary[],
     );
     for (const relay of relays) {
       const result = await this.fetchJson(
+        config,
         `/v1/relays/${encodeURIComponent(relay.id)}/sessions`,
       ).catch(() => null);
       const found = asArray(result?.['data']).some(
@@ -531,21 +530,22 @@ export class ServerManagementService {
   }
 
   private async fetchJson(
+    config: ServerManagementRuntimeConfig,
     path: string,
     method: 'GET' | 'PUT' | 'POST' | 'DELETE' = 'GET',
     body?: unknown,
   ): Promise<Record<string, unknown>> {
-    if (!this.url)
+    if (!config.url)
       throw new ServiceUnavailableException(
         'Server management is not configured',
       );
     let response: Response;
     try {
-      response = await fetch(`${this.url}${path}`, {
+      response = await fetch(`${config.url}${path}`, {
         method,
         redirect: 'error',
         headers: {
-          authorization: `Bearer ${this.token}`,
+          authorization: `Bearer ${config.token}`,
           'content-type': 'application/json',
         },
         signal: AbortSignal.timeout(

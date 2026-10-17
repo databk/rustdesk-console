@@ -1,5 +1,5 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+
 import { HttpAdapterHost } from '@nestjs/core';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -18,6 +18,7 @@ import { ServerManagementService } from '../server-management/server-management.
 import { unavailable } from '../../../network/tcp-observation.js';
 import type { WebClientGrant } from './web-client-session.service';
 import { WebClientService } from './web-client.service';
+import type { WebClientSettingsService } from './web-client-settings.service';
 
 // 数据库审计适配器在此注入替身；不加载其 uuid ESM 依赖。网关、会话生命周期和 WS 均是真实实现。
 jest.mock('uuid', () => ({ v4: jest.fn() }));
@@ -164,17 +165,18 @@ describe('Web client gateway real WebSocket integration', () => {
     });
     await listening(idHttp);
     await listening(relayHttp);
-    const configuration = new WebClientService(
-      new ConfigService({
-        WEB_CLIENT_ENABLED: 'true',
-        WEB_CLIENT_ALLOWED_ORIGIN: ORIGIN,
-        WEB_CLIENT_SERVER_PUBLIC_KEY: KEY,
-        WEB_CLIENT_ID_SERVER_URL: 'wss://public.example.test/ws/id',
-        WEB_CLIENT_RELAY_SERVER_URL: 'wss://public.example.test/ws/relay',
-        WEB_CLIENT_ID_UPSTREAM_URL: url(idHttp),
-        WEB_CLIENT_RELAY_UPSTREAM_URL: url(relayHttp),
+    const configuration = new WebClientService({
+      getActiveConfig: () => ({
+        enabled: true,
+        allowedOrigin: ORIGIN,
+        serverPublicKey: KEY,
+        idServerUrl: 'wss://public.example.test/ws/id',
+        relayServerUrl: 'wss://public.example.test/ws/relay',
+        idUpstreamUrl: url(idHttp),
+        relayUpstreamUrl: url(relayHttp),
       }),
-    );
+    } as unknown as WebClientSettingsService);
+    await configuration.onModuleInit();
     validate = jest.fn(() => {
       if (!allowed)
         return Promise.reject(new ForbiddenException('Authorization revoked'));

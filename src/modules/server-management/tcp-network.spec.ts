@@ -1,5 +1,4 @@
 import 'reflect-metadata';
-import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
 import {
   REQUIRE_PERMISSION_KEY,
@@ -7,6 +6,8 @@ import {
 } from '../rbac/decorators/require-permission.decorator';
 import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { ServerEventsService } from './server-events.service';
+import type { ServerManagementRuntimeConfig } from './server-management-settings.service';
+import { ServerManagementSettingsService } from './server-management-settings.service';
 import { ServerManagementController } from './server-management.controller';
 import { ServerManagementService } from './server-management.service';
 import { unavailable } from '../../../network/tcp-observation.js';
@@ -16,19 +17,27 @@ jest.mock('uuid', () => ({
     .randomUUID,
 }));
 
-const base = {
-  HBBS_MANAGEMENT_URL: 'http://hbbs:21120',
-  SERVER_MANAGEMENT_TOKEN: 'a'.repeat(40),
-  SERVER_MANAGEMENT_NODE_ID: 'main',
-};
+const settingsStub = (config: Partial<ServerManagementRuntimeConfig> = {}) =>
+  ({
+    getActiveConfig: () => ({
+      url: config.url,
+      token: config.token ?? '',
+      nodeId: config.nodeId ?? 'rustdesk',
+      nodeName: config.nodeName ?? 'RustDesk',
+    }),
+  }) as unknown as ServerManagementSettingsService;
 
 describe('read-only TCP observations', () => {
   const audit = { record: jest.fn(), recordDenied: jest.fn() };
   const create = () =>
     new ServerManagementService(
-      new ConfigService(base),
+      settingsStub({
+        url: 'http://hbbs:21120',
+        token: 'a'.repeat(40),
+        nodeId: 'main',
+      }),
       audit as unknown as RbacAuditService,
-      new ServerEventsService(new ConfigService({})),
+      new ServerEventsService(settingsStub()),
     );
 
   afterEach(() => {

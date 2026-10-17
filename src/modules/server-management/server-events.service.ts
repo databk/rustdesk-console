@@ -4,7 +4,8 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import type { ServerManagementRuntimeConfig } from './server-management-settings.service';
+import { ServerManagementSettingsService } from './server-management-settings.service';
 
 // Aggregated event kinds published by the hbbs management API.
 export type ServerEventKind =
@@ -35,6 +36,7 @@ const SSE_BUFFER_LIMIT = 1024 * 1024;
 const FRESH_WINDOW_MS = 45_000;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 60_000;
+const UNCONFIGURED_POLL_MS = 30_000;
 
 // Extracts complete `event:`/`data:` frames from a raw SSE chunk. The caller
 // keeps the returned remainder for the next chunk; comments and unknown
@@ -92,13 +94,16 @@ export function extractServerEvents(
 }
 
 // Consumes the aggregated hbbs event stream and maintains a live view of the
-// registered relays and their sessions. Falls back to nothing when disabled;
+// registered relays and their sessions. The connection settings live in the
+// database; the loop re-reads them on every (re)connect, so settings updates
+// take effect without a restart. Falls back to nothing when disabled;
 // readers always have an HTTP fallback when the stream is not fresh.
 @Injectable()
 export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ServerEventsService.name);
-  private readonly url?: string;
-  private readonly token: string;
+  private url?: string;
+  private token = '';
+  private restartRequested = false;
   private readonly relays = new Map<string, RelayPresence>();
   private readonly sessions = new Map<string, LiveSession>();
   private stopping = false;
@@ -108,29 +113,9 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   private activeReader?: ReadableStreamDefaultReader<Uint8Array>;
   private wake?: () => void;
 
-  constructor(config: ConfigService) {
-    const raw = config.get<string>('HBBS_MANAGEMENT_URL');
-    if (raw) {
-      try {
-        const url = new URL(raw);
-        if (
-          ['http:', 'https:'].includes(url.protocol) &&
-          !url.username &&
-          !url.password &&
-          !url.search &&
-          !url.hash &&
-          (url.pathname === '/' || url.pathname === '')
-        )
-          this.url = url.origin;
-      } catch {
-        // ServerManagementService reports the invalid configuration.
-      }
-    }
-    this.token = config.get<string>('SERVER_MANAGEMENT_TOKEN') || '';
-  }
+  constructor(private readonly settings: ServerManagementSettingsService) {}
 
   onModuleInit(): void {
-    if (!this.url || this.token.length < 32) return;
     this.runTask = this.run();
   }
 
@@ -139,6 +124,14 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     this.wake?.();
     await this.activeReader?.cancel().catch(() => {});
     await this.runTask?.catch(() => {});
+  }
+
+  // Interrupts the current connection (if any) and reconnects immediately
+  // with fresh settings; called after every settings update.
+  restart(): void {
+    this.restartRequested = true;
+    this.wake?.();
+    void this.activeReader?.cancel().catch(() => {});
   }
 
   // The live view is only served while the stream is actually delivering:
@@ -206,9 +199,37 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     this.lastEventAt = Date.now();
   }
 
+  private async loadConnection(): Promise<{
+    url: string;
+    token: string;
+  } | null> {
+    let config: ServerManagementRuntimeConfig;
+    try {
+      config = await this.settings.getActiveConfig();
+    } catch (error) {
+      this.logger.warn(
+        `Unable to load server management settings: ${String(error)}`,
+      );
+      return null;
+    }
+    if (!config.url || config.token.length < 32) {
+      this.url = undefined;
+      return null;
+    }
+    return { url: config.url, token: config.token };
+  }
+
   private async run(): Promise<void> {
     let backoff = RECONNECT_BASE_MS;
     while (!this.stopping) {
+      const connection = await this.loadConnection();
+      if (!connection) {
+        // Settings are absent or incomplete; poll until they appear.
+        if (!this.stopping) await this.sleep(UNCONFIGURED_POLL_MS);
+        continue;
+      }
+      this.url = connection.url;
+      this.token = connection.token;
       try {
         await this.follow();
         backoff = RECONNECT_BASE_MS;
@@ -223,8 +244,15 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
       this.lastEventAt = 0;
       this.lastKeepAliveAt = 0;
       if (this.stopping) return;
+      if (this.restartRequested) {
+        this.restartRequested = false;
+        backoff = 0;
+      }
       await this.sleep(backoff);
-      backoff = Math.min(backoff * 2, RECONNECT_MAX_MS);
+      backoff =
+        backoff === 0
+          ? RECONNECT_BASE_MS
+          : Math.min(backoff * 2, RECONNECT_MAX_MS);
     }
   }
 

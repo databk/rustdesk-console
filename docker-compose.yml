@@ -14,9 +14,7 @@ services:
       SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA: ${SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA:-false}
       SYSTEM_UPDATE_SOCKET: /run/rustdesk-console-updater/control.sock
       SYSTEM_UPDATE_MAINTENANCE_FILE: /var/lib/rustdesk-console-maintenance/maintenance.json
-      HBBS_MANAGEMENT_URL: ${HBBS_MANAGEMENT_URL:-}
-      SERVER_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:-}
-      SERVER_MANAGEMENT_NODE_ID: ${SERVER_MANAGEMENT_NODE_ID:-main}
+
     volumes:
       - ./data:/data
       - ./updater-ipc:/run/rustdesk-console-updater:ro
@@ -55,8 +53,9 @@ services:
 
   # Optional RustDesk server (hbbs/hbbr). Enable with COMPOSE_PROFILES=server
   # (or `docker compose --profile server up -d`) and set SERVER_MANAGEMENT_TOKEN
-  # and RUSTDESK_RELAY_ADDRESS in .env. Set HBBS_MANAGEMENT_URL=http://hbbs:21120
-  # to enable server management in the Console backend. Required server values
+  # and RUSTDESK_RELAY_ADDRESS in .env. The Console-side management connection
+  # (URL http://hbbs:21120, the same token and the node identity) is configured
+  # in Settings -> Server management after sign-in. Required server values
   # default to empty instead of failing interpolation because Compose resolves
   # variables before filtering profiles; hbbs exits with a clear error when the
   # management token is missing or shorter than 32 characters.

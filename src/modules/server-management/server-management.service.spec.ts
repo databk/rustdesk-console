@@ -1,4 +1,3 @@
-import { ConfigService } from '@nestjs/config';
 import {
   BadGatewayException,
   BadRequestException,
@@ -12,6 +11,8 @@ import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { ServerEventsService } from './server-events.service';
 import { ServerManagementController } from './server-management.controller';
 import { RustdeskService, ServiceAction } from './server-management.dto';
+import type { ServerManagementRuntimeConfig } from './server-management-settings.service';
+import { ServerManagementSettingsService } from './server-management-settings.service';
 import { ServerManagementService } from './server-management.service';
 
 jest.mock('uuid', () => ({
@@ -20,12 +21,22 @@ jest.mock('uuid', () => ({
 }));
 
 const base = {
-  HBBS_MANAGEMENT_URL: 'http://hbbs:21120',
-  SERVER_MANAGEMENT_TOKEN: 'a'.repeat(40),
-  SERVER_MANAGEMENT_NODE_ID: 'main',
+  url: 'http://hbbs:21120',
+  token: 'a'.repeat(40),
+  nodeId: 'main',
 };
 
-const inertEvents = () => new ServerEventsService(new ConfigService({}));
+const settingsStub = (config: Partial<ServerManagementRuntimeConfig> = {}) =>
+  ({
+    getActiveConfig: () => ({
+      url: config.url,
+      token: config.token ?? '',
+      nodeId: config.nodeId ?? 'rustdesk',
+      nodeName: config.nodeName ?? 'RustDesk',
+    }),
+  }) as unknown as ServerManagementSettingsService;
+
+const inertEvents = () => new ServerEventsService(settingsStub({}));
 
 describe('server management v2 client', () => {
   const audit = { record: jest.fn(), recordDenied: jest.fn() };
@@ -34,7 +45,7 @@ describe('server management v2 client', () => {
     events?: ServerEventsService,
   ) =>
     new ServerManagementService(
-      new ConfigService(config),
+      settingsStub(config),
       audit as unknown as RbacAuditService,
       events ?? inertEvents(),
     );
@@ -62,24 +73,6 @@ describe('server management v2 client', () => {
     await expect(service.peers('main')).rejects.toBeInstanceOf(
       NotFoundException,
     );
-  });
-
-  it('rejects invalid upstream configuration', () => {
-    expect(() =>
-      create({ ...base, HBBS_MANAGEMENT_URL: 'http://hbbs:21120/api' }),
-    ).toThrow();
-    expect(() =>
-      create({ ...base, HBBS_MANAGEMENT_URL: 'ftp://hbbs' }),
-    ).toThrow();
-    expect(() =>
-      create({ ...base, HBBS_MANAGEMENT_URL: 'http://user:pass@hbbs' }),
-    ).toThrow();
-    expect(() =>
-      create({ ...base, SERVER_MANAGEMENT_TOKEN: 'short' }),
-    ).toThrow();
-    expect(() =>
-      create({ ...base, SERVER_MANAGEMENT_NODE_ID: 'bad id' }),
-    ).toThrow();
   });
 
   it('lists the hbbs node and each registered relay', async () => {
@@ -139,7 +132,7 @@ describe('server management v2 client', () => {
       expect.objectContaining({
         redirect: 'error',
         headers: expect.objectContaining({
-          authorization: `Bearer ${base.SERVER_MANAGEMENT_TOKEN}`,
+          authorization: `Bearer ${base.token}`,
         }),
       }),
     );
@@ -161,7 +154,7 @@ describe('server management v2 client', () => {
       ['http://hbbs:21120/v1/relays', { data: [] }],
     ]);
     const result = await create().list();
-    expect(JSON.stringify(result)).not.toContain(base.SERVER_MANAGEMENT_TOKEN);
+    expect(JSON.stringify(result)).not.toContain(base.token);
     expect(JSON.stringify(result)).not.toContain('hbbs:21120');
   });
 

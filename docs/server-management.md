@@ -4,7 +4,7 @@ The Console web application calls `/api/servers`; the NestJS backend authenticat
 
 ## Compose deployment with the server profile
 
-Use the standard `docker-compose.yml` and `.env` from the Docker installation. To run the RustDesk server (hbbs/hbbr) beside the Console, set `COMPOSE_PROFILES=server` in `.env` together with a public `RUSTDESK_RELAY_ADDRESS`, a `SERVER_MANAGEMENT_TOKEN` (at least 32 random characters) and `HBBS_MANAGEMENT_URL=http://hbbs:21120`, then start the deployment:
+Use the standard `docker-compose.yml` and `.env` from the Docker installation. To run the RustDesk server (hbbs/hbbr) beside the Console, set `COMPOSE_PROFILES=server` in `.env` together with a public `RUSTDESK_RELAY_ADDRESS` and a `SERVER_MANAGEMENT_TOKEN` (at least 32 random characters; it is passed to the hbbs/hbbr containers as `RD_MANAGEMENT_TOKEN`), then start the deployment:
 
 ```sh
 docker compose up -d
@@ -17,7 +17,7 @@ The server profile uses the `databk/rustdesk-server` image and requires a build 
 - **hbbs** enables its management API with `RD_MANAGEMENT_BIND`, `RD_MANAGEMENT_TOKEN`, and `RD_MANAGEMENT_DIR` (a persistent directory on its own volume `./data/server`).
 - **hbbr** registers with hbbs through `RD_HBBS_API_URL`, authenticated by the same `RD_MANAGEMENT_TOKEN`. Its identity comes from `RD_RELAY_ID` and its published address from `RD_RELAY_ADDRESS`. Additional relay instances repeat this block with distinct ids; no further Console configuration is needed.
 
-**Console** is configured with `HBBS_MANAGEMENT_URL` (origin only), `SERVER_MANAGEMENT_TOKEN`, and `SERVER_MANAGEMENT_NODE_ID` (the display id of the primary node, `main` by default). Management is disabled when `HBBS_MANAGEMENT_URL` is unset.
+**Console** stores its management connection settings (hbbs URL, token, node id and node name) in its database and exposes them to super administrators under Settings; formerly they came from the `HBBS_MANAGEMENT_URL` / `SERVER_MANAGEMENT_*` environment variables, which are imported once on first start after an upgrade. For the Compose server profile set the Console-side URL to `http://hbbs:21120` and use the same token as `SERVER_MANAGEMENT_TOKEN` in `.env`. Management is disabled while the URL is empty. When the token changes in the settings form, update `SERVER_MANAGEMENT_TOKEN` in `.env` and restart hbbs/hbbr so both sides keep matching credentials.
 
 Before enabling remote access, sign in and replace the default `databk` administrator password. Protocol ports are 21115-21119; the management listener 21120 stays inside the Compose network with no host publication. For production, terminate TLS at a host-local reverse proxy in front of the web port and do not publish unencrypted logins; adjust port bindings in `docker-compose.yml` before registering the managed updater, because later Compose changes block the update flow. The server containers write `./data/server` and `./data/server-relay` as root.
 
@@ -48,7 +48,7 @@ Every additional permission requires `servers.view`. Mutations are recorded in C
 | `/api/servers/:node/services/:service/:action` | POST (`start`, `stop`, `restart`, `apply`) |
 | `/api/servers/:node/bans` | GET, PUT |
 
-The node list combines the primary node (`SERVER_MANAGEMENT_NODE_ID`) with the relays registered at hbbs. `start`/`stop` are reported as unsupported outside container-based deployments; `restart` asks the target service to exit so its supervisor restarts it, and `apply` restarts only when the configuration reports `pending_restart`.
+The node list combines the primary node (the node id configured in Settings) with the relays registered at hbbs. `start`/`stop` are reported as unsupported outside container-based deployments; `restart` asks the target service to exit so its supervisor restarts it, and `apply` restarts only when the configuration reports `pending_restart`.
 
 ## Configuration lifecycle
 

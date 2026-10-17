@@ -6,17 +6,19 @@
 
 浏览器先使用 Console 登录态申请短期、单次、目标与用途绑定的票据，再连接同源 `/api/web-client/socket`。网关校验当前登录 JTI、账号、角色与设备范围；桌面和文件分别授权。远端仍要求原生密码或批准，媒体与控制内容保持端到端加密，Console 只透明转发。
 
-```dotenv
-WEB_CLIENT_ENABLED=true
-WEB_CLIENT_ALLOWED_ORIGIN=https://console.example.com
-WEB_CLIENT_ID_SERVER_URL=wss://console.example.com/ws/id
-WEB_CLIENT_RELAY_SERVER_URL=wss://console.example.com/ws/relay
-WEB_CLIENT_SERVER_PUBLIC_KEY=<hbbs 的 id_ed25519.pub 内容>
-WEB_CLIENT_ID_UPSTREAM_URL=ws://rustdesk-hbbs:21118
-WEB_CLIENT_RELAY_UPSTREAM_URL=ws://rustdesk-hbbr:21119
-```
+以下字段在 Console 的 **设置 -> Web 客户端** 页面中配置（旧部署的 `WEB_CLIENT_*` 环境变量会在升级后首次启动时一次性导入数据库）：
 
-`ALLOWED_ORIGIN` 是浏览器实际访问地址的 HTTPS origin，包括非默认端口，不带路径或末尾斜线。上游地址由部署管理员配置，不能来自客户端的中继广告。上游示例是同一个 Docker 网络内的服务；不用通过公网绕回服务器。公开 WSS 地址继续用于被控端身份与中继广告校验，不包含票据。
+| 设置字段 | 旧环境变量 |
+| --- | --- |
+| 启用开关 | `WEB_CLIENT_ENABLED` |
+| 允许的来源 | `WEB_CLIENT_ALLOWED_ORIGIN` |
+| 公开 ID 服务器地址 | `WEB_CLIENT_ID_SERVER_URL` |
+| 公开中继服务器地址 | `WEB_CLIENT_RELAY_SERVER_URL` |
+| 服务器公钥 | `WEB_CLIENT_SERVER_PUBLIC_KEY` |
+| 内部 ID 上游（可选） | `WEB_CLIENT_ID_UPSTREAM_URL` |
+| 内部中继上游（可选） | `WEB_CLIENT_RELAY_UPSTREAM_URL` |
+
+允许的来源是浏览器实际访问地址的 HTTPS origin，包括非默认端口，不带路径或末尾斜线。上游地址由部署管理员配置，不能来自客户端的中继广告。上游示例是同一个 Docker 网络内的服务；不用通过公网绕回服务器。公开 WSS 地址继续用于被控端身份与中继广告校验，不包含票据。
 
 Console Web 的 Nginx 模板已经为网关路径单独转发 WebSocket Upgrade。最外层 HTTPS 代理也须转发这一地址到 Console Web，保留 `Origin`、Upgrade 和 Connection，允许长连接。不要在访问日志、错误页或请求正文调试日志中记录票据；票据仅在首个 WebSocket 数据帧中出现，登录 JWT 不进入远控 Worker。
 

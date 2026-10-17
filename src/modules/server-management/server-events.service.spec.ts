@@ -1,9 +1,10 @@
-import { ConfigService } from '@nestjs/config';
 import {
   extractServerEvents,
   ServerEventsService,
   type ServerEvent,
 } from './server-events.service';
+import type { ServerManagementRuntimeConfig } from './server-management-settings.service';
+import { ServerManagementSettingsService } from './server-management-settings.service';
 
 const waitFor = async (check: () => boolean, timeoutMs = 2000) => {
   const started = Date.now();
@@ -13,10 +14,23 @@ const waitFor = async (check: () => boolean, timeoutMs = 2000) => {
   }
 };
 
-const base = {
-  HBBS_MANAGEMENT_URL: 'http://hbbs:21120',
-  SERVER_MANAGEMENT_TOKEN: 'a'.repeat(40),
+const base: Partial<ServerManagementRuntimeConfig> = {
+  url: 'http://hbbs:21120',
+  token: 'a'.repeat(40),
 };
+
+const settingsStub = (config: Partial<ServerManagementRuntimeConfig> = {}) =>
+  ({
+    getActiveConfig: () => ({
+      url: config.url,
+      token: config.token ?? '',
+      nodeId: config.nodeId ?? 'rustdesk',
+      nodeName: config.nodeName ?? 'RustDesk',
+    }),
+  }) as unknown as ServerManagementSettingsService;
+
+const events = (config: Partial<ServerManagementRuntimeConfig> = {}) =>
+  new ServerEventsService(settingsStub(config));
 
 describe('server event stream', () => {
   afterEach(() => {
@@ -56,7 +70,7 @@ describe('server event stream', () => {
   });
 
   it('maintains the live relay and session view', () => {
-    const service = new ServerEventsService(new ConfigService(base));
+    const service = events(base);
     expect(service.isFresh()).toBe(false);
     const apply = (event: ServerEvent) => service.applyEvent(event);
     apply({
@@ -86,7 +100,7 @@ describe('server event stream', () => {
   });
 
   it('ignores malformed event payloads', () => {
-    const service = new ServerEventsService(new ConfigService(base));
+    const service = events(base);
     service.applyEvent({ kind: 'session_opened', data: {} });
     service.applyEvent({ kind: 'session_opened', data: { uuid: 'u1' } });
     service.applyEvent({ kind: 'session_closed', data: {} });
@@ -96,22 +110,19 @@ describe('server event stream', () => {
     expect(service.isFresh()).toBe(true);
   });
 
-  it('stays inert when the upstream is not configured', () => {
-    const service = new ServerEventsService(new ConfigService({}));
+  it('stays inert when the upstream is not configured', async () => {
+    const service = events({});
     expect(() => service.onModuleInit()).not.toThrow();
     expect(service.isFresh()).toBe(false);
     expect(service.getSessions()).toHaveLength(0);
+    await service.onModuleDestroy();
   });
 
-  it('stays inert when the token is too short', () => {
-    const service = new ServerEventsService(
-      new ConfigService({
-        HBBS_MANAGEMENT_URL: base.HBBS_MANAGEMENT_URL,
-        SERVER_MANAGEMENT_TOKEN: 'short',
-      }),
-    );
+  it('stays inert when the token is too short', async () => {
+    const service = events({ url: base.url, token: 'short' });
     expect(() => service.onModuleInit()).not.toThrow();
     expect(service.isFresh()).toBe(false);
+    await service.onModuleDestroy();
   });
 
   it('keeps the live view fresh on keep-alive frames', async () => {
@@ -131,7 +142,7 @@ describe('server event stream', () => {
         return Promise.resolve(Response.json({ data: [] }));
       return Promise.reject(new Error(`Unexpected request: ${url}`));
     });
-    const service = new ServerEventsService(new ConfigService(base));
+    const service = events(base);
     service.onModuleInit();
     // A fresh baseline alone makes the live view usable on quiet deployments.
     await waitFor(() => service.isFresh());
@@ -160,7 +171,7 @@ describe('server event stream', () => {
         return Promise.resolve(new Response(stream, { status: 200 }));
       return Promise.resolve(new Response('error', { status: 500 }));
     });
-    const service = new ServerEventsService(new ConfigService(base));
+    const service = events(base);
     service.onModuleInit();
     // The rejected baseline must still close the open event connection.
     await waitFor(() => cancelled);
@@ -174,7 +185,7 @@ describe('server event stream', () => {
       .mockImplementation((input: unknown) =>
         Promise.reject(new Error(`network down: ${String(input)}`)),
       );
-    const service = new ServerEventsService(new ConfigService(base));
+    const service = events(base);
     service.onModuleInit();
     await waitFor(() => mock.mock.calls.length > 0);
     await new Promise((resolve) => setTimeout(resolve, 50));

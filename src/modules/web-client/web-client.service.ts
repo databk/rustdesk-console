@@ -1,5 +1,15 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import {
+  resolveWebClientSettings,
+  type ValidatedWebClientConfig,
+  type WebClientSettings,
+  type WebClientSettingsService,
+} from './web-client-settings.service';
 
 export type WebClientConfiguration =
   | { enabled: false }
@@ -10,94 +20,78 @@ export type WebClientConfiguration =
       serverPublicKey: string;
     };
 
+type WebClientState =
+  | { kind: 'disabled' }
+  | { kind: 'invalid' }
+  | { kind: 'enabled'; config: ValidatedWebClientConfig };
+
+// Reads the persisted web client configuration into an in-memory snapshot so
+// the WebSocket gateway and session service keep their synchronous contract.
+// The snapshot is refreshed at startup and after every settings update; a
+// database error keeps the previous snapshot instead of degrading service.
 @Injectable()
-export class WebClientService {
-  constructor(private readonly config: ConfigService) {}
+export class WebClientService implements OnModuleInit {
+  private readonly logger = new Logger(WebClientService.name);
+  private state: WebClientState = { kind: 'disabled' };
+
+  constructor(private readonly settings: WebClientSettingsService) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.refresh();
+  }
+
+  async refresh(): Promise<void> {
+    let settings: WebClientSettings;
+    try {
+      settings = await this.settings.getActiveConfig();
+    } catch (error) {
+      this.logger.warn(`Unable to load web client settings: ${String(error)}`);
+      return;
+    }
+    if (!settings.enabled) {
+      this.state = { kind: 'disabled' };
+      return;
+    }
+    try {
+      const config = resolveWebClientSettings(settings);
+      if (config) this.state = { kind: 'enabled', config };
+      else this.state = { kind: 'disabled' };
+    } catch {
+      this.state = { kind: 'invalid' };
+    }
+  }
 
   getConfiguration(): WebClientConfiguration {
-    const enabled = this.config.get<string>('WEB_CLIENT_ENABLED');
-    if (enabled === undefined || enabled === 'false') return { enabled: false };
-    if (enabled !== 'true') return this.unavailable();
-    const idServerUrl = this.readUrl('WEB_CLIENT_ID_SERVER_URL', false);
-    const relayServerUrl = this.readUrl('WEB_CLIENT_RELAY_SERVER_URL', false);
-    const serverPublicKey = this.config.get<string>(
-      'WEB_CLIENT_SERVER_PUBLIC_KEY',
-    );
-    if (typeof serverPublicKey !== 'string') return this.unavailable();
-    const decoded = Buffer.from(serverPublicKey, 'base64');
-    if (decoded.length !== 32 || decoded.toString('base64') !== serverPublicKey)
-      return this.unavailable();
-    this.readOrigin();
-    this.readUrl('WEB_CLIENT_ID_UPSTREAM_URL', true, idServerUrl);
-    this.readUrl('WEB_CLIENT_RELAY_UPSTREAM_URL', true, relayServerUrl);
-    return { enabled: true, idServerUrl, relayServerUrl, serverPublicKey };
+    if (this.state.kind === 'invalid') return this.unavailable();
+    if (this.state.kind === 'disabled') return { enabled: false };
+    const { config } = this.state;
+    return {
+      enabled: true,
+      idServerUrl: config.idServerUrl,
+      relayServerUrl: config.relayServerUrl,
+      serverPublicKey: config.serverPublicKey,
+    };
   }
 
   getAllowedOrigin(): string {
     this.requireConfiguration();
-    return this.readOrigin();
+    if (this.state.kind !== 'enabled') return this.unavailable();
+    return this.state.config.allowedOrigin;
   }
 
   getUpstream(phase: 'rendezvous' | 'relay'): string {
     const configuration = this.requireConfiguration();
+    if (this.state.kind !== 'enabled') return this.unavailable();
+    const { config } = this.state;
     return phase === 'rendezvous'
-      ? this.readUrl(
-          'WEB_CLIENT_ID_UPSTREAM_URL',
-          true,
-          configuration.idServerUrl,
-        )
-      : this.readUrl(
-          'WEB_CLIENT_RELAY_UPSTREAM_URL',
-          true,
-          configuration.relayServerUrl,
-        );
+      ? (config.idUpstreamUrl ?? configuration.idServerUrl)
+      : (config.relayUpstreamUrl ?? configuration.relayServerUrl);
   }
 
   requireConfiguration(): Extract<WebClientConfiguration, { enabled: true }> {
     const configuration = this.getConfiguration();
     if (!configuration.enabled) return this.unavailable();
     return configuration;
-  }
-
-  private readOrigin(): string {
-    const value = this.config.get<string>('WEB_CLIENT_ALLOWED_ORIGIN');
-    try {
-      if (typeof value !== 'string' || /[\s\\?#]/.test(value))
-        return this.unavailable();
-      const url = new URL(value);
-      if (
-        url.protocol !== 'https:' ||
-        url.username ||
-        url.password ||
-        url.origin !== value
-      )
-        return this.unavailable();
-      return value;
-    } catch {
-      return this.unavailable();
-    }
-  }
-
-  private readUrl(name: string, internal: boolean, fallback?: string): string {
-    const value = this.config.get<string>(name) ?? fallback;
-    if (typeof value !== 'string' || /[\s\\?#]/.test(value))
-      return this.unavailable();
-    try {
-      const url = new URL(value);
-      if (
-        (!internal && url.protocol !== 'wss:') ||
-        (internal && !['ws:', 'wss:'].includes(url.protocol)) ||
-        !url.hostname ||
-        url.username ||
-        url.password ||
-        value.split('/')[2].includes('@') ||
-        value !== value.trim()
-      )
-        return this.unavailable();
-      return value;
-    } catch {
-      return this.unavailable();
-    }
   }
 
   private unavailable(): never {

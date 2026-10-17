@@ -5,8 +5,8 @@ import {
   UnauthorizedException,
   ValidationPipe,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { WebClientService } from './web-client.service';
+import type { WebClientSettingsService } from './web-client-settings.service';
 import { WebClientAuthorizationService } from './web-client-authorization.service';
 import { WebClientSessionService } from './web-client-session.service';
 import { RbacAuditService } from '../rbac/services/rbac-audit.service';
@@ -23,12 +23,13 @@ jest.mock('uuid', () => ({
 
 describe('WebClientSessionService 票据、撤权和来源审计', () => {
   let service: WebClientSessionService;
+  let config: WebClientService;
   let configuration: Record<string, string>;
   let authorization: { validate: jest.Mock; requireDisconnect: jest.Mock };
   let audit: { record: jest.Mock };
   const actor = { id: 'operator', jti: 'session-jti' };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.useFakeTimers({ now: new Date('2026-10-10T00:00:00Z') });
     configuration = {
       WEB_CLIENT_ENABLED: 'true',
@@ -37,9 +38,20 @@ describe('WebClientSessionService 票据、撤权和来源审计', () => {
       WEB_CLIENT_RELAY_SERVER_URL: 'wss://console.example.com/ws/relay',
       WEB_CLIENT_SERVER_PUBLIC_KEY: Buffer.alloc(32, 7).toString('base64'),
     };
-    const config = new WebClientService({
-      get: (key: string) => configuration[key],
-    } as ConfigService);
+    config = new WebClientService({
+      getActiveConfig: () => ({
+        enabled: configuration.WEB_CLIENT_ENABLED === 'true',
+        idServerUrl: configuration.WEB_CLIENT_ID_SERVER_URL || undefined,
+        relayServerUrl: configuration.WEB_CLIENT_RELAY_SERVER_URL || undefined,
+        serverPublicKey:
+          configuration.WEB_CLIENT_SERVER_PUBLIC_KEY || undefined,
+        allowedOrigin: configuration.WEB_CLIENT_ALLOWED_ORIGIN || undefined,
+        idUpstreamUrl: configuration.WEB_CLIENT_ID_UPSTREAM_URL || undefined,
+        relayUpstreamUrl:
+          configuration.WEB_CLIENT_RELAY_UPSTREAM_URL || undefined,
+      }),
+    } as unknown as WebClientSettingsService);
+    await config.onModuleInit();
     authorization = {
       validate: jest.fn().mockImplementation(() => ({
         peer: { uuid: 'peer-1' },
@@ -276,6 +288,7 @@ describe('WebClientSessionService 票据、撤权和来源审计', () => {
         configuration.WEB_CLIENT_ID_UPSTREAM_URL = 'ws://another-hbbs:21118';
       if (reason === 'origin')
         configuration.WEB_CLIENT_ALLOWED_ORIGIN = 'https://other.example.com';
+      await config.refresh();
       await service.revalidateSessions();
       expect(close).toHaveBeenCalledWith(
         reason === 'token' ? 'authentication_revoked' : 'authorization_revoked',
@@ -445,6 +458,7 @@ describe('WebClientSessionService 票据、撤权和来源审计', () => {
     configuration.WEB_CLIENT_SERVER_PUBLIC_KEY = Buffer.alloc(32, 8).toString(
       'base64',
     );
+    await config.refresh();
     resolveAudit();
     await expect(creating).rejects.toThrow('no longer available');
     expect(
@@ -705,19 +719,31 @@ describe('网关配置不可使用缺省或不可信来源', () => {
     WEB_CLIENT_RELAY_SERVER_URL: 'wss://console.example.com/ws/relay',
     WEB_CLIENT_SERVER_PUBLIC_KEY: Buffer.alloc(32, 7).toString('base64'),
   };
-  const service = (values: Record<string, string | undefined>) =>
-    new WebClientService({
-      get: (key: string) => values[key],
-    } as ConfigService);
-  it('默认关闭，不暴露内部上游，启用时必须显式 HTTPS origin', () => {
-    expect(service({}).getConfiguration()).toEqual({ enabled: false });
-    expect(() =>
-      service({
-        ...valid,
-        WEB_CLIENT_ALLOWED_ORIGIN: undefined,
-      }).getConfiguration(),
-    ).toThrow(ServiceUnavailableException);
-    const internal = service({
+  const service = async (values: Record<string, string | undefined>) => {
+    const instance = new WebClientService({
+      getActiveConfig: () => ({
+        enabled: values.WEB_CLIENT_ENABLED === 'true',
+        idServerUrl: values.WEB_CLIENT_ID_SERVER_URL || undefined,
+        relayServerUrl: values.WEB_CLIENT_RELAY_SERVER_URL || undefined,
+        serverPublicKey: values.WEB_CLIENT_SERVER_PUBLIC_KEY || undefined,
+        allowedOrigin: values.WEB_CLIENT_ALLOWED_ORIGIN || undefined,
+        idUpstreamUrl: values.WEB_CLIENT_ID_UPSTREAM_URL || undefined,
+        relayUpstreamUrl: values.WEB_CLIENT_RELAY_UPSTREAM_URL || undefined,
+      }),
+    } as unknown as WebClientSettingsService);
+    await instance.onModuleInit();
+    return instance;
+  };
+  it('默认关闭，不暴露内部上游，启用时必须显式 HTTPS origin', async () => {
+    expect((await service({})).getConfiguration()).toEqual({ enabled: false });
+    const missingOrigin = await service({
+      ...valid,
+      WEB_CLIENT_ALLOWED_ORIGIN: undefined,
+    });
+    expect(() => missingOrigin.getConfiguration()).toThrow(
+      ServiceUnavailableException,
+    );
+    const internal = await service({
       ...valid,
       WEB_CLIENT_ID_UPSTREAM_URL: 'ws://hbbs:21118',
     });
@@ -731,22 +757,23 @@ describe('网关配置不可使用缺省或不可信来源', () => {
     'https://console.example.com/',
     'https://user@console.example.com',
     'https://console.example.com?token=x',
-  ])('拒绝不精确或非HTTPS origin %s', (origin) => {
-    expect(() =>
-      service({
-        ...valid,
-        WEB_CLIENT_ALLOWED_ORIGIN: origin,
-      }).getConfiguration(),
-    ).toThrow();
+  ])('拒绝不精确或非HTTPS origin %s', async (origin) => {
+    const instance = await service({
+      ...valid,
+      WEB_CLIENT_ALLOWED_ORIGIN: origin,
+    });
+    expect(() => instance.getConfiguration()).toThrow();
   });
   it.each([
     'https://hbbs',
     'ws://user:secret@hbbs:21118',
     'ws://hbbs:21118?token=secret',
     ' ws://hbbs:21118',
-  ])('拒绝危险内部 URL %s', (url) => {
-    expect(() =>
-      service({ ...valid, WEB_CLIENT_ID_UPSTREAM_URL: url }).getConfiguration(),
-    ).toThrow();
+  ])('拒绝危险内部 URL %s', async (url) => {
+    const instance = await service({
+      ...valid,
+      WEB_CLIENT_ID_UPSTREAM_URL: url,
+    });
+    expect(() => instance.getConfiguration()).toThrow();
   });
 });
