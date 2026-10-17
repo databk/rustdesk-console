@@ -88,6 +88,7 @@ function strictUrl(
     !url.hostname ||
     url.username ||
     url.password ||
+    !value.startsWith(`${url.protocol}//`) ||
     value.split('/')[2].includes('@')
   )
     throw issue(field);

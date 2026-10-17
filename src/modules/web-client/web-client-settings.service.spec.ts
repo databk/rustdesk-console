@@ -73,6 +73,24 @@ describe('WebClientSettingsService', () => {
     await expect(repository.count()).resolves.toBe(0);
   });
 
+  it('rejects URLs without an explicit authority', async () => {
+    // Special-scheme forms parse as wss:// URLs but must not be accepted;
+    // they previously crashed validation with a TypeError instead of a 400.
+    await expect(
+      service.updateSettings({
+        ...valid,
+        idServerUrl: 'wss:console.example.com',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.updateSettings({
+        ...valid,
+        relayServerUrl: 'wss:/console.example.com/ws/relay',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(repository.count()).resolves.toBe(0);
+  });
+
   it('stores a valid enabled configuration and reads it back', async () => {
     const result = await service.updateSettings({
       ...valid,

@@ -292,7 +292,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
       const decoder = new TextDecoder();
       let pending = '';
       for (;;) {
-        if (this.stopping) return;
+        if (this.stopping || this.restartRequested) return;
         const { done, value } = await this.readWithDeadline(reader);
         if (done) return;
         // Any delivered bytes keep the stream fresh, including keep-alive

@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import {
   resolveWebClientSettings,
+  WebClientSettingsService,
   type ValidatedWebClientConfig,
   type WebClientSettings,
-  type WebClientSettingsService,
 } from './web-client-settings.service';
 
 export type WebClientConfiguration =

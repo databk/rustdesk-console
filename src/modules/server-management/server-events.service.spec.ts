@@ -179,6 +179,49 @@ describe('server event stream', () => {
     await service.onModuleDestroy();
   });
 
+  it('abandons the stream when a restart was requested while connecting', async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start: () => {},
+      cancel: () => {
+        cancelled = true;
+      },
+    });
+    let releaseFetch!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseFetch = resolve;
+    });
+    let eventsCalls = 0;
+    jest.spyOn(globalThis, 'fetch').mockImplementation((input: unknown) => {
+      const url = String(input);
+      if (url === 'http://hbbs:21120/v1/events') {
+        eventsCalls += 1;
+        if (eventsCalls === 1)
+          // The first connection is still being established when the
+          // restart arrives, so there is no reader to cancel yet.
+          return gate.then(() => new Response(stream, { status: 200 }));
+        return Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start: (controller) => controller.close(),
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      if (url === 'http://hbbs:21120/v1/relays')
+        return Promise.resolve(Response.json({ data: [] }));
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
+    const service = events(base);
+    service.onModuleInit();
+    service.restart();
+    releaseFetch();
+    // The gated stream is abandoned instead of being followed until it ends.
+    await waitFor(() => cancelled);
+    await service.onModuleDestroy();
+  });
+
   it('shuts down promptly while waiting to reconnect', async () => {
     const mock = jest
       .spyOn(globalThis, 'fetch')
