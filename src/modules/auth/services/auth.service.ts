@@ -31,6 +31,7 @@ import { AuthUserHelper } from './auth-user.helper';
 import { AuthResponseHelper } from './auth-response.helper';
 import { LoginSessionService } from './login-session.service';
 import { LoginContext } from './auth-login.helper';
+import { cacheUserStatusSnapshot } from '../../rbac/rbac-request-scope';
 
 /**
  * Authentication service
@@ -439,8 +440,16 @@ export class AuthService {
       where: { guid: payload.sub },
       select: ['guid', 'status', 'isAdmin'],
     });
-    return user?.status === UserStatus.ACTIVE
-      ? { ...payload, isAdmin: user.isAdmin }
-      : null;
+    if (user?.status !== UserStatus.ACTIVE) return null;
+
+    // Share the freshly loaded account state with every RBAC check in this
+    // request so the users row is not queried again by guards or handlers.
+    cacheUserStatusSnapshot({
+      guid: user.guid,
+      status: user.status,
+      isAdmin: user.isAdmin,
+    });
+
+    return { ...payload, isAdmin: user.isAdmin };
   }
 }

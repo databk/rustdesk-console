@@ -4,8 +4,6 @@ import {
   ExecutionContext,
   ForbiddenException,
 } from '@nestjs/common';
-import { DataSource } from 'typeorm';
-import { User, UserStatus } from '../../modules/user/entities/user.entity';
 
 @Injectable()
 /**
@@ -16,15 +14,16 @@ import { User, UserStatus } from '../../modules/user/entities/user.entity';
  * Routes accessible only to administrators use this guard
  *
  * Validation logic:
- * Reads the current user status and isAdmin field from the database; does not trust the stale permission state inside the JWT
+ * Relies on request.user.isAdmin, which the JWT strategy refreshed from the
+ * database at the start of this very request (AuthService.validateToken).
+ * Re-querying the same users row here would only narrow an unavoidable
+ * TOCTOU window without adding real security.
  */
 export class AdminGuard implements CanActivate {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const request = context
       .switchToHttp()
-      .getRequest<{ user?: { id?: string } }>();
+      .getRequest<{ user?: { id?: string; isAdmin?: boolean } }>();
     const user = request.user;
 
     if (!user) {
@@ -35,14 +34,7 @@ export class AdminGuard implements CanActivate {
       throw new ForbiddenException('Authorization service unavailable');
     }
 
-    const currentUser = await this.dataSource.getRepository(User).findOne({
-      where: { guid: user.id },
-      select: ['guid', 'isAdmin', 'status'],
-    });
-    const isAdmin =
-      currentUser?.isAdmin === true && currentUser.status === UserStatus.ACTIVE;
-
-    if (!isAdmin) {
+    if (user.isAdmin !== true) {
       throw new ForbiddenException(
         'Access denied: administrator privileges required',
       );

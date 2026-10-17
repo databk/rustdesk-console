@@ -5,12 +5,17 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import type { Request, Response, NextFunction } from 'express';
 import { businessWritesAllowed } from './updater/maintenance';
+import { rbacRequestScopeMiddleware } from './modules/rbac/rbac-request-scope.middleware';
 
 export async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
   app.enableShutdownHooks();
+
+  // Bind the request-scoped RBAC cache before anything else so guards,
+  // interceptors and handlers all share one authorization snapshot.
+  app.use(rbacRequestScopeMiddleware);
   // Direct backend clients must also respect the persistent maintenance fence.
   app.use((request: Request, response: Response, next: NextFunction) => {
     const isSystemUpdateStatusRequest =

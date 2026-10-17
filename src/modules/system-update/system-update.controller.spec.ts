@@ -4,7 +4,6 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DataSource } from 'typeorm';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { SystemUpdateController } from './system-update.controller';
@@ -13,7 +12,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 import { UserStatus } from '../user/entities/user.entity';
 interface TestRequest {
   headers: { authorization?: string };
-  user?: { id: string };
+  user?: { id: string; isAdmin: boolean };
 }
 describe('authenticated system update API', () => {
   let app: INestApplication;
@@ -41,12 +40,6 @@ describe('authenticated system update API', () => {
       providers: [
         { provide: SystemUpdateService, useValue: service },
         AdminGuard,
-        {
-          provide: DataSource,
-          useValue: {
-            getRepository: () => ({ findOne: () => Promise.resolve(user) }),
-          },
-        },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -56,7 +49,9 @@ describe('authenticated system update API', () => {
         const req = context.switchToHttp().getRequest<TestRequest>();
         if (req.headers.authorization !== 'Bearer test-admin')
           throw new UnauthorizedException();
-        req.user = { id: 'admin-id' };
+        // Mirrors JwtStrategy.validate: isAdmin is refreshed from the
+        // database before being attached to the request.
+        req.user = { id: 'admin-id', isAdmin: user.isAdmin };
         return true;
       },
     });

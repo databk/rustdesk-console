@@ -21,15 +21,21 @@ import {
   PermissionCode,
 } from '../constants/permission-catalog';
 import { RbacAuditService } from './rbac-audit.service';
+import {
+  EffectiveRoleGrants,
+  PermissionScope,
+  UserStatusSnapshot,
+  getRbacRequestCache,
+} from '../rbac-request-scope';
+
+export type {
+  PermissionScope,
+  EffectiveRoleGrants,
+} from '../rbac-request-scope';
 
 export interface EffectivePermissionScope {
   scope_type: 'global' | 'device_group';
   device_group_guids: string[];
-}
-
-export interface PermissionScope {
-  global: boolean;
-  deviceGroupGuids: Set<string>;
 }
 
 @Injectable()
@@ -55,12 +61,8 @@ export class RbacAuthorizationService {
   async getCurrentUser(
     userGuid: string,
     manager?: EntityManager,
-  ): Promise<User> {
-    const user = await (
-      manager?.getRepository(User) ?? this.userRepository
-    ).findOne({
-      where: { guid: userGuid },
-    });
+  ): Promise<UserStatusSnapshot> {
+    const user = await this.loadUserStatus(userGuid, manager);
     if (!user || user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException(
         'Account does not exist or has been disabled',
@@ -72,7 +74,7 @@ export class RbacAuthorizationService {
   async requireSuperAdmin(
     userGuid: string,
     manager?: EntityManager,
-  ): Promise<User> {
+  ): Promise<UserStatusSnapshot> {
     const user = await this.getCurrentUser(userGuid, manager);
     if (!user.isAdmin) {
       throw new ForbiddenException('Super administrator permission required');
@@ -81,6 +83,22 @@ export class RbacAuthorizationService {
   }
 
   async getPermissionScope(
+    userGuid: string,
+    permissionCode: string,
+    manager?: EntityManager,
+  ): Promise<PermissionScope> {
+    const cache = manager ? undefined : getRbacRequestCache();
+    if (cache) {
+      return this.withRequestCache(
+        cache.permissionScopes,
+        `${userGuid}:${permissionCode}`,
+        () => this.computePermissionScope(userGuid, permissionCode),
+      );
+    }
+    return this.computePermissionScope(userGuid, permissionCode, manager);
+  }
+
+  private async computePermissionScope(
     userGuid: string,
     permissionCode: string,
     manager?: EntityManager,
@@ -242,10 +260,20 @@ export class RbacAuthorizationService {
   private async loadEffectiveRoleGrants(
     userGuid: string,
     manager?: EntityManager,
-  ): Promise<{
-    assignments: UserRoleAssignment[];
-    effectivePermissionsByRole: Map<string, Set<PermissionCode>>;
-  }> {
+  ): Promise<EffectiveRoleGrants> {
+    const cache = manager ? undefined : getRbacRequestCache();
+    if (cache) {
+      return this.withRequestCache(cache.roleGrants, userGuid, () =>
+        this.loadEffectiveRoleGrantsFromDatabase(userGuid),
+      );
+    }
+    return this.loadEffectiveRoleGrantsFromDatabase(userGuid, manager);
+  }
+
+  private async loadEffectiveRoleGrantsFromDatabase(
+    userGuid: string,
+    manager?: EntityManager,
+  ): Promise<EffectiveRoleGrants> {
     const assignments = (
       await (
         manager?.getRepository(UserRoleAssignment) ?? this.assignmentRepository
@@ -544,6 +572,25 @@ export class RbacAuthorizationService {
     isAdmin?: boolean,
     manager?: EntityManager,
   ): Promise<boolean> {
+    if (manager) {
+      return this.computeIsProtectedUser(userGuid, isAdmin, manager);
+    }
+    const cache = getRbacRequestCache();
+    if (cache) {
+      return this.withRequestCache(
+        cache.protectedUsers,
+        `${userGuid}:${isAdmin === true}`,
+        () => this.computeIsProtectedUser(userGuid, isAdmin),
+      );
+    }
+    return this.computeIsProtectedUser(userGuid, isAdmin);
+  }
+
+  private async computeIsProtectedUser(
+    userGuid: string,
+    isAdmin?: boolean,
+    manager?: EntityManager,
+  ): Promise<boolean> {
     const user = manager
       ? await manager.getRepository(User).findOne({
           where: { guid: userGuid },
@@ -619,6 +666,49 @@ export class RbacAuthorizationService {
         .filter(([, protectedUser]) => protectedUser)
         .map(([guid]) => guid),
     );
+  }
+
+  /**
+   * Loads the users row with only the columns RBAC decisions consume.
+   * Inside a request scope the result is cached so the JWT validation,
+   * guards and handlers share one snapshot per request.
+   */
+  private async loadUserStatus(
+    userGuid: string,
+    manager?: EntityManager,
+  ): Promise<UserStatusSnapshot | null> {
+    const repository = manager?.getRepository(User) ?? this.userRepository;
+    const cache = manager ? undefined : getRbacRequestCache();
+    if (cache) {
+      return this.withRequestCache(cache.users, userGuid, () =>
+        repository.findOne({
+          where: { guid: userGuid },
+          select: ['guid', 'status', 'isAdmin'],
+        }),
+      );
+    }
+    return repository.findOne({
+      where: { guid: userGuid },
+      select: ['guid', 'status', 'isAdmin'],
+    });
+  }
+
+  /**
+   * Deduplicates an async lookup within the current request. In-flight
+   * promises are cached directly; transient database failures evict the
+   * entry so a retry can succeed.
+   */
+  private async withRequestCache<T>(
+    store: Map<string, Promise<T>>,
+    key: string,
+    loader: () => Promise<T>,
+  ): Promise<T> {
+    const cached = store.get(key);
+    if (cached) return cached;
+    const promise = loader();
+    store.set(key, promise);
+    promise.catch(() => store.delete(key));
+    return promise;
   }
 
   private async rejectWithAudit(
