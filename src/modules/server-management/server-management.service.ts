@@ -170,7 +170,7 @@ export class ServerManagementService {
     if (!nodeId || nodeId === this.nodeId) return this.observer.system();
     const node = await this.requireNode(nodeId);
     // The integrated deployment shares one host network configuration; relay
-    // namespaces are not observable without a node agent.
+    // namespaces are not observable through the v2 management API.
     return node.kind === 'relay'
       ? unavailable('system', 'namespace_unobservable')
       : this.observer.system();
@@ -180,8 +180,8 @@ export class ServerManagementService {
     // The local reverse socket must belong to hbbr, not a proxy or our sender.
     const local = await this.observer.connection(tuple, 'hbbr');
     if (local.status === 'identified') return local;
-    // No node agent and no TCP observation endpoint remain in the v2
-    // management API, so only the co-located case is observable.
+    // The v2 management API has no TCP observation endpoint, so only the
+    // co-located case is observable.
     return unavailable('connection', local.reason ?? 'namespace_unobservable');
   }
 
