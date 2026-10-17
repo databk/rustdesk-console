@@ -750,6 +750,11 @@ export class UserService {
   }
 
   private removeAvatarFile(avatarPath: string) {
+    // Avatars synced from OIDC providers are external URLs; only locally
+    // stored avatar paths are cleaned up here
+    if (!avatarPath.startsWith('/api/avatars/')) {
+      return;
+    }
     const filename = path.basename(avatarPath.split('?')[0]);
     const fullPath = path.join(AVATAR_DIR, filename);
     if (fs.existsSync(fullPath)) {

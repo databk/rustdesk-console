@@ -62,6 +62,7 @@ interface OidcUserInfo {
   email_verified?: boolean;
   name?: string;
   preferred_username?: string;
+  picture?: string;
   [key: string]: any;
 }
 
@@ -461,9 +462,15 @@ export class OidcService {
       email_verified: claims?.email_verified as boolean | undefined,
       name: claims?.name as string | undefined,
       preferred_username: claims?.preferred_username as string | undefined,
+      picture: claims?.picture as string | undefined,
     };
 
-    if (!userInfo.email && oidcConfig.serverMetadata().userinfo_endpoint) {
+    // Many providers only return the picture claim from the userinfo endpoint,
+    // so fetch userinfo when either email or picture is missing from the ID token
+    if (
+      (!userInfo.email || !userInfo.picture) &&
+      oidcConfig.serverMetadata().userinfo_endpoint
+    ) {
       try {
         const fetchedUserInfo = await client.fetchUserInfo(
           oidcConfig,
@@ -472,10 +479,13 @@ export class OidcService {
         );
         userInfo = {
           ...userInfo,
-          email: fetchedUserInfo.email,
-          email_verified: fetchedUserInfo.email_verified,
-          name: fetchedUserInfo.name,
-          preferred_username: fetchedUserInfo.preferred_username,
+          email: userInfo.email || fetchedUserInfo.email,
+          email_verified:
+            userInfo.email_verified ?? fetchedUserInfo.email_verified,
+          name: userInfo.name || fetchedUserInfo.name,
+          preferred_username:
+            userInfo.preferred_username || fetchedUserInfo.preferred_username,
+          picture: userInfo.picture || fetchedUserInfo.picture,
         };
       } catch (err: unknown) {
         this.logger.warn(
@@ -568,6 +578,9 @@ export class OidcService {
           (data.login as string | undefined) ??
           (data.username as string | undefined) ??
           (data.name as string | undefined),
+        picture:
+          (data.avatar_url as string | undefined) ??
+          (data.picture as string | undefined),
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -797,6 +810,16 @@ export class OidcService {
       where: { oidcSubject },
     });
     if (existingUser) {
+      // Backfill the avatar from the provider only when the user has none,
+      // so manually uploaded avatars are never overwritten
+      const avatarUrl = this.sanitizeAvatarUrl(oidcUserInfo.picture);
+      if (avatarUrl && !existingUser.avatar) {
+        existingUser.avatar = avatarUrl;
+        await this.userRepository.save(existingUser);
+        this.logger.log(
+          `OIDC user avatar backfilled: user=${existingUser.username}, provider=${providerName}`,
+        );
+      }
       return existingUser;
     }
 
@@ -840,6 +863,7 @@ export class OidcService {
         user.note = `OIDC user (${providerName})`;
         user.thirdAuthType = 'oidc';
         user.oidcSubject = oidcSubject;
+        user.avatar = this.sanitizeAvatarUrl(oidcUserInfo.picture);
         user.userGroupGuid = userGroupGuid;
 
         await this.userRepository.save(user);
@@ -867,6 +891,37 @@ export class OidcService {
     throw new Error(
       `Failed to create OIDC user after ${maxRetries} attempts due to username conflicts`,
     );
+  }
+
+  /**
+   * Validate an avatar URL received from an OIDC/OAuth2 provider
+   * Only http(s) URLs that fit the avatar column length limit are accepted
+   *
+   * @param picture avatar URL from the provider
+   * @returns the sanitized URL, or null when it is missing or invalid
+   */
+  private sanitizeAvatarUrl(picture: string | undefined): string | null {
+    if (!picture) {
+      return null;
+    }
+
+    if (picture.length > 255) {
+      this.logger.warn(
+        'OIDC provider avatar URL exceeds 255 characters and was ignored',
+      );
+      return null;
+    }
+
+    try {
+      const url = new URL(picture);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return null;
+      }
+    } catch {
+      return null;
+    }
+
+    return picture;
   }
 
   /**
