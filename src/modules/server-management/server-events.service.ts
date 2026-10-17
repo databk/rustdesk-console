@@ -105,6 +105,8 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   private lastEventAt = 0;
   private lastKeepAliveAt = 0;
   private runTask?: Promise<void>;
+  private activeReader?: ReadableStreamDefaultReader<Uint8Array>;
+  private wake?: () => void;
 
   constructor(config: ConfigService) {
     const raw = config.get<string>('HBBS_MANAGEMENT_URL');
@@ -134,6 +136,8 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     this.stopping = true;
+    this.wake?.();
+    await this.activeReader?.cancel().catch(() => {});
     await this.runTask?.catch(() => {});
   }
 
@@ -214,10 +218,29 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
           `hbbs event stream failed: ${String(error)}; reconnecting`,
         );
       }
+      // The live view is no longer maintained once the stream ends; stop
+      // serving it until a fresh baseline arrives on the next connection.
+      this.lastEventAt = 0;
+      this.lastKeepAliveAt = 0;
       if (this.stopping) return;
-      await new Promise((resolve) => setTimeout(resolve, backoff));
+      await this.sleep(backoff);
       backoff = Math.min(backoff * 2, RECONNECT_MAX_MS);
     }
+  }
+
+  // Interruptible backoff sleep so shutdown never waits out the timer.
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.wake = undefined;
+        resolve();
+      }, ms);
+      this.wake = () => {
+        clearTimeout(timer);
+        this.wake = undefined;
+        resolve();
+      };
+    });
   }
 
   private async follow(): Promise<void> {
@@ -229,24 +252,34 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
       await response.body?.cancel();
       throw new Error(`event stream rejected (${response.status})`);
     }
-    // Reconnect on a fresh baseline: hbbs may have restarted and replayed
-    // nothing while this connection was down.
-    await this.refreshBaseline();
+    // The reader is taken up front so every exit path releases the
+    // connection, including baseline failures and read errors.
     const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let pending = '';
-    for (;;) {
-      if (this.stopping) {
-        await reader.cancel();
-        return;
+    this.activeReader = reader;
+    try {
+      // Reconnect on a fresh baseline: hbbs may have restarted and replayed
+      // nothing while this connection was down.
+      await this.refreshBaseline();
+      this.lastKeepAliveAt = Date.now();
+      const decoder = new TextDecoder();
+      let pending = '';
+      for (;;) {
+        if (this.stopping) return;
+        const { done, value } = await this.readWithDeadline(reader);
+        if (done) return;
+        // Any delivered bytes keep the stream fresh, including keep-alive
+        // comment frames that produce no events.
+        this.lastKeepAliveAt = Date.now();
+        pending += decoder.decode(value, { stream: true });
+        if (pending.length > SSE_BUFFER_LIMIT)
+          throw new Error('frame overflow');
+        const { events, remainder } = extractServerEvents(pending, '');
+        pending = remainder;
+        for (const event of events) this.applyEvent(event);
       }
-      const { done, value } = await this.readWithDeadline(reader);
-      if (done) return;
-      pending += decoder.decode(value, { stream: true });
-      if (pending.length > SSE_BUFFER_LIMIT) throw new Error('frame overflow');
-      const { events, remainder } = extractServerEvents(pending, '');
-      pending = remainder;
-      for (const event of events) this.applyEvent(event);
+    } finally {
+      this.activeReader = undefined;
+      await reader.cancel().catch(() => {});
     }
   }
 

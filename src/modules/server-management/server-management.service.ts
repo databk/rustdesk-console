@@ -213,19 +213,29 @@ export class ServerManagementService {
           .map((session) => ({ ...session.info, relay_id: session.relayId })),
       };
     const relays = await this.relaySummaries();
-    const data: Array<Record<string, unknown>> = [];
-    for (const relay of relays) {
-      const result = await this.fetchJson(
-        `/v1/relays/${encodeURIComponent(relay.id)}/sessions`,
-      );
-      for (const info of asArray(result['data']))
-        if (info && typeof info === 'object')
-          data.push({
-            ...(info as Record<string, unknown>),
-            relay_id: relay.id,
-          });
-    }
-    return { data };
+    // Query every relay in parallel and tolerate individual failures so one
+    // unresponsive relay cannot blank the whole session list.
+    const batches = await Promise.all(
+      relays.map(async (relay) => {
+        try {
+          const result = await this.fetchJson(
+            `/v1/relays/${encodeURIComponent(relay.id)}/sessions`,
+          );
+          return asArray(result['data'])
+            .filter(
+              (info): info is Record<string, unknown> =>
+                !!info && typeof info === 'object',
+            )
+            .map((info) => ({ ...info, relay_id: relay.id }));
+        } catch (error) {
+          this.logger.warn(
+            `Unable to list sessions for relay ${relay.id}: ${String(error)}`,
+          );
+          return [];
+        }
+      }),
+    );
+    return { data: batches.flat() };
   }
 
   async disconnect(actor: string, nodeId: string, uuid: string) {
