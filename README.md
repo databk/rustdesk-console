@@ -157,6 +157,10 @@ npm run start:prod
 
 </details>
 
+## 🖥️ Integrated hbbs / hbbr management
+
+See [Server management](docs/server-management.md) for the authenticated server APIs, hub-and-spoke server topology, server permissions, the Compose server profile and CI validation.
+
 ## 🛠️ Tech Stack
 
 `NestJS 11` · `TypeScript` · `TypeORM 0.3` · `SQLite` · `JWT` · `Passport.js` · `bcryptjs` · `otplib` · `Nodemailer` · `sharp` · `openid-client`
@@ -170,7 +174,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions
 <p align="center">
   <strong>Built with ❤️ using NestJS | Data Block</strong>
 </p>
-
-### Integrated hbbs / hbbr management
-
-See [Server management](docs/server-management.md) for the authenticated server APIs, hub-and-spoke server topology, server permissions, the Compose server profile and CI validation.
