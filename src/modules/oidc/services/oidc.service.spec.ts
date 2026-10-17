@@ -209,6 +209,7 @@ describe('OidcService avatar sync', () => {
     function invokeHandleOidcCallback(): Promise<{
       sub: string;
       email?: string;
+      email_verified?: boolean;
       picture?: string;
     }> {
       return (
@@ -217,7 +218,12 @@ describe('OidcService avatar sync', () => {
             config: unknown,
             callbackUrl: string,
             state: unknown,
-          ): Promise<{ sub: string; email?: string; picture?: string }>;
+          ): Promise<{
+            sub: string;
+            email?: string;
+            email_verified?: boolean;
+            picture?: string;
+          }>;
         }
       ).handleOidcCallback.bind(service)(
         oidcConfig,
