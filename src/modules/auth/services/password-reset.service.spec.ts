@@ -13,7 +13,7 @@ function buildActiveUser(): User {
   user.displayName = 'Alice';
   user.email = 'alice@example.com';
   user.status = UserStatus.ACTIVE;
-  user.thirdAuthType = null;
+
   return user;
 }
 

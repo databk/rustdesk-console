@@ -24,7 +24,7 @@ export class AddPasswordResetTokens1790985600002 implements MigrationInterface {
 
     if (type === 'mysql') {
       await queryRunner.query(
-        'CREATE TABLE `password_reset_tokens` (`guid` varchar(255) NOT NULL, `token` varchar(255) NOT NULL, `userGuid` varchar(255) NOT NULL, `expiresAt` datetime NOT NULL, `usedAt` datetime NULL, `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), UNIQUE INDEX `IDX_ab673f0e63eac966762155508e` (`token`), INDEX `IDX_cdb3234dc1494961ee906cc1ac` (`userGuid`), PRIMARY KEY (`guid`)) ENGINE=InnoDB',
+        'CREATE TABLE `password_reset_tokens` (`guid` varchar(255) NOT NULL, `token` varchar(255) NOT NULL, `userGuid` varchar(255) NOT NULL, `expiresAt` datetime NOT NULL, `usedAt` datetime NULL, `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX `IDX_cdb3234dc1494961ee906cc1ac` (`userGuid`), UNIQUE INDEX `IDX_ab673f0e63eac966762155508e` (`token`), PRIMARY KEY (`guid`)) ENGINE=InnoDB',
       );
       return;
     }
