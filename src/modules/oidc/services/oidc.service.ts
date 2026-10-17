@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryFailedError } from 'typeorm';
+import { Repository, QueryFailedError, IsNull } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import * as client from 'openid-client';
 import {
@@ -477,11 +477,17 @@ export class OidcService {
           tokens.access_token,
           claims?.sub ?? '',
         );
+        // email_verified must stay tied to the selected email: only adopt the
+        // userinfo verification flag when the userinfo email was selected
+        const selectedEmail = userInfo.email || fetchedUserInfo.email;
         userInfo = {
           ...userInfo,
-          email: userInfo.email || fetchedUserInfo.email,
+          email: selectedEmail,
           email_verified:
-            userInfo.email_verified ?? fetchedUserInfo.email_verified,
+            userInfo.email_verified ??
+            (selectedEmail && fetchedUserInfo.email === selectedEmail
+              ? fetchedUserInfo.email_verified
+              : undefined),
           name: userInfo.name || fetchedUserInfo.name,
           preferred_username:
             userInfo.preferred_username || fetchedUserInfo.preferred_username,
@@ -579,7 +585,7 @@ export class OidcService {
           (data.username as string | undefined) ??
           (data.name as string | undefined),
         picture:
-          (data.avatar_url as string | undefined) ??
+          (data.avatar_url as string | undefined) ||
           (data.picture as string | undefined),
       };
     } catch (err: unknown) {
@@ -811,14 +817,21 @@ export class OidcService {
     });
     if (existingUser) {
       // Backfill the avatar from the provider only when the user has none,
-      // so manually uploaded avatars are never overwritten
+      // so manually uploaded avatars are never overwritten. The update is
+      // conditioned on the stored avatar still being empty to also preserve
+      // avatars uploaded concurrently while this login is in flight.
       const avatarUrl = this.sanitizeAvatarUrl(oidcUserInfo.picture);
       if (avatarUrl && !existingUser.avatar) {
-        existingUser.avatar = avatarUrl;
-        await this.userRepository.save(existingUser);
-        this.logger.log(
-          `OIDC user avatar backfilled: user=${existingUser.username}, provider=${providerName}`,
+        const updateResult = await this.userRepository.update(
+          { guid: existingUser.guid, avatar: IsNull() },
+          { avatar: avatarUrl },
         );
+        if (updateResult.affected) {
+          existingUser.avatar = avatarUrl;
+          this.logger.log(
+            `OIDC user avatar backfilled: user=${existingUser.username}, provider=${providerName}`,
+          );
+        }
       }
       return existingUser;
     }

@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import * as client from 'openid-client';
+import { IsNull } from 'typeorm';
 import { OidcService } from './oidc.service';
 import { User } from '../../user/entities/user.entity';
 import {
@@ -46,13 +47,18 @@ function findOrCreateUser(service: OidcService): FindOrCreateUser {
 
 describe('OidcService avatar sync', () => {
   let service: OidcService;
-  let userRepository: { findOne: jest.Mock; save: jest.Mock };
+  let userRepository: {
+    findOne: jest.Mock;
+    save: jest.Mock;
+    update: jest.Mock;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     userRepository = {
       findOne: jest.fn(),
       save: jest.fn((user: User) => Promise.resolve(user)),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const userGroupService = {
       resolveUserGroupGuid: jest.fn().mockResolvedValue(null),
@@ -93,7 +99,7 @@ describe('OidcService avatar sync', () => {
     existing.oidcSubject = 'oidc:test-provider:sub-1';
     existing.avatar = null;
     userRepository.findOne.mockResolvedValue(existing);
-    userRepository.save.mockResolvedValue(existing);
+    userRepository.update.mockResolvedValue({ affected: 1 });
 
     const user = await findOrCreateUser(service)(
       {
@@ -105,7 +111,32 @@ describe('OidcService avatar sync', () => {
 
     expect(user).toBe(existing);
     expect(user.avatar).toBe('https://provider.example.com/alice.png');
-    expect(userRepository.save).toHaveBeenCalledWith(existing);
+    expect(userRepository.update).toHaveBeenCalledWith(
+      { guid: 'user-guid', avatar: IsNull() },
+      { avatar: 'https://provider.example.com/alice.png' },
+    );
+    expect(userRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps a concurrently uploaded avatar when the conditional backfill loses the race', async () => {
+    const existing = new User();
+    existing.guid = 'user-guid';
+    existing.username = 'alice';
+    existing.oidcSubject = 'oidc:test-provider:sub-1';
+    existing.avatar = null;
+    userRepository.findOne.mockResolvedValue(existing);
+    userRepository.update.mockResolvedValue({ affected: 0 });
+
+    const user = await findOrCreateUser(service)(
+      {
+        sub: 'sub-1',
+        picture: 'https://provider.example.com/alice.png',
+      },
+      'test-provider',
+    );
+
+    expect(user).toBe(existing);
+    expect(user.avatar).toBeNull();
   });
 
   it('does not overwrite a manually set avatar', async () => {
@@ -218,6 +249,47 @@ describe('OidcService avatar sync', () => {
       expect(userInfo.email).toBe('alice@example.com');
     });
 
+    it('does not adopt userinfo email_verified for a mismatched userinfo email', async () => {
+      authorizationCodeGrantMock.mockResolvedValue({
+        claims: () => ({
+          sub: 'sub-1',
+          email: 'id-token@example.com',
+        }),
+        access_token: 'access-token',
+      });
+      fetchUserInfoMock.mockResolvedValue({
+        sub: 'sub-1',
+        email: 'userinfo@example.com',
+        email_verified: true,
+        picture: 'https://provider.example.com/alice.png',
+      });
+
+      const userInfo = await invokeHandleOidcCallback();
+
+      expect(userInfo.email).toBe('id-token@example.com');
+      expect(userInfo.email_verified).toBeUndefined();
+    });
+
+    it('adopts userinfo email_verified when the userinfo email is selected', async () => {
+      authorizationCodeGrantMock.mockResolvedValue({
+        claims: () => ({
+          sub: 'sub-1',
+        }),
+        access_token: 'access-token',
+      });
+      fetchUserInfoMock.mockResolvedValue({
+        sub: 'sub-1',
+        email: 'userinfo@example.com',
+        email_verified: true,
+        picture: 'https://provider.example.com/alice.png',
+      });
+
+      const userInfo = await invokeHandleOidcCallback();
+
+      expect(userInfo.email).toBe('userinfo@example.com');
+      expect(userInfo.email_verified).toBe(true);
+    });
+
     it('skips the userinfo request when the ID token already carries email and picture', async () => {
       authorizationCodeGrantMock.mockResolvedValue({
         claims: () => ({
@@ -267,6 +339,37 @@ describe('OidcService avatar sync', () => {
       expect(userInfo.picture).toBe(
         'https://avatars.githubusercontent.com/u/1',
       );
+      fetchMock.mockRestore();
+    });
+
+    it('falls back to picture when avatar_url is an empty string', async () => {
+      const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 1,
+            login: 'gh-user',
+            avatar_url: '',
+            picture: 'https://provider.example.com/gh-user.png',
+          }),
+      } as Response);
+
+      const provider = {
+        name: 'github',
+        type: OidcProviderType.OAUTH2,
+        userinfoEndpoint: 'https://api.github.com/user',
+      } as OidcProvider;
+
+      const userInfo = await (
+        service as unknown as {
+          fetchOAuth2UserInfo(
+            accessToken: string,
+            provider: OidcProvider,
+          ): Promise<OidcUserInfoInput>;
+        }
+      ).fetchOAuth2UserInfo.bind(service)('token', provider);
+
+      expect(userInfo.picture).toBe('https://provider.example.com/gh-user.png');
       fetchMock.mockRestore();
     });
   });
