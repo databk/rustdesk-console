@@ -111,6 +111,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   private lastKeepAliveAt = 0;
   private runTask?: Promise<void>;
   private activeReader?: ReadableStreamDefaultReader<Uint8Array>;
+  private baselineAbort?: AbortController;
   private wake?: () => void;
 
   constructor(private readonly settings: ServerManagementSettingsService) {}
@@ -122,6 +123,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     this.stopping = true;
     this.wake?.();
+    this.baselineAbort?.abort();
     await this.activeReader?.cancel().catch(() => {});
     await this.runTask?.catch(() => {});
   }
@@ -131,6 +133,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   restart(): void {
     this.restartRequested = true;
     this.wake?.();
+    this.baselineAbort?.abort();
     void this.activeReader?.cancel().catch(() => {});
   }
 
@@ -287,13 +290,17 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     // connection, including baseline failures and read errors.
     const reader = response.body.getReader();
     this.activeReader = reader;
+    // Baseline requests are aborted on restart/shutdown so the loop never
+    // keeps issuing requests with a stale URL and token.
+    const baselineAbort = new AbortController();
+    this.baselineAbort = baselineAbort;
     try {
       // A restart that arrived while the response was pending must not run
       // the baseline with the stale URL and token.
       if (this.restartRequested) return;
       // Reconnect on a fresh baseline: hbbs may have restarted and replayed
       // nothing while this connection was down.
-      await this.refreshBaseline();
+      await this.refreshBaseline(baselineAbort.signal);
       this.lastKeepAliveAt = Date.now();
       const decoder = new TextDecoder();
       let pending = '';
@@ -312,6 +319,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
         for (const event of events) this.applyEvent(event);
       }
     } finally {
+      this.baselineAbort = undefined;
       this.activeReader = undefined;
       await reader.cancel().catch(() => {});
     }
@@ -335,8 +343,8 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async refreshBaseline(): Promise<void> {
-    const relays = (await this.fetchJson('/v1/relays')) as {
+  private async refreshBaseline(signal: AbortSignal): Promise<void> {
+    const relays = (await this.fetchJson('/v1/relays', signal)) as {
       data?: Array<{ id?: unknown }>;
     };
     this.relays.clear();
@@ -346,6 +354,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
       this.relays.set(relay.id, { id: relay.id });
       const sessions = (await this.fetchJson(
         `/v1/relays/${encodeURIComponent(relay.id)}/sessions`,
+        signal,
       )) as { data?: unknown[] };
       for (const info of Array.isArray(sessions?.data) ? sessions.data : [])
         if (
@@ -360,11 +369,11 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async fetchJson(path: string): Promise<unknown> {
+  private async fetchJson(path: string, signal: AbortSignal): Promise<unknown> {
     const response = await fetch(`${this.url}${path}`, {
       redirect: 'error',
       headers: { authorization: `Bearer ${this.token}` },
-      signal: AbortSignal.timeout(10_000),
+      signal: combineAbortSignals([signal, AbortSignal.timeout(10_000)]),
     });
     if (!response.ok) {
       await response.body?.cancel();
@@ -372,4 +381,19 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     }
     return (await response.json()) as unknown;
   }
+}
+
+// Combines abort signals without AbortSignal.any, which needs a newer
+// runtime than the engines field guarantees.
+function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      abort();
+      break;
+    }
+    signal.addEventListener('abort', abort, { once: true });
+  }
+  return controller.signal;
 }

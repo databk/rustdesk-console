@@ -302,6 +302,46 @@ describe('server event stream', () => {
     await service.onModuleDestroy();
   });
 
+  it('aborts an in-flight baseline when a restart arrives', async () => {
+    let relaysCalls = 0;
+    let firstRelaysAborted = false;
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((input: unknown, init?: RequestInit) => {
+        const url = String(input);
+        if (url === 'http://hbbs:21120/v1/events')
+          return Promise.resolve(
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start: (controller) => controller.close(),
+              }),
+              { status: 200 },
+            ),
+          );
+        if (url === 'http://hbbs:21120/v1/relays') {
+          relaysCalls += 1;
+          if (relaysCalls === 1)
+            return new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => {
+                firstRelaysAborted = true;
+                reject(new Error('baseline aborted'));
+              });
+            });
+          return Promise.resolve(Response.json({ data: [] }));
+        }
+        return Promise.reject(new Error(`Unexpected request: ${url}`));
+      });
+    const service = events(base);
+    service.onModuleInit();
+    await waitFor(() => relaysCalls === 1);
+    service.restart();
+    // The pending baseline request is aborted instead of running to its
+    // timeout, and the loop immediately reconnects for a fresh baseline.
+    await waitFor(() => firstRelaysAborted);
+    await waitFor(() => relaysCalls === 2);
+    await service.onModuleDestroy();
+  });
+
   it('shuts down promptly while waiting to reconnect', async () => {
     const mock = jest
       .spyOn(globalThis, 'fetch')
