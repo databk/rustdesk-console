@@ -1,10 +1,20 @@
 import 'reflect-metadata';
+import * as crypto from 'crypto';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { PasswordResetService } from './password-reset.service';
 import { User, UserStatus } from '../../user/entities/user.entity';
 import { UserToken } from '../../user/entities/user-token.entity';
 import { LoginSession } from '../entities/login-session.entity';
 import { PasswordResetToken } from '../entities/password-reset-token.entity';
+
+/** Wait for fire-and-forget email dispatch to settle */
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 function buildActiveUser(): User {
   const user = new User();
@@ -148,6 +158,7 @@ describe('PasswordResetService', () => {
       const result = await service.requestReset({
         username_or_email: 'alice',
       });
+      await flushMicrotasks();
 
       expect(result.message).toContain('If the account exists');
       expect(passwordResetTokenRepository.delete).toHaveBeenCalledWith({
@@ -158,23 +169,60 @@ describe('PasswordResetService', () => {
       expect(saved.userGuid).toBe(user.guid);
       expect(saved.token).toHaveLength(64);
       expect(saved.usedAt).toBeNull();
-      expect(emailService.sendPasswordResetEmail).toHaveBeenCalledWith(
-        'alice@example.com',
-        expect.stringContaining(
-          'http://localhost:3000/#/user/reset-password?token=',
-        ),
-        '30 minutes',
+      expect(emailService.sendPasswordResetEmail).toHaveBeenCalledTimes(1);
+      const [email, resetUrl] =
+        emailService.sendPasswordResetEmail.mock.calls[0];
+      expect(email).toBe('alice@example.com');
+      expect(resetUrl).toContain(
+        'http://localhost:3000/#/user/reset-password?token=',
       );
+      const rawToken = resetUrl.split('token=')[1];
+      expect(rawToken).toHaveLength(64);
+      expect(saved.token).not.toBe(rawToken);
+      expect(saved.token).toBe(hashToken(rawToken));
     });
 
-    it('fails loudly when the email cannot be sent', async () => {
+    it('stores a SHA-256 digest that cannot be reversed into the link token', async () => {
+      const user = buildActiveUser();
+      authUserHelper.findByUsernameOrEmail.mockResolvedValue(user);
+      emailService.sendPasswordResetEmail.mockResolvedValue(true);
+
+      await service.requestReset({ username_or_email: 'alice' });
+      await flushMicrotasks();
+
+      const saved = passwordResetTokenRepository.save.mock.calls[0][0];
+      const [, resetUrl] = emailService.sendPasswordResetEmail.mock.calls[0];
+      const rawToken = resetUrl.split('token=')[1];
+      expect(saved.token).toMatch(/^[0-9a-f]{64}$/);
+      expect(saved.token).not.toContain(rawToken);
+    });
+
+    it('returns the generic message when the email cannot be sent', async () => {
       const user = buildActiveUser();
       authUserHelper.findByUsernameOrEmail.mockResolvedValue(user);
       emailService.sendPasswordResetEmail.mockResolvedValue(false);
 
-      await expect(
-        service.requestReset({ username_or_email: 'alice' }),
-      ).rejects.toThrow(BadRequestException);
+      const result = await service.requestReset({
+        username_or_email: 'alice',
+      });
+      await flushMicrotasks();
+
+      expect(result.message).toContain('If the account exists');
+    });
+
+    it('returns the generic message when the email delivery rejects', async () => {
+      const user = buildActiveUser();
+      authUserHelper.findByUsernameOrEmail.mockResolvedValue(user);
+      emailService.sendPasswordResetEmail.mockRejectedValue(
+        new Error('SMTP connection refused'),
+      );
+
+      const result = await service.requestReset({
+        username_or_email: 'alice',
+      });
+      await flushMicrotasks();
+
+      expect(result.message).toContain('If the account exists');
     });
   });
 

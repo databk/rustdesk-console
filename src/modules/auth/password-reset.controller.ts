@@ -1,4 +1,11 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { PasswordResetService } from './services/password-reset.service';
 import {
@@ -12,6 +19,8 @@ import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 
 @Controller('password-reset')
 export class PasswordResetController {
+  private readonly logger = new Logger(PasswordResetController.name);
+
   constructor(
     private readonly passwordResetService: PasswordResetService,
     private readonly auditService: RbacAuditService,
@@ -40,16 +49,9 @@ export class PasswordResetController {
   @Post('confirm')
   @HttpCode(HttpStatus.OK)
   async confirmReset(@Body() dto: ConfirmPasswordResetDto) {
+    let result: Awaited<ReturnType<PasswordResetService['confirmReset']>>;
     try {
-      const result = await this.passwordResetService.confirmReset(dto);
-      await this.auditService.record({
-        targetType: 'auth',
-        targetGuid: null,
-        action: 'auth.password_reset',
-        result: 'allowed',
-        afterState: { username: result.username },
-      });
-      return { message: result.message };
+      result = await this.passwordResetService.confirmReset(dto);
     } catch (error: unknown) {
       await this.auditService.recordDenied({
         targetType: 'auth',
@@ -58,5 +60,20 @@ export class PasswordResetController {
       });
       throw error;
     }
+    try {
+      await this.auditService.record({
+        targetType: 'auth',
+        targetGuid: null,
+        action: 'auth.password_reset',
+        result: 'allowed',
+        afterState: { username: result.username },
+      });
+    } catch (error: unknown) {
+      // The reset has already been committed; an audit-write failure must not
+      // turn a successful reset into an error response.
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Unable to persist password reset audit: ${message}`);
+    }
+    return { message: result.message };
   }
 }

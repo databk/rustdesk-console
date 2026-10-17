@@ -33,10 +33,6 @@ export class AddPasswordResetTokens1790985600002 implements MigrationInterface {
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    const type = queryRunner.connection.options.type;
-    if (type !== 'sqlite' && type !== 'mysql') {
-      throw new Error(`Unsupported database type: ${type}`);
-    }
-    await queryRunner.query('DROP TABLE "password_reset_tokens"');
+    await queryRunner.dropTable('password_reset_tokens', true);
   }
 }

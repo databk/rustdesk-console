@@ -98,36 +98,66 @@ export class PasswordResetService {
 
       const record = new PasswordResetToken();
       record.guid = crypto.randomUUID();
-      record.token = token;
+      record.token = this.hashToken(token);
       record.userGuid = user.guid;
       record.expiresAt = expiresAt;
       record.usedAt = null;
       await this.passwordResetTokenRepository.save(record);
 
-      const { effectiveFrontendUrl } =
-        await this.generalSettingsService.getSiteSettings();
-      const resetUrl = `${effectiveFrontendUrl}/#/user/reset-password?token=${token}`;
-      const sent = await this.emailService.sendPasswordResetEmail(
-        user.email,
-        resetUrl,
-        `${PASSWORD_RESET_EXPIRY_MINUTES} minutes`,
-      );
-      if (!sent) {
-        throw new BadRequestException({
-          error:
-            'Failed to send the password reset email, please try again later',
-        });
-      }
-
-      this.logger.log(
-        `Password reset link for user ${user.username} sent to ${user.email}`,
-      );
+      const email = user.email;
+      const username = user.username;
+      void this.dispatchResetEmail(email, username, token);
     }
 
     return {
       message:
         'If the account exists and has a bound email address, a password reset link has been sent',
     };
+  }
+
+  /**
+   * Send the reset link in the background
+   * Delivery failures are logged instead of surfaced to the caller, so the
+   * response cannot be used to tell eligible accounts apart from other input
+   */
+  private async dispatchResetEmail(
+    email: string,
+    username: string,
+    token: string,
+  ): Promise<void> {
+    try {
+      const { effectiveFrontendUrl } =
+        await this.generalSettingsService.getSiteSettings();
+      const resetUrl = `${effectiveFrontendUrl}/#/user/reset-password?token=${token}`;
+      const sent = await this.emailService.sendPasswordResetEmail(
+        email,
+        resetUrl,
+        `${PASSWORD_RESET_EXPIRY_MINUTES} minutes`,
+      );
+      if (sent) {
+        this.logger.log(
+          `Password reset link for user ${username} sent to ${email}`,
+        );
+      } else {
+        this.logger.warn(
+          `Failed to send the password reset email for user ${username} to ${email}`,
+        );
+      }
+    } catch (error: unknown) {
+      this.logger.error(
+        `Failed to send the password reset email for user ${username} to ${email}`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Hash a raw reset token for storage and lookup
+   * Only the digest is persisted, so read access to the database does not
+   * expose usable reset tokens
+   */
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   /**
@@ -203,7 +233,9 @@ export class PasswordResetService {
       manager?.getRepository(PasswordResetToken) ??
       this.passwordResetTokenRepository;
 
-    const record = await tokenRepository.findOne({ where: { token } });
+    const record = await tokenRepository.findOne({
+      where: { token: this.hashToken(token) },
+    });
     if (!record) {
       throw new UnauthorizedException('Invalid or expired reset token');
     }
