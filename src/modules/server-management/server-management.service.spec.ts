@@ -190,6 +190,22 @@ describe('server management v2 client', () => {
     );
   });
 
+  it('tolerates one failing relay when listing primary sessions', async () => {
+    fetchRoute([
+      [
+        'http://hbbs:21120/v1/relays',
+        { data: [{ id: 'relay-a' }, { id: 'relay-b' }] },
+      ],
+      // relay-b has no route and fails; the aggregated list still returns.
+      [
+        'http://hbbs:21120/v1/relays/relay-a/sessions',
+        { data: [{ uuid: 'u1' }] },
+      ],
+    ]);
+    const result = await create().sessions('main');
+    expect(result).toEqual({ data: [{ uuid: 'u1', relay_id: 'relay-a' }] });
+  });
+
   it('disconnects a session through the owning relay and audits it', async () => {
     fetchRoute([
       ['http://hbbs:21120/v1/relays', { data: [{ id: 'relay-a' }] }],

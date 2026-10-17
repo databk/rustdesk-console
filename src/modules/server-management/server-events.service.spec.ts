@@ -5,6 +5,14 @@ import {
   type ServerEvent,
 } from './server-events.service';
 
+const waitFor = async (check: () => boolean, timeoutMs = 2000) => {
+  const started = Date.now();
+  while (!check()) {
+    if (Date.now() - started > timeoutMs) throw new Error('waitFor timeout');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+
 const base = {
   HBBS_MANAGEMENT_URL: 'http://hbbs:21120',
   SERVER_MANAGEMENT_TOKEN: 'a'.repeat(40),
@@ -104,5 +112,74 @@ describe('server event stream', () => {
     );
     expect(() => service.onModuleInit()).not.toThrow();
     expect(service.isFresh()).toBe(false);
+  });
+
+  it('keeps the live view fresh on keep-alive frames', async () => {
+    let now = 1_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({
+      start: (c) => {
+        controller = c;
+      },
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation((input: unknown) => {
+      const url = String(input);
+      if (url === 'http://hbbs:21120/v1/events')
+        return Promise.resolve(new Response(stream, { status: 200 }));
+      if (url === 'http://hbbs:21120/v1/relays')
+        return Promise.resolve(Response.json({ data: [] }));
+      return Promise.reject(new Error(`Unexpected request: ${url}`));
+    });
+    const service = new ServerEventsService(new ConfigService(base));
+    service.onModuleInit();
+    // A fresh baseline alone makes the live view usable on quiet deployments.
+    await waitFor(() => service.isFresh());
+    expect(service.getSessions()).toHaveLength(0);
+    now += 50_000;
+    expect(service.isFresh()).toBe(false);
+    // Keep-alive comment frames deliver no events but prove the stream is
+    // still live, so they restore freshness.
+    controller.enqueue(new TextEncoder().encode(': keep-alive\n\n'));
+    await waitFor(() => service.isFresh());
+    expect(service.getSessions()).toHaveLength(0);
+    await service.onModuleDestroy();
+  });
+
+  it('releases the stream connection and freshness when the baseline fails', async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start: () => {},
+      cancel: () => {
+        cancelled = true;
+      },
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation((input: unknown) => {
+      const url = String(input);
+      if (url === 'http://hbbs:21120/v1/events')
+        return Promise.resolve(new Response(stream, { status: 200 }));
+      return Promise.resolve(new Response('error', { status: 500 }));
+    });
+    const service = new ServerEventsService(new ConfigService(base));
+    service.onModuleInit();
+    // The rejected baseline must still close the open event connection.
+    await waitFor(() => cancelled);
+    expect(service.isFresh()).toBe(false);
+    await service.onModuleDestroy();
+  });
+
+  it('shuts down promptly while waiting to reconnect', async () => {
+    const mock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((input: unknown) =>
+        Promise.reject(new Error(`network down: ${String(input)}`)),
+      );
+    const service = new ServerEventsService(new ConfigService(base));
+    service.onModuleInit();
+    await waitFor(() => mock.mock.calls.length > 0);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const started = Date.now();
+    await service.onModuleDestroy();
+    expect(Date.now() - started).toBeLessThan(500);
   });
 });
