@@ -141,35 +141,4 @@ describe('ServerManagementSettingsService', () => {
       nodeId: 'bad id',
     });
   });
-
-  it('imports the legacy environment variables exactly once', async () => {
-    const previous = {
-      HBBS_MANAGEMENT_URL: process.env.HBBS_MANAGEMENT_URL,
-      SERVER_MANAGEMENT_TOKEN: process.env.SERVER_MANAGEMENT_TOKEN,
-      SERVER_MANAGEMENT_NODE_ID: process.env.SERVER_MANAGEMENT_NODE_ID,
-      SERVER_MANAGEMENT_NODE_NAME: process.env.SERVER_MANAGEMENT_NODE_NAME,
-    };
-    process.env.HBBS_MANAGEMENT_URL = 'http://hbbs:21120';
-    process.env.SERVER_MANAGEMENT_TOKEN = 'a'.repeat(40);
-    process.env.SERVER_MANAGEMENT_NODE_ID = 'main';
-    delete process.env.SERVER_MANAGEMENT_NODE_NAME;
-    try {
-      await expect(service.getActiveConfig()).resolves.toEqual({
-        url: 'http://hbbs:21120',
-        token: 'a'.repeat(40),
-        nodeId: 'main',
-        nodeName: 'RustDesk',
-      });
-      // The environment is ignored once the database holds a configuration.
-      process.env.HBBS_MANAGEMENT_URL = 'http://elsewhere:21120';
-      await expect(service.getActiveConfig()).resolves.toMatchObject({
-        url: 'http://hbbs:21120',
-      });
-    } finally {
-      for (const [key, value] of Object.entries(previous)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-    }
-  });
 });

@@ -108,42 +108,6 @@ describe('WebClientSettingsService', () => {
       enabled: false,
     });
   });
-
-  it('imports the legacy environment variables exactly once', async () => {
-    const previous = {
-      WEB_CLIENT_ENABLED: process.env.WEB_CLIENT_ENABLED,
-      WEB_CLIENT_ID_SERVER_URL: process.env.WEB_CLIENT_ID_SERVER_URL,
-      WEB_CLIENT_RELAY_SERVER_URL: process.env.WEB_CLIENT_RELAY_SERVER_URL,
-      WEB_CLIENT_SERVER_PUBLIC_KEY: process.env.WEB_CLIENT_SERVER_PUBLIC_KEY,
-      WEB_CLIENT_ALLOWED_ORIGIN: process.env.WEB_CLIENT_ALLOWED_ORIGIN,
-      WEB_CLIENT_ID_UPSTREAM_URL: process.env.WEB_CLIENT_ID_UPSTREAM_URL,
-      WEB_CLIENT_RELAY_UPSTREAM_URL: process.env.WEB_CLIENT_RELAY_UPSTREAM_URL,
-    };
-    process.env.WEB_CLIENT_ENABLED = 'true';
-    process.env.WEB_CLIENT_ID_SERVER_URL = valid.idServerUrl;
-    process.env.WEB_CLIENT_RELAY_SERVER_URL = valid.relayServerUrl;
-    process.env.WEB_CLIENT_SERVER_PUBLIC_KEY = valid.serverPublicKey;
-    process.env.WEB_CLIENT_ALLOWED_ORIGIN = valid.allowedOrigin;
-    delete process.env.WEB_CLIENT_ID_UPSTREAM_URL;
-    delete process.env.WEB_CLIENT_RELAY_UPSTREAM_URL;
-    try {
-      const imported = await service.getActiveConfig();
-      expect(imported).toMatchObject(valid);
-      await expect(service.getSettings()).resolves.toMatchObject({
-        enabled: true,
-      });
-      // The environment is ignored once the database holds a configuration.
-      process.env.WEB_CLIENT_ENABLED = 'false';
-      await expect(service.getActiveConfig()).resolves.toMatchObject({
-        enabled: true,
-      });
-    } finally {
-      for (const [key, value] of Object.entries(previous)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-    }
-  });
 });
 
 describe('web client settings HTTP contract', () => {

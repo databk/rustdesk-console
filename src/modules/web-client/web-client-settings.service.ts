@@ -158,24 +158,10 @@ export function resolveWebClientSettings(
   };
 }
 
-const WEB_CLIENT_ENV = {
-  enabled: 'WEB_CLIENT_ENABLED',
-  idServerUrl: 'WEB_CLIENT_ID_SERVER_URL',
-  relayServerUrl: 'WEB_CLIENT_RELAY_SERVER_URL',
-  serverPublicKey: 'WEB_CLIENT_SERVER_PUBLIC_KEY',
-  allowedOrigin: 'WEB_CLIENT_ALLOWED_ORIGIN',
-  idUpstreamUrl: 'WEB_CLIENT_ID_UPSTREAM_URL',
-  relayUpstreamUrl: 'WEB_CLIENT_RELAY_UPSTREAM_URL',
-} as const;
-
 /**
  * Web client settings service
  * Manages web client configuration using the generic SystemSetting table,
  * following the SmtpSettingsService pattern.
- *
- * On the first read after an upgrade from environment-variable deployments
- * the previous WEB_CLIENT_* values are imported once into the database so
- * existing deployments keep working without manual reconfiguration.
  */
 @Injectable()
 export class WebClientSettingsService {
@@ -204,12 +190,7 @@ export class WebClientSettingsService {
    * Get raw web client settings (for internal service use)
    */
   async getActiveConfig(): Promise<WebClientSettings> {
-    const settings = await this.getSettingsMap();
-    if (settings.size === 0) {
-      const imported = await this.importFromEnvironment();
-      if (imported) return imported;
-    }
-    return this.parseSettings(settings);
+    return this.parseSettings(await this.getSettingsMap());
   }
 
   /**
@@ -298,48 +279,6 @@ export class WebClientSettingsService {
       idUpstreamUrl: map.get(this.KEYS.ID_UPSTREAM_URL) || undefined,
       relayUpstreamUrl: map.get(this.KEYS.RELAY_UPSTREAM_URL) || undefined,
     };
-  }
-
-  /**
-   * One-time import of the legacy WEB_CLIENT_* environment variables
-   * Returns the imported settings, or null when no variable is present
-   */
-  private async importFromEnvironment(): Promise<WebClientSettings | null> {
-    const raw = {
-      enabled: process.env[WEB_CLIENT_ENV.enabled],
-      idServerUrl: process.env[WEB_CLIENT_ENV.idServerUrl],
-      relayServerUrl: process.env[WEB_CLIENT_ENV.relayServerUrl],
-      serverPublicKey: process.env[WEB_CLIENT_ENV.serverPublicKey],
-      allowedOrigin: process.env[WEB_CLIENT_ENV.allowedOrigin],
-      idUpstreamUrl: process.env[WEB_CLIENT_ENV.idUpstreamUrl],
-      relayUpstreamUrl: process.env[WEB_CLIENT_ENV.relayUpstreamUrl],
-    };
-    if (
-      !Object.values(raw).some((value) => value !== undefined && value !== '')
-    )
-      return null;
-    const settings: WebClientSettings = {
-      enabled: raw.enabled === 'true',
-      idServerUrl: raw.idServerUrl || undefined,
-      relayServerUrl: raw.relayServerUrl || undefined,
-      serverPublicKey: raw.serverPublicKey || undefined,
-      allowedOrigin: raw.allowedOrigin || undefined,
-      idUpstreamUrl: raw.idUpstreamUrl || undefined,
-      relayUpstreamUrl: raw.relayUpstreamUrl || undefined,
-    };
-    await this.setMultipleSettings({
-      [this.KEYS.ENABLED]: String(settings.enabled),
-      [this.KEYS.ID_SERVER_URL]: settings.idServerUrl ?? '',
-      [this.KEYS.RELAY_SERVER_URL]: settings.relayServerUrl ?? '',
-      [this.KEYS.SERVER_PUBLIC_KEY]: settings.serverPublicKey ?? '',
-      [this.KEYS.ALLOWED_ORIGIN]: settings.allowedOrigin ?? '',
-      [this.KEYS.ID_UPSTREAM_URL]: settings.idUpstreamUrl ?? '',
-      [this.KEYS.RELAY_UPSTREAM_URL]: settings.relayUpstreamUrl ?? '',
-    });
-    this.logger.log(
-      'Imported web client configuration from environment variables; manage it in the console settings from now on',
-    );
-    return settings;
   }
 
   private async getSettingsMap(): Promise<Map<string, string>> {

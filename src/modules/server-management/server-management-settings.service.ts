@@ -29,13 +29,6 @@ export const DEFAULT_NODE_ID = 'rustdesk';
 export const DEFAULT_NODE_NAME = 'RustDesk';
 const NODE_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
-const SERVER_MANAGEMENT_ENV = {
-  url: 'HBBS_MANAGEMENT_URL',
-  token: 'SERVER_MANAGEMENT_TOKEN',
-  nodeId: 'SERVER_MANAGEMENT_NODE_ID',
-  nodeName: 'SERVER_MANAGEMENT_NODE_NAME',
-} as const;
-
 // Accepts an exact HTTP(S) origin only: no credentials, path, query or
 // fragment. Returns undefined for empty or invalid values.
 function parseOrigin(raw: string | undefined): string | undefined {
@@ -61,10 +54,7 @@ function parseOrigin(raw: string | undefined): string | undefined {
  * Server management settings service
  * Manages the hbbs management connection using the generic SystemSetting
  * table, following the SmtpSettingsService pattern.
- *
- * On the first read after an upgrade from environment-variable deployments
- * the previous HBBS_MANAGEMENT_URL / SERVER_MANAGEMENT_* values are imported
- * once into the database so existing deployments keep working.
+
  */
 @Injectable()
 export class ServerManagementSettingsService {
@@ -96,11 +86,7 @@ export class ServerManagementSettingsService {
    * raw values through the settings API.
    */
   async getActiveConfig(): Promise<ServerManagementRuntimeConfig> {
-    let map = await this.getSettingsMap();
-    if (map.size === 0) {
-      const imported = await this.importFromEnvironment();
-      if (imported) map = imported;
-    }
+    const map = await this.getSettingsMap();
     const url = parseOrigin(map.get(this.KEYS.URL));
     if (map.get(this.KEYS.URL) && !url)
       this.logger.warn(
@@ -193,35 +179,6 @@ export class ServerManagementSettingsService {
       await this.setMultipleSettings(updates);
     this.logger.log('Server management configuration updated');
     return this.getSettings();
-  }
-
-  /**
-   * One-time import of the legacy environment variables
-   * Returns the imported settings map, or null when no variable is present
-   */
-  private async importFromEnvironment(): Promise<Map<string, string> | null> {
-    const raw = {
-      url: process.env[SERVER_MANAGEMENT_ENV.url],
-      token: process.env[SERVER_MANAGEMENT_ENV.token],
-      nodeId: process.env[SERVER_MANAGEMENT_ENV.nodeId],
-      nodeName: process.env[SERVER_MANAGEMENT_ENV.nodeName],
-    };
-    if (
-      !Object.values(raw).some((value) => value !== undefined && value !== '')
-    )
-      return null;
-    const data: Record<string, string> = {
-      [this.KEYS.URL]: raw.url ?? '',
-      [this.KEYS.TOKEN]: raw.token ?? '',
-      [this.KEYS.NODE_ID]: raw.nodeId ?? '',
-      [this.KEYS.NODE_NAME]: raw.nodeName ?? '',
-    };
-    await this.setMultipleSettings(data);
-    this.logger.log(
-      'Imported server management configuration from environment variables; manage it in the console settings from now on',
-    );
-    const map = new Map(Object.entries(data));
-    return map;
   }
 
   private async getSettingsMap(): Promise<Map<string, string>> {
