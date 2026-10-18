@@ -343,12 +343,16 @@ export class DeviceGroupController {
     @Param('guid') guid: string,
     @CurrentUser('id') userId: string,
     @Query('protocolBan') protocolBan?: string,
+    @Query('releaseId') releaseId?: string,
   ) {
     // Deleting only the row was reversible by one heartbeat; the deletion now
-    // tombstones the device and (by default) also bans it at the hbbs
-    // admission layer so native clients cannot register either.
+    // tombstones the device, (by default) bans it at the hbbs admission
+    // layer so native clients cannot register either, and releases the id
+    // from the hbbs peer registry so a replacement machine can claim a
+    // custom id again.
     return this.deviceGroupService.deleteDevice(guid, userId, {
       protocolBan: protocolBan !== 'false',
+      releaseId: releaseId !== 'false',
     });
   }
 

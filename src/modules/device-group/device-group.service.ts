@@ -982,6 +982,26 @@ export class DeviceGroupService {
     return this.serverManagement.syncDeviceBans(actorGuid, changes);
   }
 
+  // Releasing a device id writes the hbbs peer registry, guarded by the same
+  // server management permission as the ban policy. Best effort like the
+  // ban sync: the committed database deletion stays authoritative.
+  private async releaseDeviceId(
+    actorGuid: string,
+    deviceId: string,
+  ): Promise<DeviceBanSyncResult> {
+    try {
+      if (!(await this.canEnforceProtocolBans(actorGuid)))
+        return { enforced: false, reason: 'forbidden' };
+    } catch (error) {
+      return {
+        enforced: false,
+        reason: 'upstream_error',
+        detail: `Failed to verify the servers.ban permission: ${String(error)}`,
+      };
+    }
+    return this.serverManagement.releaseDeviceId(actorGuid, deviceId);
+  }
+
   /**
    * Delete device
    *
@@ -989,13 +1009,15 @@ export class DeviceGroupService {
    * because the heartbeat handler recreates unknown devices on sight. The
    * deletion now also writes a tombstone so the device stays deleted, and by
    * default bans the device id at the hbbs admission layer so the native
-   * client cannot register either.
+   * client cannot register either. The device id is also released from the
+   * hbbs peer registry so a replacement machine can claim a custom id such
+   * as a hostname again.
    * @param guid Device GUID
    */
   async deleteDevice(
     guid: string,
     actorGuid: string,
-    options: { protocolBan?: boolean } = {},
+    options: { protocolBan?: boolean; releaseId?: boolean } = {},
   ) {
     const { scope, peer } =
       await this.rbacAuthorizationService.assertDeviceAccess(
@@ -1051,6 +1073,10 @@ export class DeviceGroupService {
           { banned: true },
         );
     }
+    let idRelease: DeviceBanSyncResult | undefined;
+    if (options.releaseId !== false && deviceId) {
+      idRelease = await this.releaseDeviceId(actorGuid, deviceId);
+    }
     return {
       message: 'Device deleted',
       ...(protocolEnforcement
@@ -1061,6 +1087,17 @@ export class DeviceGroupService {
                   ...protocolEnforcement,
                   detail:
                     'The device stays deleted, but it can still register with the servers until the ban is applied.',
+                },
+          }
+        : {}),
+      ...(idRelease
+        ? {
+            idRelease: idRelease.enforced
+              ? idRelease
+              : {
+                  ...idRelease,
+                  detail:
+                    'The device stays deleted, but its id remains bound to the old machine at the servers until it is released.',
                 },
           }
         : {}),
@@ -1110,10 +1147,28 @@ export class DeviceGroupService {
         };
       }
     }
+    // Best effort: retry the id release in case it failed at deletion time
+    // (the id would stay bound to the old machine forever). Never blocks
+    // the restore itself; releasing an already-free id is a no-op.
+    let idRelease: DeviceBanSyncResult | undefined;
+    if (tombstone.deviceId) {
+      idRelease = await this.releaseDeviceId(actorGuid, tombstone.deviceId);
+    }
     await this.deviceTombstoneRepository.delete({ uuid });
     return {
       message: 'Device restored; it can register again',
       ...(protocolEnforcement ? { protocolEnforcement } : {}),
+      ...(idRelease
+        ? {
+            idRelease: idRelease.enforced
+              ? idRelease
+              : {
+                  ...idRelease,
+                  detail:
+                    'The device is restored, but its id may still be bound to the old machine at the servers.',
+                },
+          }
+        : {}),
     };
   }
 }

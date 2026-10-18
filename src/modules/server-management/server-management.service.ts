@@ -436,6 +436,42 @@ export class ServerManagementService {
     });
   }
 
+  // Releases a device id from the hbbs peer registry (in-memory entry plus
+  // persisted row) so a replacement machine can claim a custom id such as a
+  // hostname again. Best effort like syncDeviceBans: the caller's committed
+  // database state stays authoritative and the result reports why a release
+  // could not be enforced.
+  async releaseDeviceId(
+    actor: string,
+    deviceId: string,
+  ): Promise<DeviceBanSyncResult> {
+    if (!deviceId) return { enforced: true };
+    const config = await this.runtime();
+    if (!config.url) return { enforced: false, reason: 'not_configured' };
+    try {
+      return await this.audited(
+        actor,
+        config.nodeId,
+        'DELETE /v1/peers/:id',
+        { device_id: deviceId },
+        async () => {
+          await this.fetchJson(
+            config,
+            `/v1/peers/${encodeURIComponent(deviceId)}`,
+            'DELETE',
+          );
+          return { enforced: true };
+        },
+      );
+    } catch (error) {
+      const detail = String(error);
+      this.logger.warn(
+        `Unable to release device id ${deviceId} with hbbs: ${detail}`,
+      );
+      return { enforced: false, reason: 'upstream_error', detail };
+    }
+  }
+
   private bansView(bans: {
     device_ids?: unknown;
     ips?: unknown;

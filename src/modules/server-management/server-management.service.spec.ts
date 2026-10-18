@@ -134,6 +134,47 @@ describe('server management v2 client', () => {
     expect(result.reason).toBe('upstream_error');
   });
 
+  it('releases a device id from the hbbs peer registry', async () => {
+    const fetcher = fetchRoute([
+      ['http://hbbs:21120/v1/peers/host-a', { deleted: true }],
+    ]);
+    const service = create();
+    const result = await service.releaseDeviceId('actor', 'host-a');
+    expect(result).toEqual({ enforced: true });
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://hbbs:21120/v1/peers/host-a',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'DELETE /v1/peers/:id',
+        afterState: { device_id: 'host-a' },
+      }),
+    );
+  });
+
+  it('treats an empty device id as already released', async () => {
+    const service = create();
+    expect(await service.releaseDeviceId('actor', '')).toEqual({
+      enforced: true,
+    });
+  });
+
+  it('reports release failures without throwing', async () => {
+    const service = create({ url: '' });
+    expect(await service.releaseDeviceId('actor', 'host-a')).toEqual({
+      enforced: false,
+      reason: 'not_configured',
+    });
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.reject(new Error('network down')));
+    const failing = create();
+    const result = await failing.releaseDeviceId('actor', 'host-a');
+    expect(result.enforced).toBe(false);
+    expect(result.reason).toBe('upstream_error');
+  });
+
   it('serializes concurrent device ban syncs', async () => {
     const bodies: Array<Record<string, unknown>> = [];
     const gate = { resolve: () => {} };

@@ -73,6 +73,7 @@ describe('device deletion tombstones', () => {
     const authorization = forbiddenAuthorization(peerOf());
     const serverManagement = {
       syncDeviceBans: jest.fn().mockResolvedValue({ enforced: true }),
+      releaseDeviceId: jest.fn().mockResolvedValue({ enforced: true }),
     };
     const manager = {
       getRepository: jest.fn((target: unknown) =>
@@ -127,6 +128,11 @@ describe('device deletion tombstones', () => {
       { uuid: 'device-guid' },
       { banned: true },
     );
+    expect(serverManagement.releaseDeviceId).toHaveBeenCalledWith(
+      'actor',
+      '123456789',
+    );
+    expect(result.idRelease).toEqual({ enforced: true });
   });
 
   it('keeps the tombstone when the ban cannot be applied', async () => {
@@ -151,11 +157,47 @@ describe('device deletion tombstones', () => {
   it('skips the protocol ban when explicitly requested', async () => {
     const { service, serverManagement } = createService();
 
-    await service.deleteDevice('device-guid', 'actor', {
+    const result = await service.deleteDevice('device-guid', 'actor', {
       protocolBan: false,
     });
 
     expect(serverManagement.syncDeviceBans).not.toHaveBeenCalled();
+    // Without the servers.ban permission the id release degrades too.
+    expect(serverManagement.releaseDeviceId).not.toHaveBeenCalled();
+    expect(result.idRelease).toMatchObject({
+      enforced: false,
+      reason: 'forbidden',
+    });
+  });
+
+  it('skips the id release when explicitly requested', async () => {
+    const { service, serverManagement, authorization } = createService();
+    allowServerBans(authorization);
+
+    const result = await service.deleteDevice('device-guid', 'actor', {
+      releaseId: false,
+    });
+
+    expect(serverManagement.releaseDeviceId).not.toHaveBeenCalled();
+    expect(result.idRelease).toBeUndefined();
+  });
+
+  it('reports a failed id release without failing the deletion', async () => {
+    const { service, serverManagement, authorization } = createService();
+    allowServerBans(authorization);
+    serverManagement.releaseDeviceId.mockResolvedValue({
+      enforced: false,
+      reason: 'upstream_error',
+    });
+
+    const result = await service.deleteDevice('device-guid', 'actor');
+
+    expect(result.message).toBe('Device deleted');
+    expect(result.idRelease).toMatchObject({
+      enforced: false,
+      reason: 'upstream_error',
+      detail: expect.stringContaining('remains bound'),
+    });
   });
 
   it('rejects concurrent or missing deletions', async () => {
@@ -173,7 +215,8 @@ describe('device deletion tombstones', () => {
   });
 
   it('keeps the tombstone when the protocol ban cannot be lifted', async () => {
-    const { service, deviceTombstoneRepository } = createService();
+    const { service, deviceTombstoneRepository, serverManagement } =
+      createService();
     // requirePermission rejects servers.ban by default (no permission).
 
     const result = await service.restoreTombstone('device-guid', 'actor');
@@ -184,6 +227,8 @@ describe('device deletion tombstones', () => {
       reason: 'forbidden',
     });
     expect(deviceTombstoneRepository.delete).not.toHaveBeenCalled();
+    // The restore bails out before attempting the id release.
+    expect(serverManagement.releaseDeviceId).not.toHaveBeenCalled();
   });
 
   it('rejects non-global delete scopes from tombstone management', async () => {
@@ -230,6 +275,37 @@ describe('device deletion tombstones', () => {
     );
     expect(serverManagement.syncDeviceBans).toHaveBeenCalledWith('actor', {
       remove: ['123456789'],
+    });
+    // The restore retries the id release (a no-op when already released).
+    expect(serverManagement.releaseDeviceId).toHaveBeenCalledWith(
+      'actor',
+      '123456789',
+    );
+    expect(result.idRelease).toEqual({ enforced: true });
+  });
+
+  it('still restores when the id release fails', async () => {
+    const {
+      service,
+      deviceTombstoneRepository,
+      serverManagement,
+      authorization,
+    } = createService();
+    allowServerBans(authorization);
+    serverManagement.releaseDeviceId.mockResolvedValue({
+      enforced: false,
+      reason: 'upstream_error',
+    });
+
+    const result = await service.restoreTombstone('device-guid', 'actor');
+
+    expect(result.message).toContain('restored');
+    expect(deviceTombstoneRepository.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ uuid: 'device-guid' }),
+    );
+    expect(result.idRelease).toMatchObject({
+      enforced: false,
+      reason: 'upstream_error',
     });
   });
 
