@@ -4,6 +4,7 @@ import { FileAudit } from '../modules/audit/entities/file-audit.entity';
 import { AlarmAudit } from '../modules/audit/entities/alarm-audit.entity';
 import { AddressBook } from '../modules/address-book/entities/address-book.entity';
 import { AddressBookPeer } from '../modules/address-book/entities/address-book-peer.entity';
+import { DeviceTombstone } from '../modules/device-group/entities/device-tombstone.entity';
 import { AddressBookTag } from '../modules/address-book/entities/address-book-tag.entity';
 import { AddressBookPeerTag } from '../modules/address-book/entities/address-book-peer-tag.entity';
 import { AddressBookRule } from '../modules/address-book/entities/address-book-rule.entity';
@@ -34,6 +35,7 @@ import { ConsoleAudit } from '../modules/rbac/entities/console-audit.entity';
 export const DATABASE_ENTITIES = [
   Sysinfo,
   Peer,
+  DeviceTombstone,
   ConnectionAudit,
   FileAudit,
   AlarmAudit,

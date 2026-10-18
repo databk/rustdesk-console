@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HeartbeatDto } from './dto/heartbeat.dto';
 import { Peer } from '../../common/entities';
+import { DeviceTombstone } from '../device-group/entities/device-tombstone.entity';
 import { ActiveConnection } from './entities/active-connection.entity';
 import { DisconnectStoreService } from './services/disconnect-store.service';
 import { HeartbeatCacheService } from './services/heartbeat-cache.service';
@@ -17,6 +18,8 @@ export class HeartbeatService {
     private peerRepository: Repository<Peer>,
     @InjectRepository(ActiveConnection)
     private activeConnectionRepository: Repository<ActiveConnection>,
+    @InjectRepository(DeviceTombstone)
+    private deviceTombstoneRepository: Repository<DeviceTombstone>,
     private disconnectStoreService: DisconnectStoreService,
     private strategyService: StrategyService,
     private heartbeatCacheService: HeartbeatCacheService,
@@ -40,6 +43,15 @@ export class HeartbeatService {
       });
       this.logger.debug(`Device ${data.uuid} heartbeat updated`);
     } else {
+      // A deleted device must stay deleted: heartbeats no longer resurrect
+      // tombstoned devices. Restoring the tombstone re-admits them.
+      const tombstone = await this.deviceTombstoneRepository.findOne({
+        where: { uuid: data.uuid },
+      });
+      if (tombstone) {
+        this.logger.debug(`Ignored heartbeat from deleted device ${data.uuid}`);
+        return;
+      }
       const peer = this.peerRepository.create({
         id: data.id,
         uuid: data.uuid,

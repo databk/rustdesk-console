@@ -1406,6 +1406,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await service.getDevices(
@@ -1443,6 +1444,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       { createQueryBuilder: jest.fn().mockReturnValue(builder) } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -1510,19 +1512,30 @@ describe('DeviceGroupService scoped writes', () => {
     const serverManagement = {
       syncDeviceBans: jest.fn().mockResolvedValue({ enforced: true }),
     };
+    const deviceTombstoneRepository = {
+      upsert: jest.fn().mockResolvedValue({}),
+      update: jest.fn().mockResolvedValue({}),
+    };
     const service = new DeviceGroupService(
       {} as never,
       {} as never,
       {} as never,
       {} as never,
       {} as never,
+      deviceTombstoneRepository as never,
       {} as never,
       dataSource as never,
       authorizationService as never,
       {} as never,
       serverManagement as never,
     );
-    return { service, manager, authorizationService, serverManagement };
+    return {
+      service,
+      manager,
+      authorizationService,
+      serverManagement,
+      deviceTombstoneRepository,
+    };
   };
 
   it('includes the authorized device groups in the atomic status update', async () => {

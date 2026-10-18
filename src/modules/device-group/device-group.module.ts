@@ -5,6 +5,7 @@ import { DeviceGroupService } from './device-group.service';
 import { PeerService } from './peer.service';
 import { DeviceGroup } from './entities/device-group.entity';
 import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
+import { DeviceTombstone } from './entities/device-tombstone.entity';
 import { UserUserPermission } from './entities/user-user-permission.entity';
 import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
@@ -39,6 +40,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
       DeviceGroup,
       DeviceGroupUserPermission,
       UserUserPermission,
+      DeviceTombstone,
       Peer,
       Sysinfo,
       User,

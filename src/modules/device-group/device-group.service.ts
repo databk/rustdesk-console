@@ -14,6 +14,7 @@ import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { Sysinfo } from '../../common/entities/sysinfo.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { DeviceGroupUserPermission } from './entities/device-group-user-permission.entity';
+import { DeviceTombstone } from './entities/device-tombstone.entity';
 import {
   DeviceStatus,
   DeviceOperationResult,
@@ -55,6 +56,8 @@ export class DeviceGroupService {
     private sysinfoRepository: Repository<Sysinfo>,
     @InjectRepository(DeviceGroupUserPermission)
     private deviceGroupUserPermissionRepository: Repository<DeviceGroupUserPermission>,
+    @InjectRepository(DeviceTombstone)
+    private deviceTombstoneRepository: Repository<DeviceTombstone>,
     @InjectRepository(Strategy)
     private strategyRepository: Repository<Strategy>,
     private readonly dataSource: DataSource,
@@ -968,14 +971,26 @@ export class DeviceGroupService {
 
   /**
    * Delete device
+   *
+   * Deleting only the database row was reversible by a single heartbeat,
+   * because the heartbeat handler recreates unknown devices on sight. The
+   * deletion now also writes a tombstone so the device stays deleted, and by
+   * default bans the device id at the hbbs admission layer so the native
+   * client cannot register either.
    * @param guid Device GUID
    */
-  async deleteDevice(guid: string, actorGuid: string) {
-    const { scope } = await this.rbacAuthorizationService.assertDeviceAccess(
-      actorGuid,
-      'devices.delete',
-      guid,
-    );
+  async deleteDevice(
+    guid: string,
+    actorGuid: string,
+    options: { protocolBan?: boolean } = {},
+  ) {
+    const { scope, peer } =
+      await this.rbacAuthorizationService.assertDeviceAccess(
+        actorGuid,
+        'devices.delete',
+        guid,
+      );
+    const deviceId = peer.id;
     const result = await this.peerRepository.delete(
       scope.global
         ? { uuid: guid }
@@ -994,5 +1009,70 @@ export class DeviceGroupService {
         'Device information has changed, please retry',
       );
     }
+    await this.deviceTombstoneRepository.upsert(
+      { uuid: guid, deviceId, deletedBy: actorGuid },
+      ['uuid'],
+    );
+
+    let protocolEnforcement: DeviceBanSyncResult | undefined;
+    if (options.protocolBan !== false && deviceId) {
+      protocolEnforcement = await this.syncDeviceBans(actorGuid, {
+        add: [deviceId],
+      });
+      if (protocolEnforcement.enforced)
+        await this.deviceTombstoneRepository.update(
+          { uuid: guid },
+          { banned: true },
+        );
+    }
+    return {
+      message: 'Device deleted',
+      ...(protocolEnforcement
+        ? {
+            protocolEnforcement: protocolEnforcement.enforced
+              ? protocolEnforcement
+              : {
+                  ...protocolEnforcement,
+                  detail:
+                    'The device stays deleted, but it can still register with the servers until the ban is applied.',
+                },
+          }
+        : {}),
+    };
+  }
+
+  /**
+   * List deleted devices (tombstones)
+   */
+  async listTombstones() {
+    const tombstones = await this.deviceTombstoneRepository.find({
+      order: { createdAt: 'DESC' },
+    });
+    return { data: tombstones };
+  }
+
+  /**
+   * Restore a deleted device
+   *
+   * Removes the tombstone so heartbeats re-admit the device, and lifts the
+   * protocol ban that was recorded at deletion time.
+   * @param uuid Device UUID
+   */
+  async restoreTombstone(uuid: string, actorGuid: string) {
+    const tombstone = await this.deviceTombstoneRepository.findOne({
+      where: { uuid },
+    });
+    if (!tombstone) throw new NotFoundException('Deleted device not found');
+    await this.deviceTombstoneRepository.delete({ uuid });
+    let protocolEnforcement: DeviceBanSyncResult | undefined;
+    if (tombstone.banned && tombstone.deviceId) {
+      protocolEnforcement = await this.syncDeviceBans(actorGuid, {
+        remove: [tombstone.deviceId],
+      });
+    }
+    return {
+      message: 'Device restored; it can register again',
+      ...(protocolEnforcement ? { protocolEnforcement } : {}),
+    };
   }
 }

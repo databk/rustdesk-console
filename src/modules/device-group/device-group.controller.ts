@@ -342,9 +342,42 @@ export class DeviceGroupController {
   async deleteDevice(
     @Param('guid') guid: string,
     @CurrentUser('id') userId: string,
+    @Query('protocolBan') protocolBan?: string,
   ) {
-    await this.deviceGroupService.deleteDevice(guid, userId);
-    return { message: 'Device deleted' };
+    // Deleting only the row was reversible by one heartbeat; the deletion now
+    // tombstones the device and (by default) also bans it at the hbbs
+    // admission layer so native clients cannot register either.
+    return this.deviceGroupService.deleteDevice(guid, userId, {
+      protocolBan: protocolBan !== 'false',
+    });
+  }
+
+  /**
+   * List deleted devices
+   *
+   * Tombstoned devices stay deleted: heartbeats from them are ignored until
+   * an administrator restores them.
+   */
+  @Get('devices/tombstones')
+  @RequirePermission('devices.delete')
+  async listTombstones() {
+    return this.deviceGroupService.listTombstones();
+  }
+
+  /**
+   * Restore a deleted device
+   *
+   * Removes the tombstone so the device can register again, and lifts the
+   * protocol ban that was recorded at deletion time.
+   */
+  @Post('devices/tombstones/:uuid/restore')
+  @RequirePermission('devices.delete')
+  @HttpCode(HttpStatus.OK)
+  async restoreTombstone(
+    @Param('uuid') uuid: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.deviceGroupService.restoreTombstone(uuid, userId);
   }
 
   /**
