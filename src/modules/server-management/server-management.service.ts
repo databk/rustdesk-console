@@ -39,6 +39,12 @@ interface RelaySummary {
 type ResolvedNode = { kind: 'primary' } | { kind: 'relay'; relayId: string };
 type ServiceTarget = { kind: 'direct' } | { kind: 'relay'; relayId: string };
 
+export type DeviceBanSyncResult = {
+  enforced: boolean;
+  reason?: 'not_configured' | 'forbidden' | 'upstream_error';
+  detail?: string;
+};
+
 const REQUEST_TIMEOUT_GET_MS = 15_000;
 const REQUEST_TIMEOUT_MUTATION_MS = 30_000;
 const RESPONSE_LIMIT = 8 * 1024 * 1024;
@@ -62,6 +68,10 @@ function objectField(value: unknown): Record<string, unknown> {
 export class ServerManagementService {
   private readonly logger = new Logger(ServerManagementService.name);
   private readonly observer = createObserver();
+  // Serializes every full ban-list replacement (manual saves and device
+  // status syncs) so concurrent read-modify-write cycles cannot drop each
+  // other's device ids.
+  private bansQueue: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly settings: ServerManagementSettingsService,
@@ -349,19 +359,81 @@ export class ServerManagementService {
   async saveBans(actor: string, nodeId: string, dto: ServerBansDto) {
     const config = await this.runtime();
     await this.requireNode(config, nodeId);
-    return this.audited(
-      actor,
-      nodeId,
-      'PUT /v1/bans',
-      { device_ids: dto.device_ids, ips: dto.ips },
-      async () => {
-        await this.fetchJson(config, '/v1/bans', 'PUT', {
-          device_ids: dto.device_ids,
-          ips: dto.ips,
-        });
-        return this.bansView(dto);
-      },
+    return this.enqueueBansWrite(() =>
+      this.audited(
+        actor,
+        nodeId,
+        'PUT /v1/bans',
+        { device_ids: dto.device_ids, ips: dto.ips },
+        async () => {
+          await this.fetchJson(config, '/v1/bans', 'PUT', {
+            device_ids: dto.device_ids,
+            ips: dto.ips,
+          });
+          return this.bansView(dto);
+        },
+      ),
     );
+  }
+
+  // Runs one ban-list write cycle to completion before the next one starts;
+  // every caller gets its own result and one failure never breaks the chain.
+  private enqueueBansWrite<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.bansQueue.then(work, work);
+    this.bansQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  // Merges device-id ban changes into the live hbbs policy. The ban list is
+  // replaced as a whole, so the read-modify-write cycle is serialized on the
+  // bans queue and unknown callers can never lose concurrent edits. Callers
+  // receive a best-effort result instead of an exception: the database state
+  // they already committed stays authoritative even when the protocol layer
+  // could not be updated.
+  async syncDeviceBans(
+    actor: string,
+    changes: { add?: string[]; remove?: string[] },
+  ): Promise<DeviceBanSyncResult> {
+    const add = [...new Set(changes.add ?? [])];
+    const remove = new Set(changes.remove ?? []);
+    if (!add.length && !remove.size) return { enforced: true };
+    const config = await this.runtime();
+    if (!config.url) return { enforced: false, reason: 'not_configured' };
+    return this.enqueueBansWrite(async () => {
+      try {
+        const current = await this.fetchJson(config, '/v1/bans');
+        const ids = new Set(
+          asArray(current['device_ids']).filter(
+            (id): id is string => typeof id === 'string',
+          ),
+        );
+        for (const id of add) ids.add(id);
+        for (const id of remove) ids.delete(id);
+        const device_ids = [...ids];
+        return await this.audited(
+          actor,
+          config.nodeId,
+          'PUT /v1/bans',
+          { device_ids, added: add, removed: [...remove] },
+          async () => {
+            await this.fetchJson(config, '/v1/bans', 'PUT', {
+              device_ids,
+              ips: asArray(current['ips']).filter(
+                (ip): ip is string => typeof ip === 'string',
+              ),
+            });
+            return { enforced: true };
+          },
+        );
+      } catch (error) {
+        const detail = String(error);
+        this.logger.warn(`Unable to sync device bans with hbbs: ${detail}`);
+        return { enforced: false, reason: 'upstream_error', detail };
+      }
+    });
   }
 
   private bansView(bans: {

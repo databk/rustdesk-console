@@ -1405,6 +1405,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await service.getDevices(
@@ -1442,6 +1443,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       { createQueryBuilder: jest.fn().mockReturnValue(builder) } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -1497,7 +1499,16 @@ describe('DeviceGroupService scoped writes', () => {
       ),
     };
     const authorizationService = {
-      assertDevicesAccess: jest.fn().mockResolvedValue(scopedAuthorization),
+      assertDevicesAccess: jest.fn().mockResolvedValue({
+        ...scopedAuthorization,
+        peers: [{ uuid: 'peer-1', id: '111111', deviceGroupGuid: 'group-1' }],
+      }),
+      requirePermission: jest
+        .fn()
+        .mockRejectedValue(new ForbiddenException('Access denied')),
+    };
+    const serverManagement = {
+      syncDeviceBans: jest.fn().mockResolvedValue({ enforced: true }),
     };
     const service = new DeviceGroupService(
       {} as never,
@@ -1509,8 +1520,9 @@ describe('DeviceGroupService scoped writes', () => {
       dataSource as never,
       authorizationService as never,
       {} as never,
+      serverManagement as never,
     );
-    return { service, manager, authorizationService };
+    return { service, manager, authorizationService, serverManagement };
   };
 
   it('includes the authorized device groups in the atomic status update', async () => {
@@ -1528,6 +1540,58 @@ describe('DeviceGroupService scoped writes', () => {
       }),
       { status: 0 },
     );
+  });
+
+  it('propagates disablement to the hbbs admission policy', async () => {
+    const { service, serverManagement, authorizationService } =
+      createService(1);
+    authorizationService.requirePermission.mockResolvedValue({
+      global: true,
+      deviceGroupGuids: new Set(),
+    });
+
+    const result = await service.updateDeviceStatus(
+      ['peer-1'],
+      DeviceStatus.DISABLED,
+      'actor',
+    );
+
+    expect(result.protocolEnforcement).toEqual({ enforced: true });
+    expect(serverManagement.syncDeviceBans).toHaveBeenCalledWith('actor', {
+      add: ['111111'],
+    });
+  });
+
+  it('reports a partial result when the actor cannot manage server bans', async () => {
+    const { service, serverManagement } = createService(1);
+    // requirePermission rejects by default (no servers.ban permission).
+
+    const result = await service.updateDeviceStatus(
+      ['peer-1'],
+      DeviceStatus.DISABLED,
+      'actor',
+    );
+
+    expect(result.protocolEnforcement).toEqual({
+      enforced: false,
+      reason: 'forbidden',
+    });
+    expect(serverManagement.syncDeviceBans).not.toHaveBeenCalled();
+  });
+
+  it('lifts the protocol ban when a device is enabled again', async () => {
+    const { service, serverManagement, authorizationService } =
+      createService(1);
+    authorizationService.requirePermission.mockResolvedValue({
+      global: true,
+      deviceGroupGuids: new Set(),
+    });
+
+    await service.updateDeviceStatus(['peer-1'], DeviceStatus.ENABLED, 'actor');
+
+    expect(serverManagement.syncDeviceBans).toHaveBeenCalledWith('actor', {
+      remove: ['111111'],
+    });
   });
 
   it('rechecks authorization and rejects the whole batch after a concurrent move', async () => {

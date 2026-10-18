@@ -67,6 +67,112 @@ describe('server management v2 client', () => {
     jest.clearAllMocks();
   });
 
+  it('merges device ids into the hbbs ban policy', async () => {
+    const fetcher = fetchRoute([
+      [
+        'http://hbbs:21120/v1/bans',
+        { device_ids: ['111'], ips: ['192.0.2.1'] },
+      ],
+    ]);
+    const service = create();
+    const result = await service.syncDeviceBans('actor', {
+      add: ['222', '222'],
+      remove: [],
+    });
+    expect(result).toEqual({ enforced: true });
+    expect(fetcher).toHaveBeenLastCalledWith(
+      'http://hbbs:21120/v1/bans',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          device_ids: ['111', '222'],
+          ips: ['192.0.2.1'],
+        }),
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'PUT /v1/bans',
+        afterState: { device_ids: ['111', '222'], added: ['222'], removed: [] },
+      }),
+    );
+  });
+
+  it('removes device ids from the hbbs ban policy', async () => {
+    const fetcher = fetchRoute([
+      ['http://hbbs:21120/v1/bans', { device_ids: ['111', '222'], ips: [] }],
+    ]);
+    const service = create();
+    const result = await service.syncDeviceBans('actor', {
+      remove: ['111'],
+    });
+    expect(result).toEqual({ enforced: true });
+    expect(fetcher).toHaveBeenLastCalledWith(
+      'http://hbbs:21120/v1/bans',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ device_ids: ['222'], ips: [] }),
+      }),
+    );
+  });
+
+  it('skips the protocol layer when server management is off', async () => {
+    const service = create({ url: '' });
+    expect(await service.syncDeviceBans('actor', { add: ['1'] })).toEqual({
+      enforced: false,
+      reason: 'not_configured',
+    });
+  });
+
+  it('reports upstream failures without throwing', async () => {
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.reject(new Error('network down')));
+    const service = create();
+    const result = await service.syncDeviceBans('actor', { add: ['1'] });
+    expect(result.enforced).toBe(false);
+    expect(result.reason).toBe('upstream_error');
+  });
+
+  it('serializes concurrent device ban syncs', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const gate = { resolve: () => {} };
+    let release: () => void = () => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+      gate.resolve = resolve;
+    });
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((input: unknown, init?: RequestInit) => {
+        const url = String(input);
+        if (url === 'http://hbbs:21120/v1/bans' && init?.method === 'PUT') {
+          const body = init.body;
+          if (typeof body !== 'string') throw new Error('unexpected body type');
+          bodies.push(JSON.parse(body));
+          // Hold the first write until the test lets it finish.
+          return released.then(() => Response.json({}));
+        }
+        return Promise.resolve(
+          Response.json({
+            device_ids: bodies.flatMap((b) => b.device_ids ?? []),
+          }),
+        );
+      });
+    const service = create();
+    const first = service.syncDeviceBans('actor', { add: ['1'] });
+    const second = service.syncDeviceBans('actor', { add: ['2'] });
+    release();
+    const [a, b] = await Promise.all([first, second]);
+    expect(a).toEqual({ enforced: true });
+    expect(b).toEqual({ enforced: true });
+    // The second cycle must have observed the first write's result.
+    expect(bodies).toEqual([
+      { device_ids: ['1'], ips: [] },
+      { device_ids: ['1', '2'], ips: [] },
+    ]);
+  });
+
   it('allows deployments without server management', async () => {
     const service = create({});
     expect(await service.list()).toEqual({ data: [] });
