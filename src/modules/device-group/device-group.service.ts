@@ -952,6 +952,19 @@ export class DeviceGroupService {
     };
   }
 
+  // Tombstone management sees and restores devices across every group, so
+  // a device-group-scoped devices.delete permission is not enough.
+  private async assertGlobalDeleteScope(actorGuid: string) {
+    const scope = await this.rbacAuthorizationService.requirePermission(
+      actorGuid,
+      'devices.delete',
+    );
+    if (!scope.global)
+      throw new ForbiddenException(
+        'Deleted devices can only be managed with a global permission',
+      );
+  }
+
   private async syncDeviceBans(
     actorGuid: string,
     changes: { add?: string[]; remove?: string[] },
@@ -991,28 +1004,41 @@ export class DeviceGroupService {
         guid,
       );
     const deviceId = peer.id;
-    const result = await this.peerRepository.delete(
-      scope.global
-        ? { uuid: guid }
-        : {
-            uuid: guid,
-            deviceGroupGuid: In([...scope.deviceGroupGuids]),
-          },
-    );
-    if (result.affected !== 1) {
-      await this.rbacAuthorizationService.assertDeviceAccess(
-        actorGuid,
-        'devices.delete',
-        guid,
-      );
-      throw new ConflictException(
-        'Device information has changed, please retry',
-      );
+    // The tombstone and the peer deletion must land atomically: between the
+    // two writes a concurrent heartbeat could recreate the peer, and an
+    // existing peer is never checked against tombstones again.
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        await manager
+          .getRepository(DeviceTombstone)
+          .upsert({ uuid: guid, deviceId, deletedBy: actorGuid }, ['uuid']);
+        const result = await manager.getRepository(Peer).delete(
+          scope.global
+            ? { uuid: guid }
+            : {
+                uuid: guid,
+                deviceGroupGuid: In([...scope.deviceGroupGuids]),
+              },
+        );
+        if (result.affected !== 1) {
+          throw new ConflictException(
+            'Device information has changed, please retry',
+          );
+        }
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        // The row vanished between the access check and the delete; ask the
+        // authorization service again so a missing device yields 404 instead
+        // of a misleading conflict.
+        await this.rbacAuthorizationService.assertDeviceAccess(
+          actorGuid,
+          'devices.delete',
+          guid,
+        );
+      }
+      throw error;
     }
-    await this.deviceTombstoneRepository.upsert(
-      { uuid: guid, deviceId, deletedBy: actorGuid },
-      ['uuid'],
-    );
 
     let protocolEnforcement: DeviceBanSyncResult | undefined;
     if (options.protocolBan !== false && deviceId) {
@@ -1043,8 +1069,12 @@ export class DeviceGroupService {
 
   /**
    * List deleted devices (tombstones)
+   *
+   * Tombstones span every device group, so only a global devices.delete
+   * scope may inspect them.
    */
-  async listTombstones() {
+  async listTombstones(actorGuid: string) {
+    await this.assertGlobalDeleteScope(actorGuid);
     const tombstones = await this.deviceTombstoneRepository.find({
       order: { createdAt: 'DESC' },
     });
@@ -1059,17 +1089,28 @@ export class DeviceGroupService {
    * @param uuid Device UUID
    */
   async restoreTombstone(uuid: string, actorGuid: string) {
+    await this.assertGlobalDeleteScope(actorGuid);
     const tombstone = await this.deviceTombstoneRepository.findOne({
       where: { uuid },
     });
     if (!tombstone) throw new NotFoundException('Deleted device not found');
-    await this.deviceTombstoneRepository.delete({ uuid });
     let protocolEnforcement: DeviceBanSyncResult | undefined;
     if (tombstone.banned && tombstone.deviceId) {
       protocolEnforcement = await this.syncDeviceBans(actorGuid, {
         remove: [tombstone.deviceId],
       });
+      // Keep the tombstone until the protocol ban is confirmed lifted: it
+      // is the only record of which device id must be unbanned, so losing
+      // it on a failed sync would leave the device banned with no way to
+      // retry the restore.
+      if (!protocolEnforcement.enforced) {
+        return {
+          message: 'Device not restored; the protocol ban could not be lifted',
+          protocolEnforcement,
+        };
+      }
     }
+    await this.deviceTombstoneRepository.delete({ uuid });
     return {
       message: 'Device restored; it can register again',
       ...(protocolEnforcement ? { protocolEnforcement } : {}),

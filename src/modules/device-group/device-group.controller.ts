@@ -360,8 +360,8 @@ export class DeviceGroupController {
    */
   @Get('devices/tombstones')
   @RequirePermission('devices.delete')
-  async listTombstones() {
-    return this.deviceGroupService.listTombstones();
+  async listTombstones(@CurrentUser('id') userId: string) {
+    return this.deviceGroupService.listTombstones(userId);
   }
 
   /**

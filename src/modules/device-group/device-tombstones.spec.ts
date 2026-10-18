@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DeviceGroupService } from './device-group.service';
+import { DeviceTombstone } from './entities/device-tombstone.entity';
 import { HeartbeatService } from '../heartbeat/heartbeat.service';
 import type { Peer } from '../../common/entities';
 
@@ -18,9 +19,13 @@ const forbiddenAuthorization = (peer: Peer | null) => ({
     peer,
     scope: { global: true, deviceGroupGuids: new Set() },
   }),
-  requirePermission: jest
-    .fn()
-    .mockRejectedValue(new ForbiddenException('no servers.ban permission')),
+  // devices.delete resolves with a global scope (the tombstone endpoints
+  // are usable); servers.ban rejects, so the protocol sync degrades.
+  requirePermission: jest.fn((_actor: string, permission: string) =>
+    permission === 'devices.delete'
+      ? Promise.resolve({ global: true, deviceGroupGuids: new Set() })
+      : Promise.reject(new ForbiddenException('no servers.ban permission')),
+  ),
 });
 
 const allowServerBans = (authorization: Record<string, jest.Mock>) => {
@@ -69,6 +74,14 @@ describe('device deletion tombstones', () => {
     const serverManagement = {
       syncDeviceBans: jest.fn().mockResolvedValue({ enforced: true }),
     };
+    const manager = {
+      getRepository: jest.fn((target: unknown) =>
+        target === DeviceTombstone ? deviceTombstoneRepository : peerRepository,
+      ),
+    };
+    const dataSource = {
+      transaction: jest.fn((work: (m: unknown) => unknown) => work(manager)),
+    };
     const service = new DeviceGroupService(
       {} as never,
       {} as never,
@@ -77,7 +90,7 @@ describe('device deletion tombstones', () => {
       {} as never,
       deviceTombstoneRepository as never,
       {} as never,
-      {} as never,
+      dataSource as never,
       authorization as never,
       {} as never,
       serverManagement as never,
@@ -159,9 +172,42 @@ describe('device deletion tombstones', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
+  it('keeps the tombstone when the protocol ban cannot be lifted', async () => {
+    const { service, deviceTombstoneRepository } = createService();
+    // requirePermission rejects servers.ban by default (no permission).
+
+    const result = await service.restoreTombstone('device-guid', 'actor');
+
+    expect(result.message).toContain('not restored');
+    expect(result.protocolEnforcement).toMatchObject({
+      enforced: false,
+      reason: 'forbidden',
+    });
+    expect(deviceTombstoneRepository.delete).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-global delete scopes from tombstone management', async () => {
+    const { service, authorization } = createService();
+    authorization.requirePermission.mockImplementation((_actor, permission) =>
+      permission === 'devices.delete'
+        ? Promise.resolve({
+            global: false,
+            deviceGroupGuids: new Set(['group-1']),
+          })
+        : Promise.reject(new ForbiddenException('no servers.ban permission')),
+    );
+
+    await expect(service.listTombstones('actor')).rejects.toThrow(
+      ForbiddenException,
+    );
+    await expect(
+      service.restoreTombstone('device-guid', 'actor'),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
   it('lists the tombstones', async () => {
     const { service, deviceTombstoneRepository } = createService();
-    const result = await service.listTombstones();
+    const result = await service.listTombstones('actor');
     expect(result.data).toHaveLength(1);
     expect(result.data[0]).toMatchObject({ uuid: 'device-guid' });
     expect(deviceTombstoneRepository.find).toHaveBeenCalled();
