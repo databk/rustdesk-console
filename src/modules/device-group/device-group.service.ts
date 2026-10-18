@@ -1073,16 +1073,23 @@ export class DeviceGroupService {
       idRelease = await this.releaseDeviceId(actorGuid, deviceId);
     }
     // Record what each protocol-level follow-up achieved so a restore can
-    // retry exactly what failed. A release that already succeeded must not
-    // be repeated: any registry entry that exists by then was created by a
-    // replacement machine claiming the freed id.
-    const tombstonePatch: { banned?: boolean; idReleased?: boolean } = {};
+    // retry exactly what failed. The release request itself is recorded
+    // too: an explicit releaseId=false opt-out must survive the deletion
+    // and stop the restore from releasing. A release that already
+    // succeeded must not be repeated either: any registry entry that
+    // exists by then was created by a replacement machine claiming the
+    // freed id.
+    const tombstonePatch: {
+      banned?: boolean;
+      idReleased?: boolean;
+      releaseRequested?: boolean;
+    } = {};
     if (protocolEnforcement?.enforced) tombstonePatch.banned = true;
-    if (idRelease?.enforced) tombstonePatch.idReleased = true;
-    if (
-      tombstonePatch.banned !== undefined ||
-      tombstonePatch.idReleased !== undefined
-    )
+    if (options.releaseId !== false && deviceId) {
+      tombstonePatch.releaseRequested = true;
+      if (idRelease?.enforced) tombstonePatch.idReleased = true;
+    }
+    if (Object.keys(tombstonePatch).length > 0)
       await this.deviceTombstoneRepository.update(
         { uuid: guid },
         tombstonePatch,
@@ -1165,12 +1172,18 @@ export class DeviceGroupService {
         };
       }
     }
-    // Retry the id release only when the deletion-time release never
-    // succeeded: once the id was freed, a replacement machine may have
-    // claimed it, and releasing again would destroy that machine's
+    // Retry the id release only when the operator asked for it at deletion
+    // time and it never succeeded: an explicit releaseId=false opt-out
+    // must survive the deletion, and a release that already succeeded must
+    // not be repeated — once the id was freed, a replacement machine may
+    // have claimed it, and releasing again would destroy that machine's
     // binding. Never blocks the restore itself.
     let idRelease: DeviceBanSyncResult | undefined;
-    if (tombstone.deviceId && !tombstone.idReleased) {
+    if (
+      tombstone.deviceId &&
+      tombstone.releaseRequested &&
+      !tombstone.idReleased
+    ) {
       idRelease = await this.releaseDeviceId(actorGuid, tombstone.deviceId);
     }
     await this.deviceTombstoneRepository.delete({ uuid });

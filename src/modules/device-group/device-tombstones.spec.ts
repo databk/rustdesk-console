@@ -59,6 +59,7 @@ describe('device deletion tombstones', () => {
           uuid: 'device-guid',
           deviceId: '123456789',
           banned: true,
+          releaseRequested: true,
           idReleased: false,
           deletedBy: 'actor',
         },
@@ -67,6 +68,7 @@ describe('device deletion tombstones', () => {
         uuid: 'device-guid',
         deviceId: '123456789',
         banned: true,
+        releaseRequested: true,
         idReleased: false,
         deletedBy: 'actor',
       }),
@@ -137,7 +139,7 @@ describe('device deletion tombstones', () => {
     });
     expect(deviceTombstoneRepository.update).toHaveBeenCalledWith(
       { uuid: 'device-guid' },
-      { banned: true, idReleased: true },
+      { banned: true, releaseRequested: true, idReleased: true },
     );
   });
 
@@ -161,7 +163,7 @@ describe('device deletion tombstones', () => {
     // follow-ups are recorded on the tombstone.
     expect(deviceTombstoneRepository.update).toHaveBeenCalledWith(
       { uuid: 'device-guid' },
-      { idReleased: true },
+      { releaseRequested: true, idReleased: true },
     );
   });
 
@@ -225,7 +227,7 @@ describe('device deletion tombstones', () => {
     });
     expect(deviceTombstoneRepository.update).toHaveBeenCalledWith(
       { uuid: 'device-guid' },
-      { banned: true },
+      { banned: true, releaseRequested: true },
     );
   });
 
@@ -352,6 +354,7 @@ describe('device deletion tombstones', () => {
       uuid: 'device-guid',
       deviceId: '123456789',
       banned: true,
+      releaseRequested: true,
       idReleased: true,
       deletedBy: 'actor',
     });
@@ -364,6 +367,32 @@ describe('device deletion tombstones', () => {
     expect(deviceTombstoneRepository.delete).toHaveBeenCalledWith(
       expect.objectContaining({ uuid: 'device-guid' }),
     );
+  });
+
+  it('never releases an id the operator opted out of releasing', async () => {
+    const {
+      service,
+      deviceTombstoneRepository,
+      serverManagement,
+      authorization,
+    } = createService();
+    allowServerBans(authorization);
+    // Deletion ran with releaseId=false; the opt-out must survive and stop
+    // the restore from releasing the id after all.
+    deviceTombstoneRepository.findOne.mockResolvedValue({
+      uuid: 'device-guid',
+      deviceId: '123456789',
+      banned: true,
+      releaseRequested: false,
+      idReleased: false,
+      deletedBy: 'actor',
+    });
+
+    const result = await service.restoreTombstone('device-guid', 'actor');
+
+    expect(result.message).toContain('restored');
+    expect(serverManagement.releaseDeviceId).not.toHaveBeenCalled();
+    expect(result.idRelease).toBeUndefined();
   });
 
   it('fails to restore an unknown tombstone', async () => {

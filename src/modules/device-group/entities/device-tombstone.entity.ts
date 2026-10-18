@@ -30,10 +30,19 @@ export class DeviceTombstone {
   banned: boolean;
 
   /**
+   * Whether the operator asked for the device id to be freed from the hbbs
+   * peer registry at deletion time (independent of whether it succeeded).
+   * A restore only retries the release when this is true: an explicit
+   * opt-out must survive the deletion.
+   */
+  @Column({ default: false })
+  releaseRequested: boolean;
+
+  /**
    * Whether the device id was actually freed from the hbbs peer registry.
-   * A restore only retries the release while this is false: once freed, a
-   * replacement machine may have claimed the id, and releasing again would
-   * destroy its binding.
+   * A restore only retries a requested release while this is false: once
+   * freed, a replacement machine may have claimed the id, and releasing
+   * again would destroy its binding.
    */
   @Column({ default: false })
   idReleased: boolean;
