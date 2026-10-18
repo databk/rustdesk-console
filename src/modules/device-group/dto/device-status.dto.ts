@@ -26,4 +26,13 @@ export interface DeviceOperationResult {
   total: number;
   succeededCount: number;
   failedCount: number;
+  /**
+   * Outcome of mirroring the status change into the hbbs admission policy.
+   * Absent when the batch had no updatable devices.
+   */
+  protocolEnforcement?: {
+    enforced: boolean;
+    reason?: 'not_configured' | 'forbidden' | 'upstream_error';
+    detail?: string;
+  };
 }
