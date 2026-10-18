@@ -8,6 +8,7 @@ import { InitialSchema1790985600000 } from '../migrations/1790985600000-InitialS
 import { FixMySqlDefaultUserGroupIndex1790985600001 } from '../migrations/1790985600001-FixMySqlDefaultUserGroupIndex';
 import { AddPasswordResetTokens1790985600002 } from '../migrations/1790985600002-AddPasswordResetTokens';
 import { AddDeviceTombstones1791040000000 } from '../migrations/1791040000000-AddDeviceTombstones';
+import { AddDeviceTombstoneIdReleased1791126400000 } from '../migrations/1791126400000-AddDeviceTombstoneIdReleased';
 import { AddressBookPeer } from '../modules/address-book/entities/address-book-peer.entity';
 import { migrateDatabase } from './migration-manager';
 
@@ -30,6 +31,7 @@ describe('database migrations', () => {
         FixMySqlDefaultUserGroupIndex1790985600001,
         AddPasswordResetTokens1790985600002,
         AddDeviceTombstones1791040000000,
+        AddDeviceTombstoneIdReleased1791126400000,
       ],
       synchronize,
     });
@@ -53,7 +55,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(4);
+      ).toHaveLength(5);
       await dataSource.query(
         "INSERT INTO address_books (guid, owner) VALUES ('book', 'owner')",
       );
@@ -96,7 +98,7 @@ describe('database migrations', () => {
       ).toEqual([{ name: 'retained' }]);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(4);
+      ).toHaveLength(5);
     } finally {
       await dataSource.destroy();
     }
@@ -115,7 +117,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(4);
+      ).toHaveLength(5);
     } finally {
       await dataSource.destroy();
     }
@@ -152,7 +154,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(4);
+      ).toHaveLength(5);
       const indexes = await dataSource.query(
         "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'strategies' AND sql IS NOT NULL",
       );

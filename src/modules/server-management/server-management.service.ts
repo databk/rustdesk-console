@@ -400,10 +400,13 @@ export class ServerManagementService {
     const add = [...new Set(changes.add ?? [])];
     const remove = new Set(changes.remove ?? []);
     if (!add.length && !remove.size) return { enforced: true };
-    const config = await this.runtime();
-    if (!config.url) return { enforced: false, reason: 'not_configured' };
     return this.enqueueBansWrite(async () => {
       try {
+        // Resolve the runtime config inside the best-effort path: the
+        // caller already committed its database change, so even a failing
+        // settings lookup must degrade to a reported result, not throw.
+        const config = await this.runtime();
+        if (!config.url) return { enforced: false, reason: 'not_configured' };
         const current = await this.fetchJson(config, '/v1/bans');
         const ids = new Set(
           asArray(current['device_ids']).filter(
@@ -446,9 +449,13 @@ export class ServerManagementService {
     deviceId: string,
   ): Promise<DeviceBanSyncResult> {
     if (!deviceId) return { enforced: true };
-    const config = await this.runtime();
-    if (!config.url) return { enforced: false, reason: 'not_configured' };
     try {
+      // Same best-effort contract as the ban sync: resolve the runtime
+      // config inside the try so a failing settings lookup degrades to a
+      // reported upstream error instead of throwing after the caller's
+      // deletion or restore already committed.
+      const config = await this.runtime();
+      if (!config.url) return { enforced: false, reason: 'not_configured' };
       return await this.audited(
         actor,
         config.nodeId,

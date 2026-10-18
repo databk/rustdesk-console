@@ -29,6 +29,15 @@ export class DeviceTombstone {
   @Column({ default: false })
   banned: boolean;
 
+  /**
+   * Whether the device id was actually freed from the hbbs peer registry.
+   * A restore only retries the release while this is false: once freed, a
+   * replacement machine may have claimed the id, and releasing again would
+   * destroy its binding.
+   */
+  @Column({ default: false })
+  idReleased: boolean;
+
   /** Actor that deleted the device */
   @Column({ type: 'varchar', nullable: true })
   deletedBy: string | null;

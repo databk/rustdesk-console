@@ -1067,16 +1067,44 @@ export class DeviceGroupService {
       protocolEnforcement = await this.syncDeviceBans(actorGuid, {
         add: [deviceId],
       });
-      if (protocolEnforcement.enforced)
-        await this.deviceTombstoneRepository.update(
-          { uuid: guid },
-          { banned: true },
-        );
     }
     let idRelease: DeviceBanSyncResult | undefined;
     if (options.releaseId !== false && deviceId) {
       idRelease = await this.releaseDeviceId(actorGuid, deviceId);
     }
+    // Record what each protocol-level follow-up achieved so a restore can
+    // retry exactly what failed. A release that already succeeded must not
+    // be repeated: any registry entry that exists by then was created by a
+    // replacement machine claiming the freed id.
+    const tombstonePatch: { banned?: boolean; idReleased?: boolean } = {};
+    if (protocolEnforcement?.enforced) tombstonePatch.banned = true;
+    if (idRelease?.enforced) tombstonePatch.idReleased = true;
+    if (
+      tombstonePatch.banned !== undefined ||
+      tombstonePatch.idReleased !== undefined
+    )
+      await this.deviceTombstoneRepository.update(
+        { uuid: guid },
+        tombstonePatch,
+      );
+    // With the default protocol ban, the freed id stays blocked for every
+    // machine until the device is restored (which lifts the ban); report
+    // that instead of implying the id is immediately claimable.
+    const idReleaseReport: DeviceBanSyncResult | undefined = idRelease
+      ? idRelease.enforced
+        ? protocolEnforcement?.enforced
+          ? {
+              ...idRelease,
+              detail:
+                'The id is freed from the peer registry, but the protocol ban still blocks it until the device is restored.',
+            }
+          : idRelease
+        : {
+            ...idRelease,
+            detail:
+              'The device stays deleted, but its id remains bound to the old machine at the servers until it is released.',
+          }
+      : undefined;
     return {
       message: 'Device deleted',
       ...(protocolEnforcement
@@ -1090,17 +1118,7 @@ export class DeviceGroupService {
                 },
           }
         : {}),
-      ...(idRelease
-        ? {
-            idRelease: idRelease.enforced
-              ? idRelease
-              : {
-                  ...idRelease,
-                  detail:
-                    'The device stays deleted, but its id remains bound to the old machine at the servers until it is released.',
-                },
-          }
-        : {}),
+      ...(idReleaseReport ? { idRelease: idReleaseReport } : {}),
     };
   }
 
@@ -1147,11 +1165,12 @@ export class DeviceGroupService {
         };
       }
     }
-    // Best effort: retry the id release in case it failed at deletion time
-    // (the id would stay bound to the old machine forever). Never blocks
-    // the restore itself; releasing an already-free id is a no-op.
+    // Retry the id release only when the deletion-time release never
+    // succeeded: once the id was freed, a replacement machine may have
+    // claimed it, and releasing again would destroy that machine's
+    // binding. Never blocks the restore itself.
     let idRelease: DeviceBanSyncResult | undefined;
-    if (tombstone.deviceId) {
+    if (tombstone.deviceId && !tombstone.idReleased) {
       idRelease = await this.releaseDeviceId(actorGuid, tombstone.deviceId);
     }
     await this.deviceTombstoneRepository.delete({ uuid });

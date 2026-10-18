@@ -59,6 +59,7 @@ describe('device deletion tombstones', () => {
           uuid: 'device-guid',
           deviceId: '123456789',
           banned: true,
+          idReleased: false,
           deletedBy: 'actor',
         },
       ]),
@@ -66,6 +67,7 @@ describe('device deletion tombstones', () => {
         uuid: 'device-guid',
         deviceId: '123456789',
         banned: true,
+        idReleased: false,
         deletedBy: 'actor',
       }),
       delete: jest.fn().mockResolvedValue(undefined),
@@ -124,15 +126,19 @@ describe('device deletion tombstones', () => {
     expect(serverManagement.syncDeviceBans).toHaveBeenCalledWith('actor', {
       add: ['123456789'],
     });
-    expect(deviceTombstoneRepository.update).toHaveBeenCalledWith(
-      { uuid: 'device-guid' },
-      { banned: true },
-    );
     expect(serverManagement.releaseDeviceId).toHaveBeenCalledWith(
       'actor',
       '123456789',
     );
-    expect(result.idRelease).toEqual({ enforced: true });
+    expect(result.idRelease).toMatchObject({ enforced: true });
+    // The freed id stays blocked by the ban until the device is restored.
+    expect(result.idRelease).toMatchObject({
+      detail: expect.stringContaining('until the device is restored'),
+    });
+    expect(deviceTombstoneRepository.update).toHaveBeenCalledWith(
+      { uuid: 'device-guid' },
+      { banned: true, idReleased: true },
+    );
   });
 
   it('keeps the tombstone when the ban cannot be applied', async () => {
@@ -151,7 +157,12 @@ describe('device deletion tombstones', () => {
     const result = await service.deleteDevice('device-guid', 'actor');
 
     expect(result.protocolEnforcement).toMatchObject({ enforced: false });
-    expect(deviceTombstoneRepository.update).not.toHaveBeenCalled();
+    // The ban failed but the release still succeeded; only the achieved
+    // follow-ups are recorded on the tombstone.
+    expect(deviceTombstoneRepository.update).toHaveBeenCalledWith(
+      { uuid: 'device-guid' },
+      { idReleased: true },
+    );
   });
 
   it('skips the protocol ban when explicitly requested', async () => {
@@ -171,7 +182,12 @@ describe('device deletion tombstones', () => {
   });
 
   it('skips the id release when explicitly requested', async () => {
-    const { service, serverManagement, authorization } = createService();
+    const {
+      service,
+      serverManagement,
+      authorization,
+      deviceTombstoneRepository,
+    } = createService();
     allowServerBans(authorization);
 
     const result = await service.deleteDevice('device-guid', 'actor', {
@@ -180,10 +196,19 @@ describe('device deletion tombstones', () => {
 
     expect(serverManagement.releaseDeviceId).not.toHaveBeenCalled();
     expect(result.idRelease).toBeUndefined();
+    expect(deviceTombstoneRepository.update).toHaveBeenCalledWith(
+      { uuid: 'device-guid' },
+      { banned: true },
+    );
   });
 
   it('reports a failed id release without failing the deletion', async () => {
-    const { service, serverManagement, authorization } = createService();
+    const {
+      service,
+      serverManagement,
+      authorization,
+      deviceTombstoneRepository,
+    } = createService();
     allowServerBans(authorization);
     serverManagement.releaseDeviceId.mockResolvedValue({
       enforced: false,
@@ -198,6 +223,10 @@ describe('device deletion tombstones', () => {
       reason: 'upstream_error',
       detail: expect.stringContaining('remains bound'),
     });
+    expect(deviceTombstoneRepository.update).toHaveBeenCalledWith(
+      { uuid: 'device-guid' },
+      { banned: true },
+    );
   });
 
   it('rejects concurrent or missing deletions', async () => {
@@ -307,6 +336,34 @@ describe('device deletion tombstones', () => {
       enforced: false,
       reason: 'upstream_error',
     });
+  });
+
+  it('does not repeat a successful id release when restoring', async () => {
+    const {
+      service,
+      deviceTombstoneRepository,
+      serverManagement,
+      authorization,
+    } = createService();
+    allowServerBans(authorization);
+    // The deletion freed the id; a replacement machine may have claimed it
+    // by now, so releasing again would destroy its binding.
+    deviceTombstoneRepository.findOne.mockResolvedValue({
+      uuid: 'device-guid',
+      deviceId: '123456789',
+      banned: true,
+      idReleased: true,
+      deletedBy: 'actor',
+    });
+
+    const result = await service.restoreTombstone('device-guid', 'actor');
+
+    expect(result.message).toContain('restored');
+    expect(serverManagement.releaseDeviceId).not.toHaveBeenCalled();
+    expect(result.idRelease).toBeUndefined();
+    expect(deviceTombstoneRepository.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ uuid: 'device-guid' }),
+    );
   });
 
   it('fails to restore an unknown tombstone', async () => {

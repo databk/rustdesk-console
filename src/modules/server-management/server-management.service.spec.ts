@@ -175,6 +175,29 @@ describe('server management v2 client', () => {
     expect(result.reason).toBe('upstream_error');
   });
 
+  it('degrades to upstream_error when the runtime config lookup fails', async () => {
+    const failing = {
+      getActiveConfig: () => Promise.reject(new Error('settings db down')),
+    } as unknown as ServerManagementSettingsService;
+    const service = new ServerManagementService(
+      failing,
+      audit as unknown as RbacAuditService,
+      inertEvents(),
+    );
+    // The caller has already committed its change; both flows must report
+    // the failure instead of throwing.
+    expect(await service.releaseDeviceId('actor', 'host-a')).toMatchObject({
+      enforced: false,
+      reason: 'upstream_error',
+    });
+    expect(await service.syncDeviceBans('actor', { add: ['1'] })).toMatchObject(
+      {
+        enforced: false,
+        reason: 'upstream_error',
+      },
+    );
+  });
+
   it('serializes concurrent device ban syncs', async () => {
     const bodies: Array<Record<string, unknown>> = [];
     const gate = { resolve: () => {} };
