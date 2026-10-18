@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DeviceGroupService } from './device-group.service';
 import { HeartbeatService } from '../heartbeat/heartbeat.service';
 import type { Peer } from '../../common/entities';
@@ -16,7 +20,7 @@ const forbiddenAuthorization = (peer: Peer | null) => ({
   }),
   requirePermission: jest
     .fn()
-    .mockRejectedValue(new Error('no servers.ban permission')),
+    .mockRejectedValue(new ForbiddenException('no servers.ban permission')),
 });
 
 const allowServerBans = (authorization: Record<string, jest.Mock>) => {
