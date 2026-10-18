@@ -1579,6 +1579,26 @@ describe('DeviceGroupService scoped writes', () => {
     expect(serverManagement.syncDeviceBans).not.toHaveBeenCalled();
   });
 
+  it('reports an upstream error when the permission lookup itself fails', async () => {
+    const { service, serverManagement, authorizationService } =
+      createService(1);
+    authorizationService.requirePermission.mockRejectedValue(
+      new Error('database unavailable'),
+    );
+
+    const result = await service.updateDeviceStatus(
+      ['peer-1'],
+      DeviceStatus.DISABLED,
+      'actor',
+    );
+
+    expect(result.protocolEnforcement).toMatchObject({
+      enforced: false,
+      reason: 'upstream_error',
+    });
+    expect(serverManagement.syncDeviceBans).not.toHaveBeenCalled();
+  });
+
   it('lifts the protocol ban when a device is enabled again', async () => {
     const { service, serverManagement, authorizationService } =
       createService(1);

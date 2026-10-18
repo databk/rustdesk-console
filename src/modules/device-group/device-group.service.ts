@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -64,7 +65,9 @@ export class DeviceGroupService {
 
   // Protocol-level enforcement writes the hbbs ban policy, which is guarded
   // by the server management permission; without it the database flag alone
-  // only restricts web remote control.
+  // only restricts web remote control. Only an authorization denial means
+  // "no permission"; anything else (e.g. a failing permission lookup) is an
+  // error the caller reports instead of a silent skip.
   private async canEnforceProtocolBans(actorGuid: string): Promise<boolean> {
     try {
       await this.rbacAuthorizationService.requirePermission(
@@ -72,8 +75,9 @@ export class DeviceGroupService {
         'servers.ban',
       );
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if (error instanceof ForbiddenException) return false;
+      throw error;
     }
   }
 
@@ -949,8 +953,16 @@ export class DeviceGroupService {
     actorGuid: string,
     changes: { add?: string[]; remove?: string[] },
   ): Promise<DeviceBanSyncResult> {
-    if (!(await this.canEnforceProtocolBans(actorGuid)))
-      return { enforced: false, reason: 'forbidden' };
+    try {
+      if (!(await this.canEnforceProtocolBans(actorGuid)))
+        return { enforced: false, reason: 'forbidden' };
+    } catch (error) {
+      return {
+        enforced: false,
+        reason: 'upstream_error',
+        detail: `Failed to verify the servers.ban permission: ${String(error)}`,
+      };
+    }
     return this.serverManagement.syncDeviceBans(actorGuid, changes);
   }
 
