@@ -24,6 +24,17 @@ jobs:
       - run: npm test -- --runInBand
       - run: node --test network/*.test.mjs
 
+  server-profile:
+    name: Native server profile integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+      - run: node --test test/server-profile/compose.integration.mjs
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
