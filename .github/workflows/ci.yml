@@ -27,9 +27,13 @@ jobs:
   server-profile:
     name: Native server profile integration
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'

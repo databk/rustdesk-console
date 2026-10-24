@@ -29,7 +29,7 @@ Server management is independent of the updater's Docker socket usage in `docker
 
 Earlier Compose definitions mounted `/data` while the published classic image used `/root` as both its working directory and HOME. Keys, the peer database and relay-local files could therefore remain in the container's writable layer. Recreating those containers before recovery can permanently lose the original identity and registrations. This procedure applies to that stock layout; first inspect any custom `DB_URL`, `RD_MANAGEMENT_DIR`, working directory, HOME, command arguments or mounts and adapt the source paths accordingly.
 
-Use a maintenance window. Do **not** run `up`, `down`, `rm`, an image upgrade or a container prune before copying the old data. Keep the original containers and image until verification is complete. The commands below use a POSIX shell, Docker Compose and Python 3, from the installation directory, with permission to read the data directories. Backups contain private keys, database records and container environment credentials; keep them private.
+Use a maintenance window. Do **not** run `up`, `down`, `rm`, an image upgrade or a container prune before copying the old data. Keep the original containers and image until verification is complete. The commands below use a POSIX shell, Docker Compose and Python 3, from the installation directory, with permission to read the data directories and write the existing bind directories. Backups contain private keys, database records and container environment credentials; keep them private.
 
 1. Capture the existing container ids, stop both services without removing them, and copy **both** the old writable directories and the existing mounts into a fresh protected backup directory. A stopped SQLite database must be copied together with any `-wal`, `-shm` or `-journal` sidecars.
 
@@ -57,6 +57,7 @@ Use a maintenance window. Do **not** run `up`, `down`, `rm`, an image upgrade or
    ```sh
    python3 - "$backup" "$PWD/data" <<'PY'
    import hashlib
+   import os
    import pathlib
    import shutil
    import sqlite3
@@ -77,6 +78,8 @@ Use a maintenance window. Do **not** run `up`, `down`, `rm`, an image upgrade or
    copies = []
    for source, target, names in groups:
        directory = data / target
+       if not os.access(directory, os.W_OK | os.X_OK):
+           raise SystemExit(f'No write access to {directory}; rerun with sufficient privileges')
        if directory.is_symlink() or not directory.is_dir():
            raise SystemExit(f'Expected existing bind directory: {directory}')
        for name in names:

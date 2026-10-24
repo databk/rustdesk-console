@@ -93,7 +93,24 @@ async function fixture(t) {
       }
       await compose('native.json', 'down', '--timeout', '10');
     }
-    await fs.rm(root, { recursive: true, force: true });
+    try {
+      await fs.rm(root, { recursive: true, force: true });
+    } catch (error) {
+      if (error.code !== 'EACCES' && error.code !== 'EPERM') throw error;
+      // Native containers write bind-mounted files as root. On CI runners the
+      // test process cannot unlink them, so reuse the same engine to remove the
+      // scratch directory with root privileges.
+      await docker(
+        'run',
+        '--rm',
+        '--volume',
+        `${root}:/cleanup`,
+        'alpine:3.20',
+        'rm',
+        '-rf',
+        '/cleanup',
+      );
+    }
   });
   return {
     root,
