@@ -99,7 +99,7 @@ async function fixture(t) {
       if (error.code !== 'EACCES' && error.code !== 'EPERM') throw error;
       // Native containers write bind-mounted files as root. On CI runners the
       // test process cannot unlink them, so reuse the same engine to remove the
-      // scratch directory with root privileges.
+      // root-owned data subtree with root privileges, then retry the cleanup.
       await docker(
         'run',
         '--rm',
@@ -108,8 +108,9 @@ async function fixture(t) {
         'alpine:3.20',
         'rm',
         '-rf',
-        '/cleanup',
+        '/cleanup/data',
       );
+      await fs.rm(root, { recursive: true, force: true });
     }
   });
   return {
