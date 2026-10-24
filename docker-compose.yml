@@ -64,8 +64,10 @@ services:
     profiles: [server]
     container_name: hbbs
     command: ['hbbs', '-r', '${RUSTDESK_RELAY_ADDRESS:-}']
+    working_dir: /data
     restart: unless-stopped
     environment:
+      HOME: /data
       RD_MANAGEMENT_BIND: 0.0.0.0:21120
       RD_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:-}
       RD_MANAGEMENT_DIR: /data/management
@@ -84,9 +86,11 @@ services:
     profiles: [server]
     container_name: hbbr
     command: ['hbbr']
+    working_dir: /data
     restart: unless-stopped
     environment:
-      RD_HBBS_API_URL: http://hbbs:21120
+      HOME: /data
+      RD_HBBS_API_URL: ws://hbbs:21120/v1/control
       RD_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:-}
       RD_RELAY_ID: relay-1
       RD_RELAY_ADDRESS: ${RUSTDESK_RELAY_ADDRESS:-}
