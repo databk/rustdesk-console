@@ -11,6 +11,10 @@ import {
   AddressBookPeerTag,
 } from '../address-book/entities';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
+import {
+  resolveDeviceUuid,
+  cloneIsolationEnabled,
+} from '../../common/utils/device-identity.util';
 
 /**
  * System info service
@@ -52,6 +56,19 @@ export class SysinfoService {
   async createSysinfo(
     sysinfoDto: SysinfoDto,
   ): Promise<{ found: boolean; sysinfo?: Sysinfo }> {
+    // UUID alone cannot distinguish clones. Do not overwrite another device's
+    // hardware info or apply its presets when the client omits the ID.
+    if (cloneIsolationEnabled() && !sysinfoDto.id) return { found: false };
+    if (sysinfoDto.id) {
+      sysinfoDto = {
+        ...sysinfoDto,
+        uuid: await resolveDeviceUuid(
+          this.peerRepository,
+          sysinfoDto.uuid,
+          sysinfoDto.id,
+        ),
+      };
+    }
     // First check whether the device is registered in the peers table
     const peer = await this.peerRepository.findOne({
       where: { uuid: sysinfoDto.uuid },
