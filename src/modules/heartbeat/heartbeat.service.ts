@@ -8,6 +8,10 @@ import { ActiveConnection } from './entities/active-connection.entity';
 import { DisconnectStoreService } from './services/disconnect-store.service';
 import { HeartbeatCacheService } from './services/heartbeat-cache.service';
 import { StrategyService } from '../strategy/strategy.service';
+import {
+  resolveDeviceUuid,
+  cloneIsolationEnabled,
+} from '../../common/utils/device-identity.util';
 
 @Injectable()
 export class HeartbeatService {
@@ -26,6 +30,18 @@ export class HeartbeatService {
   ) {}
 
   async handleHeartbeat(data: HeartbeatDto) {
+    if (cloneIsolationEnabled()) {
+      // Check legacy tombstones before deriving a new key, so deleted devices
+      // cannot reappear just because isolation was enabled after deletion.
+      const legacyTombstone = await this.deviceTombstoneRepository.findOne({
+        where: { uuid: data.uuid },
+      });
+      if (legacyTombstone?.deviceId === data.id) return;
+    }
+    data = {
+      ...data,
+      uuid: await resolveDeviceUuid(this.peerRepository, data.uuid, data.id),
+    };
     this.logger.debug(
       `Received heartbeat data: id=${data.id}, uuid=${data.uuid}`,
     );

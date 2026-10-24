@@ -6,6 +6,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       DB_TYPE: ${DB_TYPE:-sqlite}
+      DEVICE_CLONE_ISOLATION: ${DEVICE_CLONE_ISOLATION:-false}
       DB_HOST: ${DB_HOST:-localhost}
       DB_PORT: ${DB_PORT:-3306}
       DB_USERNAME: ${DB_USERNAME:-rustdesk_console}

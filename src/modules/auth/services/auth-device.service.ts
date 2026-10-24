@@ -3,6 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Peer } from '../../../common/entities';
 import { DeviceInfoDto } from '../dto/auth.dto';
+import {
+  resolveDeviceUuid,
+  cloneIsolationEnabled,
+} from '../../../common/utils/device-identity.util';
 
 @Injectable()
 /**
@@ -39,6 +43,14 @@ export class AuthDeviceService {
     _deviceInfo?: DeviceInfoDto,
   ): Promise<void> {
     if (!deviceUuid) return;
+    if (cloneIsolationEnabled() && !deviceId) return;
+    if (deviceId) {
+      deviceUuid = await resolveDeviceUuid(
+        this.peerRepository,
+        deviceUuid,
+        deviceId,
+      );
+    }
 
     // Look up the peer record
     const peer = await this.peerRepository.findOne({
@@ -65,7 +77,19 @@ export class AuthDeviceService {
    * @param userGuid user GUID
    * @param deviceUuid Device UUID
    */
-  async unbindDevice(userGuid: string, deviceUuid: string): Promise<void> {
+  async unbindDevice(
+    userGuid: string,
+    deviceUuid: string,
+    deviceId?: string,
+  ): Promise<void> {
+    if (cloneIsolationEnabled() && !deviceId) return;
+    if (deviceId) {
+      deviceUuid = await resolveDeviceUuid(
+        this.peerRepository,
+        deviceUuid,
+        deviceId,
+      );
+    }
     const peer = await this.peerRepository.findOne({
       where: { uuid: deviceUuid, userGuid },
     });

@@ -415,7 +415,7 @@ export class AuthService {
       await this.tokenService.revokeDeviceTokens(userGuid, id, uuid);
 
       if (uuid) {
-        await this.deviceService.unbindDevice(userGuid, uuid);
+        await this.deviceService.unbindDevice(userGuid, uuid, id);
       }
     }
 

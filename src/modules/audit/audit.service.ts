@@ -11,6 +11,7 @@ import { AlarmAuditDto } from './dto/alarm-audit.dto';
 import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
 import { Peer } from '../../common/entities/peer.entity';
+import { resolveDeviceUuid } from '../../common/utils/device-identity.util';
 import { ActiveConnectionQueryDto } from './dto/connection-audit.dto';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
@@ -115,6 +116,12 @@ export class AuditService {
   private async upsertConnectionAudit(
     dto: ConnectionAuditDto,
   ): Promise<ConnectionAudit> {
+    if (dto.uuid) {
+      dto = {
+        ...dto,
+        uuid: await resolveDeviceUuid(this.peerRepository, dto.uuid, dto.id),
+      };
+    }
     const connId = dto.conn_id !== undefined ? String(dto.conn_id) : null;
     const sessionId =
       dto.session_id !== undefined ? String(dto.session_id) : null;
@@ -251,6 +258,10 @@ export class AuditService {
    * @returns The saved file audit record
    */
   async auditFile(dto: FileAuditDto): Promise<FileAudit> {
+    dto = {
+      ...dto,
+      uuid: await resolveDeviceUuid(this.peerRepository, dto.uuid, dto.id),
+    };
     // nonce deduplication: look up existing records first (with deviceId to prevent cross-device mismatches)
     if (dto.nonce) {
       const existing = await this.fileAuditRepository.findOne({
@@ -313,6 +324,10 @@ export class AuditService {
    * @returns The saved alarm audit record
    */
   async auditAlarm(dto: AlarmAuditDto): Promise<AlarmAudit> {
+    dto = {
+      ...dto,
+      uuid: await resolveDeviceUuid(this.peerRepository, dto.uuid, dto.id),
+    };
     // nonce deduplication: look up existing records first (with deviceId to prevent cross-device mismatches)
     if (dto.nonce) {
       const existing = await this.alarmAuditRepository.findOne({
