@@ -80,7 +80,7 @@
     "systeminformation": "^5.33.1",
     "typeorm": "^0.3.31",
     "uuid": "^13.0.2",
-    "ws": "8.21.0"
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
@@ -95,7 +95,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^7.2.1",
     "@types/uuid": "^10.0.0",
-    "@types/ws": "8.18.1",
+    "@types/ws": "8.18.2",
     "esbuild": "^0.28.1",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
