@@ -308,6 +308,77 @@ describe('server management v2 client', () => {
     );
   });
 
+  it('exposes a relay registered with the primary node id as its hbbr service', async () => {
+    fetchRoute([
+      [
+        'http://hbbs:21120/v1/status',
+        {
+          api_version: 1,
+          service: 'hbbs',
+          version: '1.1.1',
+          uptime_seconds: 8,
+        },
+      ],
+      [
+        'http://hbbs:21120/v1/relays',
+        {
+          data: [
+            {
+              id: 'main',
+              address: 'relay.example.com:21117',
+              version: '1.1.1',
+              uptime_seconds: 3,
+              sessions_count: 2,
+            },
+          ],
+        },
+      ],
+    ]);
+    const result = await create().list();
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({
+      id: 'main',
+      name: 'RustDesk',
+      node_id: 'main',
+      services: [
+        { service: 'hbbs' },
+        {
+          service: 'hbbr',
+          state: 'running',
+          running: true,
+          available: true,
+          runtime: {
+            version: '1.1.1',
+            address: 'relay.example.com:21117',
+            sessions_count: 2,
+          },
+        },
+      ],
+    });
+  });
+
+  it('routes hbbr operations on a primary node to its same-id relay', async () => {
+    fetchRoute([
+      ['http://hbbs:21120/v1/relays', { data: [{ id: 'main' }] }],
+      [
+        'http://hbbs:21120/v1/relays/main/config',
+        { schema: [{ name: 'port' }], values: { port: '21117' } },
+      ],
+      [
+        'http://hbbs:21120/v1/relays/main/logs?tail=25',
+        { data: ['relay-line'] },
+      ],
+    ]);
+    const service = create();
+    expect(await service.config('main', RustdeskService.HBBR)).toMatchObject({
+      values: { port: '21117' },
+      available: true,
+    });
+    expect(await service.logs('main', RustdeskService.HBBR, 25)).toEqual({
+      text: 'relay-line',
+    });
+  });
+
   it('reports an unreachable upstream without inventing service state', async () => {
     jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Offline'));
     expect(await create().list()).toEqual({

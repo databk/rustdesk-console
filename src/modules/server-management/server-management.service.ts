@@ -105,6 +105,9 @@ export class ServerManagementService {
           },
         ],
       };
+    const services: Array<Record<string, unknown>> = [
+      this.serviceEntry('hbbs', status),
+    ];
     const data: Array<Record<string, unknown>> = [
       {
         id: config.nodeId,
@@ -112,7 +115,7 @@ export class ServerManagementService {
         reachable: true,
         api_version: 1,
         node_id: config.nodeId,
-        services: [this.serviceEntry('hbbs', status)],
+        services,
       },
     ];
     let relays: RelaySummary[] = [];
@@ -122,8 +125,14 @@ export class ServerManagementService {
       relays = [];
     }
     for (const relay of relays) {
-      // A relay that registered with the primary node id never shadows it.
-      if (relay.id === config.nodeId) continue;
+      // A relay may register under the primary node id (for example when
+      // RD_RELAY_ID matches the Console node id). It cannot be a separate
+      // node without shadowing the primary, so expose it as the primary
+      // node's hbbr service instead of silently dropping it.
+      if (relay.id === config.nodeId) {
+        services.push(this.serviceEntry('hbbr', this.relayRuntime(relay)));
+        continue;
+      }
       data.push({
         id: relay.id,
         name: relay.id,
@@ -131,15 +140,7 @@ export class ServerManagementService {
         reachable: true,
         api_version: 1,
         node_id: relay.id,
-        services: [
-          this.serviceEntry('hbbr', {
-            version: relay.version,
-            uptime_seconds: relay.uptime_seconds,
-            address: relay.address ?? null,
-            sessions_count: relay.sessions_count,
-            last_heartbeat_age_seconds: relay.last_heartbeat_age_seconds,
-          }),
-        ],
+        services: [this.serviceEntry('hbbr', this.relayRuntime(relay))],
       });
     }
     return { data };
@@ -512,6 +513,16 @@ export class ServerManagementService {
     };
   }
 
+  private relayRuntime(relay: RelaySummary): Record<string, unknown> {
+    return {
+      version: relay.version,
+      uptime_seconds: relay.uptime_seconds,
+      address: relay.address ?? null,
+      sessions_count: relay.sessions_count,
+      last_heartbeat_age_seconds: relay.last_heartbeat_age_seconds,
+    };
+  }
+
   private serviceEntry(
     service: 'hbbs' | 'hbbr',
     runtime: Record<string, unknown>,
@@ -563,9 +574,16 @@ export class ServerManagementService {
   ): Promise<ServiceTarget> {
     const node = await this.requireNode(config, nodeId);
     if (node.kind === 'primary') {
-      if (service !== RustdeskService.HBBS)
-        throw new NotFoundException('Service not available on this node');
-      return { kind: 'direct' };
+      if (service === RustdeskService.HBBS) return { kind: 'direct' };
+      // A relay whose id equals the primary node id is exposed as this
+      // node's hbbr service by list(). Resolve it from the live relay list
+      // so a stale or disappeared relay is not reported as available.
+      const relays = await this.relaySummaries(config).catch(
+        () => [] as RelaySummary[],
+      );
+      if (relays.some((relay) => relay.id === config.nodeId))
+        return { kind: 'relay', relayId: config.nodeId };
+      throw new NotFoundException('Service not available on this node');
     }
     if (service !== RustdeskService.HBBR)
       throw new NotFoundException('Service not available on this node');
