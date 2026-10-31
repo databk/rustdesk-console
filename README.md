@@ -14,6 +14,8 @@
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
 [![Docker Pulls](https://img.shields.io/docker/pulls/databk/rustdesk-console.svg?logo=docker&logoColor=white)](https://hub.docker.com/r/databk/rustdesk-console)
 
+**English** · [简体中文](README.zh-CN.md)
+
 [Discord](https://discord.gg/vrQSJfqpwD) · [Frontend Project](https://github.com/databk/rustdesk-console-web)
 
 </div>
