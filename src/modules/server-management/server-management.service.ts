@@ -49,6 +49,10 @@ const REQUEST_TIMEOUT_GET_MS = 15_000;
 const REQUEST_TIMEOUT_MUTATION_MS = 30_000;
 const RESPONSE_LIMIT = 8 * 1024 * 1024;
 const LOG_LIMIT_MAX = 2000;
+// Relays normally use their own id as the API node id. When that id collides
+// with the primary node id, the relay is exposed under this prefix so it can
+// still be addressed separately without shadowing the primary node.
+const RELAY_NODE_PREFIX = 'relay:';
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
@@ -122,24 +126,23 @@ export class ServerManagementService {
       relays = [];
     }
     for (const relay of relays) {
-      // A relay that registered with the primary node id never shadows it.
-      if (relay.id === config.nodeId) continue;
+      // A relay may register under the primary node id (for example when
+      // RD_RELAY_ID matches the Console node id). It cannot use that id as a
+      // separate node without shadowing the primary, so expose it under the
+      // reserved relay: node id. That also keeps its sessions out of the
+      // primary aggregate when the UI queries every relay instance.
+      const nodeId =
+        relay.id === config.nodeId
+          ? `${RELAY_NODE_PREFIX}${relay.id}`
+          : relay.id;
       data.push({
-        id: relay.id,
+        id: nodeId,
         name: relay.id,
         relay: true,
         reachable: true,
         api_version: 1,
-        node_id: relay.id,
-        services: [
-          this.serviceEntry('hbbr', {
-            version: relay.version,
-            uptime_seconds: relay.uptime_seconds,
-            address: relay.address ?? null,
-            sessions_count: relay.sessions_count,
-            last_heartbeat_age_seconds: relay.last_heartbeat_age_seconds,
-          }),
-        ],
+        node_id: nodeId,
+        services: [this.serviceEntry('hbbr', this.relayRuntime(relay))],
       });
     }
     return { data };
@@ -512,6 +515,16 @@ export class ServerManagementService {
     };
   }
 
+  private relayRuntime(relay: RelaySummary): Record<string, unknown> {
+    return {
+      version: relay.version,
+      uptime_seconds: relay.uptime_seconds,
+      address: relay.address ?? null,
+      sessions_count: relay.sessions_count,
+      last_heartbeat_age_seconds: relay.last_heartbeat_age_seconds,
+    };
+  }
+
   private serviceEntry(
     service: 'hbbs' | 'hbbr',
     runtime: Record<string, unknown>,
@@ -546,14 +559,21 @@ export class ServerManagementService {
   ): Promise<ResolvedNode | null> {
     if (!config.url) return null;
     if (nodeId === config.nodeId) return { kind: 'primary' };
-    if (this.events.isFresh() && this.events.hasRelay(nodeId))
-      return { kind: 'relay', relayId: nodeId };
+    // A colliding relay is listed as relay:<id>; resolve both the exposed
+    // node id and the real relay id so live events and HTTP fallbacks agree.
+    const candidates = nodeId.startsWith(RELAY_NODE_PREFIX)
+      ? [nodeId, nodeId.slice(RELAY_NODE_PREFIX.length)]
+      : [nodeId];
+    for (const relayId of candidates)
+      if (relayId && this.events.isFresh() && this.events.hasRelay(relayId))
+        return { kind: 'relay', relayId };
     const relays = await this.relaySummaries(config).catch(
       () => [] as RelaySummary[],
     );
-    return relays.some((relay) => relay.id === nodeId)
-      ? { kind: 'relay', relayId: nodeId }
-      : null;
+    for (const relayId of candidates)
+      if (relayId && relays.some((relay) => relay.id === relayId))
+        return { kind: 'relay', relayId };
+    return null;
   }
 
   private async requireService(
@@ -563,9 +583,17 @@ export class ServerManagementService {
   ): Promise<ServiceTarget> {
     const node = await this.requireNode(config, nodeId);
     if (node.kind === 'primary') {
-      if (service !== RustdeskService.HBBS)
-        throw new NotFoundException('Service not available on this node');
-      return { kind: 'direct' };
+      if (service === RustdeskService.HBBS) return { kind: 'direct' };
+      // A relay whose id equals the primary node id is listed under a
+      // distinct relay: node id. Keep routing hbbr requests sent to the
+      // primary node id for clients that still target the node directly,
+      // but only while hbbs reports that relay as registered.
+      const relays = await this.relaySummaries(config).catch(
+        () => [] as RelaySummary[],
+      );
+      if (relays.some((relay) => relay.id === config.nodeId))
+        return { kind: 'relay', relayId: config.nodeId };
+      throw new NotFoundException('Service not available on this node');
     }
     if (service !== RustdeskService.HBBR)
       throw new NotFoundException('Service not available on this node');

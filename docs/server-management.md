@@ -15,7 +15,7 @@ Without `COMPOSE_PROFILES` the deployment keeps the standard three-service layou
 The server profile uses the `databk/rustdesk-server` image and requires a build that includes the management API (any release newer than 1.0.1). It runs exactly two additional containers:
 
 - **hbbs** enables its management API with `RD_MANAGEMENT_BIND`, `RD_MANAGEMENT_TOKEN`, and `RD_MANAGEMENT_DIR` (a persistent directory on its own volume `./data/server`).
-- **hbbr** registers with hbbs through `RD_HBBS_API_URL=ws://hbbs:21120/v1/control`, authenticated by the same `RD_MANAGEMENT_TOKEN`. This is a WebSocket endpoint, including its control path. Its identity comes from `RD_RELAY_ID` and its published address from `RD_RELAY_ADDRESS`. Additional relay instances repeat this block with distinct ids; choose ids distinct from the primary node id configured in Console Settings.
+- **hbbr** registers with hbbs through `RD_HBBS_API_URL=ws://hbbs:21120/v1/control`, authenticated by the same `RD_MANAGEMENT_TOKEN`. This is a WebSocket endpoint, including its control path. Its identity comes from `RD_RELAY_ID` and its published address from `RD_RELAY_ADDRESS`. Additional relay instances repeat this block with distinct ids; choose ids distinct from the primary node id configured in Console Settings. A relay that registers under the primary node id is still shown under the distinct node id `relay:<id>` (for example `relay:local`), so it neither shadows the primary node nor merges its sessions into the primary aggregate. Server 1.1.0 accepts only a WebSocket URL; 1.1.1 and newer also normalize an `http://` or `https://` origin to the matching WebSocket scheme and `/v1/control` path, so both forms work.
 
 Both native services explicitly use `/data` as their working directory and `HOME`. The bind targets stay `/data`: hbbs writes its `id_ed25519`, `id_ed25519.pub` and `db_v2.sqlite3` into `./data/server`; its management JSON remains under `./data/server/management`. hbbr reads `blacklist.txt` and `blocklist.txt` from `./data/server-relay` and persists management JSON in `./data/server-relay/.management`. HOME-relative files, including `.config`, also stay inside each service's data directory. Setting only `RD_MANAGEMENT_DIR` does not relocate keys or the peer database.
 
@@ -157,7 +157,7 @@ Every additional permission requires `servers.view`. Mutations are recorded in C
 | `/api/servers/:node/services/:service/:action` | POST (`start`, `stop`, `restart`, `apply`) |
 | `/api/servers/:node/bans` | GET, PUT |
 
-The node list combines the primary node (the node id configured in Settings) with the relays registered at hbbs. `start`/`stop` are unsupported by this native management deployment; `restart` asks the target service to exit so its supervisor restarts it, and `apply` restarts only when the configuration reports `pending_restart`.
+The node list combines the primary node (the node id configured in Settings) with the relays registered at hbbs. A relay whose id equals the primary node id is listed under `relay:<id>` so it remains a separate node; its logs, configuration, restart and sessions target that relay. Requests for hbbr sent to the primary node id are also routed to that relay for compatibility with older clients. `start`/`stop` are unsupported by this native management deployment; `restart` asks the target service to exit so its supervisor restarts it, and `apply` restarts only when the configuration reports `pending_restart`.
 
 ## Configuration lifecycle
 

@@ -273,7 +273,7 @@ describe('server management v2 client', () => {
       ],
     ]);
     const result = await create().list();
-    expect(result.data).toHaveLength(2);
+    expect(result.data).toHaveLength(3);
     expect(result.data[0]).toMatchObject({
       id: 'main',
       name: 'RustDesk',
@@ -297,6 +297,14 @@ describe('server management v2 client', () => {
       reachable: true,
       services: [{ service: 'hbbr', running: true, available: true }],
     });
+    expect(result.data[2]).toMatchObject({
+      id: 'relay:main',
+      name: 'main',
+      node_id: 'relay:main',
+      relay: true,
+      reachable: true,
+      services: [{ service: 'hbbr', running: true, available: true }],
+    });
     expect(fetcher).toHaveBeenCalledWith(
       'http://hbbs:21120/v1/status',
       expect.objectContaining({
@@ -306,6 +314,93 @@ describe('server management v2 client', () => {
         }),
       }),
     );
+  });
+
+  it('lists a relay registered with the primary node id under a distinct node id', async () => {
+    fetchRoute([
+      [
+        'http://hbbs:21120/v1/status',
+        {
+          api_version: 1,
+          service: 'hbbs',
+          version: '1.1.1',
+          uptime_seconds: 8,
+        },
+      ],
+      [
+        'http://hbbs:21120/v1/relays',
+        {
+          data: [
+            {
+              id: 'main',
+              address: 'relay.example.com:21117',
+              version: '1.1.1',
+              uptime_seconds: 3,
+              sessions_count: 2,
+            },
+          ],
+        },
+      ],
+    ]);
+    const result = await create().list();
+    expect(result.data).toHaveLength(2);
+    expect(result.data[0]).toMatchObject({
+      id: 'main',
+      name: 'RustDesk',
+      node_id: 'main',
+      services: [{ service: 'hbbs' }],
+    });
+    expect(result.data[0].services).toHaveLength(1);
+    expect(result.data[1]).toMatchObject({
+      id: 'relay:main',
+      name: 'main',
+      node_id: 'relay:main',
+      relay: true,
+      reachable: true,
+      services: [
+        {
+          service: 'hbbr',
+          state: 'running',
+          running: true,
+          available: true,
+          runtime: {
+            version: '1.1.1',
+            address: 'relay.example.com:21117',
+            sessions_count: 2,
+          },
+        },
+      ],
+    });
+  });
+
+  it('routes same-id relay operations through its exposed and primary node ids', async () => {
+    fetchRoute([
+      ['http://hbbs:21120/v1/relays', { data: [{ id: 'main' }] }],
+      [
+        'http://hbbs:21120/v1/relays/main/config',
+        { schema: [{ name: 'port' }], values: { port: '21117' } },
+      ],
+      [
+        'http://hbbs:21120/v1/relays/main/logs?tail=25',
+        { data: ['relay-line'] },
+      ],
+      ['http://hbbs:21120/v1/relays/main/sessions', { data: [{ uuid: 'u1' }] }],
+    ]);
+    const service = create();
+    expect(
+      await service.config('relay:main', RustdeskService.HBBR),
+    ).toMatchObject({ values: { port: '21117' }, available: true });
+    expect(await service.logs('relay:main', RustdeskService.HBBR, 25)).toEqual({
+      text: 'relay-line',
+    });
+    expect(await service.sessions('relay:main')).toEqual({
+      data: [{ uuid: 'u1' }],
+    });
+    // Clients that still target hbbr on the primary node id keep working.
+    expect(await service.config('main', RustdeskService.HBBR)).toMatchObject({
+      values: { port: '21117' },
+      available: true,
+    });
   });
 
   it('reports an unreachable upstream without inventing service state', async () => {
