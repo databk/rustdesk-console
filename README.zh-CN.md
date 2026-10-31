@@ -271,7 +271,7 @@ npm run start:prod
 | `DATA_DIR` | `./data` | 数据目录，存放 SQLite 数据库、头像、Nexus 构建产物等 |
 | `DEVICE_CLONE_ISOLATION` | `false` | 是否按 `(UUID, RustDesk ID)` 区分克隆客户端，见 [clone-isolation.md](docs/clone-isolation.md) |
 
-> 旧版本在没有设置 `ADMIN_PASSWORD` 时会使用默认密码 `databk`。新部署请始终显式设置，并在首次登录后修改。
+> 未设置 `ADMIN_PASSWORD` 时，首次初始化创建管理员账号会使用默认密码 `databk`；该兜底不会修改已存在的账号。部署前必须显式设置 `ADMIN_PASSWORD`，并在首次登录后修改。
 
 ### 数据库
 
@@ -283,12 +283,13 @@ npm run start:prod
 | `DB_USERNAME` | `root` | MySQL 用户名（Compose 默认 `rustdesk_console`） |
 | `DB_PASSWORD` | 空 | MySQL 密码 |
 | `DB_DATABASE` | `rustdesk_console` | 数据库名 |
+| `DB_MIGRATE_ON_START` | `1` | Docker 启动时是否先执行数据库迁移 |
 
 使用 MySQL 时：
 
 - 需要 MySQL 8.0.13 或更高版本。
 - 自动更新要求该 schema 专用于本应用，并显式设置 `SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA=true`。
-- 多副本部署时，先单独执行一次迁移，再给所有副本设置 `DB_MIGRATE_ON_START=0`。
+- 多副本部署时，先单独执行一次迁移，再给所有副本设置 `DB_MIGRATE_ON_START=0`。标准 Compose 已将该变量透传给后端。
 
 ### Compose 与服务端
 
@@ -531,7 +532,7 @@ data/rustdesk-console.db
 
 ### 恢复
 
-- 手动部署：停止服务 → 恢复数据库和业务文件 → 启动服务 → 执行 `migrate` 确认没有待执行迁移。
+- 手动部署：停止服务 → 恢复数据库和业务文件 → 执行 `migrate` → 启动服务 → 用 `show-migrations` 确认没有待执行迁移。
 - 受控更新：使用更新器保留的备份和恢复流程，不要用旧快照覆盖已经确认提交后的新写入。
 - 迁移到新机器：保持 `DATA_DIR` 内容完整，同时带走 `.env`、Compose 文件和密钥；如果使用自动更新，`CONSOLE_INSTALL_DIR` 必须保持相同绝对路径，或在恢复后重新注册。
 
@@ -613,7 +614,7 @@ map $http_upgrade $connection_upgrade {
 - 用户名是 `databk`；
 - 初始密码来自首次初始化时的 `ADMIN_PASSWORD`；
 - 数据库已经存在时，修改 `.env` 不会重置已有账号密码；
-- 旧版本未设置 `ADMIN_PASSWORD` 时可能使用默认密码 `databk`，登录后立即修改。
+- 未设置 `ADMIN_PASSWORD` 时，首次初始化可能使用默认密码 `databk`，登录后立即修改。
 
 ### 3. 设备列表为空或设备离线
 
