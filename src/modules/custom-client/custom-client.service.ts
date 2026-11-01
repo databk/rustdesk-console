@@ -28,16 +28,36 @@ import {
 } from './dto/custom-client-build.dto';
 
 const GITHUB_API = 'https://api.github.com';
-const WORKFLOW_FILE = 'custom-build.yml';
 const CALLBACK_TIMEOUT_MS = 10_000;
 
 interface GithubDispatchInputs {
   'build-id': string;
   'callback-url': string;
   'callback-token': string;
-  os: string;
-  arch: string;
   'custom-json': string;
+}
+
+function resolveWorkflowFile(os: string, arch: string): string {
+  const key = `${os}/${arch}`;
+  const map: Record<string, string> = {
+    'windows/x86_64': 'windows-x86_64.yml',
+    'windows/x86': 'windows-x86.yml',
+    'windows/aarch64': 'windows-aarch64.yml',
+    'linux/x86_64': 'linux-x86_64.yml',
+    'linux/aarch64': 'linux-aarch64.yml',
+    'linux/armv7': 'linux-armv7.yml',
+    'macos/x86_64': 'macos-x86_64.yml',
+    'macos/aarch64': 'macos-aarch64.yml',
+    'android/aarch64': 'android-aarch64.yml',
+    'android/armv7': 'android-armv7.yml',
+    'android/x86_64': 'android-x86_64.yml',
+    'ios/aarch64': 'ios-aarch64.yml',
+  };
+  const file = map[key];
+  if (!file) {
+    throw new BadRequestException(`Unsupported target: ${key}`);
+  }
+  return file;
 }
 
 @Injectable()
@@ -78,16 +98,15 @@ export class CustomClientService {
     const callbackToken = randomUUID();
     const callbackUrlResolved = callbackUrl.replace('{uuid}', uuid);
 
+    const workflowFile = resolveWorkflowFile(dto.os, dto.arch);
     const inputs: GithubDispatchInputs = {
       'build-id': uuid,
       'callback-url': callbackUrlResolved,
       'callback-token': callbackToken,
-      os: dto.os,
-      arch: dto.arch,
       'custom-json': dto.custom ? JSON.stringify(dto.custom) : '',
     };
 
-    const dispatchUrl = `${GITHUB_API}/repos/${settings.generatorRepo}/actions/workflows/${WORKFLOW_FILE}/dispatches`;
+    const dispatchUrl = `${GITHUB_API}/repos/${settings.generatorRepo}/actions/workflows/${workflowFile}/dispatches`;
     const response = await fetch(dispatchUrl, {
       method: 'POST',
       headers: {
