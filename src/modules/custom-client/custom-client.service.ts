@@ -37,7 +37,15 @@ interface GithubDispatchInputs {
   'custom-json': string;
 }
 
-function resolveWorkflowFile(os: string, arch: string): string {
+function resolveWorkflowFile(os: string, arch: string | undefined): string {
+  if (os === 'all') {
+    return 'flutter-build.yml';
+  }
+  if (!arch) {
+    throw new BadRequestException(
+      'arch is required for single-platform builds',
+    );
+  }
   const key = `${os}/${arch}`;
   const map: Record<string, string> = {
     'windows/x86_64': 'windows-x86_64.yml',
@@ -148,7 +156,7 @@ export class CustomClientService {
       uuid,
       userGuid,
       os: dto.os,
-      arch: dto.arch,
+      arch: dto.os === 'all' ? 'all' : (dto.arch ?? ''),
       custom: dto.custom ? JSON.stringify(dto.custom) : undefined,
       status: 'pending',
       callbackToken,

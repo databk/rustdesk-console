@@ -54,11 +54,12 @@ export class CustomClientCustomDto {
 }
 
 export class SubmitBuildDto {
-  @IsIn(['windows', 'linux', 'macos', 'android', 'ios'])
+  @IsIn(['windows', 'linux', 'macos', 'android', 'ios', 'all'])
   os: string;
 
+  @IsOptional()
   @IsIn(['x86_64', 'aarch64', 'x86', 'armv7'])
-  arch: string;
+  arch?: string;
 
   @IsOptional()
   @ValidateNested()
