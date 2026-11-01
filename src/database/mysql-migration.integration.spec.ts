@@ -6,6 +6,7 @@ import { FixMySqlDefaultUserGroupIndex1790985600001 } from '../migrations/179098
 import { AddPasswordResetTokens1790985600002 } from '../migrations/1790985600002-AddPasswordResetTokens';
 import { AddDeviceTombstones1791040000000 } from '../migrations/1791040000000-AddDeviceTombstones';
 import { AddDeviceTombstoneReleaseTracking1791126400000 } from '../migrations/1791126400000-AddDeviceTombstoneReleaseTracking';
+import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1791212800000-ReplaceNexusWithCustomClientBuilds';
 import { migrateDatabase } from './migration-manager';
 
 const describeMysql = process.env.RUN_MYSQL_MIGRATION_TESTS
@@ -26,6 +27,7 @@ describeMysql('MySQL database migrations', () => {
       AddPasswordResetTokens1790985600002,
       AddDeviceTombstones1791040000000,
       AddDeviceTombstoneReleaseTracking1791126400000,
+      ReplaceNexusWithCustomClientBuilds1791212800000,
     ],
   };
   const databases = [
