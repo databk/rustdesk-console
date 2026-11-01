@@ -50,6 +50,7 @@ const ALL_KEYS = [
 export class GeneralSettingsService implements OnModuleInit {
   private readonly logger = new Logger(GeneralSettingsService.name);
   private deviceCloneIsolationCache = DEFAULT_DEVICE_CLONE_ISOLATION;
+  private cacheGeneration = 0;
 
   constructor(
     @InjectRepository(SystemSetting)
@@ -58,13 +59,20 @@ export class GeneralSettingsService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.refreshDeviceCloneIsolation();
+    // Fail fast: if the startup read errors, let module initialization fail
+    // instead of silently defaulting to legacy mode.
+    const value = await this.readValues([DEVICE_CLONE_ISOLATION_KEY]);
+    this.deviceCloneIsolationCache =
+      value.get(DEVICE_CLONE_ISOLATION_KEY) === 'true';
   }
 
   @Interval(DEVICE_CLONE_ISOLATION_REFRESH_MS)
   private async refreshDeviceCloneIsolation(): Promise<void> {
     try {
+      const generation = this.cacheGeneration;
       const value = await this.readValues([DEVICE_CLONE_ISOLATION_KEY]);
+      // Discard a stale read if a settings update landed while we were reading.
+      if (generation !== this.cacheGeneration) return;
       this.deviceCloneIsolationCache =
         value.get(DEVICE_CLONE_ISOLATION_KEY) === 'true';
     } catch (error) {
@@ -236,6 +244,7 @@ export class GeneralSettingsService implements OnModuleInit {
       await repository.save(entities);
     });
 
+    this.cacheGeneration += 1;
     this.deviceCloneIsolationCache = merged.deviceCloneIsolation;
 
     return merged;

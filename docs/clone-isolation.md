@@ -4,8 +4,7 @@ The **Device Clone Isolation** setting (Settings → General → Device Clone
 Isolation) enables a Console-only identity mode for clients with the same
 reported UUID (for example, Windows images sharing MachineGuid) but different
 RustDesk numeric IDs. It defaults to off and is managed through the admin UI or
-`PUT /api/settings/general` with `deviceCloneIsolation: true`. No environment
-variable is required.
+`PUT /api/settings/general`. No environment variable is required.
 
 In this mode, new devices get a deterministic internal key derived from the
 reported UUID AND RustDesk ID. Existing legacy records are reused only when both
@@ -16,14 +15,29 @@ do not need registry changes or a special build.
 
 The setting is read from the database into an in-memory snapshot at startup and
 refreshed on update and on a fixed interval, so multi-replica deployments that
-share one database converge without restarting each replica.
+share one database converge without restarting each replica. A replica that has
+not yet picked up a newly enabled setting continues to resolve device identities
+in legacy mode for up to the refresh interval (60 seconds). Because enabling
+isolation is a deliberate, infrequent operation, perform it during a maintenance
+window when no new device heartbeats are expected, so every replica converges
+before accepting device writes again.
 
 ## Enable and verify
 
 1. Back up the Console database.
 2. Sign in as an administrator, open Settings → General, turn on Device Clone
-   Isolation, and save. Alternatively, call `PUT /api/settings/general` with
-   `deviceCloneIsolation: true`.
+   Isolation, and save. Alternatively, call `PUT /api/settings/general` with a
+   complete body, for example:
+
+   ```bash
+   curl -X PUT /api/settings/general \
+     -H 'Content-Type: application/json' \
+     -d '{"watermarkEnabled": true, "deviceCloneIsolation": true}'
+   ```
+
+   `watermarkEnabled` is required; include the current watermark value so the
+   request does not reset it. `deviceCloneIsolation` is optional on update, but
+   must be sent to change it.
 3. Bring clone A and B online and allow their heartbeats and system information
    to arrive. Verify that both IDs remain separate after several heartbeat
    intervals, then add each to the same address book.
