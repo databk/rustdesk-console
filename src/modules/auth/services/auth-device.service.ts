@@ -3,10 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Peer } from '../../../common/entities';
 import { DeviceInfoDto } from '../dto/auth.dto';
-import {
-  resolveDeviceUuid,
-  cloneIsolationEnabled,
-} from '../../../common/utils/device-identity.util';
+import { resolveDeviceUuid } from '../../../common/utils/device-identity.util';
+import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 @Injectable()
 /**
@@ -25,6 +23,7 @@ export class AuthDeviceService {
   constructor(
     @InjectRepository(Peer)
     private peerRepository: Repository<Peer>,
+    private generalSettings: GeneralSettingsService,
   ) {}
 
   /**
@@ -43,12 +42,14 @@ export class AuthDeviceService {
     _deviceInfo?: DeviceInfoDto,
   ): Promise<void> {
     if (!deviceUuid) return;
-    if (cloneIsolationEnabled() && !deviceId) return;
+    const cloneIsolation = this.generalSettings.isDeviceCloneIsolationEnabled();
+    if (cloneIsolation && !deviceId) return;
     if (deviceId) {
       deviceUuid = await resolveDeviceUuid(
         this.peerRepository,
         deviceUuid,
         deviceId,
+        cloneIsolation,
       );
     }
 
@@ -82,12 +83,14 @@ export class AuthDeviceService {
     deviceUuid: string,
     deviceId?: string,
   ): Promise<void> {
-    if (cloneIsolationEnabled() && !deviceId) return;
+    const cloneIsolation = this.generalSettings.isDeviceCloneIsolationEnabled();
+    if (cloneIsolation && !deviceId) return;
     if (deviceId) {
       deviceUuid = await resolveDeviceUuid(
         this.peerRepository,
         deviceUuid,
         deviceId,
+        cloneIsolation,
       );
     }
     const peer = await this.peerRepository.findOne({

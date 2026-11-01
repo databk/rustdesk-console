@@ -424,6 +424,7 @@ describe('heartbeat tombstone guard', () => {
       disconnectStoreService as never,
       {} as never,
       {} as never,
+      { isDeviceCloneIsolationEnabled: () => false } as never,
     );
     return { service, peerRepository };
   };

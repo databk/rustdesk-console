@@ -8,11 +8,13 @@ import { Peer } from '../../common/entities';
 import { DeviceTombstone } from '../device-group/entities/device-tombstone.entity';
 import { ActiveConnection } from './entities/active-connection.entity';
 import { StrategyModule } from '../strategy/strategy.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Peer, ActiveConnection, DeviceTombstone]),
     StrategyModule,
+    SettingsModule,
   ],
   controllers: [HeartbeatController],
   providers: [HeartbeatService, DisconnectStoreService, HeartbeatCacheService],

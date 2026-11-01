@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Interval } from '@nestjs/schedule';
 import { DataSource, In, Repository } from 'typeorm';
 import {
   FrontendSettingsDto,
@@ -17,6 +18,7 @@ const SITE_FRONTEND_URL_KEY = 'general.siteFrontendUrl';
 const SITE_BACKEND_URL_KEY = 'general.siteBackendUrl';
 const WEBAUTHN_ENABLED_KEY = 'general.webauthnEnabled';
 const WEBAUTHN_RP_NAME_KEY = 'general.webauthnRpName';
+const DEVICE_CLONE_ISOLATION_KEY = 'general.deviceCloneIsolation';
 
 const DEFAULT_FRONTEND_URL = '';
 const DEFAULT_BACKEND_URL = '';
@@ -24,7 +26,13 @@ const DEFAULT_RP_NAME = 'RustDesk Console';
 const DEFAULT_LANGUAGE = 'en-US';
 const DEFAULT_JWT_EXPIRY_DAYS = 30;
 const DEFAULT_AUDIT_RETENTION_DAYS = 0;
+const DEFAULT_DEVICE_CLONE_ISOLATION = false;
 const FALLBACK_URL = 'http://localhost:3000';
+
+// Refresh the in-memory device-clone-isolation snapshot at most this often so
+// multi-replica deployments converge without a restart. The flag changes rarely,
+// so a minute-level cadence is enough.
+const DEVICE_CLONE_ISOLATION_REFRESH_MS = 60_000;
 
 const ALL_KEYS = [
   WATERMARK_ENABLED_KEY,
@@ -35,15 +43,54 @@ const ALL_KEYS = [
   SITE_BACKEND_URL_KEY,
   WEBAUTHN_ENABLED_KEY,
   WEBAUTHN_RP_NAME_KEY,
+  DEVICE_CLONE_ISOLATION_KEY,
 ];
 
 @Injectable()
-export class GeneralSettingsService {
+export class GeneralSettingsService implements OnModuleInit {
+  private readonly logger = new Logger(GeneralSettingsService.name);
+  private deviceCloneIsolationCache = DEFAULT_DEVICE_CLONE_ISOLATION;
+  private cacheGeneration = 0;
+
   constructor(
     @InjectRepository(SystemSetting)
     private readonly settingRepository: Repository<SystemSetting>,
     private readonly dataSource: DataSource,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    // Fail fast: if the startup read errors, let module initialization fail
+    // instead of silently defaulting to legacy mode.
+    const value = await this.readValues([DEVICE_CLONE_ISOLATION_KEY]);
+    this.deviceCloneIsolationCache =
+      value.get(DEVICE_CLONE_ISOLATION_KEY) === 'true';
+  }
+
+  @Interval(DEVICE_CLONE_ISOLATION_REFRESH_MS)
+  private async refreshDeviceCloneIsolation(): Promise<void> {
+    try {
+      const generation = this.cacheGeneration;
+      const value = await this.readValues([DEVICE_CLONE_ISOLATION_KEY]);
+      // Discard a stale read if a settings update landed while we were reading.
+      if (generation !== this.cacheGeneration) return;
+      this.deviceCloneIsolationCache =
+        value.get(DEVICE_CLONE_ISOLATION_KEY) === 'true';
+    } catch (error) {
+      this.logger.warn(
+        `Unable to refresh device clone isolation setting: ${String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Whether cloned-client isolation is enabled.
+   * Reads from an in-memory snapshot refreshed at startup, on settings update,
+   * and on a fixed interval so multi-replica deployments converge without a
+   * restart. Hot paths (heartbeats) call this synchronously.
+   */
+  isDeviceCloneIsolationEnabled(): boolean {
+    return this.deviceCloneIsolationCache;
+  }
 
   async getSettings(): Promise<GeneralSettingsDto> {
     const values = await this.readValues(ALL_KEYS);
@@ -57,6 +104,7 @@ export class GeneralSettingsService {
       auditRetentionDays: this.readAuditRetentionDays(
         values.get(AUDIT_RETENTION_DAYS_KEY),
       ),
+      deviceCloneIsolation: values.get(DEVICE_CLONE_ISOLATION_KEY) === 'true',
       site: {
         frontendUrl: values.get(SITE_FRONTEND_URL_KEY) ?? DEFAULT_FRONTEND_URL,
         backendUrl: values.get(SITE_BACKEND_URL_KEY) ?? DEFAULT_BACKEND_URL,
@@ -154,6 +202,8 @@ export class GeneralSettingsService {
       defaultLanguage: dto.defaultLanguage ?? current.defaultLanguage,
       jwtExpiryDays: dto.jwtExpiryDays ?? current.jwtExpiryDays,
       auditRetentionDays: dto.auditRetentionDays ?? current.auditRetentionDays,
+      deviceCloneIsolation:
+        dto.deviceCloneIsolation ?? current.deviceCloneIsolation,
       site: {
         frontendUrl: dto.site?.frontendUrl ?? current.site.frontendUrl,
         backendUrl: dto.site?.backendUrl ?? current.site.backendUrl,
@@ -169,6 +219,7 @@ export class GeneralSettingsService {
       [DEFAULT_LANGUAGE_KEY, merged.defaultLanguage ?? DEFAULT_LANGUAGE],
       [JWT_EXPIRY_DAYS_KEY, String(merged.jwtExpiryDays)],
       [AUDIT_RETENTION_DAYS_KEY, String(merged.auditRetentionDays)],
+      [DEVICE_CLONE_ISOLATION_KEY, String(merged.deviceCloneIsolation)],
       [SITE_FRONTEND_URL_KEY, merged.site.frontendUrl ?? ''],
       [SITE_BACKEND_URL_KEY, merged.site.backendUrl ?? ''],
       [WEBAUTHN_ENABLED_KEY, String(merged.webauthn.enabled)],
@@ -192,6 +243,9 @@ export class GeneralSettingsService {
 
       await repository.save(entities);
     });
+
+    this.cacheGeneration += 1;
+    this.deviceCloneIsolationCache = merged.deviceCloneIsolation;
 
     return merged;
   }
