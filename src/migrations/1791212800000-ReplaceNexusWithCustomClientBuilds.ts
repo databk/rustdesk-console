@@ -20,7 +20,7 @@ export class ReplaceNexusWithCustomClientBuilds1791212800000 implements Migratio
 
     if (type === 'sqlite') {
       await queryRunner.query(
-        `CREATE TABLE "custom_client_builds" ("uuid" varchar PRIMARY KEY NOT NULL, "userGuid" varchar NOT NULL, "os" varchar NOT NULL, "arch" varchar NOT NULL, "custom" text, "status" varchar NOT NULL DEFAULT ('pending'), "message" varchar, "files" text, "callbackToken" varchar NOT NULL, "githubRunId" varchar, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`,
+        `CREATE TABLE "custom_client_builds" ("uuid" varchar PRIMARY KEY NOT NULL, "userGuid" varchar NOT NULL, "os" varchar NOT NULL, "arch" varchar NOT NULL, "custom" text, "status" varchar NOT NULL DEFAULT ('pending'), "message" text, "files" text, "callbackToken" varchar NOT NULL, "githubRunId" varchar, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`,
       );
       await queryRunner.query(
         `CREATE INDEX "IDX_custom_client_builds_userGuid" ON "custom_client_builds" ("userGuid") `,

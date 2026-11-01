@@ -58,17 +58,25 @@ export class CustomClientController {
   }
 
   @Get('builds/:uuid/files')
-  listBuildFiles(@Param('uuid') uuid: string) {
-    return this.customClientService.listBuildFiles(uuid);
+  async listBuildFiles(
+    @CurrentUser('id') userGuid: string,
+    @Param('uuid') uuid: string,
+  ) {
+    return this.customClientService.listBuildFiles(uuid, userGuid);
   }
 
   @Get('builds/:uuid/files/:filename')
-  downloadBuildFile(
+  async downloadBuildFile(
+    @CurrentUser('id') userGuid: string,
     @Param('uuid') uuid: string,
     @Param('filename') filename: string,
     @Res() res: Response,
   ) {
-    const filePath = this.customClientService.getLocalFilePath(uuid, filename);
+    const filePath = await this.customClientService.getLocalFilePath(
+      uuid,
+      filename,
+      userGuid,
+    );
     if (!existsSync(filePath)) {
       throw new NotFoundException('File not found');
     }
@@ -84,13 +92,20 @@ export class CustomClientController {
   }
 
   @Get('builds/:uuid/progress')
-  async getBuildProgress(@Param('uuid') uuid: string) {
-    return this.customClientService.getBuildProgress(uuid);
+  async getBuildProgress(
+    @CurrentUser('id') userGuid: string,
+    @Param('uuid') uuid: string,
+  ) {
+    return this.customClientService.getBuildProgress(uuid, userGuid);
   }
 
   @Post('builds/:uuid/callback')
   @Public()
-  @UseInterceptors(FilesInterceptor('files'))
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      limits: { fileSize: 200 * 1024 * 1024, files: 10 },
+    }),
+  )
   @HttpCode(HttpStatus.OK)
   async handleCallback(
     @Param('uuid') uuid: string,

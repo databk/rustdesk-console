@@ -3,19 +3,21 @@ import {
   Injectable,
   Logger,
   BadRequestException,
+  BadGatewayException,
   UnauthorizedException,
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import {
   existsSync,
   readdirSync,
   mkdirSync,
   writeFileSync,
-  createReadStream,
+  rmSync,
+  statSync,
 } from 'fs';
 import { resolve, relative } from 'path';
 import { getCustomClientStoragePath } from '../../common/utils/data-dir.util';
@@ -30,6 +32,11 @@ import {
 
 const GITHUB_API = 'https://api.github.com';
 const CALLBACK_TIMEOUT_MS = 10_000;
+const ALLOWED_CALLBACK_STATUSES: CustomClientBuild['status'][] = [
+  'building',
+  'completed',
+  'failed',
+];
 
 interface GithubDispatchInputs {
   'build-id': string;
@@ -129,7 +136,7 @@ export class CustomClientService {
     });
 
     if (response.status === 401 || response.status === 403) {
-      throw new UnauthorizedException(
+      throw new BadGatewayException(
         'GitHub token is invalid or lacks workflow permission',
       );
     }
@@ -195,23 +202,30 @@ export class CustomClientService {
       );
     }
     await this.buildRepository.delete({ uuid });
+    rmSync(this.safeJoin(uuid), { recursive: true, force: true });
   }
 
-  listBuildFiles(uuid: string): string[] {
+  async listBuildFiles(uuid: string, userGuid: string): Promise<string[]> {
+    await this.findOwnedBuild(uuid, userGuid);
     const dir = this.safeJoin(uuid);
     if (!existsSync(dir)) {
       return [];
     }
     return readdirSync(dir).filter((f) => {
       try {
-        return !createReadStream(this.safeJoin(uuid, f)).destroyed;
+        return statSync(this.safeJoin(uuid, f)).isFile();
       } catch {
         return false;
       }
     });
   }
 
-  getLocalFilePath(uuid: string, filename: string): string {
+  async getLocalFilePath(
+    uuid: string,
+    filename: string,
+    userGuid: string,
+  ): Promise<string> {
+    await this.findOwnedBuild(uuid, userGuid);
     return this.safeJoin(uuid, filename);
   }
 
@@ -226,8 +240,22 @@ export class CustomClientService {
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    if (build.callbackToken !== callbackToken) {
+    if (
+      build.callbackToken.length !== callbackToken.length ||
+      !timingSafeEqual(
+        Buffer.from(build.callbackToken),
+        Buffer.from(callbackToken),
+      )
+    ) {
       throw new UnauthorizedException('Invalid callback token');
+    }
+    if (
+      !ALLOWED_CALLBACK_STATUSES.includes(status as CustomClientBuild['status'])
+    ) {
+      throw new BadRequestException('Invalid status');
+    }
+    if (build.status === 'completed' || build.status === 'failed') {
+      throw new BadRequestException('Build already finished');
     }
 
     const savedNames: string[] = [];
@@ -247,17 +275,18 @@ export class CustomClientService {
         status: status as CustomClientBuild['status'],
         message: message ?? undefined,
         files: savedNames.length > 0 ? JSON.stringify(savedNames) : undefined,
+        callbackToken: randomUUID(),
       },
     );
 
     this.logger.log(`Callback processed for build ${uuid}: ${status}`);
   }
 
-  async getBuildProgress(uuid: string): Promise<BuildProgressResponse> {
-    const build = await this.buildRepository.findOne({ where: { uuid } });
-    if (!build) {
-      throw new NotFoundException('Build record not found');
-    }
+  async getBuildProgress(
+    uuid: string,
+    userGuid: string,
+  ): Promise<BuildProgressResponse> {
+    const build = await this.findOwnedBuild(uuid, userGuid);
 
     if (!build.githubRunId) {
       return {
@@ -313,6 +342,19 @@ export class CustomClientService {
         })),
       })),
     };
+  }
+
+  private async findOwnedBuild(
+    uuid: string,
+    userGuid: string,
+  ): Promise<CustomClientBuild> {
+    const build = await this.buildRepository.findOne({
+      where: { uuid, userGuid },
+    });
+    if (!build) {
+      throw new NotFoundException('Build record not found');
+    }
+    return build;
   }
 
   private async githubFetch<T>(url: string, token: string): Promise<T> {

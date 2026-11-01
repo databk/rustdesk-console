@@ -32,7 +32,7 @@ export class CustomClientBuild {
   @Index('IDX_custom_client_builds_status', ['status'])
   status: CustomClientBuildStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   message: string;
 
   @Column({ type: 'text', nullable: true })
