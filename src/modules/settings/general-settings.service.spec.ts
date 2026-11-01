@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS = {
   defaultLanguage: 'en-US',
   jwtExpiryDays: 30,
   auditRetentionDays: 0,
+  deviceCloneIsolation: false,
   site: { frontendUrl: '', backendUrl: '' },
   webauthn: { enabled: true, rpName: 'RustDesk Console' },
 };
@@ -71,7 +72,7 @@ describe('GeneralSettingsService', () => {
       ...DEFAULT_SETTINGS,
       watermarkEnabled: false,
     });
-    await expect(repository.count()).resolves.toBe(8);
+    await expect(repository.count()).resolves.toBe(9);
   });
 
   it('persists jwtExpiryDays and reads it back', async () => {

@@ -35,6 +35,7 @@ export class GeneralSettingsDto {
   defaultLanguage: string;
   jwtExpiryDays: number;
   auditRetentionDays: number;
+  deviceCloneIsolation: boolean;
   site: SiteSettingsDto;
   webauthn: WebAuthnSettingsDto;
 }
@@ -65,6 +66,10 @@ export class UpdateGeneralSettingsDto {
   @IsInt()
   @Min(0)
   auditRetentionDays?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  deviceCloneIsolation?: boolean;
 
   @IsOptional()
   @ValidateNested()

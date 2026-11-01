@@ -1,8 +1,11 @@
 # Cloned Windows clients
 
-`DEVICE_CLONE_ISOLATION=true` enables a Console-only identity mode for clients
-with the same reported UUID (for example, Windows images sharing MachineGuid)
-but different RustDesk numeric IDs. It defaults to false.
+The **Device Clone Isolation** setting (Settings → General → Device Clone
+Isolation) enables a Console-only identity mode for clients with the same
+reported UUID (for example, Windows images sharing MachineGuid) but different
+RustDesk numeric IDs. It defaults to off and is managed through the admin UI or
+`PUT /api/settings/general` with `deviceCloneIsolation: true`. No environment
+variable is required.
 
 In this mode, new devices get a deterministic internal key derived from the
 reported UUID AND RustDesk ID. Existing legacy records are reused only when both
@@ -11,19 +14,21 @@ records, strategies and connection/disconnect queues use the same internal key.
 The numeric connection ID is unchanged. There is no schema migration and clients
 do not need registry changes or a special build.
 
-## Deploy and verify
+The setting is read from the database into an in-memory snapshot at startup and
+refreshed on update and on a fixed interval, so multi-replica deployments that
+share one database converge without restarting each replica.
 
-1. Stop the Console and back up its database and deployment configuration.
-2. Build this modified source (`docker build -t rustdesk-console:clone-isolation .`).
-3. In your Compose file, use that local image for the Console service and pass
-   `DEVICE_CLONE_ISOLATION: "true"` in its environment. The supplied Compose file
-   already forwards the corresponding `.env` setting. Merely adding the variable
-   to `.env` does not pass it into an arbitrary existing Compose service.
-4. Recreate the Console container. Bring A and B online and allow their heartbeats
-   and system information to arrive. Verify that both IDs remain separate after
-   several heartbeat intervals, then add each to the same address book.
-5. Check independent aliases, group/strategy assignments, online status, login and
-   logout, and remote connections. Test on a database copy before production.
+## Enable and verify
+
+1. Back up the Console database.
+2. Sign in as an administrator, open Settings → General, turn on Device Clone
+   Isolation, and save. Alternatively, call `PUT /api/settings/general` with
+   `deviceCloneIsolation: true`.
+3. Bring clone A and B online and allow their heartbeats and system information
+   to arrive. Verify that both IDs remain separate after several heartbeat
+   intervals, then add each to the same address book.
+4. Check independent aliases, group/strategy assignments, online status, login
+   and logout, and remote connections. Test on a database copy before production.
 
 An old address-book entry follows the ID currently stored on its legacy peer row.
 If clones previously overwrote that row, check the ID before trusting its alias,
@@ -40,11 +45,10 @@ New clone records intentionally do not inherit these settings.
 - System-info reporting and account binding require both ID and UUID in this
   mode. A report without an ID is rejected with `ID_NOT_FOUND`; binding/unbinding
   without an ID is skipped, avoiding accidental changes to another clone.
-- Keep the flag enabled on every API replica. Do not casually toggle it off:
-  older code/legacy mode cannot resolve the derived rows and may create duplicate
-  or merged records. Roll back by stopping the Console, restoring the pre-change
-  database and configuration, and starting the original image. Changes made since
-  that backup will be lost.
+- Do not casually toggle the setting off: legacy mode cannot resolve the derived
+  rows and may create duplicate or merged records. Roll back by stopping the
+  Console, restoring the pre-change database, and starting the original image.
+  Changes made since that backup will be lost.
 - No automatic cleanup of old rows is performed. Existing audit history is kept
   as-is; new audit records use the resolved internal key.
 

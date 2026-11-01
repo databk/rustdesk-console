@@ -25,6 +25,8 @@ import { FileAudit } from '../../modules/audit/entities/file-audit.entity';
 import { AlarmAudit } from '../../modules/audit/entities/alarm-audit.entity';
 import { RbacAuditService } from '../../modules/rbac/services/rbac-audit.service';
 import { RbacAuthorizationService } from '../../modules/rbac/services/rbac-authorization.service';
+import { GeneralSettingsService } from '../../modules/settings/services/general-settings.service';
+import { SystemSetting } from '../../modules/settings/entities/system-setting.entity';
 
 jest.mock('uuid', () => ({
   v4: jest.requireActual<typeof import('node:crypto')>('node:crypto')
@@ -40,10 +42,10 @@ describe('cloned client isolation (SQLite)', () => {
   let addressBook: AddressBookPeerService;
   let disconnects: DisconnectStoreService;
   let audit: AuditService;
+  let generalSettings: GeneralSettingsService;
   const uuid = 'shared-machine-guid';
   const a = '130373089';
   const b = '513712190';
-  const previousFlag = process.env.DEVICE_CLONE_ISOLATION;
   const report = (id: string, conns: number[] = []) => ({
     id,
     uuid,
@@ -53,7 +55,6 @@ describe('cloned client isolation (SQLite)', () => {
   });
 
   beforeEach(async () => {
-    process.env.DEVICE_CLONE_ISOLATION = 'true';
     db = new DataSource({
       type: 'sqlite',
       database: ':memory:',
@@ -64,6 +65,12 @@ describe('cloned client isolation (SQLite)', () => {
     const repo = <T extends import('typeorm').ObjectLiteral>(
       entity: import('typeorm').EntityTarget<T>,
     ) => db.getRepository(entity);
+    generalSettings = new GeneralSettingsService(repo(SystemSetting), db);
+    await generalSettings.onModuleInit();
+    await generalSettings.updateSettings({
+      watermarkEnabled: true,
+      deviceCloneIsolation: true,
+    });
     cache = new HeartbeatCacheService(db);
     disconnects = new DisconnectStoreService();
     heartbeat = new HeartbeatService(
@@ -75,6 +82,7 @@ describe('cloned client isolation (SQLite)', () => {
         findStrategyForPeer: jest.fn().mockResolvedValue(null),
       } as unknown as StrategyService,
       cache,
+      generalSettings,
     );
     sysinfo = new SysinfoService(
       repo(Sysinfo),
@@ -83,8 +91,9 @@ describe('cloned client isolation (SQLite)', () => {
       repo(AddressBookTag),
       repo(DeviceGroup),
       repo(Peer),
+      generalSettings,
     );
-    auth = new AuthDeviceService(repo(Peer));
+    auth = new AuthDeviceService(repo(Peer), generalSettings);
     addressBook = new AddressBookPeerService(
       repo(AddressBook),
       repo(AddressBookPeer),
@@ -100,13 +109,12 @@ describe('cloned client isolation (SQLite)', () => {
       repo(Peer),
       {} as RbacAuditService,
       {} as RbacAuthorizationService,
+      generalSettings,
     );
   });
 
   afterEach(async () => {
     await db.destroy();
-    if (previousFlag === undefined) delete process.env.DEVICE_CLONE_ISOLATION;
-    else process.env.DEVICE_CLONE_ISOLATION = previousFlag;
   });
 
   it('keeps two fresh clones separate across interleaved heartbeats and sysinfo', async () => {
@@ -275,7 +283,10 @@ describe('cloned client isolation (SQLite)', () => {
   });
 
   it('retains legacy behavior when the flag is disabled', async () => {
-    delete process.env.DEVICE_CLONE_ISOLATION;
+    await generalSettings.updateSettings({
+      watermarkEnabled: true,
+      deviceCloneIsolation: false,
+    });
     await heartbeat.handleHeartbeat(report(a));
     await heartbeat.handleHeartbeat(report(b));
     await cache.flush();

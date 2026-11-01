@@ -29,7 +29,7 @@ export class Peer {
   /**
    * Unique device identifier
    * Client UUID in legacy mode; a Console-only derived key for new devices
-   * when DEVICE_CLONE_ISOLATION is enabled. Never use this as an hbbs UUID.
+   * when the Device Clone Isolation setting is enabled. Never use this as an hbbs UUID.
    */
   @PrimaryColumn()
   uuid: string;

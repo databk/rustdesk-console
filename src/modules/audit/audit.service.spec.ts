@@ -15,6 +15,7 @@ import { ActiveConnectionQueryDto } from './dto/connection-audit.dto';
 import { AlarmAudit } from './entities/alarm-audit.entity';
 import { ConnectionAudit } from './entities/connection-audit.entity';
 import { FileAudit } from './entities/file-audit.entity';
+import { GeneralSettingsService } from '../settings/services/general-settings.service';
 
 jest.mock('uuid', () => {
   const cryptoModule =
@@ -43,6 +44,9 @@ describe('Disconnect connection reads', () => {
     peerRepository as unknown as Repository<Peer>,
     {} as RbacAuditService,
     authorizationService as unknown as RbacAuthorizationService,
+    {
+      isDeviceCloneIsolationEnabled: () => false,
+    } as unknown as GeneralSettingsService,
   );
 
   beforeEach(() => {

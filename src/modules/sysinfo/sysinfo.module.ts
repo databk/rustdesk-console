@@ -9,6 +9,7 @@ import {
   AddressBookTag,
 } from '../address-book/entities';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
+import { SettingsModule } from '../settings/settings.module';
 
 /**
  * System info module
@@ -33,6 +34,7 @@ import { DeviceGroup } from '../device-group/entities/device-group.entity';
       DeviceGroup,
       Peer,
     ]),
+    SettingsModule,
   ],
   controllers: [SysinfoController],
   providers: [SysinfoService],

@@ -12,6 +12,7 @@ import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
 import { Peer } from '../../common/entities/peer.entity';
 import { resolveDeviceUuid } from '../../common/utils/device-identity.util';
+import { GeneralSettingsService } from '../settings/services/general-settings.service';
 import { ActiveConnectionQueryDto } from './dto/connection-audit.dto';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
@@ -44,6 +45,7 @@ export class AuditService {
     private readonly peerRepository: Repository<Peer>,
     private readonly rbacAuditService: RbacAuditService,
     private readonly rbacAuthorizationService: RbacAuthorizationService,
+    private readonly generalSettings: GeneralSettingsService,
   ) {}
 
   /**
@@ -119,7 +121,12 @@ export class AuditService {
     if (dto.uuid) {
       dto = {
         ...dto,
-        uuid: await resolveDeviceUuid(this.peerRepository, dto.uuid, dto.id),
+        uuid: await resolveDeviceUuid(
+          this.peerRepository,
+          dto.uuid,
+          dto.id,
+          this.generalSettings.isDeviceCloneIsolationEnabled(),
+        ),
       };
     }
     const connId = dto.conn_id !== undefined ? String(dto.conn_id) : null;
@@ -260,7 +267,12 @@ export class AuditService {
   async auditFile(dto: FileAuditDto): Promise<FileAudit> {
     dto = {
       ...dto,
-      uuid: await resolveDeviceUuid(this.peerRepository, dto.uuid, dto.id),
+      uuid: await resolveDeviceUuid(
+        this.peerRepository,
+        dto.uuid,
+        dto.id,
+        this.generalSettings.isDeviceCloneIsolationEnabled(),
+      ),
     };
     // nonce deduplication: look up existing records first (with deviceId to prevent cross-device mismatches)
     if (dto.nonce) {
@@ -326,7 +338,12 @@ export class AuditService {
   async auditAlarm(dto: AlarmAuditDto): Promise<AlarmAudit> {
     dto = {
       ...dto,
-      uuid: await resolveDeviceUuid(this.peerRepository, dto.uuid, dto.id),
+      uuid: await resolveDeviceUuid(
+        this.peerRepository,
+        dto.uuid,
+        dto.id,
+        this.generalSettings.isDeviceCloneIsolationEnabled(),
+      ),
     };
     // nonce deduplication: look up existing records first (with deviceId to prevent cross-device mismatches)
     if (dto.nonce) {

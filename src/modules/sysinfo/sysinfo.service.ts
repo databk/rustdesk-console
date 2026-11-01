@@ -11,10 +11,8 @@ import {
   AddressBookPeerTag,
 } from '../address-book/entities';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
-import {
-  resolveDeviceUuid,
-  cloneIsolationEnabled,
-} from '../../common/utils/device-identity.util';
+import { resolveDeviceUuid } from '../../common/utils/device-identity.util';
+import { GeneralSettingsService } from '../settings/services/general-settings.service';
 
 /**
  * System info service
@@ -43,6 +41,7 @@ export class SysinfoService {
     private deviceGroupRepository: Repository<DeviceGroup>,
     @InjectRepository(Peer)
     private peerRepository: Repository<Peer>,
+    private generalSettings: GeneralSettingsService,
   ) {}
 
   /**
@@ -58,7 +57,8 @@ export class SysinfoService {
   ): Promise<{ found: boolean; sysinfo?: Sysinfo }> {
     // UUID alone cannot distinguish clones. Do not overwrite another device's
     // hardware info or apply its presets when the client omits the ID.
-    if (cloneIsolationEnabled() && !sysinfoDto.id) return { found: false };
+    const cloneIsolation = this.generalSettings.isDeviceCloneIsolationEnabled();
+    if (cloneIsolation && !sysinfoDto.id) return { found: false };
     if (sysinfoDto.id) {
       sysinfoDto = {
         ...sysinfoDto,
@@ -66,6 +66,7 @@ export class SysinfoService {
           this.peerRepository,
           sysinfoDto.uuid,
           sysinfoDto.id,
+          cloneIsolation,
         ),
       };
     }
