@@ -22,8 +22,7 @@ import { PasswordResetToken } from '../modules/auth/entities/password-reset-toke
 import { SystemSetting } from '../modules/settings/entities/system-setting.entity';
 import { ActiveConnection } from '../modules/heartbeat/entities/active-connection.entity';
 import { Strategy } from '../modules/strategy/entities/strategy.entity';
-import { NexusToken } from '../modules/nexus/entities/nexus-token.entity';
-import { NexusBuild } from '../modules/nexus/entities/nexus-build.entity';
+import { CustomClientBuild } from '../modules/custom-client/entities/custom-client-build.entity';
 import { UserGroup } from '../modules/user-group/entities/user-group.entity';
 import { Role } from '../modules/rbac/entities/role.entity';
 import { RolePermission } from '../modules/rbac/entities/role-permission.entity';
@@ -58,8 +57,7 @@ export const DATABASE_ENTITIES = [
   SystemSetting,
   ActiveConnection,
   Strategy,
-  NexusToken,
-  NexusBuild,
+  CustomClientBuild,
   UserGroup,
   Role,
   RolePermission,

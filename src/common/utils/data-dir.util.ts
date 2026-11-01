@@ -2,7 +2,7 @@ import * as path from 'path';
 
 const DEFAULT_DATA_DIR = './data';
 const DB_FILENAME = 'rustdesk-console.db';
-const NEXUS_BUILD_SUBDIR = 'nexus-builds';
+const CUSTOM_CLIENT_BUILD_SUBDIR = 'custom-client-builds';
 const AVATAR_SUBDIR = 'avatars';
 
 export type DbType = 'sqlite' | 'mysql';
@@ -38,10 +38,10 @@ export function getDbPath(): string {
 }
 
 /**
- * Get the Nexus build artifact storage directory.
+ * Get the custom client build artifact storage directory.
  */
-export function getNexusStoragePath(): string {
-  return path.join(getDataDir(), NEXUS_BUILD_SUBDIR);
+export function getCustomClientStoragePath(): string {
+  return path.join(getDataDir(), CUSTOM_CLIENT_BUILD_SUBDIR);
 }
 
 /**

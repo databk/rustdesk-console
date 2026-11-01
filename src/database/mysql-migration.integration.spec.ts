@@ -80,7 +80,7 @@ describeMysql('MySQL database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(5);
+      ).toHaveLength(6);
       await dataSource.query(
         "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0), ('d', 'D', 'd', 1)",
       );
@@ -117,7 +117,7 @@ describeMysql('MySQL database migrations', () => {
       ).toEqual([{ name: 'retained' }]);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(5);
+      ).toHaveLength(6);
       await dataSource.query(
         "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0)",
       );
@@ -149,6 +149,7 @@ describeMysql('MySQL database migrations', () => {
       'user_user_permissions',
       'nexus_tokens',
       'nexus_builds',
+      'custom_client_builds',
     ]) {
       await legacy.query(`DROP TABLE IF EXISTS \`${table}\``);
     }
@@ -172,7 +173,7 @@ describeMysql('MySQL database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(5);
+      ).toHaveLength(6);
     } finally {
       await dataSource.destroy();
     }
