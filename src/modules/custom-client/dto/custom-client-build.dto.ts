@@ -72,3 +72,23 @@ export interface SubmitBuildResponse {
   status: string;
   message: string;
 }
+
+export interface BuildProgressStep {
+  name: string;
+  status: string;
+  conclusion: string | null;
+}
+
+export interface BuildProgressJob {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  steps: BuildProgressStep[];
+}
+
+export interface BuildProgressResponse {
+  runId: string | null;
+  runStatus: string;
+  runConclusion: string | null;
+  jobs: BuildProgressJob[];
+}

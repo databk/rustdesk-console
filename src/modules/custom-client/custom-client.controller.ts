@@ -83,6 +83,11 @@ export class CustomClientController {
     stream.pipe(res);
   }
 
+  @Get('builds/:uuid/progress')
+  async getBuildProgress(@Param('uuid') uuid: string) {
+    return this.customClientService.getBuildProgress(uuid);
+  }
+
   @Post('builds/:uuid/callback')
   @Public()
   @UseInterceptors(FilesInterceptor('files'))

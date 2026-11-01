@@ -25,6 +25,7 @@ import { GeneralSettingsService } from '../settings/services/general-settings.se
 import {
   SubmitBuildDto,
   SubmitBuildResponse,
+  BuildProgressResponse,
 } from './dto/custom-client-build.dto';
 
 const GITHUB_API = 'https://api.github.com';
@@ -121,7 +122,7 @@ export class CustomClientService {
         Authorization: `Bearer ${settings.githubToken}`,
         Accept: 'application/vnd.github+json',
         'Content-Type': 'application/json',
-        'X-GitHub-Api-Version': '2022-11-28',
+        'X-GitHub-Api-Version': '2026-03-10',
       },
       body: JSON.stringify({ ref: settings.generatorRef, inputs }),
       signal: AbortSignal.timeout(CALLBACK_TIMEOUT_MS),
@@ -152,6 +153,13 @@ export class CustomClientService {
       );
     }
 
+    const dispatchBody = (await response.json()) as {
+      workflow_run_id?: number;
+    };
+    const githubRunId = dispatchBody.workflow_run_id
+      ? String(dispatchBody.workflow_run_id)
+      : undefined;
+
     const build = this.buildRepository.create({
       uuid,
       userGuid,
@@ -160,6 +168,7 @@ export class CustomClientService {
       custom: dto.custom ? JSON.stringify(dto.custom) : undefined,
       status: 'pending',
       callbackToken,
+      githubRunId,
     });
     await this.buildRepository.save(build);
 
@@ -242,6 +251,85 @@ export class CustomClientService {
     );
 
     this.logger.log(`Callback processed for build ${uuid}: ${status}`);
+  }
+
+  async getBuildProgress(uuid: string): Promise<BuildProgressResponse> {
+    const build = await this.buildRepository.findOne({ where: { uuid } });
+    if (!build) {
+      throw new NotFoundException('Build record not found');
+    }
+
+    if (!build.githubRunId) {
+      return {
+        runId: null,
+        runStatus: 'queued',
+        runConclusion: null,
+        jobs: [],
+      };
+    }
+
+    const settings = await this.settingsService.getActiveSettings();
+    if (!settings.githubToken) {
+      throw new BadRequestException('GitHub token is not configured');
+    }
+
+    const runId = build.githubRunId;
+    const repo = settings.generatorRepo;
+
+    const [runData, jobsData] = await Promise.all([
+      this.githubFetch<{ status: string; conclusion: string | null }>(
+        `${GITHUB_API}/repos/${repo}/actions/runs/${runId}`,
+        settings.githubToken,
+      ),
+      this.githubFetch<{
+        jobs: Array<{
+          name: string;
+          status: string;
+          conclusion: string | null;
+          steps: Array<{
+            name: string;
+            status: string;
+            conclusion: string | null;
+          }>;
+        }>;
+      }>(
+        `${GITHUB_API}/repos/${repo}/actions/runs/${runId}/jobs`,
+        settings.githubToken,
+      ),
+    ]);
+
+    return {
+      runId,
+      runStatus: runData.status,
+      runConclusion: runData.conclusion,
+      jobs: jobsData.jobs.map((job) => ({
+        name: job.name,
+        status: job.status,
+        conclusion: job.conclusion,
+        steps: job.steps.map((step) => ({
+          name: step.name,
+          status: step.status,
+          conclusion: step.conclusion,
+        })),
+      })),
+    };
+  }
+
+  private async githubFetch<T>(url: string, token: string): Promise<T> {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2026-03-10',
+      },
+      signal: AbortSignal.timeout(CALLBACK_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `GitHub API ${response.status}: ${await response.text()}`,
+      );
+    }
+    return response.json() as Promise<T>;
   }
 
   private safeJoin(...segments: string[]): string {
