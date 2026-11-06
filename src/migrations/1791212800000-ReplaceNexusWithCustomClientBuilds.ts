@@ -33,7 +33,7 @@ export class ReplaceNexusWithCustomClientBuilds1791212800000 implements Migratio
 
     if (type === 'mysql') {
       await queryRunner.query(
-        `CREATE TABLE \`custom_client_builds\` (\`uuid\` varchar(255) NOT NULL, \`userGuid\` varchar(255) NOT NULL, \`os\` varchar(255) NOT NULL, \`arch\` varchar(255) NOT NULL, \`custom\` text NULL, \`status\` varchar(255) NOT NULL DEFAULT 'pending', \`message\` varchar(255) NULL, \`files\` text NULL, \`callbackToken\` varchar(255) NOT NULL, \`githubRunId\` varchar(255) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX \`IDX_custom_client_builds_userGuid\` (\`userGuid\`), INDEX \`IDX_custom_client_builds_status\` (\`status\`), PRIMARY KEY (\`uuid\`)) ENGINE=InnoDB`,
+        `CREATE TABLE \`custom_client_builds\` (\`uuid\` varchar(255) NOT NULL, \`userGuid\` varchar(255) NOT NULL, \`os\` varchar(255) NOT NULL, \`arch\` varchar(255) NOT NULL, \`custom\` text NULL, \`status\` varchar(255) NOT NULL DEFAULT 'pending', \`message\` text NULL, \`files\` text NULL, \`callbackToken\` varchar(255) NOT NULL, \`githubRunId\` varchar(255) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX \`IDX_custom_client_builds_userGuid\` (\`userGuid\`), INDEX \`IDX_custom_client_builds_status\` (\`status\`), PRIMARY KEY (\`uuid\`)) ENGINE=InnoDB`,
       );
       return;
     }
