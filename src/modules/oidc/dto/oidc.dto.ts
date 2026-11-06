@@ -40,4 +40,13 @@ export class OidcAuthRequestDto {
     require_protocol: true,
   })
   callbackUrl?: string; // Web frontend callback URL (optional)
+
+  /**
+   * API server address configured in the RustDesk client. Recent clients
+   * include it in the request; it is accepted for compatibility but not used,
+   * because redirect URIs are always built from the configured site settings.
+   */
+  @IsOptional()
+  @IsString()
+  apiDomain?: string;
 }
