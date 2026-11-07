@@ -295,6 +295,19 @@ describe('Console audit query contract', () => {
     expect(builder.skip).toHaveBeenCalledWith(10);
     expect(builder.take).toHaveBeenCalledWith(10);
   });
+
+  it('expands canonical and historical action filters in both directions', () => {
+    const expand = (
+      service as unknown as {
+        expandActionAliases(action: string): string[];
+      }
+    ).expandActionAliases.bind(service);
+
+    expect(expand('user.create')).toContain('POST /api/users');
+    expect(expand('POST /api/users')).toContain('user.create');
+    expect(expand('server.bans.update')).toContain('PUT /v1/bans');
+    expect(expand('PUT /v1/bans')).toContain('server.bans.update');
+  });
 });
 
 describe('Console audit controller contract', () => {

@@ -26,6 +26,7 @@ import {
   RequirePermission,
   RequireSuperAdmin,
 } from '../rbac/decorators/require-permission.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 /**
@@ -191,6 +192,10 @@ export class AuditsController {
    * @param dto Update data
    */
   @RequireSuperAdmin()
+  @ConsoleAuditAction('connection_audit.update', {
+    targetType: 'connection_audit',
+    targetGuidParam: 'id',
+  })
   @Patch('conn/:id')
   async updateConnectionAudit(
     @Param('id', ParseIntPipe) id: number,

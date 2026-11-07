@@ -20,6 +20,7 @@ import {
   AssignmentQueryDto,
 } from './dto/strategy.dto';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller()
@@ -65,6 +66,7 @@ export class StrategyController {
 
   @Post('strategies')
   @RequirePermission('strategies.create')
+  @ConsoleAuditAction('strategy.create')
   @HttpCode(HttpStatus.OK)
   async createStrategy(@Body() dto: CreateStrategyDto) {
     return this.strategyService.createStrategy(dto);
@@ -72,6 +74,7 @@ export class StrategyController {
 
   @Patch('strategies/:guid')
   @RequirePermission('strategies.edit')
+  @ConsoleAuditAction('strategy.update')
   @HttpCode(HttpStatus.OK)
   async updateStrategy(
     @Param('guid') guid: string,
@@ -82,6 +85,7 @@ export class StrategyController {
 
   @Delete('strategies/:guid')
   @RequirePermission('strategies.delete')
+  @ConsoleAuditAction('strategy.delete')
   @HttpCode(HttpStatus.OK)
   async deleteStrategy(@Param('guid') guid: string) {
     await this.strategyService.deleteStrategy(guid);
@@ -90,6 +94,7 @@ export class StrategyController {
 
   @Post('strategies/:guid/assign')
   @RequirePermission('strategies.assign')
+  @ConsoleAuditAction('strategy.assign')
   @HttpCode(HttpStatus.OK)
   async assignStrategy(
     @Param('guid') guid: string,
@@ -106,6 +111,7 @@ export class StrategyController {
 
   @Post('strategies/:guid/unassign')
   @RequirePermission('strategies.assign')
+  @ConsoleAuditAction('strategy.unassign', { targetGuidParam: 'guid' })
   @HttpCode(HttpStatus.OK)
   async unassignStrategy(
     @Param('guid') strategyGuid: string,

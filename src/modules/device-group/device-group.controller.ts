@@ -28,6 +28,7 @@ import { HeartbeatService } from '../heartbeat/heartbeat.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
 /**
@@ -158,6 +159,7 @@ export class DeviceGroupController {
    */
   @Post('device-groups')
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('device_group.create')
   @HttpCode(HttpStatus.OK)
   async createDeviceGroup(
     @Body() body: { name: string; note?: string; allowed_incomings?: any[] },
@@ -181,6 +183,7 @@ export class DeviceGroupController {
    */
   @Patch('device-groups/:guid')
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('device_group.update')
   @HttpCode(HttpStatus.OK)
   async updateDeviceGroup(
     @Param('guid') guid: string,
@@ -210,6 +213,7 @@ export class DeviceGroupController {
    */
   @Delete('device-groups/:guid')
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('device_group.delete')
   @HttpCode(HttpStatus.OK)
   async deleteDeviceGroup(
     @Param('guid') guid: string,
@@ -229,6 +233,7 @@ export class DeviceGroupController {
    */
   @Post('device-groups/:guid')
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('device_group.member_add')
   @HttpCode(HttpStatus.OK)
   async addDevicesToGroup(
     @Param('guid') guid: string,
@@ -248,6 +253,7 @@ export class DeviceGroupController {
    */
   @Delete('device-groups/:guid/devices')
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('device_group.member_remove')
   @HttpCode(HttpStatus.OK)
   async removeDevicesFromGroup(
     @Param('guid') guid: string,
@@ -292,6 +298,7 @@ export class DeviceGroupController {
    */
   @Patch('devices/status')
   @RequirePermission('devices.status')
+  @ConsoleAuditAction('device.status.batch_update', { targetGuidParam: false })
   async updateDeviceStatus(
     @CurrentUser('id') userId: string,
     @Body() dto: UpdateDeviceStatusDto,
@@ -320,6 +327,7 @@ export class DeviceGroupController {
    */
   @Patch('devices/:guid')
   @RequirePermission('devices.edit')
+  @ConsoleAuditAction('device.update')
   async updateDevice(
     @Param('guid') guid: string,
     @Body() dto: UpdateDeviceDto,
@@ -338,6 +346,12 @@ export class DeviceGroupController {
    */
   @Delete('devices/:guid')
   @RequirePermission('devices.delete')
+  @ConsoleAuditAction('device.delete', {
+    afterState: (request) => ({
+      protocolBan: request.query?.protocolBan !== 'false',
+      releaseId: request.query?.releaseId !== 'false',
+    }),
+  })
   @HttpCode(HttpStatus.OK)
   async deleteDevice(
     @Param('guid') guid: string,
@@ -376,6 +390,7 @@ export class DeviceGroupController {
    */
   @Post('devices/tombstones/:uuid/restore')
   @RequirePermission('devices.delete')
+  @ConsoleAuditAction('device.restore', { targetGuidParam: 'uuid' })
   @HttpCode(HttpStatus.OK)
   async restoreTombstone(
     @Param('uuid') uuid: string,
@@ -395,6 +410,7 @@ export class DeviceGroupController {
    */
   @Post('devices/:uuid/disconnect')
   @RequirePermission('devices.disconnect')
+  @ConsoleAuditAction('device.disconnect', { targetGuidParam: 'uuid' })
   @HttpCode(HttpStatus.OK)
   async disconnectDevice(
     @Param('uuid') uuid: string,

@@ -92,7 +92,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'PUT /v1/bans',
+        action: 'server.bans.update',
         afterState: { device_ids: ['111', '222'], added: ['222'], removed: [] },
       }),
     );
@@ -147,7 +147,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'DELETE /v1/peers/:id',
+        action: 'server.peer.release',
         afterState: { device_id: 'host-a' },
       }),
     );
@@ -478,8 +478,9 @@ describe('server management v2 client', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         targetGuid: 'main',
-        action: 'DELETE /v1/sessions/u1',
+        action: 'server.session.disconnect',
         result: 'allowed',
+        afterState: { uuid: 'u1' },
       }),
     );
     await expect(
@@ -589,7 +590,9 @@ describe('server management v2 client', () => {
       }),
     );
     expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ afterState: { settings: ['key'] } }),
+      expect.objectContaining({
+        afterState: { service: 'hbbs', settings: ['key'] },
+      }),
     );
     expect(JSON.stringify(audit.record.mock.calls)).not.toContain(
       'private-key-material',
@@ -655,8 +658,9 @@ describe('server management v2 client', () => {
     ).toEqual({ state: 'restarting' });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'POST /v1/services/hbbs/apply',
+        action: 'server.service.apply',
         result: 'allowed',
+        afterState: { service: 'hbbs' },
       }),
     );
     await expect(
@@ -733,7 +737,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'PUT /v1/bans',
+        action: 'server.bans.update',
         afterState: { device_ids: ['123456'], ips: [] },
       }),
     );

@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserStatus } from './entities/user.entity';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
+import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
 jest.mock('uuid', () => {
@@ -12,17 +13,25 @@ jest.mock('uuid', () => {
 });
 
 describe('UserController field-owned updates', () => {
-  const userService = { updateUser: jest.fn() };
+  const userService = { updateUser: jest.fn(), acceptInvitation: jest.fn() };
   const authorizationService = { assertUserMutation: jest.fn() };
+  const auditService = { record: jest.fn(), recordDenied: jest.fn() };
   const controller = new UserController(
     userService as unknown as UserService,
     authorizationService as unknown as RbacAuthorizationService,
+    auditService as unknown as RbacAuditService,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
     authorizationService.assertUserMutation.mockResolvedValue(undefined);
     userService.updateUser.mockResolvedValue({ message: 'ok' });
+    userService.acceptInvitation.mockResolvedValue({
+      message: 'Account activated, please log in',
+      userGuid: 'activated-user',
+    });
+    auditService.record.mockResolvedValue(undefined);
+    auditService.recordDenied.mockResolvedValue(undefined);
   });
 
   it('allows a status-only update without requiring users.edit', async () => {
@@ -97,5 +106,20 @@ describe('UserController field-owned updates', () => {
       { note: 'updated' },
       'actor-guid',
     );
+  });
+
+  it('audits anonymous invitation acceptance with the activated user GUID', async () => {
+    await expect(
+      controller.acceptInvitation({
+        token: 'invite-token',
+        password: 'secret-1',
+      }),
+    ).resolves.toEqual({ message: 'Account activated, please log in' });
+    expect(auditService.record).toHaveBeenCalledWith({
+      targetType: 'user',
+      targetGuid: 'activated-user',
+      action: 'user.invitation.accept',
+      result: 'allowed',
+    });
   });
 });
