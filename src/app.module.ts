@@ -24,7 +24,7 @@ import { LdapModule } from './modules/ldap/ldap.module';
 import { StrategyModule } from './modules/strategy/strategy.module';
 import { SystemUpdateModule } from './modules/system-update/system-update.module';
 import { UpdateCheckModule } from './modules/update-check/update-check.module';
-import { NexusModule } from './modules/nexus/nexus.module';
+import { CustomClientModule } from './modules/custom-client/custom-client.module';
 import { UserGroupModule } from './modules/user-group/user-group.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { RbacGuard } from './modules/rbac/guards/rbac.guard';
@@ -98,7 +98,7 @@ import { WebClientModule } from './modules/web-client/web-client.module';
     StrategyModule,
     UpdateCheckModule,
     SystemUpdateModule,
-    NexusModule,
+    CustomClientModule,
     UserGroupModule,
     RbacModule,
     ServerManagementModule,

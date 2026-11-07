@@ -27,8 +27,7 @@ import { Strategy } from '../strategy/entities/strategy.entity';
 import { UserGroup } from '../user-group/entities/user-group.entity';
 import { PasskeyCredential } from '../auth/entities/passkey-credential.entity';
 import { OidcProvider } from '../oidc/entities/oidc-provider.entity';
-import { NexusBuild } from '../nexus/entities/nexus-build.entity';
-import { NexusToken } from '../nexus/entities/nexus-token.entity';
+import { CustomClientBuild } from '../custom-client/entities/custom-client-build.entity';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
 import { resolveAssetPath } from '../../common/utils/runtime-paths';
 import {
@@ -103,10 +102,8 @@ export class UpdateCheckService implements OnModuleInit {
     private readonly passkeyCredentialRepository: Repository<PasskeyCredential>,
     @InjectRepository(OidcProvider)
     private readonly oidcProviderRepository: Repository<OidcProvider>,
-    @InjectRepository(NexusBuild)
-    private readonly nexusBuildRepository: Repository<NexusBuild>,
-    @InjectRepository(NexusToken)
-    private readonly nexusTokenRepository: Repository<NexusToken>,
+    @InjectRepository(CustomClientBuild)
+    private readonly customClientBuildRepository: Repository<CustomClientBuild>,
     @InjectRepository(ActiveConnection)
     private readonly activeConnectionRepository: Repository<ActiveConnection>,
   ) {}
@@ -444,12 +441,11 @@ export class UpdateCheckService implements OnModuleInit {
   }
 
   private async getStatistics() {
-    const emptyNexusBuildsByStatus = {
+    const emptyCustomClientBuildsByStatus = {
       pending: 0,
       building: 0,
       completed: 0,
       failed: 0,
-      cancelled: 0,
     };
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -495,9 +491,8 @@ export class UpdateCheckService implements OnModuleInit {
         .getCount(),
       this.oidcProviderRepository.count(),
       this.oidcProviderRepository.count({ where: { enabled: true } }),
-      this.nexusBuildRepository.count(),
-      this.getNexusBuildsByStatus(),
-      this.nexusTokenRepository.count(),
+      this.customClientBuildRepository.count(),
+      this.getCustomClientBuildsByStatus(),
       this.fileAuditRepository.count({
         where: { createdAt: Between(sevenDaysAgo, now) },
       }),
@@ -546,14 +541,13 @@ export class UpdateCheckService implements OnModuleInit {
         oidc_providers: value(22, 0),
         oidc_enabled_providers: value(23, 0),
       },
-      nexus: {
+      custom_client: {
         builds_total: value(24, 0),
-        builds_by_status: value(25, emptyNexusBuildsByStatus),
-        tokens: value(26, 0),
+        builds_by_status: value(25, emptyCustomClientBuildsByStatus),
       },
       audit: {
-        file_transfers_7d: value(27, 0),
-        alarms_7d: value(28, 0),
+        file_transfers_7d: value(26, 0),
+        alarms_7d: value(27, 0),
       },
     };
   }
@@ -567,22 +561,20 @@ export class UpdateCheckService implements OnModuleInit {
       .getCount();
   }
 
-  private async getNexusBuildsByStatus(): Promise<{
+  private async getCustomClientBuildsByStatus(): Promise<{
     pending: number;
     building: number;
     completed: number;
     failed: number;
-    cancelled: number;
   }> {
     const empty = {
       pending: 0,
       building: 0,
       completed: 0,
       failed: 0,
-      cancelled: 0,
     };
     try {
-      const rows = await this.nexusBuildRepository
+      const rows = await this.customClientBuildRepository
         .createQueryBuilder('build')
         .select('build.status', 'status')
         .addSelect('COUNT(*)', 'count')
@@ -599,7 +591,6 @@ export class UpdateCheckService implements OnModuleInit {
         building: map.get('building') ?? 0,
         completed: map.get('completed') ?? 0,
         failed: map.get('failed') ?? 0,
-        cancelled: map.get('cancelled') ?? 0,
       };
     } catch {
       return empty;
