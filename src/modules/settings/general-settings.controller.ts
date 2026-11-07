@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { UpdateGeneralSettingsDto } from './dto/general-settings.dto';
 import { GeneralSettingsService } from './services/general-settings.service';
 
@@ -25,6 +26,7 @@ export class GeneralSettingsController {
 
   @Put()
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('settings.general.update')
   @HttpCode(HttpStatus.OK)
   updateSettings(@Body() dto: UpdateGeneralSettingsDto) {
     return this.generalSettingsService.updateSettings(dto);

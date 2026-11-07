@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { SmtpSettingsService } from './services/smtp-settings.service';
 import { UpdateSmtpConfigDto, TestSmtpConfigDto } from './dto/smtp-config.dto';
 
@@ -45,6 +46,7 @@ export class SettingsController {
    * Only updates the provided fields; the password is not updated when the placeholder is passed
    */
   @Put('smtp')
+  @ConsoleAuditAction('settings.smtp.update')
   @HttpCode(HttpStatus.OK)
   async updateSmtpConfig(@Body() dto: UpdateSmtpConfigDto) {
     return this.smtpSettingsService.updateSmtpConfig(dto);
@@ -58,6 +60,7 @@ export class SettingsController {
    */
   @Post('smtp/test')
   @HttpCode(HttpStatus.OK)
+  @ConsoleAuditAction('settings.smtp.test')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async testSmtpConnection(@Body() dto?: TestSmtpConfigDto) {
     return this.smtpSettingsService.testSmtpConnection(dto);

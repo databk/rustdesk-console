@@ -31,6 +31,7 @@ import {
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AddressBookRuleService } from './services/address-book-rule.service';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 
 /**
  * Address book controller
@@ -97,6 +98,10 @@ export class AddressBookController {
    * @returns Returns the address book data on successful update, or an error message on failure
    */
   @Post()
+  @ConsoleAuditAction('address_book.update', {
+    targetGuidParam: false,
+    includeBody: false,
+  })
   @HttpCode(HttpStatus.OK)
   async updateLegacyAddressBook(
     @Body('data') data: string,
@@ -162,6 +167,7 @@ export class AddressBookController {
   }
 
   @Post('custom/add')
+  @ConsoleAuditAction('address_book.create', { targetGuidParam: false })
   @HttpCode(HttpStatus.OK)
   async addCustomAddressBook(
     @Body() dto: CreateAddressBookProfileDto,
@@ -177,6 +183,9 @@ export class AddressBookController {
   }
 
   @Put('custom/update/profile')
+  @ConsoleAuditAction('address_book.update', {
+    targetGuidBodyField: 'guid',
+  })
   @HttpCode(HttpStatus.OK)
   async updateCustomAddressBook(
     @Body() dto: UpdateCustomAddressBookProfileDto,
@@ -192,6 +201,7 @@ export class AddressBookController {
   }
 
   @Delete('custom')
+  @ConsoleAuditAction('address_book.delete', { targetGuidParam: false })
   @HttpCode(HttpStatus.OK)
   async deleteCustomAddressBooks(
     @Body() dto: DeleteAddressBooksDto,
@@ -282,6 +292,9 @@ export class AddressBookController {
    */
   @Post('shared/add')
   @RequirePermission('address_books.share')
+  @ConsoleAuditAction('address_book.share.create', {
+    targetGuidParam: false,
+  })
   @HttpCode(HttpStatus.OK)
   async addSharedAddressBook(
     @Body() dto: CreateAddressBookProfileDto,
@@ -310,6 +323,9 @@ export class AddressBookController {
    */
   @Put('shared/update/profile')
   @RequirePermission('address_books.edit')
+  @ConsoleAuditAction('address_book.share.update', {
+    targetGuidBodyField: 'guid',
+  })
   @HttpCode(HttpStatus.OK)
   async updateSharedAddressBook(
     @Body() dto: UpdateAddressBookProfileDto,
@@ -340,6 +356,9 @@ export class AddressBookController {
    */
   @Delete('shared')
   @RequirePermission('address_books.edit')
+  @ConsoleAuditAction('address_book.share.delete', {
+    targetGuidParam: false,
+  })
   @HttpCode(HttpStatus.OK)
   async deleteSharedAddressBooks(
     @Body() guids: string[],
@@ -425,6 +444,7 @@ export class AddressBookController {
    * @returns Returns an empty string on successful addition, or an error message on failure
    */
   @Post('peer/add/:guid')
+  @ConsoleAuditAction('address_book.peer.create')
   @HttpCode(HttpStatus.OK)
   async addPeer(
     @Param('guid') guid: string,
@@ -449,6 +469,7 @@ export class AddressBookController {
    * @returns Returns an empty string on successful update, or an error message on failure
    */
   @Put('peer/update/:guid')
+  @ConsoleAuditAction('address_book.peer.update')
   @HttpCode(HttpStatus.OK)
   async updatePeer(
     @Param('guid') guid: string,
@@ -473,6 +494,7 @@ export class AddressBookController {
    * @returns Returns an empty string on successful deletion, or an error message on failure
    */
   @Delete('peer/:guid')
+  @ConsoleAuditAction('address_book.peer.delete')
   @HttpCode(HttpStatus.OK)
   async deletePeers(
     @Param('guid') guid: string,
@@ -497,6 +519,7 @@ export class AddressBookController {
    * @returns Returns an empty string on successful addition, or an error message on failure
    */
   @Post('tag/add/:guid')
+  @ConsoleAuditAction('address_book.tag.create')
   @HttpCode(HttpStatus.OK)
   async addTag(
     @Param('guid') guid: string,
@@ -521,6 +544,7 @@ export class AddressBookController {
    * @returns Returns an empty string on successful rename, or an error message on failure
    */
   @Put('tag/rename/:guid')
+  @ConsoleAuditAction('address_book.tag.rename')
   @HttpCode(HttpStatus.OK)
   async renameTag(
     @Param('guid') guid: string,
@@ -545,6 +569,7 @@ export class AddressBookController {
    * @returns Returns an empty string on successful update, or an error message on failure
    */
   @Put('tag/update/:guid')
+  @ConsoleAuditAction('address_book.tag.update')
   @HttpCode(HttpStatus.OK)
   async updateTag(
     @Param('guid') guid: string,
@@ -569,6 +594,7 @@ export class AddressBookController {
    * @returns Returns an empty string on successful deletion, or an error message on failure
    */
   @Delete('tag/:guid')
+  @ConsoleAuditAction('address_book.tag.delete')
   @HttpCode(HttpStatus.OK)
   async deleteTags(
     @Param('guid') guid: string,
@@ -613,6 +639,9 @@ export class AddressBookController {
    */
   @Post('rule')
   @RequirePermission('address_books.share')
+  @ConsoleAuditAction('address_book.rule.create', {
+    targetGuidParam: false,
+  })
   @HttpCode(HttpStatus.OK)
   async addRule(@Body() dto: CreateRuleDto, @CurrentUser('id') userId: number) {
     return this.ruleService.createRule(dto, String(userId));
@@ -628,6 +657,9 @@ export class AddressBookController {
    */
   @Patch('rule')
   @RequirePermission('address_books.share')
+  @ConsoleAuditAction('address_book.rule.update', {
+    targetGuidBodyField: 'guid',
+  })
   @HttpCode(HttpStatus.OK)
   async updateRule(
     @Body() dto: UpdateRuleDto,
@@ -646,6 +678,7 @@ export class AddressBookController {
    */
   @Delete('rules')
   @RequirePermission('address_books.share')
+  @ConsoleAuditAction('address_book.rule.delete', { targetGuidParam: false })
   @HttpCode(HttpStatus.OK)
   async deleteRules(
     @Body() ruleGuids: string[],

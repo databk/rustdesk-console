@@ -231,7 +231,7 @@ export class ServerManagementService {
     return this.audited(
       actor,
       nodeId,
-      `DELETE /v1/sessions/${uuid}`,
+      'server.session.disconnect',
       undefined,
       async () => {
         const relayId =
@@ -295,7 +295,7 @@ export class ServerManagementService {
     return this.audited(
       actor,
       nodeId,
-      `PUT /v1/services/${service}/config`,
+      'server.service.config.update',
       { settings: Object.keys(dto.values) },
       async () => {
         await this.fetchJson(config, path, 'PUT', { values: dto.values });
@@ -324,7 +324,7 @@ export class ServerManagementService {
       return this.audited(
         actor,
         nodeId,
-        `POST /v1/services/${service}/${action}`,
+        `server.service.${action}`,
         undefined,
         () => this.fetchJson(config, path, 'POST'),
       );
@@ -366,7 +366,7 @@ export class ServerManagementService {
       this.audited(
         actor,
         nodeId,
-        'PUT /v1/bans',
+        'server.bans.update',
         { device_ids: dto.device_ids, ips: dto.ips },
         async () => {
           await this.fetchJson(config, '/v1/bans', 'PUT', {
@@ -422,7 +422,7 @@ export class ServerManagementService {
         return await this.audited(
           actor,
           config.nodeId,
-          'PUT /v1/bans',
+          'server.bans.update',
           { device_ids, added: add, removed: [...remove] },
           async () => {
             await this.fetchJson(config, '/v1/bans', 'PUT', {
@@ -462,7 +462,7 @@ export class ServerManagementService {
       return await this.audited(
         actor,
         config.nodeId,
-        'DELETE /v1/peers/:id',
+        'server.peer.release',
         { device_id: deviceId },
         async () => {
           await this.fetchJson(

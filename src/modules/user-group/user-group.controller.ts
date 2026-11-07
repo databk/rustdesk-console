@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import {
   CreateUserGroupDto,
   UpdateUserGroupDto,
@@ -33,6 +34,7 @@ export class UserGroupController {
 
   @Post()
   @RequirePermission('user_groups.create')
+  @ConsoleAuditAction('user_group.create')
   @HttpCode(HttpStatus.OK)
   createGroup(@Body() dto: CreateUserGroupDto) {
     return this.userGroupService.createGroup(dto);
@@ -40,6 +42,7 @@ export class UserGroupController {
 
   @Put(':guid')
   @RequirePermission('user_groups.edit')
+  @ConsoleAuditAction('user_group.update')
   @HttpCode(HttpStatus.OK)
   updateGroup(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,
@@ -50,6 +53,7 @@ export class UserGroupController {
 
   @Delete(':guid')
   @RequirePermission('user_groups.delete')
+  @ConsoleAuditAction('user_group.delete')
   @HttpCode(HttpStatus.OK)
   deleteGroup(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,
@@ -69,6 +73,7 @@ export class UserGroupController {
 
   @Post(':guid/users')
   @RequirePermission('user_groups.membership')
+  @ConsoleAuditAction('user_group.member_add')
   @HttpCode(HttpStatus.OK)
   moveUsers(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,

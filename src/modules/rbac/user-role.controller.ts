@@ -12,6 +12,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermission } from './decorators/require-permission.decorator';
 import { ReplaceUserRolesDto } from './dto/user-role.dto';
 import { UserRoleService } from './services/user-role.service';
+import { ConsoleAuditAction } from './decorators/console-audit-action.decorator';
 import { SkipConsoleAudit } from './decorators/skip-console-audit.decorator';
 
 @Controller('users')
@@ -36,6 +37,7 @@ export class UserRoleController {
 
   @Put(':guid/roles')
   @RequirePermission('roles.assign')
+  @ConsoleAuditAction('user_role.replace')
   @HttpCode(HttpStatus.OK)
   replaceRoles(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,

@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { LdapSettingsService } from './ldap-settings.service';
 import { LdapService } from './ldap.service';
 import { UpdateLdapConfigDto, TestLdapConfigDto } from './dto/ldap-config.dto';
@@ -48,6 +49,7 @@ export class LdapController {
    * Only updates the provided fields; the password is not updated when the placeholder is passed
    */
   @Put()
+  @ConsoleAuditAction('settings.ldap.update')
   @HttpCode(HttpStatus.OK)
   async updateLdapConfig(@Body() dto: UpdateLdapConfigDto) {
     return this.ldapSettingsService.updateLdapConfig(dto);
@@ -61,6 +63,7 @@ export class LdapController {
    */
   @Post('test')
   @HttpCode(HttpStatus.OK)
+  @ConsoleAuditAction('settings.ldap.test')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async testLdapConnection(@Body() dto?: TestLdapConfigDto) {
     if (dto && dto.urls && dto.urls.length > 0) {

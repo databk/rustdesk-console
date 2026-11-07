@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import {
   CreateSystemUpdateJobDto,
   CreateSystemUpdatePlanDto,
@@ -24,6 +25,10 @@ export class SystemUpdateController {
     return this.updates.capabilities();
   }
   @Post('plans')
+  @ConsoleAuditAction('system_update.plan', {
+    targetGuidParam: false,
+    includeBody: false,
+  })
   @HttpCode(200)
   plan(
     @Body() body: CreateSystemUpdatePlanDto,
@@ -36,6 +41,7 @@ export class SystemUpdateController {
     return this.updates.plan(actorId);
   }
   @Post('jobs')
+  @ConsoleAuditAction('system_update.job.create', { targetGuidParam: false })
   @HttpCode(202)
   create(
     @Body() body: CreateSystemUpdateJobDto,

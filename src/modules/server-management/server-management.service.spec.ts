@@ -92,7 +92,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'PUT /v1/bans',
+        action: 'server.bans.update',
         afterState: { device_ids: ['111', '222'], added: ['222'], removed: [] },
       }),
     );
@@ -147,7 +147,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'DELETE /v1/peers/:id',
+        action: 'server.peer.release',
         afterState: { device_id: 'host-a' },
       }),
     );
@@ -478,7 +478,7 @@ describe('server management v2 client', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         targetGuid: 'main',
-        action: 'DELETE /v1/sessions/u1',
+        action: 'server.session.disconnect',
         result: 'allowed',
       }),
     );
@@ -655,7 +655,7 @@ describe('server management v2 client', () => {
     ).toEqual({ state: 'restarting' });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'POST /v1/services/hbbs/apply',
+        action: 'server.service.apply',
         result: 'allowed',
       }),
     );
@@ -733,7 +733,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'PUT /v1/bans',
+        action: 'server.bans.update',
         afterState: { device_ids: ['123456'], ips: [] },
       }),
     );

@@ -6,6 +6,12 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import {
+  CONSOLE_AUDIT_ACTION_KEY,
+  ConsoleAuditActionMetadata,
+  resolveConsoleAuditTargetGuid,
+  resolveConsoleAuditTargetType,
+} from '../decorators/console-audit-action.decorator';
+import {
   REQUIRE_PERMISSION_KEY,
   REQUIRE_SUPER_ADMIN_KEY,
 } from '../decorators/require-permission.decorator';
@@ -13,8 +19,10 @@ import { RbacAuditService } from '../services/rbac-audit.service';
 import { RbacAuthorizationService } from '../services/rbac-authorization.service';
 
 interface RequestWithUser {
-  user?: { id?: string };
   id?: string;
+  user?: { id?: string };
+  params?: Record<string, string>;
+  body?: unknown;
 }
 
 @Injectable()
@@ -53,10 +61,20 @@ export class RbacGuard implements CanActivate {
       }
       return true;
     } catch (error: unknown) {
+      const metadata =
+        this.reflector.getAllAndOverride<ConsoleAuditActionMetadata>(
+          CONSOLE_AUDIT_ACTION_KEY,
+          [context.getHandler(), context.getClass()],
+        );
       await this.auditService.recordDenied({
         actorUserGuid: userGuid,
-        targetType: 'route',
-        action: permissions?.join(',') || 'super_admin',
+        targetType: metadata
+          ? resolveConsoleAuditTargetType(metadata)
+          : 'route',
+        targetGuid: metadata
+          ? resolveConsoleAuditTargetGuid(metadata, request)
+          : (request.params?.guid ?? null),
+        action: metadata?.action ?? (permissions?.join(',') || 'super_admin'),
         reason: error instanceof Error ? error.message : String(error),
         requestId: request.id,
       });

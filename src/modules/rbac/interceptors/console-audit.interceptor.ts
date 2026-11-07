@@ -8,14 +8,22 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { Observable, mergeMap } from 'rxjs';
+import {
+  CONSOLE_AUDIT_ACTION_KEY,
+  ConsoleAuditActionMetadata,
+  resolveConsoleAuditTargetGuid,
+  resolveConsoleAuditTargetType,
+} from '../decorators/console-audit-action.decorator';
 import { SKIP_CONSOLE_AUDIT_KEY } from '../decorators/skip-console-audit.decorator';
 import { RbacAuditService } from '../services/rbac-audit.service';
 
 type AuditedRequest = Request & {
+  id?: string;
   user?: { id?: string };
   params?: Record<string, string>;
-  route?: { path?: string };
 };
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 @Injectable()
 export class ConsoleAuditInterceptor implements NestInterceptor {
@@ -32,10 +40,16 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
       SKIP_CONSOLE_AUDIT_KEY,
       [context.getHandler(), context.getClass()],
     );
+    const metadata =
+      this.reflector.getAllAndOverride<ConsoleAuditActionMetadata>(
+        CONSOLE_AUDIT_ACTION_KEY,
+        [context.getHandler(), context.getClass()],
+      );
     if (
       skip ||
+      !metadata ||
       !request.user?.id ||
-      !['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
+      !MUTATING_METHODS.has(request.method)
     ) {
       return next.handle();
     }
@@ -43,23 +57,15 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
     return next.handle().pipe(
       mergeMap(async (response: unknown): Promise<unknown> => {
         try {
-          const route = request.route as { path?: string } | undefined;
-          const routePath = route?.path || request.path;
-          const basePath = request.baseUrl || '';
-          const targetType =
-            basePath.replace(/^\/api\/?/, '').split('/')[0] || 'route';
-          const targetGuid =
-            request.params?.guid ||
-            request.params?.uuid ||
-            request.params?.id ||
-            null;
           await this.auditService.record({
             actorUserGuid: request.user?.id,
-            targetType,
-            targetGuid,
-            action: `${request.method} ${basePath}${routePath}`,
+            targetType: resolveConsoleAuditTargetType(metadata),
+            targetGuid: resolveConsoleAuditTargetGuid(metadata, request),
+            action: metadata.action,
             result: 'allowed',
-            afterState: request.body,
+            afterState:
+              metadata.includeBody === false ? undefined : request.body,
+            requestId: request.id ?? null,
           });
         } catch (error: unknown) {
           const message =
