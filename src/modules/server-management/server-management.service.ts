@@ -338,7 +338,7 @@ export class ServerManagementService {
     return this.audited(
       actor,
       nodeId,
-      `POST /v1/services/${service}/${action}`,
+      `server.service.${action}`,
       undefined,
       async () => {
         const current = await this.fetchJson(config, configPath);
