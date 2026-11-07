@@ -3,24 +3,15 @@ import * as path from 'path';
 const DEFAULT_DATA_DIR = './data';
 const DB_FILENAME = 'rustdesk-console.db';
 const CUSTOM_CLIENT_BUILD_SUBDIR = 'custom-client-builds';
+const CUSTOM_CLIENT_LOGO_SUBDIR = 'custom-client-logos';
 const AVATAR_SUBDIR = 'avatars';
 
 export type DbType = 'sqlite' | 'mysql';
 
-/**
- * Get the unified data directory.
- * Controlled by the DATA_DIR env var (default: ./data).
- */
 export function getDataDir(): string {
   return process.env.DATA_DIR || DEFAULT_DATA_DIR;
 }
 
-/**
- * Get the configured database type.
- * Controlled by the DB_TYPE env var (default: sqlite).
- * When set to 'mysql', the app connects to a MySQL server instead of using
- * the embedded SQLite file.
- */
 export function getDbType(): DbType {
   const raw = process.env.DB_TYPE?.trim().toLowerCase() || 'sqlite';
   if (raw === 'sqlite' || raw === 'mysql') {
@@ -29,24 +20,18 @@ export function getDbType(): DbType {
   throw new Error(`Unsupported DB_TYPE: ${raw}`);
 }
 
-/**
- * Get the SQLite database file path.
- * Only meaningful when getDbType() === 'sqlite'.
- */
 export function getDbPath(): string {
   return path.join(getDataDir(), DB_FILENAME);
 }
 
-/**
- * Get the custom client build artifact storage directory.
- */
 export function getCustomClientStoragePath(): string {
   return path.join(getDataDir(), CUSTOM_CLIENT_BUILD_SUBDIR);
 }
 
-/**
- * Get the avatar storage directory.
- */
+export function getCustomClientLogoPath(): string {
+  return path.join(getDataDir(), CUSTOM_CLIENT_LOGO_SUBDIR);
+}
+
 export function getAvatarDir(): string {
   return path.join(getDataDir(), AVATAR_SUBDIR);
 }

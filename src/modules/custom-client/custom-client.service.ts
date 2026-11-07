@@ -23,11 +23,14 @@ import { resolve, relative } from 'path';
 import { getCustomClientStoragePath } from '../../common/utils/data-dir.util';
 import { CustomClientBuild } from './entities/custom-client-build.entity';
 import { CustomClientSettingsService } from './services/custom-client-settings.service';
+import { CustomClientSigningService } from './services/custom-client-signing.service';
+import { CustomClientLogoService } from './services/custom-client-logo.service';
 import { GeneralSettingsService } from '../settings/services/general-settings.service';
 import {
   SubmitBuildDto,
   SubmitBuildResponse,
   BuildProgressResponse,
+  CustomClientCustomDto,
 } from './dto/custom-client-build.dto';
 
 const GITHUB_API = 'https://api.github.com';
@@ -42,6 +45,7 @@ interface GithubDispatchInputs {
   'build-id': string;
   'callback-url': string;
   'callback-token': string;
+  'config-url': string;
   'custom-json': string;
 }
 
@@ -85,6 +89,8 @@ export class CustomClientService {
     @InjectRepository(CustomClientBuild)
     private buildRepository: Repository<CustomClientBuild>,
     private readonly settingsService: CustomClientSettingsService,
+    private readonly signingService: CustomClientSigningService,
+    private readonly logoService: CustomClientLogoService,
     private readonly generalSettingsService: GeneralSettingsService,
   ) {
     this.storagePath = getCustomClientStoragePath();
@@ -109,10 +115,12 @@ export class CustomClientService {
 
     const site = await this.generalSettingsService.getSiteSettings();
     const callbackUrl = `${site.effectiveBackendUrl}/api/custom-client/builds/{uuid}/callback`;
+    const configUrl = `${site.effectiveBackendUrl}/api/custom-client/builds/{uuid}/config`;
 
     const uuid = randomUUID();
     const callbackToken = randomUUID();
     const callbackUrlResolved = callbackUrl.replace('{uuid}', uuid);
+    const configUrlResolved = configUrl.replace('{uuid}', uuid);
 
     const build = this.buildRepository.create({
       uuid,
@@ -130,6 +138,7 @@ export class CustomClientService {
       'build-id': uuid,
       'callback-url': callbackUrlResolved,
       'callback-token': callbackToken,
+      'config-url': configUrlResolved,
       'custom-json': dto.custom ? JSON.stringify(dto.custom) : '',
     };
 
@@ -234,6 +243,59 @@ export class CustomClientService {
   ): Promise<string> {
     await this.findOwnedBuild(uuid, userGuid);
     return this.safeJoin(uuid, filename);
+  }
+
+  async getBuildConfig(
+    uuid: string,
+    callbackToken: string,
+  ): Promise<{
+    customTxt: string;
+    publicKey: string;
+    logos: string[];
+  }> {
+    const build = await this.buildRepository.findOne({ where: { uuid } });
+    if (!build) {
+      throw new NotFoundException('Build record not found');
+    }
+    const tokenBuffer = Buffer.from(callbackToken);
+    const expectedBuffer = Buffer.from(build.callbackToken);
+    if (
+      tokenBuffer.length !== expectedBuffer.length ||
+      !timingSafeEqual(tokenBuffer, expectedBuffer)
+    ) {
+      throw new UnauthorizedException('Invalid callback token');
+    }
+
+    const customObj: CustomClientCustomDto | undefined = build.custom
+      ? (JSON.parse(build.custom) as CustomClientCustomDto)
+      : undefined;
+    const customTxt =
+      await this.signingService.generateSignedCustomTxt(customObj);
+    const publicKey = await this.signingService.getPublicKeyBase64();
+    const logos = this.logoService.listLogos();
+
+    return { customTxt, publicKey, logos };
+  }
+
+  async getBuildLogoFile(
+    uuid: string,
+    filename: string,
+    callbackToken: string,
+  ): Promise<string> {
+    const build = await this.buildRepository.findOne({ where: { uuid } });
+    if (!build) {
+      throw new NotFoundException('Build record not found');
+    }
+    const tokenBuffer = Buffer.from(callbackToken);
+    const expectedBuffer = Buffer.from(build.callbackToken);
+    if (
+      tokenBuffer.length !== expectedBuffer.length ||
+      !timingSafeEqual(tokenBuffer, expectedBuffer)
+    ) {
+      throw new UnauthorizedException('Invalid callback token');
+    }
+
+    return this.logoService.getLogoPath(filename);
   }
 
   async handleCallback(

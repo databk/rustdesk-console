@@ -12,10 +12,20 @@ export class UpdateCustomClientSettingsDto {
   @IsOptional()
   @IsString()
   generatorRef?: string;
+
+  @IsOptional()
+  @IsString()
+  signingPublicKey?: string;
+
+  @IsOptional()
+  @IsString()
+  signingPrivateKey?: string;
 }
 
 export interface CustomClientSettingsResponse {
   githubToken: string;
   generatorRepo: string;
   generatorRef: string;
+  signingPublicKey: string;
+  signingPrivateKey: string;
 }

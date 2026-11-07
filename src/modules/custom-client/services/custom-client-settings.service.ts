@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { generateKeyPairSync } from 'crypto';
 import { SystemSetting } from '../../settings/entities/system-setting.entity';
 import {
   UpdateCustomClientSettingsDto,
@@ -11,9 +12,23 @@ const CATEGORY = 'custom-client';
 const GITHUB_TOKEN_KEY = 'custom-client.github-token';
 const GENERATOR_REPO_KEY = 'custom-client.generator-repo';
 const GENERATOR_REF_KEY = 'custom-client.generator-ref';
+const SIGNING_PUBLIC_KEY = 'custom-client.signing-public-key';
+const SIGNING_PRIVATE_KEY = 'custom-client.signing-private-key';
 const DEFAULT_GENERATOR_REPO = 'databk/rustdesk-generator';
 const DEFAULT_GENERATOR_REF = 'main';
 const TOKEN_MASK = '******';
+
+function generateEd25519KeyPair(): { publicKey: string; privateKey: string } {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const pubDer = publicKey.export({ type: 'spki', format: 'der' });
+  const rawPub = pubDer.subarray(-32);
+  const privDer = privateKey.export({ type: 'pkcs8', format: 'der' });
+  const rawPriv = privDer.subarray(-32);
+  return {
+    publicKey: rawPub.toString('base64'),
+    privateKey: rawPriv.toString('base64'),
+  };
+}
 
 @Injectable()
 export class CustomClientSettingsService {
@@ -26,10 +41,14 @@ export class CustomClientSettingsService {
     const token = await this.read(GITHUB_TOKEN_KEY);
     const repo = await this.read(GENERATOR_REPO_KEY);
     const ref = await this.read(GENERATOR_REF_KEY);
+    const pubKey = await this.read(SIGNING_PUBLIC_KEY);
+    const privKey = await this.read(SIGNING_PRIVATE_KEY);
     return {
       githubToken: token ? TOKEN_MASK : '',
       generatorRepo: repo ?? DEFAULT_GENERATOR_REPO,
       generatorRef: ref ?? DEFAULT_GENERATOR_REF,
+      signingPublicKey: pubKey ?? '',
+      signingPrivateKey: privKey ? TOKEN_MASK : '',
     };
   }
 
@@ -48,6 +67,22 @@ export class CustomClientSettingsService {
     };
   }
 
+  async getSigningKeys(): Promise<{
+    publicKey: string;
+    privateKey: string;
+  }> {
+    let pubKey = await this.read(SIGNING_PUBLIC_KEY);
+    let privKey = await this.read(SIGNING_PRIVATE_KEY);
+    if (!pubKey || !privKey) {
+      const keys = generateEd25519KeyPair();
+      pubKey = keys.publicKey;
+      privKey = keys.privateKey;
+      await this.write(SIGNING_PUBLIC_KEY, pubKey, false);
+      await this.write(SIGNING_PRIVATE_KEY, privKey, true);
+    }
+    return { publicKey: pubKey, privateKey: privKey };
+  }
+
   async updateSettings(
     dto: UpdateCustomClientSettingsDto,
   ): Promise<CustomClientSettingsResponse> {
@@ -59,6 +94,15 @@ export class CustomClientSettingsService {
     }
     if (dto.generatorRef !== undefined) {
       await this.write(GENERATOR_REF_KEY, dto.generatorRef, false);
+    }
+    if (dto.signingPublicKey !== undefined) {
+      await this.write(SIGNING_PUBLIC_KEY, dto.signingPublicKey, false);
+    }
+    if (
+      dto.signingPrivateKey !== undefined &&
+      dto.signingPrivateKey !== TOKEN_MASK
+    ) {
+      await this.write(SIGNING_PRIVATE_KEY, dto.signingPrivateKey, true);
     }
     return this.getSettings();
   }
