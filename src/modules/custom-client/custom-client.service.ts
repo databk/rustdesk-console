@@ -114,6 +114,17 @@ export class CustomClientService {
     const callbackToken = randomUUID();
     const callbackUrlResolved = callbackUrl.replace('{uuid}', uuid);
 
+    const build = this.buildRepository.create({
+      uuid,
+      userGuid,
+      os: dto.os,
+      arch: dto.os === 'all' ? 'all' : (dto.arch ?? ''),
+      custom: dto.custom ? JSON.stringify(dto.custom) : undefined,
+      status: 'pending',
+      callbackToken,
+    });
+    await this.buildRepository.save(build);
+
     const workflowFile = resolveWorkflowFile(dto.os, dto.arch);
     const inputs: GithubDispatchInputs = {
       'build-id': uuid,
@@ -136,17 +147,20 @@ export class CustomClientService {
     });
 
     if (response.status === 401 || response.status === 403) {
+      await this.buildRepository.delete({ uuid });
       throw new BadGatewayException(
         'GitHub token is invalid or lacks workflow permission',
       );
     }
     if (response.status === 404) {
+      await this.buildRepository.delete({ uuid });
       throw new NotFoundException(
         `Workflow or repository not found: ${settings.generatorRepo}`,
       );
     }
     if (response.status === 422) {
       const body = await response.text();
+      await this.buildRepository.delete({ uuid });
       throw new BadRequestException(
         `GitHub rejected the dispatch request: ${body}`,
       );
@@ -155,6 +169,7 @@ export class CustomClientService {
       this.logger.error(
         `GitHub dispatch failed: ${response.status} ${await response.text()}`,
       );
+      await this.buildRepository.delete({ uuid });
       throw new InternalServerErrorException(
         'Failed to trigger build workflow',
       );
@@ -167,17 +182,9 @@ export class CustomClientService {
       ? String(dispatchBody.workflow_run_id)
       : undefined;
 
-    const build = this.buildRepository.create({
-      uuid,
-      userGuid,
-      os: dto.os,
-      arch: dto.os === 'all' ? 'all' : (dto.arch ?? ''),
-      custom: dto.custom ? JSON.stringify(dto.custom) : undefined,
-      status: 'pending',
-      callbackToken,
-      githubRunId,
-    });
-    await this.buildRepository.save(build);
+    if (githubRunId) {
+      await this.buildRepository.update({ uuid }, { githubRunId });
+    }
 
     return { uuid, status: 'pending', message: 'Build submitted' };
   }
@@ -240,12 +247,11 @@ export class CustomClientService {
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
+    const tokenBuffer = Buffer.from(callbackToken);
+    const expectedBuffer = Buffer.from(build.callbackToken);
     if (
-      build.callbackToken.length !== callbackToken.length ||
-      !timingSafeEqual(
-        Buffer.from(build.callbackToken),
-        Buffer.from(callbackToken),
-      )
+      tokenBuffer.length !== expectedBuffer.length ||
+      !timingSafeEqual(tokenBuffer, expectedBuffer)
     ) {
       throw new UnauthorizedException('Invalid callback token');
     }
@@ -269,13 +275,15 @@ export class CustomClientService {
       }
     }
 
+    const isTerminalStatus = status === 'completed' || status === 'failed';
+
     await this.buildRepository.update(
       { uuid },
       {
         status: status as CustomClientBuild['status'],
         message: message ?? undefined,
         files: savedNames.length > 0 ? JSON.stringify(savedNames) : undefined,
-        callbackToken: randomUUID(),
+        callbackToken: isTerminalStatus ? randomUUID() : undefined,
       },
     );
 

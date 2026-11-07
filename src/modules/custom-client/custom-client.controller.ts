@@ -81,6 +81,9 @@ export class CustomClientController {
       throw new NotFoundException('File not found');
     }
     const stat = statSync(filePath);
+    if (!stat.isFile()) {
+      throw new NotFoundException('File not found');
+    }
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader(
       'Content-Disposition',
@@ -88,6 +91,15 @@ export class CustomClientController {
     );
     res.setHeader('Content-Length', stat.size);
     const stream = createReadStream(filePath);
+    stream.on('error', () => {
+      if (res.headersSent) {
+        res.destroy();
+      } else {
+        res.removeHeader('Content-Length');
+        res.removeHeader('Content-Disposition');
+        res.status(500).end();
+      }
+    });
     stream.pipe(res);
   }
 
