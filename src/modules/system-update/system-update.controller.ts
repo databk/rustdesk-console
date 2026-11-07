@@ -41,7 +41,10 @@ export class SystemUpdateController {
     return this.updates.plan(actorId);
   }
   @Post('jobs')
-  @ConsoleAuditAction('system_update.job.create', { targetGuidParam: false })
+  @ConsoleAuditAction('system_update.job.create', {
+    targetGuidParam: false,
+    targetGuidResponseField: 'jobId',
+  })
   @HttpCode(202)
   create(
     @Body() body: CreateSystemUpdateJobDto,

@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
@@ -20,6 +21,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
+import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 import {
   CreateUserDto,
@@ -38,9 +40,12 @@ import {
 
 @Controller()
 export class UserController {
+  private readonly logger = new Logger(UserController.name);
+
   constructor(
     private readonly userService: UserService,
     private readonly rbacAuthorizationService: RbacAuthorizationService,
+    private readonly auditService: RbacAuditService,
   ) {}
 
   @Get('users')
@@ -151,7 +156,30 @@ export class UserController {
   @Post('invitations/accept')
   @HttpCode(HttpStatus.OK)
   async acceptInvitation(@Body() dto: AcceptInvitationDto) {
-    return this.userService.acceptInvitation(dto);
+    let result: Awaited<ReturnType<UserService['acceptInvitation']>>;
+    try {
+      result = await this.userService.acceptInvitation(dto);
+    } catch (error: unknown) {
+      await this.auditService.recordDenied({
+        targetType: 'user',
+        action: 'user.invitation.accept',
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+
+    try {
+      await this.auditService.record({
+        targetType: 'user',
+        targetGuid: result.userGuid,
+        action: 'user.invitation.accept',
+        result: 'allowed',
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Unable to persist invitation audit: ${message}`);
+    }
+    return { message: result.message };
   }
 
   @Patch('users/batch/status')

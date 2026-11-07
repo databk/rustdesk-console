@@ -37,7 +37,7 @@ export class UserRoleController {
 
   @Put(':guid/roles')
   @RequirePermission('roles.assign')
-  @ConsoleAuditAction('user_role.replace')
+  @ConsoleAuditAction('user_role.replace', { targetType: 'user' })
   @HttpCode(HttpStatus.OK)
   replaceRoles(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,

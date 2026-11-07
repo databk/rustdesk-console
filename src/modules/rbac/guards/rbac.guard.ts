@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import {
   CONSOLE_AUDIT_ACTION_KEY,
   ConsoleAuditActionMetadata,
+  resolveConsoleAuditAction,
   resolveConsoleAuditTargetGuid,
   resolveConsoleAuditTargetType,
 } from '../decorators/console-audit-action.decorator';
@@ -74,7 +75,9 @@ export class RbacGuard implements CanActivate {
         targetGuid: metadata
           ? resolveConsoleAuditTargetGuid(metadata, request)
           : (request.params?.guid ?? null),
-        action: metadata?.action ?? (permissions?.join(',') || 'super_admin'),
+        action: metadata
+          ? resolveConsoleAuditAction(metadata, request)
+          : permissions?.join(',') || 'super_admin',
         reason: error instanceof Error ? error.message : String(error),
         requestId: request.id,
       });

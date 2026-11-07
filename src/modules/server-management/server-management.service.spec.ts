@@ -480,6 +480,7 @@ describe('server management v2 client', () => {
         targetGuid: 'main',
         action: 'server.session.disconnect',
         result: 'allowed',
+        afterState: { uuid: 'u1' },
       }),
     );
     await expect(
@@ -589,7 +590,9 @@ describe('server management v2 client', () => {
       }),
     );
     expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ afterState: { settings: ['key'] } }),
+      expect.objectContaining({
+        afterState: { service: 'hbbs', settings: ['key'] },
+      }),
     );
     expect(JSON.stringify(audit.record.mock.calls)).not.toContain(
       'private-key-material',
@@ -657,6 +660,7 @@ describe('server management v2 client', () => {
       expect.objectContaining({
         action: 'server.service.apply',
         result: 'allowed',
+        afterState: { service: 'hbbs' },
       }),
     );
     await expect(

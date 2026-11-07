@@ -101,6 +101,7 @@ export class AddressBookController {
   @ConsoleAuditAction('address_book.update', {
     targetGuidParam: false,
     includeBody: false,
+    failureResponseField: 'error',
   })
   @HttpCode(HttpStatus.OK)
   async updateLegacyAddressBook(
@@ -167,7 +168,10 @@ export class AddressBookController {
   }
 
   @Post('custom/add')
-  @ConsoleAuditAction('address_book.create', { targetGuidParam: false })
+  @ConsoleAuditAction('address_book.create', {
+    targetGuidParam: false,
+    targetGuidResponseField: 'guid',
+  })
   @HttpCode(HttpStatus.OK)
   async addCustomAddressBook(
     @Body() dto: CreateAddressBookProfileDto,
@@ -185,6 +189,7 @@ export class AddressBookController {
   @Put('custom/update/profile')
   @ConsoleAuditAction('address_book.update', {
     targetGuidBodyField: 'guid',
+    failureResponseField: 'error',
   })
   @HttpCode(HttpStatus.OK)
   async updateCustomAddressBook(
@@ -201,7 +206,10 @@ export class AddressBookController {
   }
 
   @Delete('custom')
-  @ConsoleAuditAction('address_book.delete', { targetGuidParam: false })
+  @ConsoleAuditAction('address_book.delete', {
+    targetGuidBodyField: 'guids',
+    failureResponseField: 'error',
+  })
   @HttpCode(HttpStatus.OK)
   async deleteCustomAddressBooks(
     @Body() dto: DeleteAddressBooksDto,
@@ -294,6 +302,8 @@ export class AddressBookController {
   @RequirePermission('address_books.share')
   @ConsoleAuditAction('address_book.share.create', {
     targetGuidParam: false,
+    targetGuidResponseField: 'guid',
+    failureResponseField: 'error',
   })
   @HttpCode(HttpStatus.OK)
   async addSharedAddressBook(
@@ -325,6 +335,7 @@ export class AddressBookController {
   @RequirePermission('address_books.edit')
   @ConsoleAuditAction('address_book.share.update', {
     targetGuidBodyField: 'guid',
+    failureResponseField: 'error',
   })
   @HttpCode(HttpStatus.OK)
   async updateSharedAddressBook(
@@ -357,7 +368,8 @@ export class AddressBookController {
   @Delete('shared')
   @RequirePermission('address_books.edit')
   @ConsoleAuditAction('address_book.share.delete', {
-    targetGuidParam: false,
+    targetGuidFromBody: true,
+    failureResponseField: 'error',
   })
   @HttpCode(HttpStatus.OK)
   async deleteSharedAddressBooks(
@@ -444,7 +456,9 @@ export class AddressBookController {
    * @returns Returns an empty string on successful addition, or an error message on failure
    */
   @Post('peer/add/:guid')
-  @ConsoleAuditAction('address_book.peer.create')
+  @ConsoleAuditAction('address_book.peer.create', {
+    failureResponseField: 'error',
+  })
   @HttpCode(HttpStatus.OK)
   async addPeer(
     @Param('guid') guid: string,
@@ -469,7 +483,9 @@ export class AddressBookController {
    * @returns Returns an empty string on successful update, or an error message on failure
    */
   @Put('peer/update/:guid')
-  @ConsoleAuditAction('address_book.peer.update')
+  @ConsoleAuditAction('address_book.peer.update', {
+    failureResponseField: 'error',
+  })
   @HttpCode(HttpStatus.OK)
   async updatePeer(
     @Param('guid') guid: string,
@@ -494,7 +510,9 @@ export class AddressBookController {
    * @returns Returns an empty string on successful deletion, or an error message on failure
    */
   @Delete('peer/:guid')
-  @ConsoleAuditAction('address_book.peer.delete')
+  @ConsoleAuditAction('address_book.peer.delete', {
+    failureResponseField: 'error',
+  })
   @HttpCode(HttpStatus.OK)
   async deletePeers(
     @Param('guid') guid: string,
@@ -519,7 +537,9 @@ export class AddressBookController {
    * @returns Returns an empty string on successful addition, or an error message on failure
    */
   @Post('tag/add/:guid')
-  @ConsoleAuditAction('address_book.tag.create')
+  @ConsoleAuditAction('address_book.tag.create', {
+    failureResponseField: 'error',
+  })
   @HttpCode(HttpStatus.OK)
   async addTag(
     @Param('guid') guid: string,
@@ -544,7 +564,9 @@ export class AddressBookController {
    * @returns Returns an empty string on successful rename, or an error message on failure
    */
   @Put('tag/rename/:guid')
-  @ConsoleAuditAction('address_book.tag.rename')
+  @ConsoleAuditAction('address_book.tag.rename', {
+    failureResponseField: 'error',
+  })
   @HttpCode(HttpStatus.OK)
   async renameTag(
     @Param('guid') guid: string,
@@ -569,7 +591,9 @@ export class AddressBookController {
    * @returns Returns an empty string on successful update, or an error message on failure
    */
   @Put('tag/update/:guid')
-  @ConsoleAuditAction('address_book.tag.update')
+  @ConsoleAuditAction('address_book.tag.update', {
+    failureResponseField: 'error',
+  })
   @HttpCode(HttpStatus.OK)
   async updateTag(
     @Param('guid') guid: string,
@@ -594,7 +618,9 @@ export class AddressBookController {
    * @returns Returns an empty string on successful deletion, or an error message on failure
    */
   @Delete('tag/:guid')
-  @ConsoleAuditAction('address_book.tag.delete')
+  @ConsoleAuditAction('address_book.tag.delete', {
+    failureResponseField: 'error',
+  })
   @HttpCode(HttpStatus.OK)
   async deleteTags(
     @Param('guid') guid: string,
@@ -641,6 +667,7 @@ export class AddressBookController {
   @RequirePermission('address_books.share')
   @ConsoleAuditAction('address_book.rule.create', {
     targetGuidParam: false,
+    targetGuidFromResponse: true,
   })
   @HttpCode(HttpStatus.OK)
   async addRule(@Body() dto: CreateRuleDto, @CurrentUser('id') userId: number) {
@@ -658,6 +685,7 @@ export class AddressBookController {
   @Patch('rule')
   @RequirePermission('address_books.share')
   @ConsoleAuditAction('address_book.rule.update', {
+    targetType: 'address_book_rule',
     targetGuidBodyField: 'guid',
   })
   @HttpCode(HttpStatus.OK)
@@ -678,7 +706,9 @@ export class AddressBookController {
    */
   @Delete('rules')
   @RequirePermission('address_books.share')
-  @ConsoleAuditAction('address_book.rule.delete', { targetGuidParam: false })
+  @ConsoleAuditAction('address_book.rule.delete', {
+    targetGuidFromBody: true,
+  })
   @HttpCode(HttpStatus.OK)
   async deleteRules(
     @Body() ruleGuids: string[],

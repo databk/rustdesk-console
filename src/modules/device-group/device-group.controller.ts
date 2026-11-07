@@ -346,7 +346,12 @@ export class DeviceGroupController {
    */
   @Delete('devices/:guid')
   @RequirePermission('devices.delete')
-  @ConsoleAuditAction('device.delete')
+  @ConsoleAuditAction('device.delete', {
+    afterState: (request) => ({
+      protocolBan: request.query?.protocolBan !== 'false',
+      releaseId: request.query?.releaseId !== 'false',
+    }),
+  })
   @HttpCode(HttpStatus.OK)
   async deleteDevice(
     @Param('guid') guid: string,

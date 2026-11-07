@@ -38,7 +38,9 @@ export class OidcAdminController {
   }
 
   @Post()
-  @ConsoleAuditAction('oidc_provider.create')
+  @ConsoleAuditAction('oidc_provider.create', {
+    targetGuidResponseField: 'guid',
+  })
   @HttpCode(HttpStatus.OK)
   async create(@Body() dto: CreateOidcProviderDto) {
     return this.oidcAdminService.create(dto);

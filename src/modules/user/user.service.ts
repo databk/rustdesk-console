@@ -374,7 +374,10 @@ export class UserService {
 
     this.logger.log(`User ${user.username} activated via invitation`);
 
-    return { message: 'Account activated, please log in' };
+    return {
+      message: 'Account activated, please log in',
+      userGuid: user.guid,
+    };
   }
 
   async getUser(guid: string) {

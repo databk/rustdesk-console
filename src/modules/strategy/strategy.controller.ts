@@ -111,7 +111,7 @@ export class StrategyController {
 
   @Post('strategies/:guid/unassign')
   @RequirePermission('strategies.assign')
-  @ConsoleAuditAction('strategy.unassign', { targetGuidParam: 'strategyGuid' })
+  @ConsoleAuditAction('strategy.unassign', { targetGuidParam: 'guid' })
   @HttpCode(HttpStatus.OK)
   async unassignStrategy(
     @Param('guid') strategyGuid: string,

@@ -42,11 +42,16 @@ Only endpoints decorated with `@ConsoleAuditAction()` are audited. This avoids
 noise from legacy read-only endpoints implemented with POST. Endpoints whose
 service already writes a detailed audit record keep `@SkipConsoleAudit()`.
 
+The `action` query filter also expands exact historical route-style names, so
+`user.create` matches old `POST /api/users` records and `POST /api/users`
+matches new `user.create` records.
+
 Main action groups:
 
 - Authentication: `auth.login`, `auth.logout`, `auth.2fa.*`,
   `auth.passkey.*`, `auth.session.revoke`, `auth.password_reset`
-- Users and roles: `user.*`, `user_role.replace`, `role.*`
+- Users and roles: `user.*` (including `user.invitation.accept`),
+  `user_role.replace`, `role.*`
 - Devices and groups: `device.*`, `device_group.*`
 - Address books: `address_book.*`
 - Strategies: `strategy.*`
@@ -62,7 +67,7 @@ Main action groups:
 - Web client: service-defined `web_client.*` events such as
   `web_client.request_denied`, `web_client.request_allowed`,
   `web_client.gateway_open`, and `web_client.session_ended`
-- Nexus: `nexus.unbind`, `nexus.build.*`
+- Nexus: `nexus.unbind`, `nexus.build.*`, `nexus.login_session.create`
 
 ## Database Table Structure
 

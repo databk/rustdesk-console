@@ -232,7 +232,7 @@ export class ServerManagementService {
       actor,
       nodeId,
       'server.session.disconnect',
-      undefined,
+      { uuid },
       async () => {
         const relayId =
           node.kind === 'relay'
@@ -296,7 +296,7 @@ export class ServerManagementService {
       actor,
       nodeId,
       'server.service.config.update',
-      { settings: Object.keys(dto.values) },
+      { service, settings: Object.keys(dto.values) },
       async () => {
         await this.fetchJson(config, path, 'PUT', { values: dto.values });
         return this.configView(await this.fetchJson(config, path));
@@ -325,7 +325,7 @@ export class ServerManagementService {
         actor,
         nodeId,
         `server.service.${action}`,
-        undefined,
+        { service },
         () => this.fetchJson(config, path, 'POST'),
       );
     }
@@ -339,7 +339,7 @@ export class ServerManagementService {
       actor,
       nodeId,
       `server.service.${action}`,
-      undefined,
+      { service },
       async () => {
         const current = await this.fetchJson(config, configPath);
         if (!Object.keys(objectField(current['pending_restart'])).length)
@@ -654,6 +654,7 @@ export class ServerManagementService {
         targetGuid: nodeId,
         action,
         reason: 'Server management operation failed',
+        afterState: details,
       });
       throw error;
     }

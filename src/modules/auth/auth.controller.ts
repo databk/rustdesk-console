@@ -174,13 +174,41 @@ export class AuthController {
   @Post('passkey/auth/verify')
   @HttpCode(HttpStatus.OK)
   async verifyPasskeyAuth(@Body() dto: VerifyPasskeyAuthDto) {
-    return this.passkeyService.verifyAuthLogin(
-      dto.secret,
-      dto.response,
-      dto.id,
-      dto.uuid,
-      dto.deviceInfo,
-    );
+    let response: Awaited<ReturnType<AuthPasskeyService['verifyAuthLogin']>>;
+    try {
+      response = await this.passkeyService.verifyAuthLogin(
+        dto.secret,
+        dto.response,
+        dto.id,
+        dto.uuid,
+        dto.deviceInfo,
+      );
+    } catch (error: unknown) {
+      await this.auditService.recordDenied({
+        targetType: 'auth',
+        action: 'auth.login',
+        reason: error instanceof Error ? error.message : String(error),
+        afterState: { login_type: 'passkey' },
+      });
+      throw error;
+    }
+
+    if (response.access_token && response.user?.guid) {
+      try {
+        await this.auditService.record({
+          actorUserGuid: response.user.guid,
+          targetType: 'auth',
+          targetGuid: response.user.guid,
+          action: 'auth.login',
+          result: 'allowed',
+          afterState: { login_type: 'passkey' },
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Unable to persist passkey login audit: ${message}`);
+      }
+    }
+    return response;
   }
 
   // ==================== Passkey credential management ====================

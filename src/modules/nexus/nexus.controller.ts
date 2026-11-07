@@ -27,6 +27,10 @@ export class NexusController {
   // ── Auth ──────────────────────────────────────────────
 
   @Post('auth/login')
+  @ConsoleAuditAction('nexus.login_session.create', {
+    targetGuidParam: false,
+    includeBody: false,
+  })
   @HttpCode(HttpStatus.OK)
   async createLoginSession(
     @CurrentUser('id') userGuid: string,
@@ -60,7 +64,10 @@ export class NexusController {
 
   /** Submit a client build request */
   @Post('builds')
-  @ConsoleAuditAction('nexus.build.create', { targetGuidParam: false })
+  @ConsoleAuditAction('nexus.build.create', {
+    targetGuidParam: false,
+    targetGuidResponseField: 'uuid',
+  })
   @HttpCode(HttpStatus.CREATED)
   async createBuild(
     @CurrentUser('id') userGuid: string,

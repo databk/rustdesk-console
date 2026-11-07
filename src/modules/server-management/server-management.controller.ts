@@ -64,7 +64,7 @@ export class ServerManagementController {
   @Delete(':node/sessions/:uuid')
   @RequirePermission('servers.disconnect')
   @ConsoleAuditAction('server.session.disconnect', {
-    targetGuidParam: 'uuid',
+    targetGuidParam: 'node',
   })
   disconnect(
     @Param('node') node: string,
@@ -114,6 +114,8 @@ export class ServerManagementController {
   @RequirePermission('servers.control')
   @ConsoleAuditAction('server.service.control', {
     targetGuidParam: 'node',
+    actionParam: 'action',
+    actionParamPrefix: 'server.service',
   })
   action(
     @Param('node') node: string,

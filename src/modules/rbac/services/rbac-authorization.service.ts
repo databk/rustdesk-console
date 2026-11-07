@@ -20,6 +20,7 @@ import {
   PERMISSION_CATALOG,
   PermissionCode,
 } from '../constants/permission-catalog';
+import { markConsoleAuditRecorded } from '../decorators/console-audit-action.decorator';
 import { RbacAuditService } from './rbac-audit.service';
 import {
   EffectiveRoleGrants,
@@ -725,6 +726,7 @@ export class RbacAuthorizationService {
       action,
       reason: error instanceof Error ? error.message : String(error),
     });
+    markConsoleAuditRecorded(error);
     throw error;
   }
 }
