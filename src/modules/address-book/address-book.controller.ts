@@ -666,6 +666,7 @@ export class AddressBookController {
   @Post('rule')
   @RequirePermission('address_books.share')
   @ConsoleAuditAction('address_book.rule.create', {
+    targetType: 'address_book_rule',
     targetGuidParam: false,
     targetGuidResponseField: 'guid',
   })

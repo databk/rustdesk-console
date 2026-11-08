@@ -264,11 +264,20 @@ export class RbacAuditService {
     const serialized = JSON.stringify(this.redact(value));
     const byteLength = Buffer.byteLength(serialized, 'utf8');
     if (byteLength <= MAX_STATE_BYTES) return serialized;
-    return JSON.stringify({
-      truncated: true,
-      original_bytes: byteLength,
-      preview: this.truncateUtf8(serialized, MAX_STATE_PREVIEW_BYTES),
-    });
+
+    let previewBytes = MAX_STATE_PREVIEW_BYTES;
+    while (previewBytes > 0) {
+      const preview = this.truncateUtf8(serialized, previewBytes);
+      const result = JSON.stringify({
+        truncated: true,
+        original_bytes: byteLength,
+        preview,
+      });
+      if (Buffer.byteLength(result, 'utf8') <= MAX_STATE_BYTES) return result;
+      previewBytes -= 2048;
+    }
+
+    return JSON.stringify({ truncated: true, original_bytes: byteLength });
   }
 
   /** Truncates a string on a character boundary without exceeding maxBytes. */
