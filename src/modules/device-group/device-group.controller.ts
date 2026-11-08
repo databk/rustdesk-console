@@ -298,7 +298,10 @@ export class DeviceGroupController {
    */
   @Patch('devices/status')
   @RequirePermission('devices.status')
-  @ConsoleAuditAction('device.status.batch_update', { targetGuidParam: false })
+  @ConsoleAuditAction('device.status.batch_update', {
+    targetGuidParam: false,
+    failureResponseField: 'success',
+  })
   async updateDeviceStatus(
     @CurrentUser('id') userId: string,
     @Body() dto: UpdateDeviceStatusDto,

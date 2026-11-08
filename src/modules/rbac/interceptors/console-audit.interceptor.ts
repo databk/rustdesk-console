@@ -181,6 +181,7 @@ export class ConsoleAuditInterceptor implements NestInterceptor {
       metadata.failureResponseField
     ];
     if (typeof value === 'string' && value !== '') return value;
+    if (value === false) return 'operation failed';
     return null;
   }
 

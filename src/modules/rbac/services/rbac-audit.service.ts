@@ -265,16 +265,17 @@ export class RbacAuditService {
     const byteLength = Buffer.byteLength(serialized, 'utf8');
     if (byteLength <= MAX_STATE_BYTES) return serialized;
 
-    let previewBytes = MAX_STATE_PREVIEW_BYTES;
-    while (previewBytes > 0) {
-      const preview = this.truncateUtf8(serialized, previewBytes);
+    let preview = this.truncateUtf8(serialized, MAX_STATE_PREVIEW_BYTES);
+    while (preview.length > 0) {
       const result = JSON.stringify({
         truncated: true,
         original_bytes: byteLength,
         preview,
       });
       if (Buffer.byteLength(result, 'utf8') <= MAX_STATE_BYTES) return result;
-      previewBytes -= 2048;
+      const nextBytes = Buffer.byteLength(preview, 'utf8') - 2048;
+      if (nextBytes <= 0) break;
+      preview = this.truncateUtf8(preview, nextBytes);
     }
 
     return JSON.stringify({ truncated: true, original_bytes: byteLength });
