@@ -5,11 +5,13 @@ import { NexusService } from './nexus.service';
 import { NexusToken } from './entities/nexus-token.entity';
 import { NexusBuild } from './entities/nexus-build.entity';
 import { UpdateCheckModule } from '../update-check/update-check.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([NexusToken, NexusBuild]),
     UpdateCheckModule,
+    SettingsModule,
   ],
   controllers: [NexusController],
   providers: [NexusService],

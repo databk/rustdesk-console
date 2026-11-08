@@ -24,6 +24,8 @@ import { getNexusStoragePath } from '../../common/utils/data-dir.util';
 import { NexusToken } from './entities/nexus-token.entity';
 import { NexusBuild } from './entities/nexus-build.entity';
 import { UpdateCheckService } from '../update-check/update-check.service';
+import { GeneralSettingsService } from '../settings/services/general-settings.service';
+import { withDefaultApiServer } from './nexus-api-server.util';
 import {
   NexusLoginResponse,
   NexusAuthStatusResponse,
@@ -56,6 +58,7 @@ export class NexusService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(NexusBuild)
     private nexusBuildRepository: Repository<NexusBuild>,
     private updateCheckService: UpdateCheckService,
+    private generalSettingsService: GeneralSettingsService,
   ) {
     this.storagePath = getNexusStoragePath();
   }
@@ -304,6 +307,13 @@ export class NexusService implements OnModuleInit, OnModuleDestroy {
   ): Promise<NexusGenerateResponse> {
     const nexusToken = await this.getValidNexusToken(userGuid);
     const installId = await this.updateCheckService.getInstallId();
+    const site = await this.generalSettingsService.getSiteSettings();
+    const custom = withDefaultApiServer(dto.custom, site.frontendUrl);
+    if (custom !== dto.custom) {
+      this.logger.log(
+        `Embedded api-server=${site.frontendUrl} into the custom client default settings`,
+      );
+    }
 
     const response = await this.fetchNexus('/v1/client/generate', {
       method: 'POST',
@@ -311,7 +321,7 @@ export class NexusService implements OnModuleInit, OnModuleDestroy {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${nexusToken.nexusToken}`,
       },
-      body: JSON.stringify({ ...dto, install_id: installId }),
+      body: JSON.stringify({ ...dto, custom, install_id: installId }),
     });
 
     if (response.status === 401) {
@@ -355,8 +365,8 @@ export class NexusService implements OnModuleInit, OnModuleDestroy {
       userGuid,
       os: dto.os,
       arch: dto.arch,
-      appName: dto.custom?.['app-name'] ?? '',
-      custom: JSON.stringify(dto.custom),
+      appName: custom?.['app-name'] ?? '',
+      custom: JSON.stringify(custom),
       status: 'pending',
     });
     await this.nexusBuildRepository.save(build);
