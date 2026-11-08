@@ -425,6 +425,7 @@ describe('heartbeat tombstone guard', () => {
       {} as never,
       {} as never,
       { isDeviceCloneIsolationEnabled: () => false } as never,
+      { markHeartbeat: jest.fn() } as never,
     );
     return { service, peerRepository };
   };
