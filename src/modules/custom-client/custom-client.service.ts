@@ -43,9 +43,8 @@ const ALLOWED_CALLBACK_STATUSES: CustomClientBuild['status'][] = [
 
 interface GithubDispatchInputs {
   'build-id': string;
-  'callback-url': string;
+  'backend-url': string;
   'callback-token': string;
-  'config-url': string;
 }
 
 function resolveWorkflowFile(os: string, arch: string | undefined): string {
@@ -113,13 +112,9 @@ export class CustomClientService {
     }
 
     const site = await this.generalSettingsService.getSiteSettings();
-    const callbackUrl = `${site.effectiveBackendUrl}/api/custom-client/builds/{uuid}/callback`;
-    const configUrl = `${site.effectiveBackendUrl}/api/custom-client/builds/{uuid}/config`;
-
     const uuid = randomUUID();
     const callbackToken = randomUUID();
-    const callbackUrlResolved = callbackUrl.replace('{uuid}', uuid);
-    const configUrlResolved = configUrl.replace('{uuid}', uuid);
+    const backendUrl = `${site.effectiveBackendUrl}/api/custom-client/builds/${uuid}`;
 
     const build = this.buildRepository.create({
       uuid,
@@ -135,9 +130,8 @@ export class CustomClientService {
     const workflowFile = resolveWorkflowFile(dto.os, dto.arch);
     const inputs: GithubDispatchInputs = {
       'build-id': uuid,
-      'callback-url': callbackUrlResolved,
+      'backend-url': backendUrl,
       'callback-token': callbackToken,
-      'config-url': configUrlResolved,
     };
 
     const dispatchUrl = `${GITHUB_API}/repos/${settings.generatorRepo}/actions/workflows/${workflowFile}/dispatches`;
