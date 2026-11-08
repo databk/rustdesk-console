@@ -69,6 +69,7 @@ function resolveWorkflowFile(os: string, arch: string | undefined): string {
     'android/aarch64': 'android-aarch64.yml',
     'android/armv7': 'android-armv7.yml',
     'android/x86_64': 'android-x86_64.yml',
+    'android/universal': 'android-universal.yml',
     'ios/aarch64': 'ios-aarch64.yml',
   };
   const file = map[key];

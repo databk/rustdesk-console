@@ -58,7 +58,7 @@ export class SubmitBuildDto {
   os: string;
 
   @IsOptional()
-  @IsIn(['x86_64', 'aarch64', 'x86', 'armv7'])
+  @IsIn(['x86_64', 'aarch64', 'x86', 'armv7', 'universal'])
   arch?: string;
 
   @IsOptional()
