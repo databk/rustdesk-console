@@ -14,11 +14,13 @@ export class UpdateCustomClientSettingsDto {
   generatorRef?: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(/^[A-Za-z0-9+/]{43}=$/)
   signingPublicKey?: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(
+    /^(?:\*{6}|(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)$/,
+  )
   signingPrivateKey?: string;
 }
 

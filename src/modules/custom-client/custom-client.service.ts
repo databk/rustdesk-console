@@ -46,7 +46,6 @@ interface GithubDispatchInputs {
   'callback-url': string;
   'callback-token': string;
   'config-url': string;
-  'custom-json': string;
 }
 
 function resolveWorkflowFile(os: string, arch: string | undefined): string {
@@ -139,7 +138,6 @@ export class CustomClientService {
       'callback-url': callbackUrlResolved,
       'callback-token': callbackToken,
       'config-url': configUrlResolved,
-      'custom-json': dto.custom ? JSON.stringify(dto.custom) : '',
     };
 
     const dispatchUrl = `${GITHUB_API}/repos/${settings.generatorRepo}/actions/workflows/${workflowFile}/dispatches`;
@@ -257,14 +255,7 @@ export class CustomClientService {
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    const tokenBuffer = Buffer.from(callbackToken);
-    const expectedBuffer = Buffer.from(build.callbackToken);
-    if (
-      tokenBuffer.length !== expectedBuffer.length ||
-      !timingSafeEqual(tokenBuffer, expectedBuffer)
-    ) {
-      throw new UnauthorizedException('Invalid callback token');
-    }
+    this.assertCallbackToken(build, callbackToken);
 
     const customObj: CustomClientCustomDto | undefined = build.custom
       ? (JSON.parse(build.custom) as CustomClientCustomDto)
@@ -286,14 +277,7 @@ export class CustomClientService {
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    const tokenBuffer = Buffer.from(callbackToken);
-    const expectedBuffer = Buffer.from(build.callbackToken);
-    if (
-      tokenBuffer.length !== expectedBuffer.length ||
-      !timingSafeEqual(tokenBuffer, expectedBuffer)
-    ) {
-      throw new UnauthorizedException('Invalid callback token');
-    }
+    this.assertCallbackToken(build, callbackToken);
 
     return this.logoService.getLogoPath(filename);
   }
@@ -309,14 +293,7 @@ export class CustomClientService {
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    const tokenBuffer = Buffer.from(callbackToken);
-    const expectedBuffer = Buffer.from(build.callbackToken);
-    if (
-      tokenBuffer.length !== expectedBuffer.length ||
-      !timingSafeEqual(tokenBuffer, expectedBuffer)
-    ) {
-      throw new UnauthorizedException('Invalid callback token');
-    }
+    this.assertCallbackToken(build, callbackToken);
     if (
       !ALLOWED_CALLBACK_STATUSES.includes(status as CustomClientBuild['status'])
     ) {
@@ -425,6 +402,20 @@ export class CustomClientService {
       throw new NotFoundException('Build record not found');
     }
     return build;
+  }
+
+  private assertCallbackToken(
+    build: CustomClientBuild,
+    callbackToken: string,
+  ): void {
+    const tokenBuffer = Buffer.from(callbackToken);
+    const expectedBuffer = Buffer.from(build.callbackToken);
+    if (
+      tokenBuffer.length !== expectedBuffer.length ||
+      !timingSafeEqual(tokenBuffer, expectedBuffer)
+    ) {
+      throw new UnauthorizedException('Invalid callback token');
+    }
   }
 
   private async githubFetch<T>(url: string, token: string): Promise<T> {

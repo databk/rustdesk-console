@@ -23,15 +23,19 @@ function generateEd25519KeyPair(): { publicKey: string; privateKey: string } {
   const pubDer = publicKey.export({ type: 'spki', format: 'der' });
   const rawPub = pubDer.subarray(-32);
   const privDer = privateKey.export({ type: 'pkcs8', format: 'der' });
-  const rawPriv = privDer.subarray(-32);
   return {
     publicKey: rawPub.toString('base64'),
-    privateKey: rawPriv.toString('base64'),
+    privateKey: privDer.toString('base64'),
   };
 }
 
 @Injectable()
 export class CustomClientSettingsService {
+  private signingKeysPromise: Promise<{
+    publicKey: string;
+    privateKey: string;
+  }> | null = null;
+
   constructor(
     @InjectRepository(SystemSetting)
     private settingRepository: Repository<SystemSetting>,
@@ -71,16 +75,27 @@ export class CustomClientSettingsService {
     publicKey: string;
     privateKey: string;
   }> {
-    let pubKey = await this.read(SIGNING_PUBLIC_KEY);
-    let privKey = await this.read(SIGNING_PRIVATE_KEY);
-    if (!pubKey || !privKey) {
-      const keys = generateEd25519KeyPair();
-      pubKey = keys.publicKey;
-      privKey = keys.privateKey;
-      await this.write(SIGNING_PUBLIC_KEY, pubKey, false);
-      await this.write(SIGNING_PRIVATE_KEY, privKey, true);
+    if (this.signingKeysPromise) {
+      return this.signingKeysPromise;
     }
-    return { publicKey: pubKey, privateKey: privKey };
+    this.signingKeysPromise = (async () => {
+      let pubKey = await this.read(SIGNING_PUBLIC_KEY);
+      let privKey = await this.read(SIGNING_PRIVATE_KEY);
+      if (!pubKey || !privKey) {
+        const keys = generateEd25519KeyPair();
+        pubKey = keys.publicKey;
+        privKey = keys.privateKey;
+        await this.write(SIGNING_PUBLIC_KEY, pubKey, false);
+        await this.write(SIGNING_PRIVATE_KEY, privKey, true);
+      }
+      return { publicKey: pubKey, privateKey: privKey };
+    })();
+    try {
+      return await this.signingKeysPromise;
+    } catch (err) {
+      this.signingKeysPromise = null;
+      throw err;
+    }
   }
 
   async updateSettings(
