@@ -49,6 +49,7 @@ import { UserGroup } from './entities/user-group.entity';
 import { UserGroupController } from './user-group.controller';
 import { UserGroupService } from './user-group.service';
 import { REQUIRE_PERMISSION_KEY } from '../rbac/decorators/require-permission.decorator';
+import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 
 interface UserGroupHttpBody {
@@ -1191,7 +1192,13 @@ describe('User group integration', () => {
     await userGroupService.initializeStorage();
     const moduleRef = await Test.createTestingModule({
       controllers: [UserGroupController],
-      providers: [{ provide: UserGroupService, useValue: userGroupService }],
+      providers: [
+        { provide: UserGroupService, useValue: userGroupService },
+        {
+          provide: RbacAuditService,
+          useValue: { record: jest.fn(), recordDenied: jest.fn() },
+        },
+      ],
     }).compile();
     const app: INestApplication = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');

@@ -18,6 +18,7 @@ import { NexusService } from './nexus.service';
 import { NexusLoginDto } from './dto/nexus-auth.dto';
 import { NexusGenerateDto } from './dto/nexus-client.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 
 @Controller('nexus')
 export class NexusController {
@@ -26,6 +27,10 @@ export class NexusController {
   // ── Auth ──────────────────────────────────────────────
 
   @Post('auth/login')
+  @ConsoleAuditAction('nexus.login_session.create', {
+    targetGuidParam: false,
+    includeBody: false,
+  })
   @HttpCode(HttpStatus.OK)
   async createLoginSession(
     @CurrentUser('id') userGuid: string,
@@ -48,6 +53,7 @@ export class NexusController {
   }
 
   @Delete('auth/bind')
+  @ConsoleAuditAction('nexus.unbind', { targetGuidActor: true })
   @HttpCode(HttpStatus.OK)
   async unbind(@CurrentUser('id') userGuid: string) {
     await this.nexusService.unbind(userGuid);
@@ -58,6 +64,10 @@ export class NexusController {
 
   /** Submit a client build request */
   @Post('builds')
+  @ConsoleAuditAction('nexus.build.create', {
+    targetGuidParam: false,
+    targetGuidResponseField: 'uuid',
+  })
   @HttpCode(HttpStatus.CREATED)
   async createBuild(
     @CurrentUser('id') userGuid: string,
@@ -74,6 +84,7 @@ export class NexusController {
 
   /** Delete a build record */
   @Delete('builds/:uuid')
+  @ConsoleAuditAction('nexus.build.delete', { targetGuidParam: 'uuid' })
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteBuild(
     @CurrentUser('id') userGuid: string,

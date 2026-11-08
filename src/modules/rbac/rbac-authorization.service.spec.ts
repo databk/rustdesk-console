@@ -1064,6 +1064,7 @@ describe('RbacAuditService', () => {
         otpCode: '123456',
         recoveryCode: 'recovery-code',
         nested: { token: 'jwt', visible: true },
+        tlsOptions: { key: 'private-key-material', servername: 'ldap.example' },
       },
     });
 
@@ -1074,6 +1075,10 @@ describe('RbacAuditService', () => {
           otpCode: '[REDACTED]',
           recoveryCode: '[REDACTED]',
           nested: { token: '[REDACTED]', visible: true },
+          tlsOptions: {
+            key: '[REDACTED]',
+            servername: 'ldap.example',
+          },
         }),
       }),
     );

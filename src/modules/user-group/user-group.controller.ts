@@ -10,9 +10,12 @@ import {
   Post,
   Put,
   Query,
+  Logger,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
+import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import {
   CreateUserGroupDto,
   UpdateUserGroupDto,
@@ -23,7 +26,12 @@ import { UserGroupService } from './user-group.service';
 
 @Controller('user-groups')
 export class UserGroupController {
-  constructor(private readonly userGroupService: UserGroupService) {}
+  private readonly logger = new Logger(UserGroupController.name);
+
+  constructor(
+    private readonly userGroupService: UserGroupService,
+    private readonly auditService: RbacAuditService,
+  ) {}
 
   @Get()
   @RequirePermission('user_groups.view')
@@ -33,6 +41,7 @@ export class UserGroupController {
 
   @Post()
   @RequirePermission('user_groups.create')
+  @ConsoleAuditAction('user_group.create')
   @HttpCode(HttpStatus.OK)
   createGroup(@Body() dto: CreateUserGroupDto) {
     return this.userGroupService.createGroup(dto);
@@ -40,6 +49,7 @@ export class UserGroupController {
 
   @Put(':guid')
   @RequirePermission('user_groups.edit')
+  @ConsoleAuditAction('user_group.update')
   @HttpCode(HttpStatus.OK)
   updateGroup(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,
@@ -50,6 +60,7 @@ export class UserGroupController {
 
   @Delete(':guid')
   @RequirePermission('user_groups.delete')
+  @ConsoleAuditAction('user_group.delete')
   @HttpCode(HttpStatus.OK)
   deleteGroup(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,
@@ -69,12 +80,38 @@ export class UserGroupController {
 
   @Post(':guid/users')
   @RequirePermission('user_groups.membership')
+  @ConsoleAuditAction('user_group.member_add')
   @HttpCode(HttpStatus.OK)
-  moveUsers(
+  async moveUsers(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,
     @Body() dto: UserGroupMembersDto,
     @CurrentUser('id') actorGuid: string,
   ) {
-    return this.userGroupService.moveUsers(guid, dto.user_guids, actorGuid);
+    const result = await this.userGroupService.moveUsers(
+      guid,
+      dto.user_guids,
+      actorGuid,
+    );
+    try {
+      for (const [sourceGuid, userGuids] of Object.entries(
+        result.source_groups,
+      )) {
+        await this.auditService.record({
+          actorUserGuid: actorGuid,
+          targetType: 'user_group',
+          targetGuid: sourceGuid,
+          action: 'user_group.member_remove',
+          result: 'allowed',
+          afterState: { user_guids: userGuids },
+        });
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Unable to persist group move audit: ${message}`);
+    }
+    return {
+      message: result.message,
+      moved_user_count: result.moved_user_count,
+    };
   }
 }

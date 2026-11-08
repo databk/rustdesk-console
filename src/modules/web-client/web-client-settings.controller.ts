@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { UpdateWebClientSettingsDto } from './dto/web-client-settings.dto';
 import { WebClientSettingsService } from './web-client-settings.service';
 import { WebClientService } from './web-client.service';
@@ -43,6 +44,7 @@ export class WebClientSettingsController {
    * The merged configuration must be valid when enabled
    */
   @Put()
+  @ConsoleAuditAction('settings.web_client.update')
   @HttpCode(HttpStatus.OK)
   async updateSettings(@Body() dto: UpdateWebClientSettingsDto) {
     const result = await this.settings.updateSettings(dto);
