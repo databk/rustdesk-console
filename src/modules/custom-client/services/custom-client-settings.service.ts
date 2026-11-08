@@ -112,12 +112,14 @@ export class CustomClientSettingsService {
     }
     if (dto.signingPublicKey !== undefined) {
       await this.write(SIGNING_PUBLIC_KEY, dto.signingPublicKey, false);
+      this.signingKeysPromise = null;
     }
     if (
       dto.signingPrivateKey !== undefined &&
       dto.signingPrivateKey !== TOKEN_MASK
     ) {
       await this.write(SIGNING_PRIVATE_KEY, dto.signingPrivateKey, true);
+      this.signingKeysPromise = null;
     }
     return this.getSettings();
   }
