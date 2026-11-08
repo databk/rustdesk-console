@@ -366,16 +366,12 @@ export class UserGroupService {
       const guidsToMove = users
         .filter((user) => user.userGroupGuid !== guid)
         .map((user) => user.guid);
-      const sourceGroupGuids = [
-        ...new Set(
-          users
-            .map((user) => user.userGroupGuid)
-            .filter(
-              (groupGuid): groupGuid is string =>
-                !!groupGuid && groupGuid !== guid,
-            ),
-        ),
-      ];
+      const sourceGroups: Record<string, string[]> = {};
+      for (const user of users) {
+        if (user.userGroupGuid && user.userGroupGuid !== guid) {
+          (sourceGroups[user.userGroupGuid] ??= []).push(user.guid);
+        }
+      }
 
       if (guidsToMove.length > 0) {
         await userRepository.update(
@@ -387,7 +383,7 @@ export class UserGroupService {
       return {
         message: 'User group members updated',
         moved_user_count: guidsToMove.length,
-        source_group_guids: sourceGroupGuids,
+        source_groups: sourceGroups,
       };
     });
   }

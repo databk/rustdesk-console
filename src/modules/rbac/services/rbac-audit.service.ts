@@ -25,6 +25,9 @@ interface ConsoleAuditQueryRaw {
 
 const SENSITIVE_STATE_KEY =
   /(password|pass(word)?|token|secret|verifier|credential|authorization|api[_-]?key|private[_-]?key|current[_-]?code|tfa[_-]?code|verification[_-]?code|otp[_-]?code|recovery[_-]?code|^code$|^key$)/i;
+/** Keep serialized state below the 65,535-byte MySQL TEXT limit. */
+const MAX_STATE_BYTES = 60_000;
+const MAX_STATE_PREVIEW_BYTES = MAX_STATE_BYTES - 128;
 
 const MAX_TARGET_GUID_LENGTH = 255;
 
@@ -173,9 +176,16 @@ export class RbacAuditService {
       query.andWhere(
         new Brackets((builder) => {
           aliases.forEach((alias, index) => {
-            builder.orWhere(`audit.action LIKE :action${index}`, {
-              [`action${index}`]: `%${alias}%`,
-            });
+            if (index === 0) {
+              // The user's own input keeps substring semantics.
+              builder.orWhere(`audit.action LIKE :action${index}`, {
+                [`action${index}`]: `%${alias}%`,
+              });
+            } else {
+              builder.orWhere(`audit.action = :action${index}`, {
+                [`action${index}`]: alias,
+              });
+            }
           });
         }),
       );
@@ -251,7 +261,33 @@ export class RbacAuditService {
 
   private serializeState(value: unknown): string | null {
     if (value === undefined || value === null) return null;
-    return JSON.stringify(this.redact(value));
+    const serialized = JSON.stringify(this.redact(value));
+    const byteLength = Buffer.byteLength(serialized, 'utf8');
+    if (byteLength <= MAX_STATE_BYTES) return serialized;
+    return JSON.stringify({
+      truncated: true,
+      original_bytes: byteLength,
+      preview: this.truncateUtf8(serialized, MAX_STATE_PREVIEW_BYTES),
+    });
+  }
+
+  /** Truncates a string on a character boundary without exceeding maxBytes. */
+  private truncateUtf8(value: string, maxBytes: number): string {
+    let low = 0;
+    let high = value.length;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (Buffer.byteLength(value.slice(0, mid), 'utf8') <= maxBytes) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+    if (low > 0 && low < value.length) {
+      const last = value.charCodeAt(low - 1);
+      if (last >= 0xd800 && last <= 0xdbff) low -= 1;
+    }
+    return value.slice(0, low);
   }
 
   private parseState(value: string | null): unknown {

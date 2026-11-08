@@ -93,14 +93,16 @@ export class UserGroupController {
       actorGuid,
     );
     try {
-      for (const sourceGuid of result.source_group_guids) {
+      for (const [sourceGuid, userGuids] of Object.entries(
+        result.source_groups,
+      )) {
         await this.auditService.record({
           actorUserGuid: actorGuid,
           targetType: 'user_group',
           targetGuid: sourceGuid,
           action: 'user_group.member_remove',
           result: 'allowed',
-          afterState: { user_guids: dto.user_guids },
+          afterState: { user_guids: userGuids },
         });
       }
     } catch (error: unknown) {

@@ -667,7 +667,7 @@ export class AddressBookController {
   @RequirePermission('address_books.share')
   @ConsoleAuditAction('address_book.rule.create', {
     targetGuidParam: false,
-    targetGuidFromResponse: true,
+    targetGuidResponseField: 'guid',
   })
   @HttpCode(HttpStatus.OK)
   async addRule(@Body() dto: CreateRuleDto, @CurrentUser('id') userId: number) {
