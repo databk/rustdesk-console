@@ -18,13 +18,13 @@ const readEnv = (file) =>
 const backendEnv = readEnv('/tmp/console-backend.env');
 const webEnv = readEnv('/tmp/console-web.env');
 assert.equal(backendEnv.HOST, '127.0.0.1');
-assert.equal(backendEnv.PORT, '21115');
+assert.equal(backendEnv.PORT, '21120');
 assert.equal(backendEnv.DATA_DIR, '/srv/rustdesk-console');
 assert.equal(backendEnv.DB_TYPE, 'sqlite');
 assert.equal(backendEnv.JWT_SECRET.length, 64);
 assert.equal(backendEnv.ADMIN_PASSWORD.length, 48);
 assert.equal(backendEnv.NODE_OPTIONS, '--max-old-space-size=128');
-assert.equal(webEnv.BACKEND_URL, 'http://127.0.0.1:21115');
+assert.equal(webEnv.BACKEND_URL, 'http://127.0.0.1:21120');
 const user = readFileSync('/etc/passwd', 'utf8')
   .split('\n')
   .find((line) => line.startsWith('rustdesk-console:'))

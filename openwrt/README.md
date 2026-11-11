@@ -82,7 +82,7 @@ uci commit rustdesk-console
 /etc/init.d/rustdesk-console start
 ```
 
-The web frontend uses port **21114**. The API uses **127.0.0.1:21115**. Both are
+The web frontend uses port **21114**. The API uses **127.0.0.1:21120**. Both are
 configurable; neither should overlap another service. The backend supports `HOST`
 explicitly. The default web bind is loopback until configured.
 

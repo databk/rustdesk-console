@@ -21,7 +21,7 @@ start_service
 [ ! -e /srv/rustdesk-console ]
 uci set rustdesk-console.main.enabled=1
 uci set rustdesk-console.main.port=21114
-uci set rustdesk-console.main.backend_port=21115
+uci set rustdesk-console.main.backend_port=21120
 uci commit rustdesk-console
 procd_open_instance() { instance="$1"; }
 procd_close_instance() { :; }

@@ -23,21 +23,26 @@ return view.extend({
 		o = s.option(form.Flag, 'enabled', _('Enable'));
 		o.rmempty = false;
 		o = s.option(form.Value, 'bind_addr', _('Web listen address'));
-		o.datatype = 'ipaddr';
+		o.datatype = 'ipaddr("nomask")';
 		o.rmempty = false;
 		o = s.option(form.Value, 'port', _('Web port'));
-		o.datatype = 'range(1024,65535)';
+		o.datatype = 'and(uinteger,range(1024,65535))';
 		o.rmempty = false;
 		o = s.option(form.Value, 'backend_port', _('Internal API port'));
-		o.datatype = 'range(1024,65535)';
+		o.datatype = 'and(uinteger,range(1024,65535))';
 		o.rmempty = false;
-		o = s.option(form.Value, 'data_dir', _('Persistent data directory'));
+		o.validate = function(section, value) {
+			var webPort = uci.get('rustdesk-console', 'main', 'port');
+			return value !== webPort || _('Internal API port must differ from the web port.');
+		};
+		o = s.option(form.Value, 'data_dir', _('Persistent data directory'),
+			_('Changing this value restarts the service against the new directory without migrating the existing database. Stop the service and copy the data manually before applying.'));
 		o.rmempty = false;
 		o.validate = function(section, value) {
 			return /^\/(srv|mnt|opt)\/.+/.test(value) || _('Use an absolute directory under /srv, /mnt or /opt.');
 		};
 		o = s.option(form.Value, 'heap_mb', _('JavaScript heap limit (MiB)'));
-		o.datatype = 'range(64,512)';
+		o.datatype = 'and(uinteger,range(64,512))';
 		o.rmempty = false;
 		o = s.option(form.DummyValue, '_open', _('Console'));
 		o.renderWidget = function() {
