@@ -32,7 +32,7 @@ return view.extend({
 		o.datatype = 'and(uinteger,range(1024,65535))';
 		o.rmempty = false;
 		o.validate = function(section, value) {
-			var webPort = uci.get('rustdesk-console', 'main', 'port');
+			var webPort = s.formvalue(section, 'port');
 			return value !== webPort || _('Internal API port must differ from the web port.');
 		};
 		o = s.option(form.Value, 'data_dir', _('Persistent data directory'),

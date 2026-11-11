@@ -17,15 +17,17 @@ if [ -f rustdesk-console.db ]; then
 		fi
 	done
 	if [ "$need_copy" = 1 ]; then
+		tmpdir="pre-migration.tmp"
+		rm -rf "$tmpdir"
+		mkdir -p "$tmpdir"
 		for suffix in '' -wal -shm -journal; do
 			file="rustdesk-console.db$suffix"
 			if [ -f "$file" ]; then
-				tmp="pre-migration/$file.tmp"
-				cp -p "$file" "$tmp" && mv "$tmp" "pre-migration/$file"
-			else
-				rm -f "pre-migration/$file"
+				cp -p "$file" "$tmpdir/$file"
 			fi
 		done
+		rm -rf pre-migration
+		mv "$tmpdir" pre-migration
 	fi
 fi
 "$binary" migrate
