@@ -7,28 +7,14 @@ binary=/usr/lib/rustdesk-console/backend/rustdesk-console
 # the SQLite database and any recovery journals together before migration.
 if [ -f rustdesk-console.db ]; then
 	mkdir -p pre-migration
-	need_copy=0
 	for suffix in '' -wal -shm -journal; do
 		file="rustdesk-console.db$suffix"
-		backup="pre-migration/$file"
-		if [ -f "$file" ] && { [ ! -f "$backup" ] || [ "$file" -nt "$backup" ]; }; then
-			need_copy=1
-			break
+		if [ -f "$file" ]; then
+			cp -p "$file" "pre-migration/$file"
+		else
+			rm -f "pre-migration/$file"
 		fi
 	done
-	if [ "$need_copy" = 1 ]; then
-		tmpdir="pre-migration.tmp"
-		rm -rf "$tmpdir"
-		mkdir -p "$tmpdir"
-		for suffix in '' -wal -shm -journal; do
-			file="rustdesk-console.db$suffix"
-			if [ -f "$file" ]; then
-				cp -p "$file" "$tmpdir/$file"
-			fi
-		done
-		rm -rf pre-migration
-		mv "$tmpdir" pre-migration
-	fi
 fi
 "$binary" migrate
 exec "$binary"
