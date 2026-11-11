@@ -68,8 +68,11 @@ export class StrategyController {
   @RequirePermission('strategies.create')
   @ConsoleAuditAction('strategy.create')
   @HttpCode(HttpStatus.OK)
-  async createStrategy(@Body() dto: CreateStrategyDto) {
-    return this.strategyService.createStrategy(dto);
+  async createStrategy(
+    @Body() dto: CreateStrategyDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.strategyService.createStrategy(dto, userId);
   }
 
   @Patch('strategies/:guid')
@@ -79,16 +82,20 @@ export class StrategyController {
   async updateStrategy(
     @Param('guid') guid: string,
     @Body() dto: UpdateStrategyDto,
+    @CurrentUser('id') userId: string,
   ) {
-    return this.strategyService.updateStrategy(guid, dto);
+    return this.strategyService.updateStrategy(guid, dto, userId);
   }
 
   @Delete('strategies/:guid')
   @RequirePermission('strategies.delete')
   @ConsoleAuditAction('strategy.delete')
   @HttpCode(HttpStatus.OK)
-  async deleteStrategy(@Param('guid') guid: string) {
-    await this.strategyService.deleteStrategy(guid);
+  async deleteStrategy(
+    @Param('guid') guid: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    await this.strategyService.deleteStrategy(guid, userId);
     return { message: 'Strategy deleted successfully' };
   }
 

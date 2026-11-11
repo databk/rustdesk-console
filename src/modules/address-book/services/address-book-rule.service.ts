@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   ConflictException,
@@ -59,6 +60,8 @@ const EXTERNAL_GRANT_EXISTS = `EXISTS (
  */
 @Injectable()
 export class AddressBookRuleService {
+  private readonly logger = new Logger(AddressBookRuleService.name);
+
   constructor(
     @InjectRepository(AddressBookRule)
     private ruleRepository: Repository<AddressBookRule>,
@@ -231,6 +234,9 @@ export class AddressBookRuleService {
     });
 
     await this.ruleRepository.save(newRule);
+    this.logger.log(
+      `Address book rule created: ${newRule.guid} on ${dto.guid} by user ${userId}`,
+    );
 
     return { guid: newRule.guid };
   }
@@ -266,6 +272,9 @@ export class AddressBookRuleService {
     // Update the rule permission
     rule.rule = dto.rule;
     await this.ruleRepository.save(rule);
+    this.logger.log(
+      `Address book rule updated: ${rule.guid} on ${rule.addressBookGuid} by user ${userId}`,
+    );
 
     return { message: 'Updated successfully' };
   }
@@ -328,6 +337,9 @@ export class AddressBookRuleService {
         }
       }
     });
+    this.logger.log(
+      `${uniqueGuids.length} address book rule(s) deleted by user ${userId}`,
+    );
 
     return { message: 'Deleted successfully' };
   }
@@ -485,6 +497,7 @@ export class AddressBookRuleService {
     }
 
     await this.addressBookRepository.save(addressBook);
+    this.logger.log(`Address book updated: ${guid} by user ${userId}`);
   }
 
   async deleteCustomAddressBooks(
@@ -510,6 +523,9 @@ export class AddressBookRuleService {
     }
 
     await this.addressBookRepository.delete({ guid: In(uniqueGuids) });
+    this.logger.log(
+      `${uniqueGuids.length} address book(s) deleted by user ${userId}`,
+    );
   }
 
   private async getAccessibleAddressBooks(
@@ -783,6 +799,9 @@ export class AddressBookRuleService {
     }
 
     await this.addressBookRepository.save(addressBook);
+    this.logger.log(
+      `Shared address book updated: ${guid} by user ${userId ?? '-'}`,
+    );
   }
 
   /**
@@ -832,6 +851,9 @@ export class AddressBookRuleService {
         guid: In(guidsToDelete),
       });
     });
+    this.logger.log(
+      `${guidsToDelete.length} shared address book(s) deleted by user ${userId}`,
+    );
   }
 
   /**
@@ -881,6 +903,9 @@ export class AddressBookRuleService {
     }
 
     await this.ruleRepository.save(sharedRule);
+    this.logger.log(
+      `Address book ${addressBookGuid} shared with user ${targetUserId} by user ${ownerUserId}`,
+    );
     return { message: 'Shared successfully' };
   }
 
@@ -912,6 +937,9 @@ export class AddressBookRuleService {
       targetUserId,
       targetGroupId: IsNull(),
     });
+    this.logger.log(
+      `Address book ${addressBookGuid} unshared from user ${targetUserId} by user ${ownerUserId}`,
+    );
 
     return { message: 'Share cancelled successfully' };
   }
@@ -951,6 +979,9 @@ export class AddressBookRuleService {
       info: password ? JSON.stringify({ password }) : undefined,
     });
     await this.addressBookRepository.save(addressBook);
+    this.logger.log(
+      `${isShared ? 'Shared address' : 'Address'} book created: ${addressBook.guid} by user ${ownerUserId || '-'}`,
+    );
     return addressBook.guid;
   }
 

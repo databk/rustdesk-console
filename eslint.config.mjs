@@ -31,6 +31,15 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       "prettier/prettier": ["error", { endOfLine: "auto" }],
+      // Use `new Logger(Class.name)` from @nestjs/common so LOG_LEVEL applies.
+      'no-console': 'error',
+    },
+  },
+  {
+    // CLI entry points that run before (or without) the Nest logger.
+    files: ['src/main.ts', 'src/database/migrate.ts', 'src/database/migration-command.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
   {

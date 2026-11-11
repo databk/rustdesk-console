@@ -33,6 +33,8 @@ This project uses [ESLint](https://eslint.org/) and [Prettier](https://prettier.
 
 Run `npm run lint` before committing to catch issues early.
 
+For logging, use `new Logger(ClassName.name)` from `@nestjs/common` (never `console.*`) and follow the level guidelines in [docs/logging.md](docs/logging.md#guidelines-for-contributors).
+
 ## Commit Convention
 
 This project follows [Conventional Commits](https://www.conventionalcommits.org/). Commit messages must use the format:

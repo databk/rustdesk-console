@@ -247,6 +247,19 @@ export class GeneralSettingsService implements OnModuleInit {
     this.cacheGeneration += 1;
     this.deviceCloneIsolationCache = merged.deviceCloneIsolation;
 
+    // Names only: values such as URLs stay out of the logs.
+    const before = JSON.parse(JSON.stringify(current)) as Record<
+      string,
+      unknown
+    >;
+    const after = JSON.parse(JSON.stringify(merged)) as Record<string, unknown>;
+    const changed = Object.keys(after).filter(
+      (key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]),
+    );
+    this.logger.log(
+      `General settings updated (${changed.length > 0 ? `changed: ${changed.join(', ')}` : 'no changes'})`,
+    );
+
     return merged;
   }
 

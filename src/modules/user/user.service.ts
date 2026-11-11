@@ -183,7 +183,7 @@ export class UserService {
     };
   }
 
-  async createUser(dto: CreateUserDto) {
+  async createUser(dto: CreateUserDto, actorGuid?: string) {
     const { name, password, email, note, display_name } = dto;
     const userGroupGuid = await this.userGroupService.resolveUserGroupGuid(
       dto.user_group_guid,
@@ -217,11 +217,14 @@ export class UserService {
     user.userGroupGuid = userGroupGuid;
 
     await this.userRepository.save(user);
+    this.logger.log(
+      `User created: ${user.guid} (${user.username}) by user ${actorGuid ?? '-'}`,
+    );
 
     return { message: 'User created successfully' };
   }
 
-  async inviteUser(dto: InviteUserDto) {
+  async inviteUser(dto: InviteUserDto, actorGuid?: string) {
     const { email, name, note, display_name } = dto;
     const userGroupGuid = await this.userGroupService.resolveUserGroupGuid(
       dto.user_group_guid,
@@ -274,6 +277,9 @@ export class UserService {
     invitation.usedAt = null;
 
     await this.invitationRepository.save(invitation);
+    this.logger.log(
+      `User invited: ${user.guid} (${user.username}) by user ${actorGuid ?? '-'}`,
+    );
 
     // Send invitation email
     const { effectiveFrontendUrl } =
@@ -288,7 +294,7 @@ export class UserService {
 
     if (!emailSent) {
       this.logger.warn(
-        `Failed to send invitation email, but the user was created: ${email}. Invitation token: ${token}`,
+        `Failed to send invitation email, but the user was created: ${email}. The invitation token was returned to the administrator`,
       );
     }
 
@@ -408,7 +414,7 @@ export class UserService {
   }
 
   async updateUser(guid: string, dto: UpdateUserDto, actorGuid: string) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const users = manager.getRepository(User);
       const user = await users.findOne({ where: { guid } });
       if (!user) throw new NotFoundException('User does not exist');
@@ -485,6 +491,10 @@ export class UserService {
       }
       return { message: 'User updated' };
     });
+    this.logger.log(
+      `User updated: ${guid} by user ${actorGuid}${dto.status !== undefined ? ` (status set to ${dto.status})` : ''}`,
+    );
+    return result;
   }
 
   async updateCurrentUser(userId: string, dto: UpdateCurrentUserDto) {
@@ -516,12 +526,13 @@ export class UserService {
     }
 
     await this.userRepository.save(user);
+    this.logger.log(`User ${userId} updated their own profile`);
 
     return { message: 'User info updated' };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const user = await manager
         .getRepository(User)
         .createQueryBuilder('user')
@@ -548,8 +559,12 @@ export class UserService {
         dto.current_password,
         user.password,
       );
-      if (!isPasswordValid)
+      if (!isPasswordValid) {
+        this.logger.warn(
+          `Password change rejected: wrong current password for user ${userId}`,
+        );
         throw new BadRequestException('Current password is incorrect');
+      }
 
       user.password = await bcrypt.hash(dto.new_password, 10);
       await manager.getRepository(User).save(user);
@@ -557,6 +572,10 @@ export class UserService {
 
       return { message: 'Password changed successfully' };
     });
+    this.logger.log(
+      `Password changed by user ${userId}; their active sessions were revoked`,
+    );
+    return result;
   }
 
   async updateUserSecurity(
@@ -594,13 +613,18 @@ export class UserService {
       await users.save(user);
       await this.revokeActiveTokens([guid], manager);
     });
+    this.logger.log(
+      `Security settings updated for user ${guid} by user ${actorGuid}${dto.new_password !== undefined ? ' (password reset)' : ''}`,
+    );
   }
 
   async deleteUser(guid: string, actorGuid: string) {
+    let username = '-';
     await this.dataSource.transaction(async (manager) => {
       const users = manager.getRepository(User);
       const user = await users.findOne({ where: { guid } });
       if (!user) throw new NotFoundException('User does not exist');
+      username = user.username;
       await this.authorizationService.assertUserMutation(
         actorGuid,
         guid,
@@ -611,6 +635,7 @@ export class UserService {
       await this.revokeActiveTokens([guid], manager);
       await users.remove(user);
     });
+    this.logger.log(`User deleted: ${guid} (${username}) by user ${actorGuid}`);
   }
 
   async forceLogout(userGuids: string[], actorGuid: string) {
@@ -633,6 +658,9 @@ export class UserService {
       }
       await this.revokeActiveTokens(uniqueGuids, manager);
     });
+    this.logger.log(
+      `${uniqueGuids.length} user(s) forced to log out by user ${actorGuid}`,
+    );
     return { message: 'Forced logout successful' };
   }
 
@@ -693,6 +721,12 @@ export class UserService {
       }
     });
 
+    if (succeeded.length > 0) {
+      this.logger.log(
+        `${succeeded.length} user(s) set to status ${status} by user ${actorGuid}`,
+      );
+    }
+
     return {
       succeeded,
       failed,
@@ -742,6 +776,10 @@ export class UserService {
       }
       await this.revokeActiveTokens(uniqueGuids, manager);
     });
+
+    this.logger.log(
+      `Security settings updated for ${uniqueGuids.length} user(s) by user ${actorGuid}`,
+    );
 
     return { message: 'Bulk security settings updated' };
   }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
@@ -33,6 +33,8 @@ export interface SessionInfo {
  * Includes token generation, validation, and revocation
  */
 export class AuthTokenService {
+  private readonly logger = new Logger(AuthTokenService.name);
+
   constructor(
     @InjectRepository(UserToken)
     private tokenRepository: Repository<UserToken>,
@@ -226,5 +228,6 @@ export class AuthTokenService {
 
     token.isRevoked = true;
     await this.tokenRepository.save(token);
+    this.logger.log(`Session ${jti} revoked by user ${userGuid}`);
   }
 }

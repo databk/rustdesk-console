@@ -32,6 +32,7 @@ import { AuthResponseHelper } from './auth-response.helper';
 import { LoginSessionService } from './login-session.service';
 import { LoginContext } from './auth-login.helper';
 import { cacheUserStatusSnapshot } from '../../rbac/rbac-request-scope';
+import { logSafe } from '../../../common/logging/log-safe';
 
 /**
  * Authentication service
@@ -248,7 +249,7 @@ export class AuthService {
       return await this.ldapService.authenticate(username, password);
     } catch {
       this.logger.debug(
-        `LDAP authentication failed, falling back to local authentication: ${username}`,
+        `LDAP authentication failed, falling back to local authentication: ${logSafe(username)}`,
       );
       return null;
     }
@@ -276,6 +277,7 @@ export class AuthService {
     });
 
     if (!user) {
+      this.logger.warn(`Login failed: unknown user ${logSafe(username)}`);
       throw new UnauthorizedException({
         error: 'Incorrect username or password',
       });
@@ -283,16 +285,19 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
+      this.logger.warn(`Login failed: wrong password for ${user.username}`);
       throw new UnauthorizedException({
         error: 'Incorrect username or password',
       });
     }
 
     if (user.status === UserStatus.DISABLED) {
+      this.logger.warn(`Login refused: account disabled ${user.username}`);
       throw new UnauthorizedException({ error: 'Account has been disabled' });
     }
 
     if (user.status === UserStatus.UNVERIFIED) {
+      this.logger.warn(`Login refused: email not verified ${user.username}`);
       throw new UnauthorizedException({
         error: 'Please verify your email first',
       });

@@ -11,6 +11,8 @@ services:
       # This service is not published: requests arrive through the bundled
       # web proxy, so trust the client address it adds to X-Forwarded-For.
       TRUSTED_PROXY: ${TRUSTED_PROXY:-true}
+      DB_LOG: ${DB_LOG:-errors}
+      DB_SLOW_QUERY_MS: ${DB_SLOW_QUERY_MS:-1000}
 
       DB_HOST: ${DB_HOST:-localhost}
       DB_PORT: ${DB_PORT:-3306}

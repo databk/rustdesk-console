@@ -180,7 +180,7 @@ export class UserGroupService {
     };
   }
 
-  async createGroup(dto: CreateUserGroupDto) {
+  async createGroup(dto: CreateUserGroupDto, actorGuid?: string) {
     const { name, normalizedName } = this.normalizeName(dto.name);
     await this.assertNameAvailable(normalizedName);
 
@@ -194,13 +194,16 @@ export class UserGroupService {
 
     try {
       const saved = await this.userGroupRepository.save(group);
+      this.logger.log(
+        `User group created: ${saved.guid} by user ${actorGuid ?? '-'}`,
+      );
       return this.toGroupResponse(saved, 0);
     } catch (error: unknown) {
       this.rethrowUniqueName(error);
     }
   }
 
-  async updateGroup(guid: string, dto: UpdateUserGroupDto) {
+  async updateGroup(guid: string, dto: UpdateUserGroupDto, actorGuid?: string) {
     const group = await this.requireGroup(guid);
 
     if (dto.name !== undefined) {
@@ -216,6 +219,9 @@ export class UserGroupService {
 
     try {
       const saved = await this.userGroupRepository.save(group);
+      this.logger.log(
+        `User group updated: ${guid} by user ${actorGuid ?? '-'}`,
+      );
       const userCount = await this.userRepository.count({
         where: { userGroupGuid: guid },
       });
@@ -237,7 +243,7 @@ export class UserGroupService {
         'user_groups.delete',
       );
     }
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const groupRepository = manager.getRepository(UserGroup);
       const userRepository = manager.getRepository(User);
       const ruleRepository = manager.getRepository(AddressBookRule);
@@ -285,6 +291,10 @@ export class UserGroupService {
         deleted_rule_count: deletedRules.affected || 0,
       };
     });
+    this.logger.log(
+      `User group deleted: ${guid} by user ${actorGuid} (${affectedUsers.length} users moved to the default group)`,
+    );
+    return result;
   }
 
   async getGroupUsers(guid: string, query: UserGroupQueryDto) {
@@ -337,7 +347,7 @@ export class UserGroupService {
     );
     const uniqueGuids = [...new Set(userGuids)];
 
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const groupRepository = manager.getRepository(UserGroup);
       const userRepository = manager.getRepository(User);
 
@@ -386,6 +396,10 @@ export class UserGroupService {
         source_groups: sourceGroups,
       };
     });
+    this.logger.log(
+      `${uniqueGuids.length} user(s) moved to group ${guid} by user ${actorGuid}`,
+    );
+    return result;
   }
 
   private normalizeName(value: string) {
