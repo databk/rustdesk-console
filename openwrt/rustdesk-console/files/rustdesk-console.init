@@ -1,0 +1,80 @@
+#!/bin/sh /etc/rc.common
+
+START=95
+STOP=10
+USE_PROCD=1
+
+fail() {
+	logger -t rustdesk-console "$*"
+	echo "$*" >&2
+	return 1
+}
+
+start_service() {
+	local enabled bind_addr port backend_port data_dir heap_mb jwt password
+	config_load rustdesk-console
+	config_get_bool enabled main enabled 0
+	[ "$enabled" = 1 ] || return 0
+	config_get bind_addr main bind_addr 127.0.0.1
+	config_get port main port 21114
+	config_get backend_port main backend_port 21120
+	config_get data_dir main data_dir /srv/rustdesk-console
+	config_get heap_mb main heap_mb 128
+	case "$port:$backend_port:$heap_mb" in *[!0-9:]*|'') fail 'Invalid numeric setting'; return 1;; esac
+	[ "$port" -gt 1023 ] && [ "$port" -le 65535 ] &&
+	[ "$backend_port" -gt 1023 ] && [ "$backend_port" -le 65535 ] &&
+	[ "$port" != "$backend_port" ] &&
+	[ "$heap_mb" -ge 64 ] && [ "$heap_mb" -le 512 ] || { fail 'Invalid port or heap limit'; return 1; }
+	case "$data_dir" in /srv/*|/mnt/*|/opt/*) ;; *) fail 'Use a persistent absolute data directory under /srv, /mnt or /opt'; return 1;; esac
+	mkdir -p "$data_dir" || return 1
+	data_dir="$(readlink -f "$data_dir")"
+	case "$data_dir" in /srv/*|/mnt/*|/opt/*) ;; *) fail 'Data directory resolves outside persistent storage'; return 1;; esac
+	chown rustdesk-console:rustdesk-console "$data_dir" || return 1
+	chmod 700 "$data_dir" || return 1
+	if [ ! -f /etc/rustdesk-console/credentials ]; then
+		mkdir -p /etc/rustdesk-console || return 1
+		chmod 700 /etc/rustdesk-console
+		(umask 077; set -C
+			/usr/lib/rustdesk-console/backend/node -e \
+				'const { randomBytes } = require("node:crypto"); process.stdout.write("JWT_SECRET=" + randomBytes(32).toString("hex") + "\nADMIN_PASSWORD=" + randomBytes(24).toString("hex") + "\n");' \
+				> /etc/rustdesk-console/credentials
+		) || return 1
+	fi
+	jwt="$(sed -n 's/^JWT_SECRET=//p' /etc/rustdesk-console/credentials)"
+	password="$(sed -n 's/^ADMIN_PASSWORD=//p' /etc/rustdesk-console/credentials)"
+	case "$jwt$password" in *[!a-f0-9]*) fail 'Invalid generated credentials'; return 1;; esac
+	[ "${#jwt}" = 64 ] && [ "${#password}" = 48 ] || { fail 'Incomplete generated credentials'; return 1; }
+
+	procd_open_instance backend
+	procd_set_param command /usr/libexec/rustdesk-console-run
+	procd_set_param user rustdesk-console
+	procd_set_param group rustdesk-console
+	procd_set_param env "NODE_ENV=production" "HOST=127.0.0.1" "PORT=$backend_port" \
+		"DATA_DIR=$data_dir" "DB_TYPE=sqlite" "JWT_SECRET=$jwt" "ADMIN_PASSWORD=$password" \
+		"NODE_OPTIONS=--max-old-space-size=$heap_mb" "UV_THREADPOOL_SIZE=2"
+	procd_set_param respawn 3600 5 3
+	procd_set_param nice 10
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param term_timeout 15
+	procd_close_instance
+
+	procd_open_instance web
+	procd_set_param command /usr/lib/rustdesk-console/web/rustdesk-console-web
+	procd_set_param user rustdesk-console
+	procd_set_param group rustdesk-console
+	procd_set_param env "BIND_ADDR=$bind_addr" "PORT=$port" "BACKEND_URL=http://127.0.0.1:$backend_port" "RUST_LOG=warn"
+	procd_set_param respawn 3600 5 3
+	procd_set_param nice 10
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger rustdesk-console
+}
+
+reload_service() {
+	/etc/init.d/rustdesk-console restart
+}

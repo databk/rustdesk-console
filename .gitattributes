@@ -1,3 +1,4 @@
 deployment/*.sh text eol=lf
 deployment/rustdesk-console-recover text eol=lf
 deployment/systemd/*.service text eol=lf
+openwrt/** text eol=lf

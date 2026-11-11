@@ -26,11 +26,11 @@ export function isSea(): boolean {
 
 /**
  * Get the base directory for resolving runtime assets.
- * - SEA mode: directory of the executable
+ * - SEA or private Node bundle: directory of the executable
  * - Normal mode: directory of the calling module
  */
 export function getRuntimeDir(moduleDir: string): string {
-  if (isSea()) {
+  if (isSea() || process.env.CONSOLE_RUNTIME_BUNDLE === '1') {
     return path.dirname(process.execPath);
   }
   return moduleDir;
@@ -41,15 +41,15 @@ export function getRuntimeDir(moduleDir: string): string {
  *
  * @param moduleDir - __dirname of the calling module (used in normal mode)
  * @param relativePath - path relative to moduleDir (used in normal mode)
- * @param seaPath - path relative to the executable directory (used in SEA mode)
+ * @param bundlePath - path relative to the executable directory in packaged builds
  */
 export function resolveAssetPath(
   moduleDir: string,
   relativePath: string,
-  seaPath: string,
+  bundlePath: string,
 ): string {
-  if (isSea()) {
-    return path.join(path.dirname(process.execPath), seaPath);
+  if (isSea() || process.env.CONSOLE_RUNTIME_BUNDLE === '1') {
+    return path.join(path.dirname(process.execPath), bundlePath);
   }
   return path.join(moduleDir, relativePath);
 }

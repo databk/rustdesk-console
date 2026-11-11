@@ -7,6 +7,12 @@ const mode = process.argv
   ?.split('=')[1];
 
 async function main(): Promise<void> {
+  if (process.argv[2] === 'self-test') {
+    const { testNativeModules } =
+      await import('./common/utils/native-self-test.js');
+    await testNativeModules();
+    return;
+  }
   if (mode) {
     // Dispatch before loading TypeORM; updater processes never open the business database.
     const { updaterMain } = await import('./updater/entrypoint.js');
