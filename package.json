@@ -29,6 +29,7 @@
   "scripts": {
     "build": "nest build",
     "build:sea": "node scripts/build-sea.mjs",
+    "build:openwrt": "node scripts/build-sea.mjs --runtime-bundle",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

@@ -1,0 +1,8 @@
+{
+  "admin/services/rustdesk-console": {
+    "title": "RustDesk Console",
+    "order": 60,
+    "action": { "type": "view", "path": "rustdesk-console" },
+    "depends": { "acl": ["luci-app-rustdesk-console"], "uci": { "rustdesk-console": true } }
+  }
+}

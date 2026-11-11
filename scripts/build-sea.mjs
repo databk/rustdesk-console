@@ -1,11 +1,11 @@
 /**
- * Node.js SEA (Single Executable Application) build script.
+ * Build a SEA distribution or an OpenWrt private Node runtime bundle.
  *
  * Steps:
  * 1. Compile TypeScript with nest build
  * 2. Bundle the compiled output with esbuild (native modules as external)
- * 3. Generate the SEA blob from the bundle
- * 4. Copy the Node.js binary and inject the blob
+ * 3. Generate and inject the SEA blob (skipped for --runtime-bundle)
+ * 4. Copy the Node.js binary
  * 5. Assemble the distribution directory with templates and native modules
  */
 import { build, stop } from 'esbuild';
@@ -20,6 +20,17 @@ const rootDir = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
 const isMacos = process.platform === 'darwin';
 const exeName = isWindows ? 'rustdesk-console.exe' : 'rustdesk-console';
+const runtimeBundle = process.argv.includes('--runtime-bundle');
+if (
+  runtimeBundle &&
+  (process.platform !== 'linux' ||
+    !['x64', 'arm64'].includes(process.arch) ||
+    process.report.getReport().header.glibcVersionRuntime)
+) {
+  throw new Error(
+    'build:openwrt requires a Linux musl x64 or arm64 Node runtime',
+  );
+}
 const packageInfo = JSON.parse(
   fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'),
 );
@@ -69,33 +80,42 @@ await build({
     '@nestjs/microservices',
     '@nestjs/websockets',
   ],
-  banner: {
-    js: [
-      '// SEA require patch: route external module loads through createRequire',
-      'var __origRequire = require;',
-      'var __createRequire = require("module").createRequire;',
-      'var __seaRequire = __createRequire(process.execPath);',
-      'require = function(id) {',
-      '  try { return __origRequire(id); }',
-      '  catch (e) {',
-      '    if (e.code === "MODULE_NOT_FOUND" || e.code === "ERR_UNKNOWN_BUILTIN_MODULE") return __seaRequire(id);',
-      '    throw e;',
-      '  }',
-      '};',
-    ].join('\n'),
-  },
+  banner: runtimeBundle
+    ? undefined
+    : {
+        js: [
+          '// SEA require patch: route external module loads through createRequire',
+          'var __origRequire = require;',
+          'var __createRequire = require("module").createRequire;',
+          'var __seaRequire = __createRequire(process.execPath);',
+          'require = function(id) {',
+          '  try { return __origRequire(id); }',
+          '  catch (e) {',
+          '    if (e.code === "MODULE_NOT_FOUND" || e.code === "ERR_UNKNOWN_BUILTIN_MODULE") return __seaRequire(id);',
+          '    throw e;',
+          '  }',
+          '};',
+        ].join('\n'),
+      },
   define: {
     'process.env.NODE_ENV': '"production"',
     'process.env.APP_VERSION': JSON.stringify(packageInfo.version),
     'process.env.SOURCE_COMMIT': JSON.stringify(sourceCommit),
+    'process.env.CONSOLE_RUNTIME_BUNDLE': runtimeBundle ? '"1"' : 'undefined',
   },
   logLevel: 'info',
 });
 stop();
 
 // --- Step 3: Generate SEA blob ---
-console.log('\n[3/6] Generating SEA blob...');
-run('node --experimental-sea-config sea-config.json');
+if (runtimeBundle) {
+  console.log(
+    '\n[3/6] Using the unmodified Node runtime (no SEA injection)...',
+  );
+} else {
+  console.log('\n[3/6] Generating SEA blob...');
+  run('node --experimental-sea-config sea-config.json');
+}
 
 // --- Step 4: Copy Node binary and inject blob ---
 console.log('\n[4/6] Preparing executable...');
@@ -131,9 +151,11 @@ if (isMacos) {
   run(`codesign --remove-signature "${exeName}"`);
 }
 
-run(
-  `npx postject "${exeName}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`,
-);
+if (!runtimeBundle) {
+  run(
+    `npx postject "${exeName}" NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`,
+  );
+}
 
 // Re-sign ad-hoc on macOS so the modified binary can run
 if (isMacos) {
@@ -147,8 +169,26 @@ const distDir = path.join(rootDir, 'dist-sea');
 fs.rmSync(distDir, { recursive: true, force: true });
 fs.mkdirSync(distDir, { recursive: true });
 
-// Copy the SEA executable
-fs.copyFileSync(exePath, path.join(distDir, exeName));
+// Keep a common launcher name for either distribution format.
+if (runtimeBundle) {
+  fs.copyFileSync(exePath, path.join(distDir, 'node'));
+  fs.copyFileSync(
+    path.join(rootDir, 'sea-bundle.cjs'),
+    path.join(distDir, 'console.cjs'),
+  );
+  fs.writeFileSync(
+    path.join(distDir, exeName),
+    [
+      '#!/bin/sh',
+      'bundle="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+      'exec "$bundle/node" "$bundle/console.cjs" "$@"',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+} else {
+  fs.copyFileSync(exePath, path.join(distDir, exeName));
+}
 console.log(`  Copied ${exeName} -> dist-sea/`);
 
 // Copy templates
@@ -164,7 +204,7 @@ copyDir(
   path.join(rootDir, 'dist/modules/oidc/templates'),
   path.join(templatesDir, 'oidc'),
 );
-if (process.platform === 'linux') {
+if (process.platform === 'linux' && !runtimeBundle) {
   const deploymentDir = path.join(distDir, 'deployment');
   fs.mkdirSync(deploymentDir, { recursive: true });
   for (const file of [
@@ -192,6 +232,7 @@ fs.writeFileSync(
     version: packageInfo.version,
     sourceCommit,
     bundleFormat: 1,
+    ...(runtimeBundle ? { runtime: 'private-node' } : {}),
     platform: process.platform,
     arch: process.arch,
     libc:
@@ -267,14 +308,22 @@ if (
 }
 
 prepareSeaArchive(distDir);
+if (runtimeBundle || process.argv.includes('--verify')) {
+  execFileSync(process.execPath, ['scripts/test-runtime.mjs', distDir], {
+    cwd: rootDir,
+    stdio: 'inherit',
+  });
+}
 
 // --- Cleanup intermediate files ---
 console.log('\nCleaning up...');
 fs.unlinkSync(exePath);
 fs.unlinkSync(path.join(rootDir, 'sea-bundle.cjs'));
-fs.unlinkSync(path.join(rootDir, 'sea-prep.blob'));
+if (!runtimeBundle) fs.unlinkSync(path.join(rootDir, 'sea-prep.blob'));
 
 console.log('\n========================================');
-console.log('SEA build complete!');
+console.log(
+  runtimeBundle ? 'OpenWrt runtime build complete!' : 'SEA build complete!',
+);
 console.log(`Distribution: ${distDir}`);
 console.log('========================================');

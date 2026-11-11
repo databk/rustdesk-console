@@ -1,0 +1,5 @@
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates e2fsprogs python3 qemu-system-arm \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /work
