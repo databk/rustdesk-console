@@ -156,6 +156,10 @@ Every additional permission requires `servers.view`. Mutations are recorded in C
 | `/api/servers/:node/services/:service/:action` | POST (`start`, `stop`, `restart`, `apply`) |
 | `/api/servers/:node/bans` | GET, PUT |
 
+### Upgrade prerequisite for the removed registration list
+
+Deploy the companion `rustdesk-console-web` release that removes the **Registrations** tab before, or at the same time as, this backend. Upgrading only the backend while an older frontend is still served leaves that tab calling the removed `GET /api/servers/:node/peers` endpoint and returning 404. This is a frontend compatibility requirement; it does not change the heartbeat-backed device inventory or the hbbs peer registry.
+
 The node list combines the primary node (the node id configured in Settings) with the relays registered at hbbs. A relay whose id equals the primary node id is listed under `relay:<id>` so it remains a separate node; its logs, configuration, restart and sessions target that relay. Requests for hbbr sent to the primary node id are also routed to that relay for compatibility with older clients. `start`/`stop` are unsupported by this native management deployment; `restart` asks the target service to exit so its supervisor restarts it, and `apply` restarts only when the configuration reports `pending_restart`.
 
 ## Configuration lifecycle
