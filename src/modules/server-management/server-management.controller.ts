@@ -49,12 +49,6 @@ export class ServerManagementController {
     return this.service.networkSettings(node);
   }
 
-  @Get(':node/peers')
-  @RequirePermission('servers.view')
-  peers(@Param('node') node: string) {
-    return this.service.peers(node);
-  }
-
   @Get(':node/sessions')
   @RequirePermission('servers.view')
   sessions(@Param('node') node: string) {

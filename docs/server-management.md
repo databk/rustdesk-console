@@ -138,7 +138,7 @@ All operations require the existing JWT authentication. Super administrators hav
 
 | Permission | Capability |
 | --- | --- |
-| `servers.view` | Nodes, service status, hbbs registrations, hbbr sessions, logs |
+| `servers.view` | Nodes, service status, hbbr sessions, logs |
 | `servers.control` | Start, stop, restart, apply configuration |
 | `servers.config` | Read and save configuration |
 | `servers.disconnect` | Close an hbbr session |
@@ -149,7 +149,6 @@ Every additional permission requires `servers.view`. Mutations are recorded in C
 | Console endpoint | Methods |
 | --- | --- |
 | `/api/servers` | GET |
-| `/api/servers/:node/peers` | GET |
 | `/api/servers/:node/sessions` | GET |
 | `/api/servers/:node/sessions/:uuid` | DELETE |
 | `/api/servers/:node/services/:service/logs?tail=200` | GET |
@@ -167,7 +166,11 @@ Listener addresses, database options and infrastructure credentials remain deplo
 
 ## Registrations, sessions and bans
 
-Console consumes the hbbs `/v1/events` server-sent event stream (with backoff reconnects) as its live source for relay registrations and relay sessions; when the stream is stale it falls back to direct HTTP queries. hbbs snapshots use its 30-second registration timeout and retain native IDs and base64 device UUID bytes. Console device online state keeps its separate client API heartbeat semantics. Registrations are displayed separately and do not automatically create users/groups or overwrite Console device records.
+The Console device list is the single device inventory. It is populated by the client API heartbeat (`POST /api/heartbeat`), and online state is derived from the heartbeat timestamp. Server management no longer presents the hbbs peer-registration list as a second device list: hbbs registrations are transient, use a separate transport with a 30-second registration timeout, and can legitimately diverge from the heartbeat inventory (for example when a client has no API server configured). Showing both lists implied two independent device authorities even though only the heartbeat-backed inventory supports groups, strategies, ownership and the other Console operations.
+
+To audit a deployment before upgrading, compare the IDs in `GET /api/peers` (Console heartbeat inventory) with the IDs in hbbs `GET /v1/peers`. Equal ID sets confirm that the retired page contained no additional devices; differences identify clients that registered with hbbs but never reached the Console API, or devices whose transient registration has already expired. Do not delete hbbs peer records to make the sets match: the registry is still used for ID release, bans and relay routing.
+
+Console still consumes the hbbs `/v1/events` server-sent event stream (with backoff reconnects) as its live source for relay registrations and relay sessions; when the stream is stale it falls back to direct HTTP queries. hbbs snapshots retain native IDs and base64 device UUID bytes. The hbbs peer registry also remains an internal protocol concern: device deletion calls `DELETE /v1/peers/:id` to release an ID, and device bans still reject registration by ID or address.
 
 hbbr reports paired active sessions with UUID, reported target IDs, both addresses, transport, start time and combined traffic in bytes. UUID is an opaque session identifier; it is not the Console device UUID or numeric heartbeat connection ID. Session deletion is routed to the owning relay and returns `closing`; the row disappears after both streams are dropped.
 
