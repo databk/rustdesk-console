@@ -18,8 +18,7 @@ import { Strategy } from '../strategy/entities/strategy.entity';
 import { UserGroup } from '../user-group/entities/user-group.entity';
 import { PasskeyCredential } from '../auth/entities/passkey-credential.entity';
 import { OidcProvider } from '../oidc/entities/oidc-provider.entity';
-import { NexusBuild } from '../nexus/entities/nexus-build.entity';
-import { NexusToken } from '../nexus/entities/nexus-token.entity';
+import { CustomClientBuild } from '../custom-client/entities/custom-client-build.entity';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
 import { UpdateCheckController } from './update-check.controller';
 import { UpdateCheckService } from './update-check.service';
@@ -50,8 +49,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
       UserGroup,
       PasskeyCredential,
       OidcProvider,
-      NexusBuild,
-      NexusToken,
+      CustomClientBuild,
       ActiveConnection,
     ]),
   ],

@@ -1,14 +1,17 @@
 import {
-  IsString,
   IsIn,
   IsOptional,
-  ValidateNested,
   IsObject,
+  IsString,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-/** Customization configuration object */
-export class NexusCustomDto {
+export class CustomClientCustomDto {
+  @IsOptional()
+  @IsString()
+  'app-name'?: string;
+
   @IsOptional()
   @IsString()
   password?: string;
@@ -42,10 +45,6 @@ export class NexusCustomDto {
   'disable-tcp-listen'?: string;
 
   @IsOptional()
-  @IsString()
-  'app-name'?: string;
-
-  @IsOptional()
   @IsObject()
   'override-settings'?: Record<string, unknown>;
 
@@ -54,30 +53,42 @@ export class NexusCustomDto {
   'default-settings'?: Record<string, unknown>;
 }
 
-/** Submit build request DTO */
-export class NexusGenerateDto {
-  @IsIn(['windows'])
+export class SubmitBuildDto {
+  @IsIn(['windows', 'linux', 'macos', 'android', 'ios', 'all'])
   os: string;
 
-  @IsIn(['x86_64', 'aarch64', 'x86'])
-  arch: string;
+  @IsOptional()
+  @IsIn(['x86_64', 'aarch64', 'x86', 'armv7', 'universal'])
+  arch?: string;
 
+  @IsOptional()
   @ValidateNested()
-  @Type(() => NexusCustomDto)
-  custom: NexusCustomDto;
+  @Type(() => CustomClientCustomDto)
+  custom?: CustomClientCustomDto;
 }
 
-/** Build request response */
-export interface NexusGenerateResponse {
+export interface SubmitBuildResponse {
   uuid: string;
   status: string;
   message: string;
 }
 
-/** Build status response */
-export interface NexusBuildStatusResponse {
-  uuid: string;
-  status: 'pending' | 'building' | 'completed' | 'failed' | 'cancelled';
-  files?: string[];
-  message?: string;
+export interface BuildProgressStep {
+  name: string;
+  status: string;
+  conclusion: string | null;
+}
+
+export interface BuildProgressJob {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  steps: BuildProgressStep[];
+}
+
+export interface BuildProgressResponse {
+  runId: number | null;
+  runStatus: string;
+  runConclusion: string | null;
+  jobs: BuildProgressJob[];
 }

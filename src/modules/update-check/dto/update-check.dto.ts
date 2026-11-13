@@ -91,16 +91,14 @@ export interface UpdateCheckRequest {
       oidc_providers: number;
       oidc_enabled_providers: number;
     };
-    nexus: {
+    custom_client: {
       builds_total: number;
       builds_by_status: {
         pending: number;
         building: number;
         completed: number;
         failed: number;
-        cancelled: number;
       };
-      tokens: number;
     };
     audit: {
       file_transfers_7d: number;
