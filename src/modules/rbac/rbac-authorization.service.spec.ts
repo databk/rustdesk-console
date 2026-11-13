@@ -1386,6 +1386,14 @@ describe('DeviceGroupController current-state authorization', () => {
   });
 });
 
+const inactivePresence = {
+  enrich: jest.fn().mockResolvedValue({
+    available: false,
+    checked_at: '',
+    byUuid: new Map(),
+  }),
+};
+
 describe('DeviceGroupService delegated management query', () => {
   it('intersects an exact requested device group with the current RBAC scope', async () => {
     const builder = {
@@ -1412,6 +1420,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       {} as never,
+      inactivePresence as never,
     );
 
     await service.getDevices(
@@ -1457,6 +1466,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       {} as never,
+      inactivePresence as never,
     );
 
     await service.getDevices(
@@ -1533,6 +1543,7 @@ describe('DeviceGroupService scoped writes', () => {
       authorizationService as never,
       {} as never,
       serverManagement as never,
+      {} as never,
     );
     return {
       service,

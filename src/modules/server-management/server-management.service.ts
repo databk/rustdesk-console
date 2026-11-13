@@ -36,6 +36,30 @@ interface RelaySummary {
   last_heartbeat_age_seconds?: number;
 }
 
+/** One hbbs peer-registry entry as reported by GET /v1/peers. */
+export interface HbbsPeerSnapshotEntry {
+  id: string;
+  /** Base64-encoded client UUID bytes; retained for matching only. */
+  uuid?: string;
+  address?: string;
+  ip: string;
+  online: boolean;
+  banned: boolean;
+  last_registration_age_seconds: number | null;
+}
+
+/**
+ * Best-effort snapshot of the hbbs peer registry. The device inventory stays
+ * heartbeat-backed; this snapshot is only used to enrich it with the address
+ * the client registered from and to explain presence mismatches.
+ */
+export interface HbbsPeerSnapshot {
+  available: boolean;
+  reason?: 'not_configured' | 'upstream_error';
+  checked_at: string;
+  peers: HbbsPeerSnapshotEntry[];
+}
+
 type ResolvedNode = { kind: 'primary' } | { kind: 'relay'; relayId: string };
 type ServiceTarget = { kind: 'direct' } | { kind: 'relay'; relayId: string };
 
@@ -53,6 +77,13 @@ const LOG_LIMIT_MAX = 2000;
 // with the primary node id, the relay is exposed under this prefix so it can
 // still be addressed separately without shadowing the primary node.
 const RELAY_NODE_PREFIX = 'relay:';
+// hbbs refreshes its snapshot every two seconds. A short cache keeps a busy
+// device list from re-reading the same registry for every request while still
+// reflecting registration changes promptly.
+const PEER_SNAPSHOT_CACHE_MS = 5_000;
+// Device listings must stay responsive when hbbs is down; the full management
+// timeout is only appropriate for explicit server-management operations.
+const PEER_SNAPSHOT_TIMEOUT_MS = 3_000;
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
@@ -62,6 +93,26 @@ function objectField(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+function parseHbbsPeer(value: unknown): HbbsPeerSnapshotEntry | null {
+  const peer = objectField(value);
+  const id = optionalString(peer['id']);
+  if (!id) return null;
+  const age = Number(peer['last_registration_age_seconds']);
+  return {
+    id,
+    uuid: optionalString(peer['uuid']),
+    address: optionalString(peer['address']),
+    ip: optionalString(peer['ip']) ?? '',
+    online: peer['online'] === true,
+    banned: peer['banned'] === true,
+    last_registration_age_seconds: Number.isFinite(age) ? age : null,
+  };
 }
 
 // Management API v2 client. Console talks to a single hbbs upstream: local
@@ -76,6 +127,8 @@ export class ServerManagementService {
   // status syncs) so concurrent read-modify-write cycles cannot drop each
   // other's device ids.
   private bansQueue: Promise<unknown> = Promise.resolve();
+  private peerSnapshotCache?: { at: number; snapshot: HbbsPeerSnapshot };
+  private peerSnapshotInFlight?: Promise<HbbsPeerSnapshot>;
 
   constructor(
     private readonly settings: ServerManagementSettingsService,
@@ -87,6 +140,69 @@ export class ServerManagementService {
   // time; it is resolved per request so settings updates apply immediately.
   private async runtime(): Promise<ServerManagementRuntimeConfig> {
     return this.settings.getActiveConfig();
+  }
+
+  /**
+   * Reads the hbbs peer registry without ever throwing. Callers merge the
+   * snapshot into the heartbeat-backed inventory, so an unreachable server
+   * must degrade to "not compared" instead of breaking device listings.
+   */
+  async getPeerSnapshot(): Promise<HbbsPeerSnapshot> {
+    const now = Date.now();
+    if (
+      this.peerSnapshotCache &&
+      now - this.peerSnapshotCache.at < PEER_SNAPSHOT_CACHE_MS
+    )
+      return this.peerSnapshotCache.snapshot;
+    if (this.peerSnapshotInFlight) return this.peerSnapshotInFlight;
+    const load = this.loadPeerSnapshot()
+      .then((snapshot) => {
+        this.peerSnapshotCache = { at: Date.now(), snapshot };
+        return snapshot;
+      })
+      .finally(() => {
+        this.peerSnapshotInFlight = undefined;
+      });
+    this.peerSnapshotInFlight = load;
+    return load;
+  }
+
+  private async loadPeerSnapshot(): Promise<HbbsPeerSnapshot> {
+    const checked_at = new Date().toISOString();
+    try {
+      const config = await this.runtime();
+      if (!config.url)
+        return {
+          available: false,
+          reason: 'not_configured',
+          checked_at,
+          peers: [],
+        };
+      const result = await this.fetchJson(
+        config,
+        '/v1/peers',
+        'GET',
+        undefined,
+        PEER_SNAPSHOT_TIMEOUT_MS,
+      );
+      return {
+        available: true,
+        checked_at,
+        peers: asArray(result['data'])
+          .map(parseHbbsPeer)
+          .filter((peer): peer is HbbsPeerSnapshotEntry => peer !== null),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Unable to read the hbbs peer snapshot: ${String(error)}`,
+      );
+      return {
+        available: false,
+        reason: 'upstream_error',
+        checked_at,
+        peers: [],
+      };
+    }
   }
 
   async list() {
@@ -670,6 +786,7 @@ export class ServerManagementService {
     path: string,
     method: 'GET' | 'PUT' | 'POST' | 'DELETE' = 'GET',
     body?: unknown,
+    timeoutMs?: number,
   ): Promise<Record<string, unknown>> {
     if (!config.url)
       throw new ServiceUnavailableException(
@@ -685,9 +802,10 @@ export class ServerManagementService {
           'content-type': 'application/json',
         },
         signal: AbortSignal.timeout(
-          method === 'GET'
-            ? REQUEST_TIMEOUT_GET_MS
-            : REQUEST_TIMEOUT_MUTATION_MS,
+          timeoutMs ??
+            (method === 'GET'
+              ? REQUEST_TIMEOUT_GET_MS
+              : REQUEST_TIMEOUT_MUTATION_MS),
         ),
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });

@@ -423,7 +423,7 @@ docker compose up -d
 - 如果修改了令牌，必须同时更新 `.env` 中的 `SERVER_MANAGEMENT_TOKEN` 并重启 hbbs/hbbr，否则两边凭据不一致。
 - 中继节点 ID 不要与主节点 ID 重复。即使重复，Console 也会把它显示为该节点的 `hbbr` 服务，但建议明确区分。
 - 服务端版本需要包含管理 API（高于 `1.0.1`）。
-- 设备清单统一来自客户端的 API 心跳，服务器管理不再重复显示 hbbs 的临时注册列表。升级前如需核对，可比较设备列表（`GET /api/peers`）与 hbbs 管理 API 的 `GET /v1/peers`；两者 ID 集合一致说明旧列表没有额外设备，差异通常来自未配置 API 服务器或已过期的临时注册。
+- 设备清单统一来自客户端的 API 心跳，服务器管理不再重复显示 hbbs 的临时注册列表。设备列表会用 hbbs `GET /v1/peers` 的 `ip` 字段补全原本为空的 `info.ip`；全局设备列表还会返回 `diagnostics`，比对 hbbs 在线注册与 Console 心跳，分别列出“hbbs 在线但 Console 无心跳”“Console 在线但 hbbs 未注册”和“仅存在于 hbbs 的设备”。这些字段只用于提示异常，`is_online`、分组、策略和设备归属仍以 Console 心跳为准；被禁用的设备本来就不会出现在 hbbs 在线列表中。升级前如需核对，也可比较设备列表（`GET /api/peers`）与 hbbs 管理 API 的 `GET /v1/peers`。
 - **升级前置条件**：`rustdesk-console-web` 必须先于或同时于后端升级，以移除服务器管理页的“注册设备”页签。只升级后端而继续使用旧前端时，该页签仍会请求已移除的 `GET /api/servers/:node/peers` 并收到 404。
 
 ### 端口
