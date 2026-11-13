@@ -600,6 +600,82 @@ map $http_upgrade $connection_upgrade {
 
 > 如果使用 Console Web 自带的 Nginx，它已经包含受控网关的精确路由；但官方原生前端二进制只代理普通 HTTP，不处理 WebSocket Upgrade，需要外层代理直接把 `/api/web-client/socket` 转到 Console 后端，并保留原始 `Origin`。
 
+### 客户端 API 地址必须匹配代理协议
+
+浏览器能打开控制台，不代表 RustDesk 客户端能把心跳发到控制台。两者是两个独立地址：
+
+- 浏览器访问的是前端地址；
+- 客户端通过自己的 **API 服务器** 地址发送 `POST /api/heartbeat` 和 `POST /api/sysinfo`。
+
+官方客户端在未显式配置 API 服务器时，会根据 ID 服务器推导：
+
+```text
+http://<ID服务器主机>:21114
+```
+
+因此，当 `21114` 只提供 HTTPS，或只开放 `443` 时，客户端仍会请求明文 HTTP，心跳无法到达 Console，所有设备会在 60 秒后显示离线。
+
+处理方式（任选其一）：
+
+1. **逐台设置**：RustDesk 客户端 → 设置 → 网络 → API 服务器，填 `https://console.example.com`（TLS 在 443 时不要带 `:21114`）。
+2. **自定义客户端**：在“自定义客户端”页面把 `api-server` 设为 `https://console.example.com`。页面会默认填入当前控制台 origin；当“设置 → 常规设置 → 站点地址”（`site.frontendUrl`）已填写时，后端也会在生成自定义客户端时自动把该 origin 写入 `default-settings["api-server"]`。请求里显式提供的 `api-server` 仍然优先。
+3. **保留 HTTP 入口做 308 跳转**（兼容存量客户端）：
+
+```nginx
+server {
+    listen 21114;
+    server_name console.example.com;
+
+    location /api/ {
+        return 308 https://console.example.com$request_uri;
+    }
+}
+```
+
+必须使用 `308`（保留 POST 方法）；`301` / `302` 可能把 POST 变成 GET。
+
+> 不要把 TLS 只放在 `21114`。官方客户端会把 `https://host:21114` 改写成 `https://host`（除非自定义客户端内置 `allow-https-21114=Y`）。如果 TLS 在 443，直接使用 `https://host`。
+
+### 心跳健康诊断
+
+管理员可以调用：
+
+```http
+GET /api/heartbeat/health
+Authorization: Bearer <admin token>
+```
+
+返回示例：
+
+```json
+{
+  "status": "suspected_api_scheme_mismatch",
+  "heartbeat": {
+    "lastReceivedAt": "2026-11-08T04:33:15.663Z",
+    "secondsSinceLastReceived": 143,
+    "degraded": true,
+    "degradedAfterSeconds": 120
+  },
+  "devices": { "total": 25, "online": 0, "stale": 25 },
+  "site": {
+    "frontendUrl": "https://console.example.com",
+    "effectiveOrigin": "https://console.example.com",
+    "exposedOverHttps": true,
+    "usesHttpsOn21114": false
+  },
+  "suggestedApiServer": "https://console.example.com",
+  "likelyApiServerSchemeMismatch": true
+}
+```
+
+`status` 取值：
+
+- `ok`：最近仍有心跳；
+- `heartbeat_stale`：超过 120 秒没有收到任何心跳；
+- `suspected_api_scheme_mismatch`：所有设备心跳都过期，且控制台通过 HTTPS 暴露，最可能是客户端仍在使用 `http://...:21114`。
+
+该接口只做诊断，不会修改设备的在线状态。设备管理页会根据该结果向管理员显示提示。
+
 ## 常见问题
 
 ### 1. 浏览器打不开 `21114`
@@ -621,6 +697,9 @@ map $http_upgrade $connection_upgrade {
 - 客户端必须把 ID 服务器指向你的 hbbs；
 - 检查 `21116` TCP/UDP 是否放行；
 - 检查 hbbs 日志和设备心跳；
+- 如果通过 HTTPS 反向代理访问控制台，确认客户端的 **API 服务器** 使用 `https://`，而不是默认的 `http://...:21114`；
+- 管理员可调用 `GET /api/heartbeat/health`；`likelyApiServerSchemeMismatch: true` 表示客户端可能仍在用 `http://...:21114` 发送心跳；
+- 使用“自定义客户端”时，只要已配置 `site.frontendUrl`，后端会自动把该 origin 写入默认 `api-server`（显式配置优先）；
 - 确认设备没有被禁用，且当前账号的角色范围包含该设备组。
 
 ### 4. 服务器管理保存失败 / 显示禁用

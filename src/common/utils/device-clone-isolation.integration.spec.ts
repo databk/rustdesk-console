@@ -83,6 +83,7 @@ describe('cloned client isolation (SQLite)', () => {
       } as unknown as StrategyService,
       cache,
       generalSettings,
+      { markHeartbeat: jest.fn() } as never,
     );
     sysinfo = new SysinfoService(
       repo(Sysinfo),

@@ -7,6 +7,7 @@ import { DeviceTombstone } from '../device-group/entities/device-tombstone.entit
 import { ActiveConnection } from './entities/active-connection.entity';
 import { DisconnectStoreService } from './services/disconnect-store.service';
 import { HeartbeatCacheService } from './services/heartbeat-cache.service';
+import { HeartbeatHealthService } from './services/heartbeat-health.service';
 import { StrategyService } from '../strategy/strategy.service';
 import { resolveDeviceUuid } from '../../common/utils/device-identity.util';
 import { GeneralSettingsService } from '../settings/services/general-settings.service';
@@ -26,9 +27,14 @@ export class HeartbeatService {
     private strategyService: StrategyService,
     private heartbeatCacheService: HeartbeatCacheService,
     private generalSettings: GeneralSettingsService,
+    private heartbeatHealthService: HeartbeatHealthService,
   ) {}
 
   async handleHeartbeat(data: HeartbeatDto) {
+    // Any accepted heartbeat proves that at least one client can reach the
+    // API. Record it before tombstone checks so diagnostics never report an
+    // outage while traffic is arriving.
+    this.heartbeatHealthService.markHeartbeat();
     const cloneIsolation = this.generalSettings.isDeviceCloneIsolationEnabled();
     if (cloneIsolation) {
       // Check legacy tombstones before deriving a new key, so deleted devices
