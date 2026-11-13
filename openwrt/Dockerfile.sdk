@@ -1,0 +1,7 @@
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential ca-certificates file gawk gettext git libncurses-dev \
+    python3 python3-distutils rsync unzip wget zstd \
+    && rm -rf /var/lib/apt/lists/*
+ENV FORCE_UNSAFE_CONFIGURE=1
+WORKDIR /sdk

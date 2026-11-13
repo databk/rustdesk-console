@@ -33,6 +33,7 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import { extractBearerToken } from './auth.utils';
 import type { Request } from 'express';
 import { RbacAuditService } from '../rbac/services/rbac-audit.service';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { SkipConsoleAudit } from '../rbac/decorators/skip-console-audit.decorator';
 
 @Controller()
@@ -81,6 +82,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @ConsoleAuditAction('auth.logout', { targetGuidActor: true })
   @HttpCode(HttpStatus.OK)
   async logout(
     @CurrentUser('id') userId: string,
@@ -106,12 +108,14 @@ export class AuthController {
   // ==================== TOTP 2FA ====================
 
   @Post('2fa/setup')
+  @ConsoleAuditAction('auth.2fa.setup', { targetGuidActor: true })
   @HttpCode(HttpStatus.OK)
   async setupTfa(@CurrentUser('id') userId: string, @Body() dto: SetupTfaDto) {
     return this.tfaService.setupTfa(userId, dto.current_code);
   }
 
   @Post('2fa/verify')
+  @ConsoleAuditAction('auth.2fa.verify', { targetGuidActor: true })
   @HttpCode(HttpStatus.OK)
   async verifyAndBindTfa(
     @CurrentUser('id') userId: string,
@@ -121,6 +125,7 @@ export class AuthController {
   }
 
   @Delete('2fa')
+  @ConsoleAuditAction('auth.2fa.disable', { targetGuidActor: true })
   @HttpCode(HttpStatus.OK)
   async disableTfa(
     @CurrentUser('id') userId: string,
@@ -138,6 +143,10 @@ export class AuthController {
   }
 
   @Post('passkey/register/verify')
+  @ConsoleAuditAction('auth.passkey.register', {
+    targetGuidActor: true,
+    includeBody: false,
+  })
   @HttpCode(HttpStatus.OK)
   async verifyPasskeyRegistration(
     @CurrentUser('id') userId: string,
@@ -165,13 +174,41 @@ export class AuthController {
   @Post('passkey/auth/verify')
   @HttpCode(HttpStatus.OK)
   async verifyPasskeyAuth(@Body() dto: VerifyPasskeyAuthDto) {
-    return this.passkeyService.verifyAuthLogin(
-      dto.secret,
-      dto.response,
-      dto.id,
-      dto.uuid,
-      dto.deviceInfo,
-    );
+    let response: Awaited<ReturnType<AuthPasskeyService['verifyAuthLogin']>>;
+    try {
+      response = await this.passkeyService.verifyAuthLogin(
+        dto.secret,
+        dto.response,
+        dto.id,
+        dto.uuid,
+        dto.deviceInfo,
+      );
+    } catch (error: unknown) {
+      await this.auditService.recordDenied({
+        targetType: 'auth',
+        action: 'auth.login',
+        reason: error instanceof Error ? error.message : String(error),
+        afterState: { login_type: 'passkey' },
+      });
+      throw error;
+    }
+
+    if (response.access_token && response.user?.guid) {
+      try {
+        await this.auditService.record({
+          actorUserGuid: response.user.guid,
+          targetType: 'auth',
+          targetGuid: response.user.guid,
+          action: 'auth.login',
+          result: 'allowed',
+          afterState: { login_type: 'passkey' },
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Unable to persist passkey login audit: ${message}`);
+      }
+    }
+    return response;
   }
 
   // ==================== Passkey credential management ====================
@@ -182,6 +219,10 @@ export class AuthController {
   }
 
   @Delete('passkey/:guid')
+  @ConsoleAuditAction('auth.passkey.delete', {
+    targetType: 'auth_passkey',
+    targetGuidParam: 'guid',
+  })
   @HttpCode(HttpStatus.OK)
   async deletePasskey(
     @CurrentUser('id') userId: string,
@@ -194,6 +235,7 @@ export class AuthController {
   // ==================== Passkey two-factor authentication ====================
 
   @Post('passkey/tfa')
+  @ConsoleAuditAction('auth.passkey.tfa_update', { targetGuidActor: true })
   @HttpCode(HttpStatus.OK)
   async togglePasskeyTfa(
     @CurrentUser('id') userId: string,
@@ -211,6 +253,10 @@ export class AuthController {
   }
 
   @Delete('sessions/:jti')
+  @ConsoleAuditAction('auth.session.revoke', {
+    targetType: 'auth_session',
+    targetGuidParam: 'jti',
+  })
   @HttpCode(HttpStatus.OK)
   async revokeSession(
     @CurrentUser('id') userId: string,

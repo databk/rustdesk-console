@@ -1,0 +1,2 @@
+FROM openwrt/rootfs:x86-64-25.12.6@sha256:14401c04218c2e0da0448f099710ada2460636a92395f353351cc616cf3f67af
+RUN apk add --no-cache libstdcpp6 luci-base

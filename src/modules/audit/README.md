@@ -17,6 +17,58 @@ The current implementation uses SQLite-compatible types (`varchar` and `int`), e
 - **File audit** (`/audit/file`): Records file transfer activity (send/receive)
 - **Alarm audit** (`/audit/alarm`): Records security alarm events
 
+## Console Audit Actions
+
+Console management operations are stored in `console_audits`. Each audited
+endpoint declares a canonical action with `@ConsoleAuditAction()` instead of
+recording the HTTP route, so the action stays stable when routes change:
+
+```ts
+@Post('users')
+@RequirePermission('users.create')
+@ConsoleAuditAction('user.create')
+createUser(@Body() dto: CreateUserDto) {
+  // ...
+}
+```
+
+Action names follow `<resource>.<verb>` (for example `user.create`,
+`device.disconnect`, or `settings.smtp.update`). The first segment is also the
+default `target_type`. Target GUIDs are read from `guid`, `uuid`, `id`, or
+`jti` path parameters; endpoints can override this with `targetGuidParam`,
+`targetGuidBodyField`, or `targetGuidActor`.
+
+Only endpoints decorated with `@ConsoleAuditAction()` are audited. This avoids
+noise from legacy read-only endpoints implemented with POST. Endpoints whose
+service already writes a detailed audit record keep `@SkipConsoleAudit()`.
+
+The `action` query filter also expands exact historical route-style names, so
+`user.create` matches old `POST /api/users` records and `POST /api/users`
+matches new `user.create` records.
+
+Main action groups:
+
+- Authentication: `auth.login`, `auth.logout`, `auth.2fa.*`,
+  `auth.passkey.*`, `auth.session.revoke`, `auth.password_reset`
+- Users and roles: `user.*` (including `user.invitation.accept`),
+  `user_role.replace`, `role.*`
+- Devices and groups: `device.*`, `device_group.*`
+- Address books: `address_book.*`
+- Strategies: `strategy.*`
+- User groups: `user_group.*`
+- Settings: `settings.general.update`, `settings.smtp.*`, `settings.ldap.*`,
+  `settings.server_management.update`, `settings.web_client.update`
+- OIDC providers: `oidc_provider.*`
+- Server management: `server.session.disconnect`,
+  `server.service.config.update`, `server.service.<action>`,
+  `server.bans.update`, `server.peer.release`
+- System updates: `system_update.plan`, `system_update.job.create`
+- Audit records: `connection_audit.update`
+- Web client: service-defined `web_client.*` events such as
+  `web_client.request_denied`, `web_client.request_allowed`,
+  `web_client.gateway_open`, and `web_client.session_ended`
+- Nexus: `nexus.unbind`, `nexus.build.*`, `nexus.login_session.create`
+
 ## Database Table Structure
 
 ### connection_audits (connection audit table)

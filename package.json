@@ -1,6 +1,6 @@
 {
   "name": "rustdesk-console",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "Remote Desktop Management Console for RustDesk - An open-source console designed for self-hosting, as an alternative to RustDesk Server Pro.",
   "author": "databk",
   "private": false,
@@ -29,6 +29,7 @@
   "scripts": {
     "build": "nest build",
     "build:sea": "node scripts/build-sea.mjs",
+    "build:openwrt": "node scripts/build-sea.mjs --runtime-bundle",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -80,7 +81,7 @@
     "systeminformation": "^5.33.1",
     "typeorm": "^0.3.31",
     "uuid": "^13.0.2",
-    "ws": "8.22.0"
+    "ws": "8.22.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

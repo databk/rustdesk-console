@@ -18,6 +18,7 @@ import {
 } from './decorators/require-permission.decorator';
 import { CreateRoleDto, RoleQueryDto, UpdateRoleDto } from './dto/role.dto';
 import { RoleService } from './services/role.service';
+import { ConsoleAuditAction } from './decorators/console-audit-action.decorator';
 import { SkipConsoleAudit } from './decorators/skip-console-audit.decorator';
 
 @Controller('roles')
@@ -40,6 +41,7 @@ export class RoleController {
   @Post()
   @HttpCode(HttpStatus.OK)
   @RequireSuperAdmin()
+  @ConsoleAuditAction('role.create')
   create(@Body() dto: CreateRoleDto, @CurrentUser('id') actorGuid: string) {
     return this.roleService.createRole(dto, actorGuid);
   }
@@ -56,6 +58,7 @@ export class RoleController {
   @Patch(':guid')
   @HttpCode(HttpStatus.OK)
   @RequireSuperAdmin()
+  @ConsoleAuditAction('role.update')
   update(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,
     @Body() dto: UpdateRoleDto,
@@ -67,6 +70,7 @@ export class RoleController {
   @Delete(':guid')
   @HttpCode(HttpStatus.OK)
   @RequireSuperAdmin()
+  @ConsoleAuditAction('role.delete')
   async remove(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,
     @CurrentUser('id') actorGuid: string,

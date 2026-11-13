@@ -92,7 +92,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'PUT /v1/bans',
+        action: 'server.bans.update',
         afterState: { device_ids: ['111', '222'], added: ['222'], removed: [] },
       }),
     );
@@ -147,7 +147,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'DELETE /v1/peers/:id',
+        action: 'server.peer.release',
         afterState: { device_id: 'host-a' },
       }),
     );
@@ -240,7 +240,7 @@ describe('server management v2 client', () => {
   it('allows deployments without server management', async () => {
     const service = create({});
     expect(await service.list()).toEqual({ data: [] });
-    await expect(service.peers('main')).rejects.toBeInstanceOf(
+    await expect(service.sessions('main')).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
@@ -423,9 +423,8 @@ describe('server management v2 client', () => {
     expect(JSON.stringify(result)).not.toContain('hbbs:21120');
   });
 
-  it('routes peers and merged sessions per node', async () => {
+  it('routes merged sessions per node', async () => {
     fetchRoute([
-      ['http://hbbs:21120/v1/peers', { data: [{ id: '111111111' }] }],
       ['http://hbbs:21120/v1/relays', { data: [{ id: 'relay-a' }] }],
       [
         'http://hbbs:21120/v1/relays/relay-a/sessions',
@@ -433,17 +432,13 @@ describe('server management v2 client', () => {
       ],
     ]);
     const service = create();
-    expect(await service.peers('main')).toEqual({
-      data: [{ id: '111111111' }],
-    });
-    expect(await service.peers('relay-a')).toEqual({ data: [] });
     expect(await service.sessions('relay-a')).toEqual({
       data: [{ uuid: 'u1' }],
     });
     expect(await service.sessions('main')).toEqual({
       data: [{ uuid: 'u1', relay_id: 'relay-a' }],
     });
-    await expect(service.peers('missing')).rejects.toBeInstanceOf(
+    await expect(service.sessions('missing')).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
@@ -478,8 +473,9 @@ describe('server management v2 client', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         targetGuid: 'main',
-        action: 'DELETE /v1/sessions/u1',
+        action: 'server.session.disconnect',
         result: 'allowed',
+        afterState: { uuid: 'u1' },
       }),
     );
     await expect(
@@ -499,7 +495,6 @@ describe('server management v2 client', () => {
     } as unknown as ServerEventsService;
     const service = create(base, events);
     mock.mockResolvedValue(Response.json({ state: 'closing' }));
-    expect(await service.peers('relay-b')).toEqual({ data: [] });
     expect(await service.sessions('main')).toEqual({
       data: [{ uuid: 'u2', relay_id: 'relay-b' }],
     });
@@ -589,7 +584,9 @@ describe('server management v2 client', () => {
       }),
     );
     expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ afterState: { settings: ['key'] } }),
+      expect.objectContaining({
+        afterState: { service: 'hbbs', settings: ['key'] },
+      }),
     );
     expect(JSON.stringify(audit.record.mock.calls)).not.toContain(
       'private-key-material',
@@ -655,8 +652,9 @@ describe('server management v2 client', () => {
     ).toEqual({ state: 'restarting' });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'POST /v1/services/hbbs/apply',
+        action: 'server.service.apply',
         result: 'allowed',
+        afterState: { service: 'hbbs' },
       }),
     );
     await expect(
@@ -733,7 +731,7 @@ describe('server management v2 client', () => {
     );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'PUT /v1/bans',
+        action: 'server.bans.update',
         afterState: { device_ids: ['123456'], ips: [] },
       }),
     );
@@ -746,7 +744,7 @@ describe('server management v2 client', () => {
         const url = String(input);
         if (url.endsWith('/v1/relays'))
           return Promise.resolve(Response.json({ data: [] }));
-        if (url.endsWith('/v1/peers'))
+        if (url.endsWith('/v1/restart'))
           return Promise.resolve(
             new Response('{"error":"x"}', { status: 400 }),
           );
@@ -765,9 +763,14 @@ describe('server management v2 client', () => {
         return Promise.resolve(new Response('[]'));
       });
     const service = create();
-    await expect(service.peers('main')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.serviceAction(
+        'actor',
+        'main',
+        RustdeskService.HBBS,
+        ServiceAction.RESTART,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
     await expect(
       service.logs('main', RustdeskService.HBBS, 5),
     ).rejects.toBeInstanceOf(BadGatewayException);
@@ -782,7 +785,7 @@ describe('server management v2 client', () => {
       service.config('main', RustdeskService.HBBS),
     ).rejects.toBeInstanceOf(BadGatewayException);
     mock.mockRejectedValue(new Error('Offline'));
-    await expect(service.peers('main')).rejects.toBeInstanceOf(
+    await expect(service.bans('main')).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
   });

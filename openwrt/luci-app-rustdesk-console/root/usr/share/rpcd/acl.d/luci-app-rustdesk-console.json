@@ -1,0 +1,10 @@
+{
+  "luci-app-rustdesk-console": {
+    "description": "Configure RustDesk Console",
+    "read": {
+      "uci": ["rustdesk-console"],
+      "ubus": { "service": ["list"] }
+    },
+    "write": { "uci": ["rustdesk-console"] }
+  }
+}

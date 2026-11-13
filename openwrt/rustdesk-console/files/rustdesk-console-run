@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+umask 077
+cd "$DATA_DIR"
+binary=/usr/lib/rustdesk-console/backend/rustdesk-console
+# procd has stopped the previous process before launching this instance. Keep
+# the SQLite database and any recovery journals together before migration.
+if [ -f rustdesk-console.db ]; then
+	mkdir -p pre-migration
+	for suffix in '' -wal -shm -journal; do
+		file="rustdesk-console.db$suffix"
+		if [ -f "$file" ]; then
+			cp -p "$file" "pre-migration/$file"
+		else
+			rm -f "pre-migration/$file"
+		fi
+	done
+fi
+"$binary" migrate
+exec "$binary"

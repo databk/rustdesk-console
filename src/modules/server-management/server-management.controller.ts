@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { SkipConsoleAudit } from '../rbac/decorators/skip-console-audit.decorator';
 import {
   RustdeskService,
@@ -48,12 +49,6 @@ export class ServerManagementController {
     return this.service.networkSettings(node);
   }
 
-  @Get(':node/peers')
-  @RequirePermission('servers.view')
-  peers(@Param('node') node: string) {
-    return this.service.peers(node);
-  }
-
   @Get(':node/sessions')
   @RequirePermission('servers.view')
   sessions(@Param('node') node: string) {
@@ -62,6 +57,9 @@ export class ServerManagementController {
 
   @Delete(':node/sessions/:uuid')
   @RequirePermission('servers.disconnect')
+  @ConsoleAuditAction('server.session.disconnect', {
+    targetGuidParam: 'node',
+  })
   disconnect(
     @Param('node') node: string,
     @Param('uuid') uuid: string,
@@ -93,6 +91,9 @@ export class ServerManagementController {
 
   @Put(':node/services/:service/config')
   @RequirePermission('servers.config')
+  @ConsoleAuditAction('server.service.config.update', {
+    targetGuidParam: 'node',
+  })
   saveConfig(
     @Param('node') node: string,
     @Param('service', new ParseEnumPipe(RustdeskService))
@@ -105,6 +106,11 @@ export class ServerManagementController {
 
   @Post(':node/services/:service/:action')
   @RequirePermission('servers.control')
+  @ConsoleAuditAction('server.service.control', {
+    targetGuidParam: 'node',
+    actionParam: 'action',
+    actionParamPrefix: 'server.service',
+  })
   action(
     @Param('node') node: string,
     @Param('service', new ParseEnumPipe(RustdeskService))
@@ -123,6 +129,9 @@ export class ServerManagementController {
 
   @Put(':node/bans')
   @RequirePermission('servers.ban')
+  @ConsoleAuditAction('server.bans.update', {
+    targetGuidParam: 'node',
+  })
   saveBans(
     @Param('node') node: string,
     @Body() dto: ServerBansDto,

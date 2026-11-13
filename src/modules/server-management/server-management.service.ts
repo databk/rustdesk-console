@@ -168,14 +168,6 @@ export class ServerManagementService {
     return unavailable('connection', local.reason ?? 'namespace_unobservable');
   }
 
-  async peers(nodeId: string) {
-    const config = await this.runtime();
-    const node = await this.requireNode(config, nodeId);
-    // hbbr has no peers endpoint; only hbbs registrations exist.
-    if (node.kind === 'relay') return { data: [] };
-    return this.fetchJson(config, '/v1/peers');
-  }
-
   async sessions(nodeId: string) {
     const config = await this.runtime();
     const node = await this.requireNode(config, nodeId);
@@ -231,8 +223,8 @@ export class ServerManagementService {
     return this.audited(
       actor,
       nodeId,
-      `DELETE /v1/sessions/${uuid}`,
-      undefined,
+      'server.session.disconnect',
+      { uuid },
       async () => {
         const relayId =
           node.kind === 'relay'
@@ -295,8 +287,8 @@ export class ServerManagementService {
     return this.audited(
       actor,
       nodeId,
-      `PUT /v1/services/${service}/config`,
-      { settings: Object.keys(dto.values) },
+      'server.service.config.update',
+      { service, settings: Object.keys(dto.values) },
       async () => {
         await this.fetchJson(config, path, 'PUT', { values: dto.values });
         return this.configView(await this.fetchJson(config, path));
@@ -324,8 +316,8 @@ export class ServerManagementService {
       return this.audited(
         actor,
         nodeId,
-        `POST /v1/services/${service}/${action}`,
-        undefined,
+        `server.service.${action}`,
+        { service },
         () => this.fetchJson(config, path, 'POST'),
       );
     }
@@ -338,8 +330,8 @@ export class ServerManagementService {
     return this.audited(
       actor,
       nodeId,
-      `POST /v1/services/${service}/${action}`,
-      undefined,
+      `server.service.${action}`,
+      { service },
       async () => {
         const current = await this.fetchJson(config, configPath);
         if (!Object.keys(objectField(current['pending_restart'])).length)
@@ -366,7 +358,7 @@ export class ServerManagementService {
       this.audited(
         actor,
         nodeId,
-        'PUT /v1/bans',
+        'server.bans.update',
         { device_ids: dto.device_ids, ips: dto.ips },
         async () => {
           await this.fetchJson(config, '/v1/bans', 'PUT', {
@@ -422,7 +414,7 @@ export class ServerManagementService {
         return await this.audited(
           actor,
           config.nodeId,
-          'PUT /v1/bans',
+          'server.bans.update',
           { device_ids, added: add, removed: [...remove] },
           async () => {
             await this.fetchJson(config, '/v1/bans', 'PUT', {
@@ -462,7 +454,7 @@ export class ServerManagementService {
       return await this.audited(
         actor,
         config.nodeId,
-        'DELETE /v1/peers/:id',
+        'server.peer.release',
         { device_id: deviceId },
         async () => {
           await this.fetchJson(
@@ -654,6 +646,7 @@ export class ServerManagementService {
         targetGuid: nodeId,
         action,
         reason: 'Server management operation failed',
+        afterState: details,
       });
       throw error;
     }
