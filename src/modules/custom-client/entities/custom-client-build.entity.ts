@@ -5,19 +5,26 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from '../../user/entities/user.entity';
 
 export type CustomClientBuildStatus =
   'pending' | 'building' | 'completed' | 'failed';
 
 @Entity('custom_client_builds')
+@Index('IDX_custom_client_builds_userGuid_createdAt', ['userGuid', 'createdAt'])
 export class CustomClientBuild {
   @PrimaryColumn()
   uuid: string;
 
   @Column()
-  @Index('IDX_custom_client_builds_userGuid', ['userGuid'])
   userGuid: string;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userGuid' })
+  user: User;
 
   @Column()
   os: string;
@@ -41,8 +48,8 @@ export class CustomClientBuild {
   @Column()
   callbackToken: string;
 
-  @Column({ nullable: true })
-  githubRunId: string;
+  @Column({ type: 'bigint', nullable: true })
+  githubRunId: number | null;
 
   @CreateDateColumn()
   createdAt: Date;

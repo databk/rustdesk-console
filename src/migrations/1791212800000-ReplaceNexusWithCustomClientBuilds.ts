@@ -20,10 +20,10 @@ export class ReplaceNexusWithCustomClientBuilds1791212800000 implements Migratio
 
     if (type === 'sqlite') {
       await queryRunner.query(
-        `CREATE TABLE "custom_client_builds" ("uuid" varchar PRIMARY KEY NOT NULL, "userGuid" varchar NOT NULL, "os" varchar NOT NULL, "arch" varchar NOT NULL, "custom" text, "status" varchar NOT NULL DEFAULT ('pending'), "message" text, "files" text, "callbackToken" varchar NOT NULL, "githubRunId" varchar, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`,
+        `CREATE TABLE "custom_client_builds" ("uuid" varchar PRIMARY KEY NOT NULL, "userGuid" varchar NOT NULL, "os" varchar NOT NULL, "arch" varchar NOT NULL, "custom" text, "status" varchar NOT NULL DEFAULT ('pending'), "message" text, "files" text, "callbackToken" varchar NOT NULL, "githubRunId" bigint, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_custom_client_builds_userGuid" FOREIGN KEY ("userGuid") REFERENCES "users" ("guid") ON DELETE CASCADE)`,
       );
       await queryRunner.query(
-        `CREATE INDEX "IDX_custom_client_builds_userGuid" ON "custom_client_builds" ("userGuid") `,
+        `CREATE INDEX "IDX_custom_client_builds_userGuid_createdAt" ON "custom_client_builds" ("userGuid", "createdAt") `,
       );
       await queryRunner.query(
         `CREATE INDEX "IDX_custom_client_builds_status" ON "custom_client_builds" ("status") `,
@@ -33,7 +33,7 @@ export class ReplaceNexusWithCustomClientBuilds1791212800000 implements Migratio
 
     if (type === 'mysql') {
       await queryRunner.query(
-        `CREATE TABLE \`custom_client_builds\` (\`uuid\` varchar(255) NOT NULL, \`userGuid\` varchar(255) NOT NULL, \`os\` varchar(255) NOT NULL, \`arch\` varchar(255) NOT NULL, \`custom\` text NULL, \`status\` varchar(255) NOT NULL DEFAULT 'pending', \`message\` text NULL, \`files\` text NULL, \`callbackToken\` varchar(255) NOT NULL, \`githubRunId\` varchar(255) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX \`IDX_custom_client_builds_userGuid\` (\`userGuid\`), INDEX \`IDX_custom_client_builds_status\` (\`status\`), PRIMARY KEY (\`uuid\`)) ENGINE=InnoDB`,
+        `CREATE TABLE \`custom_client_builds\` (\`uuid\` varchar(255) NOT NULL, \`userGuid\` varchar(255) NOT NULL, \`os\` varchar(255) NOT NULL, \`arch\` varchar(255) NOT NULL, \`custom\` text NULL, \`status\` varchar(255) NOT NULL DEFAULT 'pending', \`message\` text NULL, \`files\` text NULL, \`callbackToken\` varchar(255) NOT NULL, \`githubRunId\` bigint NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX \`IDX_custom_client_builds_userGuid_createdAt\` (\`userGuid\`, \`createdAt\`), INDEX \`IDX_custom_client_builds_status\` (\`status\`), PRIMARY KEY (\`uuid\`), CONSTRAINT \`FK_custom_client_builds_userGuid\` FOREIGN KEY (\`userGuid\`) REFERENCES \`users\` (\`guid\`) ON DELETE CASCADE) ENGINE=InnoDB`,
       );
       return;
     }

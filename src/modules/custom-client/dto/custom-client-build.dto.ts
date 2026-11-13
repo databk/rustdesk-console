@@ -87,7 +87,7 @@ export interface BuildProgressJob {
 }
 
 export interface BuildProgressResponse {
-  runId: string | null;
+  runId: number | null;
   runStatus: string;
   runConclusion: string | null;
   jobs: BuildProgressJob[];

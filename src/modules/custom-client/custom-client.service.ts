@@ -181,8 +181,8 @@ export class CustomClientService {
       workflow_run_id?: number;
     };
     const githubRunId = dispatchBody.workflow_run_id
-      ? String(dispatchBody.workflow_run_id)
-      : undefined;
+      ? dispatchBody.workflow_run_id
+      : null;
 
     if (githubRunId) {
       await this.buildRepository.update({ uuid }, { githubRunId });
