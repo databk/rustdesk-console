@@ -6,10 +6,22 @@ import cookieParser from 'cookie-parser';
 import type { Request, Response, NextFunction } from 'express';
 import { businessWritesAllowed } from './updater/maintenance';
 import { rbacRequestScopeMiddleware } from './modules/rbac/rbac-request-scope.middleware';
+import {
+  isValidLogLevel,
+  resolveLogLevels,
+} from './common/utils/log-level.util';
 
 export async function bootstrap() {
+  const app = await NestFactory.create(AppModule, {
+    logger: resolveLogLevels(process.env.LOG_LEVEL),
+  });
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  if (!isValidLogLevel(process.env.LOG_LEVEL)) {
+    logger.warn(
+      `Unknown LOG_LEVEL "${process.env.LOG_LEVEL}", falling back to "log". ` +
+        'Use one of: verbose, debug, log (info), warn, error, fatal.',
+    );
+  }
 
   app.enableShutdownHooks();
 

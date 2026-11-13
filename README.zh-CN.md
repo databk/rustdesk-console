@@ -268,6 +268,7 @@ npm run start:prod
 | `PORT` | `3000` | 后端监听端口 |
 | `JWT_SECRET` | 无（生产必须设置） | JWT 签名密钥，泄漏后需立即更换并使所有会话失效 |
 | `ADMIN_PASSWORD` | 无 | 首次初始化时创建的 `databk` 管理员密码 |
+| `LOG_LEVEL` | `log` | 最低输出日志级别：`verbose`、`debug`、`log`（别名 `info`）、`warn`、`error`、`fatal`；排查问题时可设为 `debug` |
 | `DATA_DIR` | `./data` | 数据目录，存放 SQLite 数据库、头像、Nexus 构建产物等 |
 | `DEVICE_CLONE_ISOLATION` | `false` | 是否按 `(UUID, RustDesk ID)` 区分克隆客户端，见 [clone-isolation.md](docs/clone-isolation.md) |
 
