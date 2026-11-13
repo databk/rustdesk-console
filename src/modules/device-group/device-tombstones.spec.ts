@@ -99,6 +99,7 @@ describe('device deletion tombstones', () => {
       authorization as never,
       {} as never,
       serverManagement as never,
+      {} as never,
     );
     return {
       service,

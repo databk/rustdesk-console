@@ -61,6 +61,13 @@ describe('网页远控真实 SQLite 角色与设备范围', () => {
       db.getRepository(Sysinfo),
       db.getRepository(User),
       db.getRepository(Strategy),
+      {
+        enrich: jest.fn().mockResolvedValue({
+          available: false,
+          checked_at: '',
+          byUuid: new Map(),
+        }),
+      } as never,
     );
   });
 

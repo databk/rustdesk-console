@@ -28,6 +28,10 @@ import { UserRoleAssignmentDeviceGroup } from '../rbac/entities/user-role-assign
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
 import { StrategyService } from '../strategy/strategy.service';
 import {
+  DevicePresenceService,
+  type DevicePresenceReport,
+} from './device-presence.service';
+import {
   ServerManagementService,
   type DeviceBanSyncResult,
 } from '../server-management/server-management.service';
@@ -66,6 +70,7 @@ export class DeviceGroupService {
     private readonly rbacAuthorizationService: RbacAuthorizationService,
     private readonly strategyService: StrategyService,
     private readonly serverManagement: ServerManagementService,
+    private readonly devicePresence: DevicePresenceService,
   ) {}
 
   // Protocol-level enforcement writes the hbbs ban policy, which is guarded
@@ -523,7 +528,11 @@ export class DeviceGroupService {
     },
     isAdmin: boolean = false,
     rbacScope?: PermissionScope,
-  ): Promise<{ data: any[]; total: number }> {
+  ): Promise<{
+    data: any[];
+    total: number;
+    diagnostics?: DevicePresenceReport;
+  }> {
     const {
       current = 1,
       pageSize = 20,
@@ -716,6 +725,14 @@ export class DeviceGroupService {
     const sysinfoByUuid = new Map(sysinfos.map((item) => [item.uuid, item]));
     const userByGuid = new Map(users.map((item) => [item.guid, item]));
     const strategyByGuid = new Map(strategies.map((item) => [item.guid, item]));
+    // Include the deployment-wide comparison only for global scopes so a
+    // device-group-scoped administrator never sees hbbs-only IDs from outside
+    // their authorization boundary.
+    const presence = await this.devicePresence.enrich(
+      peers,
+      onlineAfter,
+      rbacScope?.global === true,
+    );
     const formatVersion = (version: number): string => {
       if (!version) return '';
       const major = Math.floor(version / 1_000_000);
@@ -727,6 +744,7 @@ export class DeviceGroupService {
 
     const data = peers.map((peer) => {
       const sysinfo = sysinfoByUuid.get(peer.uuid);
+      const presenceView = presence.byUuid.get(peer.uuid);
       return {
         guid: peer.uuid,
         id: peer.id,
@@ -754,12 +772,17 @@ export class DeviceGroupService {
           version: formatVersion(peer.ver),
           cpu: sysinfo?.cpu || '',
           memory: sysinfo?.memory || '',
-          ip: '',
+          ip: presenceView?.ip || '',
         },
+        ...(presenceView ? { presence: presenceView } : {}),
       };
     });
 
-    return { data, total };
+    return {
+      data,
+      total,
+      ...(presence.report ? { diagnostics: presence.report } : {}),
+    };
   }
 
   /**
