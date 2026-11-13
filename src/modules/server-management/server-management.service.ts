@@ -168,14 +168,6 @@ export class ServerManagementService {
     return unavailable('connection', local.reason ?? 'namespace_unobservable');
   }
 
-  async peers(nodeId: string) {
-    const config = await this.runtime();
-    const node = await this.requireNode(config, nodeId);
-    // hbbr has no peers endpoint; only hbbs registrations exist.
-    if (node.kind === 'relay') return { data: [] };
-    return this.fetchJson(config, '/v1/peers');
-  }
-
   async sessions(nodeId: string) {
     const config = await this.runtime();
     const node = await this.requireNode(config, nodeId);
