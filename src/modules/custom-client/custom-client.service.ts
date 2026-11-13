@@ -235,7 +235,13 @@ export class CustomClientService {
     userGuid: string,
   ): Promise<string> {
     await this.findOwnedBuild(uuid, userGuid);
-    return this.safeJoin(uuid, filename);
+    const buildDir = this.safeJoin(uuid);
+    const filePath = this.safeJoin(uuid, filename);
+    const rel = relative(buildDir, filePath);
+    if (rel.startsWith('..') || resolve(buildDir) === filePath) {
+      throw new BadRequestException('Invalid filename');
+    }
+    return filePath;
   }
 
   async getBuildConfig(
