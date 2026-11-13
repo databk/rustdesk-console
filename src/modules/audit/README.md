@@ -67,7 +67,9 @@ Main action groups:
 - Web client: service-defined `web_client.*` events such as
   `web_client.request_denied`, `web_client.request_allowed`,
   `web_client.gateway_open`, and `web_client.session_ended`
-- Nexus: `nexus.unbind`, `nexus.build.*`, `nexus.login_session.create`
+- Custom client: `custom_client.build.create`, `custom_client.build.delete`,
+  `custom_client.logo.upload`, `custom_client.logo.delete`,
+  `custom_client.settings.update`
 
 ## Database Table Structure
 

@@ -29,6 +29,7 @@ import { UpdateCustomClientSettingsDto } from './dto/custom-client-settings.dto'
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 
 @Controller('custom-client')
 export class CustomClientController {
@@ -39,6 +40,10 @@ export class CustomClientController {
   ) {}
 
   @Post('builds')
+  @ConsoleAuditAction('custom_client.build.create', {
+    targetGuidParam: false,
+    targetGuidResponseField: 'uuid',
+  })
   @HttpCode(HttpStatus.CREATED)
   async createBuild(
     @CurrentUser('id') userGuid: string,
@@ -53,6 +58,7 @@ export class CustomClientController {
   }
 
   @Delete('builds/:uuid')
+  @ConsoleAuditAction('custom_client.build.delete', { targetGuidParam: 'uuid' })
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteBuild(
     @CurrentUser('id') userGuid: string,
@@ -195,6 +201,7 @@ export class CustomClientController {
 
   @Post('logos/:filename')
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('custom_client.logo.upload', { targetGuidParam: 'filename' })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 },
@@ -214,6 +221,7 @@ export class CustomClientController {
 
   @Delete('logos/:filename')
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('custom_client.logo.delete', { targetGuidParam: 'filename' })
   @HttpCode(HttpStatus.NO_CONTENT)
   deleteLogo(@Param('filename') filename: string) {
     this.logoService.deleteLogo(filename);
@@ -227,6 +235,7 @@ export class CustomClientController {
 
   @Put('settings')
   @UseGuards(AdminGuard)
+  @ConsoleAuditAction('custom_client.settings.update')
   @HttpCode(HttpStatus.OK)
   async updateSettings(@Body() dto: UpdateCustomClientSettingsDto) {
     return this.settingsService.updateSettings(dto);
