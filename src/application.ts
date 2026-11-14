@@ -7,6 +7,10 @@ import type { Request, Response, NextFunction } from 'express';
 import { businessWritesAllowed } from './updater/maintenance';
 import { rbacRequestScopeMiddleware } from './modules/rbac/rbac-request-scope.middleware';
 import {
+  REQUEST_ID_HEADER,
+  requestIdMiddleware,
+} from './common/middleware/request-id.middleware';
+import {
   isValidLogLevel,
   resolveLogLevels,
 } from './common/utils/log-level.util';
@@ -25,8 +29,11 @@ export async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  // Bind the request-scoped RBAC cache before anything else so guards,
-  // interceptors and handlers all share one authorization snapshot.
+  // Assign the correlation ID first so every response, including maintenance
+  // rejections, carries it and all audit records of a request share it.
+  app.use(requestIdMiddleware);
+  // Bind the request-scoped RBAC cache before the remaining middleware so
+  // guards, interceptors and handlers all share one authorization snapshot.
   app.use(rbacRequestScopeMiddleware);
   // Direct backend clients must also respect the persistent maintenance fence.
   app.use((request: Request, response: Response, next: NextFunction) => {
@@ -60,6 +67,7 @@ export async function bootstrap() {
   app.enableCors({
     origin: true,
     credentials: true,
+    exposedHeaders: [REQUEST_ID_HEADER],
   });
 
   // Global validation pipe
