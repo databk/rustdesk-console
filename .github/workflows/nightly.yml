@@ -97,6 +97,7 @@ jobs:
 
           # Build and push to Docker Hub, GitHub Container Registry, and ACR
           docker buildx build --push \
+            --provenance=false \
             --platform linux/amd64,linux/arm64 \
             --build-arg APP_VERSION=$VERSION \
             --tag databk/rustdesk-console:nightly \
