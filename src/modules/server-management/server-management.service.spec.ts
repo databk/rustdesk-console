@@ -160,6 +160,93 @@ describe('server management v2 client', () => {
     });
   });
 
+  it('reads the hbbs peer registry for address enrichment', async () => {
+    const fetcher = fetchRoute([
+      [
+        'http://hbbs:21120/v1/peers',
+        {
+          data: [
+            {
+              id: 'host-a',
+              uuid: Buffer.from('uuid-a').toString('base64'),
+              address: '192.0.2.10:21118',
+              ip: '192.0.2.10',
+              online: true,
+              banned: false,
+              last_registration_age_seconds: 4,
+            },
+            {
+              id: 'host-b',
+              uuid: Buffer.from('uuid-b').toString('base64'),
+              address: '192.0.2.11:21118',
+              ip: '192.0.2.11',
+              online: false,
+              banned: true,
+              last_registration_age_seconds: 90,
+            },
+          ],
+        },
+      ],
+    ]);
+    const snapshot = await create().getPeerSnapshot();
+    expect(snapshot).toMatchObject({ available: true });
+    expect(snapshot.peers).toEqual([
+      {
+        id: 'host-a',
+        uuid: Buffer.from('uuid-a').toString('base64'),
+        address: '192.0.2.10:21118',
+        ip: '192.0.2.10',
+        online: true,
+        banned: false,
+        last_registration_age_seconds: 4,
+      },
+      {
+        id: 'host-b',
+        uuid: Buffer.from('uuid-b').toString('base64'),
+        address: '192.0.2.11:21118',
+        ip: '192.0.2.11',
+        online: false,
+        banned: true,
+        last_registration_age_seconds: 90,
+      },
+    ]);
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://hbbs:21120/v1/peers',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: `Bearer ${base.token}`,
+        }),
+      }),
+    );
+  });
+
+  it('treats a malformed peer registry as upstream_error', async () => {
+    for (const body of [{}, { data: null }]) {
+      fetchRoute([['http://hbbs:21120/v1/peers', body]]);
+      expect(await create().getPeerSnapshot()).toMatchObject({
+        available: false,
+        reason: 'upstream_error',
+        peers: [],
+      });
+    }
+  });
+
+  it('degrades an unavailable hbbs peer registry without throwing', async () => {
+    expect(await create({ url: '' }).getPeerSnapshot()).toMatchObject({
+      available: false,
+      reason: 'not_configured',
+      peers: [],
+    });
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.reject(new Error('network down')));
+    expect(await create().getPeerSnapshot()).toMatchObject({
+      available: false,
+      reason: 'upstream_error',
+      peers: [],
+    });
+  });
+
   it('reports release failures without throwing', async () => {
     const service = create({ url: '' });
     expect(await service.releaseDeviceId('actor', 'host-a')).toEqual({
