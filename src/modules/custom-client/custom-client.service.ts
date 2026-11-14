@@ -35,16 +35,11 @@ import {
 
 const GITHUB_API = 'https://api.github.com';
 const CALLBACK_TIMEOUT_MS = 10_000;
-const ALLOWED_CALLBACK_STATUSES: CustomClientBuild['status'][] = [
-  'building',
-  'completed',
-  'failed',
-];
 
 interface GithubDispatchInputs {
   'build-id': string;
   'backend-url': string;
-  'callback-token': string;
+  'upload-token': string;
 }
 
 function resolveWorkflowFile(os: string, arch: string | undefined): string {
@@ -132,7 +127,7 @@ export class CustomClientService {
     const inputs: GithubDispatchInputs = {
       'build-id': uuid,
       'backend-url': backendUrl,
-      'callback-token': callbackToken,
+      'upload-token': callbackToken,
     };
 
     const dispatchUrl = `${GITHUB_API}/repos/${settings.generatorRepo}/actions/workflows/${workflowFile}/dispatches`;
@@ -246,7 +241,7 @@ export class CustomClientService {
 
   async getBuildConfig(
     uuid: string,
-    callbackToken: string,
+    uploadToken: string,
   ): Promise<{
     customTxt: string;
     publicKey: string;
@@ -256,7 +251,7 @@ export class CustomClientService {
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    this.assertCallbackToken(build, callbackToken);
+    this.assertUploadToken(build, uploadToken);
 
     const customObj: CustomClientCustomDto | undefined = build.custom
       ? (JSON.parse(build.custom) as CustomClientCustomDto)
@@ -272,34 +267,27 @@ export class CustomClientService {
   async getBuildLogoFile(
     uuid: string,
     filename: string,
-    callbackToken: string,
+    uploadToken: string,
   ): Promise<string> {
     const build = await this.buildRepository.findOne({ where: { uuid } });
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    this.assertCallbackToken(build, callbackToken);
+    this.assertUploadToken(build, uploadToken);
 
     return this.logoService.getLogoPath(filename);
   }
 
-  async handleCallback(
+  async handleUpload(
     uuid: string,
-    callbackToken: string,
-    status: string,
-    message: string | undefined,
+    uploadToken: string,
     files: Express.Multer.File[],
   ): Promise<void> {
     const build = await this.buildRepository.findOne({ where: { uuid } });
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    this.assertCallbackToken(build, callbackToken);
-    if (
-      !ALLOWED_CALLBACK_STATUSES.includes(status as CustomClientBuild['status'])
-    ) {
-      throw new BadRequestException('Invalid status');
-    }
+    this.assertUploadToken(build, uploadToken);
     if (build.status === 'completed' || build.status === 'failed') {
       throw new BadRequestException('Build already finished');
     }
@@ -315,19 +303,18 @@ export class CustomClientService {
       }
     }
 
-    const isTerminalStatus = status === 'completed' || status === 'failed';
+    if (savedNames.length > 0) {
+      await this.buildRepository.update(
+        { uuid },
+        {
+          files: JSON.stringify(savedNames),
+        },
+      );
+    }
 
-    await this.buildRepository.update(
-      { uuid },
-      {
-        status: status as CustomClientBuild['status'],
-        message: message ?? undefined,
-        files: savedNames.length > 0 ? JSON.stringify(savedNames) : undefined,
-        callbackToken: isTerminalStatus ? randomUUID() : undefined,
-      },
+    this.logger.log(
+      `Upload processed for build ${uuid}: ${savedNames.length} files`,
     );
-
-    this.logger.log(`Callback processed for build ${uuid}: ${status}`);
   }
 
   async getBuildProgress(
@@ -375,7 +362,7 @@ export class CustomClientService {
       ),
     ]);
 
-    return {
+    const result: BuildProgressResponse = {
       runId,
       runStatus: runData.status,
       runConclusion: runData.conclusion,
@@ -390,6 +377,32 @@ export class CustomClientService {
         })),
       })),
     };
+
+    if (
+      runData.status === 'completed' &&
+      build.status !== 'completed' &&
+      build.status !== 'failed'
+    ) {
+      const newStatus: CustomClientBuild['status'] =
+        runData.conclusion === 'success' ? 'completed' : 'failed';
+      const newMessage =
+        runData.conclusion === 'success'
+          ? undefined
+          : `Build failed: ${runData.conclusion}`;
+      await this.buildRepository.update(
+        { uuid },
+        {
+          status: newStatus,
+          message: newMessage,
+          callbackToken: randomUUID(),
+        },
+      );
+      this.logger.log(
+        `Build ${uuid} status auto-updated to ${newStatus} via GitHub API`,
+      );
+    }
+
+    return result;
   }
 
   private async findOwnedBuild(
@@ -405,17 +418,17 @@ export class CustomClientService {
     return build;
   }
 
-  private assertCallbackToken(
+  private assertUploadToken(
     build: CustomClientBuild,
-    callbackToken: string,
+    uploadToken: string,
   ): void {
-    const tokenBuffer = Buffer.from(callbackToken);
+    const tokenBuffer = Buffer.from(uploadToken);
     const expectedBuffer = Buffer.from(build.callbackToken);
     if (
       tokenBuffer.length !== expectedBuffer.length ||
       !timingSafeEqual(tokenBuffer, expectedBuffer)
     ) {
-      throw new UnauthorizedException('Invalid callback token');
+      throw new UnauthorizedException('Invalid upload token');
     }
   }
 
