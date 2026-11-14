@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, EntityManager, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { getCurrentRequestId } from '../../../common/middleware/request-id.middleware';
 import { User } from '../../user/entities/user.entity';
 import { ConsoleAudit } from '../entities/console-audit.entity';
 
@@ -136,7 +137,7 @@ export class RbacAuditService {
       reason: event.reason ?? null,
       beforeState: this.serializeState(event.beforeState),
       afterState: this.serializeState(event.afterState),
-      requestId: event.requestId ?? null,
+      requestId: event.requestId ?? getCurrentRequestId() ?? null,
     });
     return repository.save(audit);
   }
