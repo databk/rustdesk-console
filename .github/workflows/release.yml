@@ -99,9 +99,8 @@ jobs:
           # Login to ACR
           echo "${{ secrets.ACR_TOKEN }}" | docker login ${{ vars.ACR_DOMAIN }} -u "${{ secrets.ACR_USERNAME }}" --password-stdin
 
-          # Build and push to Docker Hub, GitHub Container Registry, and ACR
+          # Build and push to Docker Hub and GitHub Container Registry
           docker buildx build --push \
-            --provenance=false \
             --platform linux/amd64,linux/arm64 \
             --build-arg APP_VERSION=$VERSION \
             --build-arg SOURCE_COMMIT=$SOURCE_COMMIT \
@@ -114,13 +113,17 @@ jobs:
             --tag ghcr.io/databk/rustdesk-console:$VERSION \
             --tag ghcr.io/databk/rustdesk-console:$MAJOR_MINOR \
             --tag ghcr.io/databk/rustdesk-console:$MAJOR \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            .
+
+          # Copy image to ACR (without provenance, which ACR does not support)
+          docker buildx imagetools create \
             --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:latest \
             --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:$VERSION \
             --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:$MAJOR_MINOR \
             --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:$MAJOR \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            .
+            databk/rustdesk-console:latest
           node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync("docker-metadata.json"));const d=m["containerimage.descriptor"];if(!d||d.digest!==m["containerimage.digest"])throw Error("Missing OCI descriptor");fs.writeFileSync("docker-evidence.json",JSON.stringify({version:process.env.RELEASE_VERSION,sourceCommit:process.env.SOURCE_COMMIT,digest:d.digest,size:d.size,platforms:["linux/amd64","linux/arm64"]}));'
 
       - name: Retain immutable Docker build evidence
