@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { generateKeyPairSync } from 'crypto';
+import {
+  generateKeyPairSync,
+  createPrivateKey,
+  createPublicKey,
+  type KeyObject,
+} from 'crypto';
 import { SystemSetting } from '../../settings/entities/system-setting.entity';
 import {
   UpdateCustomClientSettingsDto,
@@ -12,29 +17,47 @@ const CATEGORY = 'custom-client';
 const GITHUB_TOKEN_KEY = 'custom-client.github-token';
 const GENERATOR_REPO_KEY = 'custom-client.generator-repo';
 const GENERATOR_REF_KEY = 'custom-client.generator-ref';
-const SIGNING_PUBLIC_KEY = 'custom-client.signing-public-key';
 const SIGNING_PRIVATE_KEY = 'custom-client.signing-private-key';
 const DEFAULT_GENERATOR_REPO = 'databk/rustdesk-generator';
 const DEFAULT_GENERATOR_REF = 'main';
 const TOKEN_MASK = '******';
 
-function generateEd25519KeyPair(): { publicKey: string; privateKey: string } {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-  const pubDer = publicKey.export({ type: 'spki', format: 'der' });
-  const rawPub = pubDer.subarray(-32);
+const ED25519_PKCS8_HEADER = Buffer.from(
+  '302e020100300506032b657004220420',
+  'hex',
+);
+
+function generateEd25519PrivateKey(): string {
+  const { privateKey } = generateKeyPairSync('ed25519');
   const privDer = privateKey.export({ type: 'pkcs8', format: 'der' });
-  return {
-    publicKey: rawPub.toString('base64'),
-    privateKey: privDer.toString('base64'),
-  };
+  return privDer.toString('base64');
+}
+
+function createEd25519PrivateKey(privateKeyBase64: string): KeyObject {
+  const rawKey = Buffer.from(privateKeyBase64, 'base64');
+  if (rawKey.length === 48) {
+    return createPrivateKey({ key: rawKey, format: 'der', type: 'pkcs8' });
+  }
+  if (rawKey.length === 32) {
+    return createPrivateKey({
+      key: Buffer.concat([ED25519_PKCS8_HEADER, rawKey]),
+      format: 'der',
+      type: 'pkcs8',
+    });
+  }
+  return createPrivateKey({ key: rawKey, format: 'der', type: 'pkcs8' });
+}
+
+function derivePublicKeyBase64(privateKeyBase64: string): string {
+  const keyObject = createEd25519PrivateKey(privateKeyBase64);
+  const pubKeyObj = createPublicKey(keyObject);
+  const pubDer = pubKeyObj.export({ type: 'spki', format: 'der' });
+  return pubDer.subarray(-32).toString('base64');
 }
 
 @Injectable()
 export class CustomClientSettingsService {
-  private signingKeysPromise: Promise<{
-    publicKey: string;
-    privateKey: string;
-  }> | null = null;
+  private signingKeyPromise: Promise<string> | null = null;
 
   constructor(
     @InjectRepository(SystemSetting)
@@ -45,14 +68,13 @@ export class CustomClientSettingsService {
     const token = await this.read(GITHUB_TOKEN_KEY);
     const repo = await this.read(GENERATOR_REPO_KEY);
     const ref = await this.read(GENERATOR_REF_KEY);
-    const pubKey = await this.read(SIGNING_PUBLIC_KEY);
-    const privKey = await this.read(SIGNING_PRIVATE_KEY);
+    const privKey = await this.getSigningPrivateKey();
+    const publicKey = privKey ? derivePublicKeyBase64(privKey) : '';
     return {
       githubToken: token ? TOKEN_MASK : '',
       generatorRepo: repo ?? DEFAULT_GENERATOR_REPO,
       generatorRef: ref ?? DEFAULT_GENERATOR_REF,
-      signingPublicKey: pubKey ?? '',
-      signingPrivateKey: privKey ? TOKEN_MASK : '',
+      signingPublicKey: publicKey,
     };
   }
 
@@ -71,29 +93,22 @@ export class CustomClientSettingsService {
     };
   }
 
-  async getSigningKeys(): Promise<{
-    publicKey: string;
-    privateKey: string;
-  }> {
-    if (this.signingKeysPromise) {
-      return this.signingKeysPromise;
+  async getSigningPrivateKey(): Promise<string> {
+    if (this.signingKeyPromise) {
+      return this.signingKeyPromise;
     }
-    this.signingKeysPromise = (async () => {
-      let pubKey = await this.read(SIGNING_PUBLIC_KEY);
+    this.signingKeyPromise = (async () => {
       let privKey = await this.read(SIGNING_PRIVATE_KEY);
-      if (!pubKey || !privKey) {
-        const keys = generateEd25519KeyPair();
-        pubKey = keys.publicKey;
-        privKey = keys.privateKey;
-        await this.write(SIGNING_PUBLIC_KEY, pubKey, false);
+      if (!privKey) {
+        privKey = generateEd25519PrivateKey();
         await this.write(SIGNING_PRIVATE_KEY, privKey, true);
       }
-      return { publicKey: pubKey, privateKey: privKey };
+      return privKey;
     })();
     try {
-      return await this.signingKeysPromise;
+      return await this.signingKeyPromise;
     } catch (err) {
-      this.signingKeysPromise = null;
+      this.signingKeyPromise = null;
       throw err;
     }
   }
@@ -110,16 +125,10 @@ export class CustomClientSettingsService {
     if (dto.generatorRef !== undefined) {
       await this.write(GENERATOR_REF_KEY, dto.generatorRef, false);
     }
-    if (dto.signingPublicKey !== undefined) {
-      await this.write(SIGNING_PUBLIC_KEY, dto.signingPublicKey, false);
-      this.signingKeysPromise = null;
-    }
-    if (
-      dto.signingPrivateKey !== undefined &&
-      dto.signingPrivateKey !== TOKEN_MASK
-    ) {
-      await this.write(SIGNING_PRIVATE_KEY, dto.signingPrivateKey, true);
-      this.signingKeysPromise = null;
+    if (dto.regenerateSigningKey) {
+      const newPrivateKey = generateEd25519PrivateKey();
+      await this.write(SIGNING_PRIVATE_KEY, newPrivateKey, true);
+      this.signingKeyPromise = null;
     }
     return this.getSettings();
   }

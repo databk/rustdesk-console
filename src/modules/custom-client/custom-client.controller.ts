@@ -201,7 +201,9 @@ export class CustomClientController {
 
   @Post('logos/:filename')
   @UseGuards(AdminGuard)
-  @ConsoleAuditAction('custom_client.logo.upload', { targetGuidParam: 'filename' })
+  @ConsoleAuditAction('custom_client.logo.upload', {
+    targetGuidParam: 'filename',
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 },
@@ -221,7 +223,9 @@ export class CustomClientController {
 
   @Delete('logos/:filename')
   @UseGuards(AdminGuard)
-  @ConsoleAuditAction('custom_client.logo.delete', { targetGuidParam: 'filename' })
+  @ConsoleAuditAction('custom_client.logo.delete', {
+    targetGuidParam: 'filename',
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   deleteLogo(@Param('filename') filename: string) {
     this.logoService.deleteLogo(filename);

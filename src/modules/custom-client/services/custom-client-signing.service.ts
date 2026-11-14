@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { createPrivateKey, sign, type KeyObject } from 'crypto';
+import {
+  createPrivateKey,
+  createPublicKey,
+  sign,
+  type KeyObject,
+} from 'crypto';
 import { CustomClientSettingsService } from './custom-client-settings.service';
 import { CustomClientCustomDto } from '../dto/custom-client-build.dto';
 
@@ -10,9 +15,6 @@ const ED25519_PKCS8_HEADER = Buffer.from(
 
 function createEd25519PrivateKey(privateKeyBase64: string): KeyObject {
   const rawKey = Buffer.from(privateKeyBase64, 'base64');
-  if (rawKey.length === 48) {
-    return createPrivateKey({ key: rawKey, format: 'der', type: 'pkcs8' });
-  }
   if (rawKey.length === 32) {
     return createPrivateKey({
       key: Buffer.concat([ED25519_PKCS8_HEADER, rawKey]),
@@ -30,7 +32,7 @@ export class CustomClientSigningService {
   async generateSignedCustomTxt(
     custom: CustomClientCustomDto | undefined,
   ): Promise<string> {
-    const { privateKey } = await this.settingsService.getSigningKeys();
+    const privateKey = await this.settingsService.getSigningPrivateKey();
 
     const config: Record<string, unknown> = {};
     if (custom) {
@@ -77,7 +79,10 @@ export class CustomClientSigningService {
   }
 
   async getPublicKeyBase64(): Promise<string> {
-    const { publicKey } = await this.settingsService.getSigningKeys();
-    return publicKey;
+    const privateKey = await this.settingsService.getSigningPrivateKey();
+    const keyObject = createEd25519PrivateKey(privateKey);
+    const pubKeyObj = createPublicKey(keyObject);
+    const pubDer = pubKeyObj.export({ type: 'spki', format: 'der' });
+    return pubDer.subarray(-32).toString('base64');
   }
 }
