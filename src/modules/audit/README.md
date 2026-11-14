@@ -42,6 +42,14 @@ Only endpoints decorated with `@ConsoleAuditAction()` are audited. This avoids
 noise from legacy read-only endpoints implemented with POST. Endpoints whose
 service already writes a detailed audit record keep `@SkipConsoleAudit()`.
 
+Every HTTP request gets a correlation ID that is returned in the
+`X-Request-Id` response header and stored as `request_id` on every console
+audit written while handling it, including RBAC denials and records written by
+services. A well-formed `X-Request-Id` sent by an upstream proxy (1-128
+characters from `A-Z a-z 0-9 . _ : -`) is reused; otherwise a UUID is
+generated. Events that are not tied to a single HTTP request may set
+`requestId` explicitly (web client sessions use the session GUID).
+
 The `action` query filter also expands exact historical route-style names, so
 `user.create` matches old `POST /api/users` records and `POST /api/users`
 matches new `user.create` records.
