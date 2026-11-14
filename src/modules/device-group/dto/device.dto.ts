@@ -1,11 +1,11 @@
 import { IsString, IsOptional, IsIn } from 'class-validator';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { DeviceSortQueryDto } from './device-sort.dto';
 
 /**
  * Device query DTO
  * Used to fetch the device list
  */
-export class DeviceQueryDto extends PaginationQueryDto {
+export class DeviceQueryDto extends DeviceSortQueryDto {
   @IsString()
   @IsOptional()
   id?: string;

@@ -95,6 +95,7 @@ export class DeviceGroupController {
    * - Supports filtering by user name (user_name, fuzzy match)
    * - Supports filtering by device group name (device_group_name, fuzzy match)
    * - Supports filtering by operating system (os, fuzzy match)
+   * - Supports sorting by sort_by and sort_order
    *
    * @param userId Current user ID (extracted from the JWT token)
    * @param isAdmin Whether the user is an administrator (extracted from the JWT token)
@@ -268,7 +269,7 @@ export class DeviceGroupController {
    * Administrators can view all devices
    *
    * @param userId Current user ID (extracted from the JWT token)
-   * @param query Query parameters (pagination, filtering)
+   * @param query Query parameters (pagination, filtering, sorting)
    * @returns Device list (paginated)
    */
   @Get('devices')

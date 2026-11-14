@@ -5,6 +5,7 @@ import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { PeerQueryDto } from './dto/peer.dto';
+import { applyPeerSort } from './peer-sort';
 import type { PermissionScope } from '../rbac/services/rbac-authorization.service';
 
 /**
@@ -69,6 +70,8 @@ export class PeerService {
       device_group_guid,
       device_group_name,
       os,
+      sort_by,
+      sort_order,
     } = query;
     const skip = (current - 1) * pageSize;
 
@@ -175,7 +178,8 @@ export class PeerService {
     }
 
     // Paginated query
-    queryBuilder.orderBy('peer.id', 'ASC').skip(skip).take(pageSize);
+    applyPeerSort(queryBuilder, sort_by, sort_order, 'deviceGroup');
+    queryBuilder.skip(skip).take(pageSize);
 
     const [peers, total] = await queryBuilder.getManyAndCount();
 

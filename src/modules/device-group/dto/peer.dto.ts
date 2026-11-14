@@ -1,11 +1,11 @@
 import { IsString, IsOptional, IsIn } from 'class-validator';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { DeviceSortQueryDto } from './device-sort.dto';
 
 /**
  * Device query DTO
  * Used to fetch the list of accessible devices; supports pagination and multi-condition filtering
  */
-export class PeerQueryDto extends PaginationQueryDto {
+export class PeerQueryDto extends DeviceSortQueryDto {
   @IsOptional()
   @IsString()
   accessible?: string; // compatibility field; an empty string means fetch all accessible devices
