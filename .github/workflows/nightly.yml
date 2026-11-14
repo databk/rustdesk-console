@@ -95,16 +95,20 @@ jobs:
           # Login to ACR
           echo "${{ secrets.ACR_TOKEN }}" | docker login ${{ vars.ACR_DOMAIN }} -u "${{ secrets.ACR_USERNAME }}" --password-stdin
 
-          # Build and push to Docker Hub, GitHub Container Registry, and ACR
+          # Build and push to Docker Hub and GitHub Container Registry
           docker buildx build --push \
             --platform linux/amd64,linux/arm64 \
             --build-arg APP_VERSION=$VERSION \
             --tag databk/rustdesk-console:nightly \
             --tag ghcr.io/databk/rustdesk-console:nightly \
-            --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:nightly \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             .
+
+          # Copy image to ACR (without provenance, which ACR does not support)
+          docker buildx imagetools create \
+            --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:nightly \
+            databk/rustdesk-console:nightly
 
       - name: Delete existing nightly tag and release
         env:
