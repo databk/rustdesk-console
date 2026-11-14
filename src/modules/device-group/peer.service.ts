@@ -5,6 +5,7 @@ import { Peer, Sysinfo } from '../../common/entities';
 import { User } from '../user/entities/user.entity';
 import { Strategy } from '../strategy/entities/strategy.entity';
 import { PeerQueryDto } from './dto/peer.dto';
+import { DevicePresenceService } from './device-presence.service';
 import type { PermissionScope } from '../rbac/services/rbac-authorization.service';
 
 /**
@@ -27,6 +28,7 @@ export class PeerService {
     private userRepository: Repository<User>,
     @InjectRepository(Strategy)
     private strategyRepository: Repository<Strategy>,
+    private readonly devicePresence: DevicePresenceService,
   ) {}
 
   /**
@@ -215,6 +217,10 @@ export class PeerService {
         : [];
     const strategyMap = new Map(strategies.map((s) => [s.guid, s]));
 
+    // hbbs owns the address clients registered from. Console heartbeats do not
+    // carry it, so the empty `info.ip` is filled from the registry snapshot.
+    const presence = await this.devicePresence.enrich(peers, oneMinuteAgo);
+
     const formatVersion = (ver: number | null | undefined): string => {
       if (!ver) return '';
       const major = Math.floor(ver / 1000000);
@@ -238,6 +244,7 @@ export class PeerService {
       const user = peer.userGuid ? userMap.get(peer.userGuid) : null;
       const deviceGroupName =
         (peer.deviceGroup as { name?: string } | null)?.name || '';
+      const presenceView = presence.byUuid.get(peer.uuid);
 
       return {
         id: peer.id,
@@ -261,8 +268,9 @@ export class PeerService {
           version: formatVersion(peer.ver),
           cpu: sysinfo?.cpu || '',
           memory: sysinfo?.memory || '',
-          ip: '',
+          ip: presenceView?.ip || '',
         },
+        ...(presenceView ? { presence: presenceView } : {}),
       };
     });
 
