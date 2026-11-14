@@ -64,13 +64,13 @@ type PresencePeer = Pick<Peer, 'uuid' | 'id' | 'status' | 'lastHeartbeat'>;
 
 interface PeerIndex {
   /**
-   * Legacy rows: the raw client UUID scoped by RustDesk ID. The ID is part of
-   * the key because clones share one UUID, so a UUID-only lookup could attach
-   * the other clone's registration to a legacy row.
+   * Legacy rows: the client UUID scoped by RustDesk ID. The ID is part of the
+   * key because clones share one UUID, so a UUID-only lookup could attach the
+   * other clone's registration to a legacy row.
    */
   byUuidAndId: Map<string, HbbsPeerSnapshotEntry>;
   /**
-   * Clone-isolation keys derived from the hbbs UUID and RustDesk ID. Indexing
+   * Clone-isolation keys derived from the client UUID and RustDesk ID. Indexing
    * the derived key keeps the match exact, so a shared RustDesk ID can never
    * attach another device's registration.
    */
@@ -79,19 +79,6 @@ interface PeerIndex {
 
 function identityKey(uuid: string, id: string): string {
   return `${uuid}\u0000${id}`;
-}
-
-// hbbs reports the client UUID as base64-encoded bytes. A Console UUID is a
-// printable string, so only use the decoded value when it round-trips as one;
-// clone-isolation keys are derived separately from the decoded value.
-function decodeHbbsUuid(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const decoded = Buffer.from(value, 'base64').toString('utf8');
-    return /^[\x20-\x7e]+$/.test(decoded) ? decoded : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function sortIds(ids: Iterable<string>): string[] {
@@ -150,10 +137,15 @@ export class DevicePresenceService {
     const byUuidAndId = new Map<string, HbbsPeerSnapshotEntry>();
     const byIsolatedUuid = new Map<string, HbbsPeerSnapshotEntry>();
     for (const peer of snapshot.peers) {
-      const uuid = decodeHbbsUuid(peer.uuid);
-      if (!uuid) continue;
-      byUuidAndId.set(identityKey(uuid, peer.id), peer);
-      byIsolatedUuid.set(isolatedDeviceUuid(uuid, peer.id), peer);
+      // Both sources carry the client UUID in the same standard base64 text:
+      // the client sends `encode64(rawUuidBytes)` to the Console API, and hbbs
+      // re-encodes the raw bytes with standard base64 in `/v1/peers`. The text
+      // is therefore the canonical comparison key; decoding it would compare
+      // against Console's still-encoded value (and non-printable UUID bytes
+      // would be discarded outright).
+      if (!peer.uuid) continue;
+      byUuidAndId.set(identityKey(peer.uuid, peer.id), peer);
+      byIsolatedUuid.set(isolatedDeviceUuid(peer.uuid, peer.id), peer);
     }
     return { byUuidAndId, byIsolatedUuid };
   }

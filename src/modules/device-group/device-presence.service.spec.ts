@@ -14,14 +14,16 @@ import type {
 } from '../server-management/server-management.service';
 import type { ServerManagementService } from '../server-management/server-management.service';
 
-const uuidBytes = (value: string) => Buffer.from(value).toString('base64');
+// RustDesk clients send `encode64(rawUuidBytes)` to the Console API, and hbbs
+// reports `base64::encode(rawUuidBytes)`, so both sources carry this text.
+const clientUuid = (value: string) => Buffer.from(value).toString('base64');
 // Clone isolation stores this Console-only key instead of the client UUID.
-const isolatedHostB = isolatedDeviceUuid('uuid-host-b', 'host-b');
+const isolatedHostB = isolatedDeviceUuid(clientUuid('uuid-host-b'), 'host-b');
 
 const entry = (
   overrides: Partial<HbbsPeerSnapshotEntry> & Pick<HbbsPeerSnapshotEntry, 'id'>,
 ): HbbsPeerSnapshotEntry => ({
-  uuid: uuidBytes(`uuid-${overrides.id}`),
+  uuid: clientUuid(`uuid-${overrides.id}`),
   address: `${overrides.id}:21118`,
   ip: `192.0.2.${overrides.id.length}`,
   online: true,
@@ -77,14 +79,14 @@ describe('device presence comparison', () => {
     const { service } = create();
     const peers = [
       peer({
-        uuid: 'uuid-host-a',
+        uuid: clientUuid('uuid-host-a'),
         id: 'host-a',
         lastHeartbeat: new Date(now.getTime() - 120_000),
       }),
       peer({ uuid: isolatedHostB, id: 'host-b' }),
-      peer({ uuid: 'uuid-host-c', id: 'host-c' }),
+      peer({ uuid: clientUuid('uuid-host-c'), id: 'host-c' }),
       peer({
-        uuid: 'uuid-host-d',
+        uuid: clientUuid('uuid-host-d'),
         id: 'host-d',
         status: PeerStatus.DISABLED,
         lastHeartbeat: now,
@@ -94,41 +96,41 @@ describe('device presence comparison', () => {
     const result = await service.enrich(peers, onlineAfter);
 
     expect(result.available).toBe(true);
-    expect(result.byUuid.get('uuid-host-a')).toMatchObject({
+    expect(result.byUuid.get(clientUuid('uuid-host-a'))).toMatchObject({
       registered: true,
       online: true,
       ip: '203.0.113.5',
       anomaly: 'hbbs_online_console_offline',
     });
     // Clone isolation stores a derived Console key; it is verified against the
-    // hbbs UUID and ID, so it still attaches the registration address.
+    // client UUID and ID, so it still attaches the registration address.
     expect(result.byUuid.get(isolatedHostB)).toMatchObject({
       registered: true,
       online: false,
       ip: '203.0.113.6',
       anomaly: 'console_online_hbbs_offline',
     });
-    expect(result.byUuid.get('uuid-host-c')).toMatchObject({
+    expect(result.byUuid.get(clientUuid('uuid-host-c'))).toMatchObject({
       registered: false,
       ip: '',
       anomaly: 'console_online_hbbs_offline',
     });
     // Disabled devices are intentionally absent from the admission layer.
-    expect(result.byUuid.get('uuid-host-d')?.anomaly).toBeNull();
+    expect(result.byUuid.get(clientUuid('uuid-host-d'))?.anomaly).toBeNull();
   });
 
   it('reports deployment-wide mismatches only when requested', async () => {
     const { service, peerRepository } = create();
     const peers = [
       peer({
-        uuid: 'uuid-host-a',
+        uuid: clientUuid('uuid-host-a'),
         id: 'host-a',
         lastHeartbeat: new Date(now.getTime() - 120_000),
       }),
       peer({ uuid: isolatedHostB, id: 'host-b' }),
-      peer({ uuid: 'uuid-host-c', id: 'host-c' }),
+      peer({ uuid: clientUuid('uuid-host-c'), id: 'host-c' }),
       peer({
-        uuid: 'uuid-host-d',
+        uuid: clientUuid('uuid-host-d'),
         id: 'host-d',
         status: PeerStatus.DISABLED,
         lastHeartbeat: new Date(now.getTime() - 120_000),
@@ -161,11 +163,12 @@ describe('device presence comparison', () => {
 
   it('does not attach a shared RustDesk ID to another device', async () => {
     const { service } = create();
+    const otherUuid = clientUuid('uuid-someone-else');
     const peers = [
       peer({ uuid: isolatedHostB, id: 'host-b' }),
       // Same RustDesk ID, different client UUID: the hbbs registration for
       // host-b must stay unassigned instead of leaking its address.
-      peer({ uuid: 'uuid-someone-else', id: 'host-b' }),
+      peer({ uuid: otherUuid, id: 'host-b' }),
     ];
 
     const result = await service.enrich(peers, onlineAfter);
@@ -174,7 +177,7 @@ describe('device presence comparison', () => {
       registered: true,
       ip: '203.0.113.6',
     });
-    expect(result.byUuid.get('uuid-someone-else')).toMatchObject({
+    expect(result.byUuid.get(otherUuid)).toMatchObject({
       registered: false,
       ip: '',
       anomaly: 'console_online_hbbs_offline',
@@ -182,21 +185,13 @@ describe('device presence comparison', () => {
   });
 
   it('matches legacy rows by UUID and ID when clones share a UUID', async () => {
-    const sharedUuid = 'uuid-shared';
+    const sharedUuid = clientUuid('uuid-shared');
     const { service } = create({
       available: true,
       checked_at: snapshot.checked_at,
       peers: [
-        entry({
-          id: 'host-a',
-          uuid: uuidBytes(sharedUuid),
-          ip: '203.0.113.10',
-        }),
-        entry({
-          id: 'host-b',
-          uuid: uuidBytes(sharedUuid),
-          ip: '203.0.113.11',
-        }),
+        entry({ id: 'host-a', uuid: sharedUuid, ip: '203.0.113.10' }),
+        entry({ id: 'host-b', uuid: sharedUuid, ip: '203.0.113.11' }),
       ],
     });
     const cloneKey = isolatedDeviceUuid(sharedUuid, 'host-b');
@@ -219,17 +214,64 @@ describe('device presence comparison', () => {
     });
   });
 
+  it('matches the base64 UUID that clients actually send', async () => {
+    // Mobile clients derive the UUID from random bytes, so the base64 text
+    // does not decode to a printable string. Console and hbbs still carry the
+    // same text, which is what the presence index must compare.
+    const sharedUuid = Buffer.from([
+      0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60,
+      0x70, 0x90, 0xa0, 0xb0,
+    ]).toString('base64');
+    expect(Buffer.from(sharedUuid, 'base64').toString('utf8')).not.toMatch(
+      /^[\x20-\x7e]+$/,
+    );
+    const cloneKey = isolatedDeviceUuid(sharedUuid, 'host-b');
+    const { service, peerRepository } = create({
+      available: true,
+      checked_at: snapshot.checked_at,
+      peers: [
+        entry({ id: 'host-a', uuid: sharedUuid, ip: '203.0.113.20' }),
+        entry({ id: 'host-b', uuid: sharedUuid, ip: '203.0.113.21' }),
+      ],
+    });
+    const peers = [
+      peer({ uuid: sharedUuid, id: 'host-a' }),
+      peer({ uuid: cloneKey, id: 'host-b' }),
+    ];
+    peerRepository.find.mockResolvedValue(peers);
+
+    const result = await service.enrich(peers, onlineAfter, true);
+
+    // Both the legacy and the clone-isolated lookup must attach the right
+    // registration instead of dropping the non-printable UUID.
+    expect(result.byUuid.get(sharedUuid)).toMatchObject({
+      registered: true,
+      online: true,
+      ip: '203.0.113.20',
+    });
+    expect(result.byUuid.get(cloneKey)).toMatchObject({
+      registered: true,
+      online: true,
+      ip: '203.0.113.21',
+    });
+    expect(result.report?.anomaly_count).toBe(0);
+  });
+
   it('tracks report heartbeats per Console row when IDs collide', async () => {
     const { service, peerRepository } = create();
     const peers = [
       peer({
-        uuid: 'uuid-host-a',
+        uuid: clientUuid('uuid-host-a'),
         id: 'host-a',
         lastHeartbeat: new Date(now.getTime() - 120_000),
       }),
       // A second row with the same RustDesk ID must not make the stale row
       // look online through the shared ID.
-      peer({ uuid: 'uuid-clone', id: 'host-a', lastHeartbeat: now }),
+      peer({
+        uuid: clientUuid('uuid-clone'),
+        id: 'host-a',
+        lastHeartbeat: now,
+      }),
     ];
     peerRepository.find.mockResolvedValue(peers);
 
@@ -254,7 +296,7 @@ describe('device presence comparison', () => {
     });
 
     const result = await service.enrich(
-      [peer({ uuid: 'uuid-host-a', id: 'host-a' })],
+      [peer({ uuid: clientUuid('uuid-host-a'), id: 'host-a' })],
       onlineAfter,
       true,
     );
