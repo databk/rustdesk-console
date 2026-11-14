@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
+import { isolatedDeviceUuid } from '../../common/utils/device-identity.util';
 import {
   HbbsPeerSnapshot,
   HbbsPeerSnapshotEntry,
@@ -63,12 +64,17 @@ type PresencePeer = Pick<Peer, 'uuid' | 'id' | 'status' | 'lastHeartbeat'>;
 
 interface PeerIndex {
   byUuid: Map<string, HbbsPeerSnapshotEntry>;
-  byId: Map<string, HbbsPeerSnapshotEntry>;
+  /**
+   * Clone-isolation keys derived from the hbbs UUID and RustDesk ID. Indexing
+   * the derived key keeps the match exact, so a shared RustDesk ID can never
+   * attach another device's registration.
+   */
+  byIsolatedUuid: Map<string, HbbsPeerSnapshotEntry>;
 }
 
 // hbbs reports the client UUID as base64-encoded bytes. A Console UUID is a
 // printable string, so only use the decoded value when it round-trips as one;
-// clone-isolation keys intentionally never match and fall back to the ID.
+// clone-isolation keys are derived separately from the decoded value.
 function decodeHbbsUuid(value: string | undefined): string | undefined {
   if (!value) return undefined;
   try {
@@ -133,22 +139,25 @@ export class DevicePresenceService {
 
   private index(snapshot: HbbsPeerSnapshot): PeerIndex {
     const byUuid = new Map<string, HbbsPeerSnapshotEntry>();
-    const byId = new Map<string, HbbsPeerSnapshotEntry>();
+    const byIsolatedUuid = new Map<string, HbbsPeerSnapshotEntry>();
     for (const peer of snapshot.peers) {
-      byId.set(peer.id, peer);
       const uuid = decodeHbbsUuid(peer.uuid);
-      if (uuid) byUuid.set(uuid, peer);
+      if (!uuid) continue;
+      byUuid.set(uuid, peer);
+      byIsolatedUuid.set(isolatedDeviceUuid(uuid, peer.id), peer);
     }
-    return { byUuid, byId };
+    return { byUuid, byIsolatedUuid };
   }
 
   private match(
     peer: PresencePeer,
     index: PeerIndex,
   ): HbbsPeerSnapshotEntry | undefined {
-    // UUID is the strongest match and survives custom/duplicate IDs. The ID
-    // fallback covers clone isolation, where Console stores a derived key.
-    return index.byUuid.get(peer.uuid) ?? index.byId.get(peer.id);
+    // Both keys are exact: the raw client UUID for legacy rows, and the key
+    // derived from the hbbs UUID + ID for clone-isolated rows. There is no
+    // ambiguous ID fallback, so a duplicate RustDesk ID cannot receive the
+    // registration of the other device.
+    return index.byUuid.get(peer.uuid) ?? index.byIsolatedUuid.get(peer.uuid);
   }
 
   private viewFor(
@@ -199,7 +208,7 @@ export class DevicePresenceService {
             peer.lastHeartbeat !== null &&
             peer.lastHeartbeat > onlineAfter,
         )
-        .map((peer) => peer.id),
+        .map((peer) => peer.uuid),
     );
     const matchedHbbsIds = new Set<string>();
     const hbbsOnlineConsoleOffline = new Set<string>();
@@ -211,9 +220,9 @@ export class DevicePresenceService {
       const isActive = peer.status === PeerStatus.ACTIVE;
       if (!isActive) continue;
       const hbbsOnline = entry?.online === true;
-      if (hbbsOnline && !consoleOnline.has(peer.id))
+      if (hbbsOnline && !consoleOnline.has(peer.uuid))
         hbbsOnlineConsoleOffline.add(peer.id);
-      else if (!hbbsOnline && consoleOnline.has(peer.id))
+      else if (!hbbsOnline && consoleOnline.has(peer.uuid))
         consoleOnlineHbbsOffline.add(peer.id);
     }
 

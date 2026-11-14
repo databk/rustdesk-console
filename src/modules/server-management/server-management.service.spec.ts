@@ -220,6 +220,17 @@ describe('server management v2 client', () => {
     );
   });
 
+  it('treats a malformed peer registry as upstream_error', async () => {
+    for (const body of [{}, { data: null }]) {
+      fetchRoute([['http://hbbs:21120/v1/peers', body]]);
+      expect(await create().getPeerSnapshot()).toMatchObject({
+        available: false,
+        reason: 'upstream_error',
+        peers: [],
+      });
+    }
+  });
+
   it('degrades an unavailable hbbs peer registry without throwing', async () => {
     expect(await create({ url: '' }).getPeerSnapshot()).toMatchObject({
       available: false,

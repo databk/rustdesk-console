@@ -185,10 +185,16 @@ export class ServerManagementService {
         undefined,
         PEER_SNAPSHOT_TIMEOUT_MS,
       );
+      // A missing or non-array `data` field is a malformed registry, not an
+      // empty one; treating it as empty would flag every Console device as
+      // missing from hbbs. The catch path reports it as upstream_error.
+      const data = result['data'];
+      if (!Array.isArray(data))
+        throw new Error('hbbs peer registry response is missing a data array');
       return {
         available: true,
         checked_at,
-        peers: asArray(result['data'])
+        peers: data
           .map(parseHbbsPeer)
           .filter((peer): peer is HbbsPeerSnapshotEntry => peer !== null),
       };
