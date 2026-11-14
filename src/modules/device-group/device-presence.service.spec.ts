@@ -6,6 +6,7 @@ jest.mock('uuid', () => ({
 import { PeerStatus } from '../../common/entities/peer.entity';
 import type { Repository } from 'typeorm';
 import type { Peer } from '../../common/entities/peer.entity';
+import { isolatedDeviceUuid } from '../../common/utils/device-identity.util';
 import { DevicePresenceService } from './device-presence.service';
 import type {
   HbbsPeerSnapshot,
@@ -14,6 +15,8 @@ import type {
 import type { ServerManagementService } from '../server-management/server-management.service';
 
 const uuidBytes = (value: string) => Buffer.from(value).toString('base64');
+// Clone isolation stores this Console-only key instead of the client UUID.
+const isolatedHostB = isolatedDeviceUuid('uuid-host-b', 'host-b');
 
 const entry = (
   overrides: Partial<HbbsPeerSnapshotEntry> & Pick<HbbsPeerSnapshotEntry, 'id'>,
@@ -78,7 +81,7 @@ describe('device presence comparison', () => {
         id: 'host-a',
         lastHeartbeat: new Date(now.getTime() - 120_000),
       }),
-      peer({ uuid: 'isolated-key', id: 'host-b' }),
+      peer({ uuid: isolatedHostB, id: 'host-b' }),
       peer({ uuid: 'uuid-host-c', id: 'host-c' }),
       peer({
         uuid: 'uuid-host-d',
@@ -97,9 +100,9 @@ describe('device presence comparison', () => {
       ip: '203.0.113.5',
       anomaly: 'hbbs_online_console_offline',
     });
-    // Clone isolation stores a derived Console key; the ID fallback still
-    // attaches the registration address and reports the disagreement.
-    expect(result.byUuid.get('isolated-key')).toMatchObject({
+    // Clone isolation stores a derived Console key; it is verified against the
+    // hbbs UUID and ID, so it still attaches the registration address.
+    expect(result.byUuid.get(isolatedHostB)).toMatchObject({
       registered: true,
       online: false,
       ip: '203.0.113.6',
@@ -122,7 +125,7 @@ describe('device presence comparison', () => {
         id: 'host-a',
         lastHeartbeat: new Date(now.getTime() - 120_000),
       }),
-      peer({ uuid: 'isolated-key', id: 'host-b' }),
+      peer({ uuid: isolatedHostB, id: 'host-b' }),
       peer({ uuid: 'uuid-host-c', id: 'host-c' }),
       peer({
         uuid: 'uuid-host-d',
@@ -154,6 +157,54 @@ describe('device presence comparison', () => {
       anomaly_count: 4,
     });
     expect(peerRepository.find).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not attach a shared RustDesk ID to another device', async () => {
+    const { service } = create();
+    const peers = [
+      peer({ uuid: isolatedHostB, id: 'host-b' }),
+      // Same RustDesk ID, different client UUID: the hbbs registration for
+      // host-b must stay unassigned instead of leaking its address.
+      peer({ uuid: 'uuid-someone-else', id: 'host-b' }),
+    ];
+
+    const result = await service.enrich(peers, onlineAfter);
+
+    expect(result.byUuid.get(isolatedHostB)).toMatchObject({
+      registered: true,
+      ip: '203.0.113.6',
+    });
+    expect(result.byUuid.get('uuid-someone-else')).toMatchObject({
+      registered: false,
+      ip: '',
+      anomaly: 'console_online_hbbs_offline',
+    });
+  });
+
+  it('tracks report heartbeats per Console row when IDs collide', async () => {
+    const { service, peerRepository } = create();
+    const peers = [
+      peer({
+        uuid: 'uuid-host-a',
+        id: 'host-a',
+        lastHeartbeat: new Date(now.getTime() - 120_000),
+      }),
+      // A second row with the same RustDesk ID must not make the stale row
+      // look online through the shared ID.
+      peer({ uuid: 'uuid-clone', id: 'host-a', lastHeartbeat: now }),
+    ];
+    peerRepository.find.mockResolvedValue(peers);
+
+    const result = await service.enrich(peers, onlineAfter, true);
+
+    expect(result.report).toMatchObject({
+      console: { online: 1 },
+      mismatches: {
+        hbbs_online_console_offline: { count: 1, device_ids: ['host-a'] },
+        console_online_hbbs_offline: { count: 1, device_ids: ['host-a'] },
+        hbbs_only: { count: 1, device_ids: ['orphan'] },
+      },
+    });
   });
 
   it('does not compare when server management is unavailable', async () => {
