@@ -21,6 +21,8 @@ import {
   DeviceOperationFailure,
 } from './dto/device-status.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
+import type { DeviceSortField, DeviceSortOrder } from './dto/device-sort.dto';
+import { applyPeerSort } from './peer-sort';
 import type { PermissionScope } from '../rbac/services/rbac-authorization.service';
 import { UserRoleAssignmentDeviceGroup } from '../rbac/entities/user-role-assignment-device-group.entity';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
@@ -516,6 +518,8 @@ export class DeviceGroupService {
       device_group_name?: string;
       device_group_guid?: string;
       group_name?: string;
+      sort_by?: DeviceSortField;
+      sort_order?: DeviceSortOrder;
     },
     isAdmin: boolean = false,
     rbacScope?: PermissionScope,
@@ -533,6 +537,8 @@ export class DeviceGroupService {
       device_group_name,
       device_group_guid,
       group_name,
+      sort_by,
+      sort_order,
     } = query;
     const skip = (current - 1) * pageSize;
     const onlineAfter = new Date(Date.now() - 60_000);
@@ -671,8 +677,9 @@ export class DeviceGroupService {
       });
     }
 
+    applyPeerSort(queryBuilder, sort_by, sort_order, 'dg');
+
     const [peers, total] = await queryBuilder
-      .orderBy('peer.id', 'ASC')
       .skip(skip)
       .take(pageSize)
       .getManyAndCount();
