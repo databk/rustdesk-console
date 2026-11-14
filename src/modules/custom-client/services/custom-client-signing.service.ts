@@ -1,7 +1,29 @@
 import { Injectable } from '@nestjs/common';
-import { createPrivateKey, sign } from 'crypto';
+import {
+  createPrivateKey,
+  createPublicKey,
+  sign,
+  type KeyObject,
+} from 'crypto';
 import { CustomClientSettingsService } from './custom-client-settings.service';
 import { CustomClientCustomDto } from '../dto/custom-client-build.dto';
+
+const ED25519_PKCS8_HEADER = Buffer.from(
+  '302e020100300506032b657004220420',
+  'hex',
+);
+
+function createEd25519PrivateKey(privateKeyBase64: string): KeyObject {
+  const rawKey = Buffer.from(privateKeyBase64, 'base64');
+  if (rawKey.length === 32) {
+    return createPrivateKey({
+      key: Buffer.concat([ED25519_PKCS8_HEADER, rawKey]),
+      format: 'der',
+      type: 'pkcs8',
+    });
+  }
+  return createPrivateKey({ key: rawKey, format: 'der', type: 'pkcs8' });
+}
 
 @Injectable()
 export class CustomClientSigningService {
@@ -10,7 +32,7 @@ export class CustomClientSigningService {
   async generateSignedCustomTxt(
     custom: CustomClientCustomDto | undefined,
   ): Promise<string> {
-    const { privateKey } = await this.settingsService.getSigningKeys();
+    const privateKey = await this.settingsService.getSigningPrivateKey();
 
     const config: Record<string, unknown> = {};
     if (custom) {
@@ -50,18 +72,17 @@ export class CustomClientSigningService {
     }
 
     const message = Buffer.from(JSON.stringify(config));
-    const keyObject = createPrivateKey({
-      key: Buffer.from(privateKey, 'base64'),
-      format: 'der',
-      type: 'pkcs8',
-    });
+    const keyObject = createEd25519PrivateKey(privateKey);
     const signature = sign(null, message, keyObject);
     const signedMessage = Buffer.concat([signature, message]);
     return signedMessage.toString('base64');
   }
 
   async getPublicKeyBase64(): Promise<string> {
-    const { publicKey } = await this.settingsService.getSigningKeys();
-    return publicKey;
+    const privateKey = await this.settingsService.getSigningPrivateKey();
+    const keyObject = createEd25519PrivateKey(privateKey);
+    const pubKeyObj = createPublicKey(keyObject);
+    const pubDer = pubKeyObj.export({ type: 'spki', format: 'der' });
+    return pubDer.subarray(-32).toString('base64');
   }
 }

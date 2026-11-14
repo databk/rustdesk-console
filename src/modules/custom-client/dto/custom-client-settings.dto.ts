@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Matches } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, Matches } from 'class-validator';
 
 export class UpdateCustomClientSettingsDto {
   @IsOptional()
@@ -14,14 +14,8 @@ export class UpdateCustomClientSettingsDto {
   generatorRef?: string;
 
   @IsOptional()
-  @Matches(/^[A-Za-z0-9+/]{43}=$/)
-  signingPublicKey?: string;
-
-  @IsOptional()
-  @Matches(
-    /^(?:\*{6}|(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)$/,
-  )
-  signingPrivateKey?: string;
+  @IsBoolean()
+  regenerateSigningKey?: boolean;
 }
 
 export interface CustomClientSettingsResponse {
@@ -29,5 +23,4 @@ export interface CustomClientSettingsResponse {
   generatorRepo: string;
   generatorRef: string;
   signingPublicKey: string;
-  signingPrivateKey: string;
 }
