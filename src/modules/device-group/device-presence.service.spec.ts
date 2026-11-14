@@ -181,6 +181,44 @@ describe('device presence comparison', () => {
     });
   });
 
+  it('matches legacy rows by UUID and ID when clones share a UUID', async () => {
+    const sharedUuid = 'uuid-shared';
+    const { service } = create({
+      available: true,
+      checked_at: snapshot.checked_at,
+      peers: [
+        entry({
+          id: 'host-a',
+          uuid: uuidBytes(sharedUuid),
+          ip: '203.0.113.10',
+        }),
+        entry({
+          id: 'host-b',
+          uuid: uuidBytes(sharedUuid),
+          ip: '203.0.113.11',
+        }),
+      ],
+    });
+    const cloneKey = isolatedDeviceUuid(sharedUuid, 'host-b');
+    const peers = [
+      peer({ uuid: sharedUuid, id: 'host-a' }),
+      peer({ uuid: cloneKey, id: 'host-b' }),
+    ];
+
+    const result = await service.enrich(peers, onlineAfter);
+
+    // The legacy row must keep its own registration instead of the last hbbs
+    // entry that happens to share the clone UUID.
+    expect(result.byUuid.get(sharedUuid)).toMatchObject({
+      registered: true,
+      ip: '203.0.113.10',
+    });
+    expect(result.byUuid.get(cloneKey)).toMatchObject({
+      registered: true,
+      ip: '203.0.113.11',
+    });
+  });
+
   it('tracks report heartbeats per Console row when IDs collide', async () => {
     const { service, peerRepository } = create();
     const peers = [
