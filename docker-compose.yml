@@ -7,6 +7,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       DB_TYPE: ${DB_TYPE:-sqlite}
       DB_MIGRATE_ON_START: ${DB_MIGRATE_ON_START:-1}
+      LOG_LEVEL: ${LOG_LEVEL:-log}
 
       DB_HOST: ${DB_HOST:-localhost}
       DB_PORT: ${DB_PORT:-3306}
