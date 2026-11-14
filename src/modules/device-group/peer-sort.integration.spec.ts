@@ -107,4 +107,41 @@ describe('peer sort sql', () => {
     // All devices share the same status, so the ID tie-breaker decides.
     expect(await sortedIds('status', 'desc')).toEqual(['100', '200', '300']);
   });
+
+  it('preserves entity hydration for whole-entity peer queries', async () => {
+    async function wholeEntities(
+      sortBy: Parameters<typeof applyPeerSort>[1],
+      sortOrder: Parameters<typeof applyPeerSort>[2],
+    ) {
+      const queryBuilder = dataSource
+        .getRepository(Peer)
+        .createQueryBuilder('peer')
+        .leftJoinAndSelect('peer.deviceGroup', 'deviceGroup');
+      applyPeerSort(queryBuilder, sortBy, sortOrder, 'deviceGroup');
+      return queryBuilder.skip(0).take(10).getMany();
+    }
+
+    for (const sortBy of [
+      'id',
+      'device_name',
+      'user_name',
+      'device_group_name',
+      'status',
+      'note',
+    ] as const) {
+      const peers = await wholeEntities(sortBy, 'asc');
+
+      expect(peers).toHaveLength(3);
+      for (const peer of peers) {
+        expect(peer.status).toBe(1);
+        expect(peer.id).toBeTruthy();
+      }
+      expect(peers.map((peer) => peer.note)).toEqual(
+        expect.arrayContaining(['aaa', 'ccc', null]),
+      );
+      expect(peers.map((peer) => peer.deviceGroup?.name ?? null)).toEqual(
+        expect.arrayContaining(['Alpha', 'Bravo', null]),
+      );
+    }
+  });
 });

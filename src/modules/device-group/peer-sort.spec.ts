@@ -74,39 +74,27 @@ describe('applyPeerSort', () => {
     expect(queryBuilder.addOrderBy).toHaveBeenCalledWith('peer.id', 'ASC');
   });
 
-  it('uses the provided device group alias', () => {
+  it('orders by the provided device group alias without re-aliasing', () => {
     const queryBuilder = createQueryBuilder();
 
     applyPeerSort(queryBuilder as never, 'device_group_name', 'asc', 'dg');
 
-    expect(queryBuilder.addSelect).toHaveBeenCalledWith(
-      'dg.name',
-      'peer_sort_value',
-    );
-    expect(queryBuilder.orderBy).toHaveBeenCalledWith('peer_sort_value', 'ASC');
+    expect(queryBuilder.addSelect).not.toHaveBeenCalled();
+    expect(queryBuilder.orderBy).toHaveBeenCalledWith('dg.name', 'ASC');
     expect(queryBuilder.addOrderBy).toHaveBeenCalledWith('peer.id', 'ASC');
   });
 
-  it('sorts by status and note without joining related tables', () => {
+  it('sorts entity columns directly to preserve hydration', () => {
     const statusBuilder = createQueryBuilder();
     applyPeerSort(statusBuilder as never, 'status', 'desc', 'dg');
     expect(statusBuilder.leftJoin).not.toHaveBeenCalled();
-    expect(statusBuilder.addSelect).toHaveBeenCalledWith(
-      'peer.status',
-      'peer_sort_value',
-    );
-    expect(statusBuilder.orderBy).toHaveBeenCalledWith(
-      'peer_sort_value',
-      'DESC',
-    );
+    expect(statusBuilder.addSelect).not.toHaveBeenCalled();
+    expect(statusBuilder.orderBy).toHaveBeenCalledWith('peer.status', 'DESC');
 
     const noteBuilder = createQueryBuilder();
     applyPeerSort(noteBuilder as never, 'note', 'asc', 'dg');
     expect(noteBuilder.leftJoin).not.toHaveBeenCalled();
-    expect(noteBuilder.addSelect).toHaveBeenCalledWith(
-      'peer.note',
-      'peer_sort_value',
-    );
-    expect(noteBuilder.orderBy).toHaveBeenCalledWith('peer_sort_value', 'ASC');
+    expect(noteBuilder.addSelect).not.toHaveBeenCalled();
+    expect(noteBuilder.orderBy).toHaveBeenCalledWith('peer.note', 'ASC');
   });
 });
