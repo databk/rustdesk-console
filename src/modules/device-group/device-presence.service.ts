@@ -63,13 +63,22 @@ export interface DevicePresenceEnrichment {
 type PresencePeer = Pick<Peer, 'uuid' | 'id' | 'status' | 'lastHeartbeat'>;
 
 interface PeerIndex {
-  byUuid: Map<string, HbbsPeerSnapshotEntry>;
+  /**
+   * Legacy rows: the raw client UUID scoped by RustDesk ID. The ID is part of
+   * the key because clones share one UUID, so a UUID-only lookup could attach
+   * the other clone's registration to a legacy row.
+   */
+  byUuidAndId: Map<string, HbbsPeerSnapshotEntry>;
   /**
    * Clone-isolation keys derived from the hbbs UUID and RustDesk ID. Indexing
    * the derived key keeps the match exact, so a shared RustDesk ID can never
    * attach another device's registration.
    */
   byIsolatedUuid: Map<string, HbbsPeerSnapshotEntry>;
+}
+
+function identityKey(uuid: string, id: string): string {
+  return `${uuid}\u0000${id}`;
 }
 
 // hbbs reports the client UUID as base64-encoded bytes. A Console UUID is a
@@ -138,26 +147,29 @@ export class DevicePresenceService {
   }
 
   private index(snapshot: HbbsPeerSnapshot): PeerIndex {
-    const byUuid = new Map<string, HbbsPeerSnapshotEntry>();
+    const byUuidAndId = new Map<string, HbbsPeerSnapshotEntry>();
     const byIsolatedUuid = new Map<string, HbbsPeerSnapshotEntry>();
     for (const peer of snapshot.peers) {
       const uuid = decodeHbbsUuid(peer.uuid);
       if (!uuid) continue;
-      byUuid.set(uuid, peer);
+      byUuidAndId.set(identityKey(uuid, peer.id), peer);
       byIsolatedUuid.set(isolatedDeviceUuid(uuid, peer.id), peer);
     }
-    return { byUuid, byIsolatedUuid };
+    return { byUuidAndId, byIsolatedUuid };
   }
 
   private match(
     peer: PresencePeer,
     index: PeerIndex,
   ): HbbsPeerSnapshotEntry | undefined {
-    // Both keys are exact: the raw client UUID for legacy rows, and the key
-    // derived from the hbbs UUID + ID for clone-isolated rows. There is no
-    // ambiguous ID fallback, so a duplicate RustDesk ID cannot receive the
-    // registration of the other device.
-    return index.byUuid.get(peer.uuid) ?? index.byIsolatedUuid.get(peer.uuid);
+    // Both keys are exact. Legacy rows match on UUID + ID because clones share
+    // one UUID; clone-isolated rows match on the key derived from UUID + ID.
+    // There is no ambiguous ID or UUID fallback, so neither a duplicate ID nor
+    // a shared clone UUID can receive the other device's registration.
+    return (
+      index.byUuidAndId.get(identityKey(peer.uuid, peer.id)) ??
+      index.byIsolatedUuid.get(peer.uuid)
+    );
   }
 
   private viewFor(
@@ -197,8 +209,8 @@ export class DevicePresenceService {
     const peers = await this.peerRepository.find({
       select: ['uuid', 'id', 'status', 'lastHeartbeat'],
     });
-    // Use the same UUID-first matching as the per-device views so clone
-    // isolation (derived Console ID) does not show up as a false mismatch.
+    // Use the same exact matching as the per-device views so clone isolation
+    // (derived Console key) does not show up as a false mismatch.
     const index = this.index(snapshot);
     const consoleOnline = new Set(
       peers
