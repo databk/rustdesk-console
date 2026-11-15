@@ -391,12 +391,13 @@ export async function bootstrap(runtime = loadRuntime()) {
     );
     const databaseType = backendEnv.DB_TYPE?.trim().toLowerCase() || 'sqlite';
     check(
-      ['sqlite', 'mysql'].includes(databaseType),
+      ['sqlite', 'mysql', 'mariadb'].includes(databaseType),
       'The application database type is unsupported.',
     );
     const database =
-      databaseType === 'mysql'
-        ? {
+      databaseType === 'sqlite'
+        ? { kind: 'sqlite', path: join(root, 'data/rustdesk-console.db') }
+        : {
             kind: 'mysql',
             host: backendEnv.DB_HOST || 'localhost',
             port: Number(backendEnv.DB_PORT || '3306'),
@@ -405,8 +406,7 @@ export async function bootstrap(runtime = loadRuntime()) {
             passwordFile: join(root, 'updater-state/mysql.password'),
             exclusiveSchema:
               backendEnv.SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA === 'true',
-          }
-        : { kind: 'sqlite', path: join(root, 'data/rustdesk-console.db') };
+          };
     if (database.kind === 'mysql') {
       try {
         const password = await fs.open(database.passwordFile, 'wx', 0o600);

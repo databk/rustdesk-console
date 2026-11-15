@@ -7,6 +7,7 @@ import { AddPasswordResetTokens1790985600002 } from '../migrations/1790985600002
 import { AddDeviceTombstones1791040000000 } from '../migrations/1791040000000-AddDeviceTombstones';
 import { AddDeviceTombstoneReleaseTracking1791126400000 } from '../migrations/1791126400000-AddDeviceTombstoneReleaseTracking';
 import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1791212800000-ReplaceNexusWithCustomClientBuilds';
+import { SupportMariaDbDefaultGroupIndex1794700800000 } from '../migrations/1794700800000-SupportMariaDbDefaultGroupIndex';
 
 export function createDataSourceOptions(): DataSourceOptions {
   const common = {
@@ -18,16 +19,18 @@ export function createDataSourceOptions(): DataSourceOptions {
       AddDeviceTombstones1791040000000,
       AddDeviceTombstoneReleaseTracking1791126400000,
       ReplaceNexusWithCustomClientBuilds1791212800000,
+      SupportMariaDbDefaultGroupIndex1794700800000,
     ],
     migrationsRun: false,
     synchronize: false,
     logging: false,
   };
 
-  if (getDbType() === 'mysql') {
+  const dbType = getDbType();
+  if (dbType === 'mysql' || dbType === 'mariadb') {
     return {
       ...common,
-      type: 'mysql',
+      type: dbType,
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '3306', 10),
       username: process.env.DB_USERNAME || 'root',

@@ -1,6 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 import { INITIAL_SCHEMA_SQLITE } from './initial-schema-sqlite';
 import { INITIAL_SCHEMA_MYSQL } from './initial-schema-mysql';
+import { isMySqlFamily } from '../database/mysql-dialect';
 
 export class InitialSchema1790985600000 implements MigrationInterface {
   name = 'InitialSchema1790985600000';
@@ -10,7 +11,7 @@ export class InitialSchema1790985600000 implements MigrationInterface {
     const statements =
       type === 'sqlite'
         ? INITIAL_SCHEMA_SQLITE
-        : type === 'mysql'
+        : isMySqlFamily(type)
           ? INITIAL_SCHEMA_MYSQL
           : null;
     if (!statements) throw new Error(`Unsupported database type: ${type}`);

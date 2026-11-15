@@ -35,7 +35,7 @@ export class OidcProvider {
   name: string;
 
   @Column({
-    type: getDbType() === 'mysql' ? 'varchar' : 'text',
+    type: getDbType() !== 'sqlite' ? 'varchar' : 'text',
     default: OidcProviderType.OIDC,
   })
   type: OidcProviderType;

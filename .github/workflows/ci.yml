@@ -96,21 +96,52 @@ jobs:
       - name: Build application
         run: npm run build
 
-  mysql-migrations:
-    name: MySQL Migrations
+  database-migrations:
+    name: Database migrations (${{ matrix.name }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MySQL 8.0
+            image: mysql:8.0
+            dbType: mysql
+            healthCmd: mysqladmin ping -h 127.0.0.1 -ptest-password
+          - name: MySQL 8.4 LTS
+            image: mysql:8.4
+            dbType: mysql
+            healthCmd: mysqladmin ping -h 127.0.0.1 -ptest-password
+          - name: MySQL latest
+            image: mysql:latest
+            dbType: mysql
+            healthCmd: mysqladmin ping -h 127.0.0.1 -ptest-password
+          # MariaDB 11.4 no longer ships the mysqladmin compatibility
+          # symlink; use the healthcheck.sh bundled with the image instead.
+          # MariaDB needs its own TypeORM dialect because MySQL's schema
+          # introspection reports spurious drift against it.
+          - name: MariaDB 10.6
+            image: mariadb:10.6
+            dbType: mariadb
+            healthCmd: healthcheck.sh --connect --innodb_initialized
+          - name: MariaDB 11.4
+            image: mariadb:11.4
+            dbType: mariadb
+            healthCmd: healthcheck.sh --connect --innodb_initialized
     services:
       mysql:
-        image: mysql:8.0
+        image: ${{ matrix.image }}
         env:
           MYSQL_ROOT_PASSWORD: test-password
+          MARIADB_ROOT_PASSWORD: test-password
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptest-password"
+          --health-cmd="${{ matrix.healthCmd }}"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=10
+          --health-retries=20
+          --health-start-period=30s
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -124,14 +155,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test fresh and existing MySQL databases
+      - name: Test fresh and existing databases
         env:
           RUN_MYSQL_MIGRATION_TESTS: '1'
-          DB_TYPE: mysql
+          DB_TYPE: ${{ matrix.dbType }}
           DB_HOST: 127.0.0.1
           DB_USERNAME: root
           DB_PASSWORD: test-password
         run: npx jest --runInBand src/database/mysql-migration.integration.spec.ts
+
+      - name: Summarize database version
+        if: always()
+        run: |
+          echo "### ${{ matrix.name }} (${{ matrix.image }})" >> "$GITHUB_STEP_SUMMARY"
 
   docker-build:
     name: Docker Build Check

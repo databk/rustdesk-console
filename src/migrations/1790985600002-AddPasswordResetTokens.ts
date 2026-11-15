@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
+import { isMySqlFamily } from '../database/mysql-dialect';
 
 export class AddPasswordResetTokens1790985600002 implements MigrationInterface {
   name = 'AddPasswordResetTokens1790985600002';
@@ -22,7 +23,7 @@ export class AddPasswordResetTokens1790985600002 implements MigrationInterface {
       return;
     }
 
-    if (type === 'mysql') {
+    if (isMySqlFamily(type)) {
       await queryRunner.query(
         'CREATE TABLE `password_reset_tokens` (`guid` varchar(255) NOT NULL, `token` varchar(255) NOT NULL, `userGuid` varchar(255) NOT NULL, `expiresAt` datetime NOT NULL, `usedAt` datetime NULL, `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX `IDX_cdb3234dc1494961ee906cc1ac` (`userGuid`), UNIQUE INDEX `IDX_ab673f0e63eac966762155508e` (`token`), PRIMARY KEY (`guid`)) ENGINE=InnoDB',
       );

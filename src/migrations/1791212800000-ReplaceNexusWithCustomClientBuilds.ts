@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
+import { isMySqlFamily } from '../database/mysql-dialect';
 
 export class ReplaceNexusWithCustomClientBuilds1791212800000 implements MigrationInterface {
   name = 'ReplaceNexusWithCustomClientBuilds1791212800000';
@@ -31,7 +32,7 @@ export class ReplaceNexusWithCustomClientBuilds1791212800000 implements Migratio
       return;
     }
 
-    if (type === 'mysql') {
+    if (isMySqlFamily(type)) {
       await queryRunner.query(
         `CREATE TABLE \`custom_client_builds\` (\`uuid\` varchar(255) NOT NULL, \`userGuid\` varchar(255) NOT NULL, \`os\` varchar(255) NOT NULL, \`arch\` varchar(255) NOT NULL, \`custom\` text NULL, \`status\` varchar(255) NOT NULL DEFAULT 'pending', \`message\` text NULL, \`files\` text NULL, \`buildToken\` varchar(255) NOT NULL, \`githubRunId\` bigint NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX \`IDX_custom_client_builds_userGuid_createdAt\` (\`userGuid\`, \`createdAt\`), INDEX \`IDX_custom_client_builds_status\` (\`status\`), PRIMARY KEY (\`uuid\`), CONSTRAINT \`FK_16772963276780d954e55ec01cd\` FOREIGN KEY (\`userGuid\`) REFERENCES \`users\` (\`guid\`) ON DELETE CASCADE ON UPDATE NO ACTION) ENGINE=InnoDB`,
       );
