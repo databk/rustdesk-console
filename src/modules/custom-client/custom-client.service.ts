@@ -39,7 +39,7 @@ const CALLBACK_TIMEOUT_MS = 10_000;
 interface GithubDispatchInputs {
   'build-id': string;
   'backend-url': string;
-  'upload-token': string;
+  'build-token': string;
 }
 
 function resolveWorkflowFile(os: string, arch: string | undefined): string {
@@ -109,7 +109,7 @@ export class CustomClientService {
 
     const site = await this.generalSettingsService.getSiteSettings();
     const uuid = randomUUID();
-    const callbackToken = randomUUID();
+    const buildToken = randomUUID();
     const backendUrl = `${site.effectiveBackendUrl}/api/custom-client/builds/${uuid}`;
 
     const build = this.buildRepository.create({
@@ -119,7 +119,7 @@ export class CustomClientService {
       arch: dto.os === 'all' ? 'all' : (dto.arch ?? ''),
       custom: dto.custom ? JSON.stringify(dto.custom) : undefined,
       status: 'pending',
-      callbackToken,
+      buildToken: buildToken,
     });
     await this.buildRepository.save(build);
 
@@ -127,7 +127,7 @@ export class CustomClientService {
     const inputs: GithubDispatchInputs = {
       'build-id': uuid,
       'backend-url': backendUrl,
-      'upload-token': callbackToken,
+      'build-token': buildToken,
     };
 
     const dispatchUrl = `${GITHUB_API}/repos/${settings.generatorRepo}/actions/workflows/${workflowFile}/dispatches`;
@@ -241,7 +241,7 @@ export class CustomClientService {
 
   async getBuildConfig(
     uuid: string,
-    uploadToken: string,
+    buildToken: string,
   ): Promise<{
     customTxt: string;
     publicKey: string;
@@ -251,7 +251,7 @@ export class CustomClientService {
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    this.assertUploadToken(build, uploadToken);
+    this.assertBuildToken(build, buildToken);
 
     const customObj: CustomClientCustomDto | undefined = build.custom
       ? (JSON.parse(build.custom) as CustomClientCustomDto)
@@ -267,27 +267,27 @@ export class CustomClientService {
   async getBuildLogoFile(
     uuid: string,
     filename: string,
-    uploadToken: string,
+    buildToken: string,
   ): Promise<string> {
     const build = await this.buildRepository.findOne({ where: { uuid } });
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    this.assertUploadToken(build, uploadToken);
+    this.assertBuildToken(build, buildToken);
 
     return this.logoService.getLogoPath(filename);
   }
 
   async handleUpload(
     uuid: string,
-    uploadToken: string,
+    buildToken: string,
     files: Express.Multer.File[],
   ): Promise<void> {
     const build = await this.buildRepository.findOne({ where: { uuid } });
     if (!build) {
       throw new NotFoundException('Build record not found');
     }
-    this.assertUploadToken(build, uploadToken);
+    this.assertBuildToken(build, buildToken);
     if (build.status === 'completed' || build.status === 'failed') {
       throw new BadRequestException('Build already finished');
     }
@@ -394,7 +394,7 @@ export class CustomClientService {
         {
           status: newStatus,
           message: newMessage,
-          callbackToken: randomUUID(),
+          buildToken: randomUUID(),
         },
       );
       this.logger.log(
@@ -418,17 +418,17 @@ export class CustomClientService {
     return build;
   }
 
-  private assertUploadToken(
+  private assertBuildToken(
     build: CustomClientBuild,
-    uploadToken: string,
+    buildToken: string,
   ): void {
-    const tokenBuffer = Buffer.from(uploadToken);
-    const expectedBuffer = Buffer.from(build.callbackToken);
+    const tokenBuffer = Buffer.from(buildToken);
+    const expectedBuffer = Buffer.from(build.buildToken);
     if (
       tokenBuffer.length !== expectedBuffer.length ||
       !timingSafeEqual(tokenBuffer, expectedBuffer)
     ) {
-      throw new UnauthorizedException('Invalid upload token');
+      throw new UnauthorizedException('Invalid build token');
     }
   }
 

@@ -46,7 +46,7 @@ export class CustomClientBuild {
   files: string;
 
   @Column()
-  callbackToken: string;
+  buildToken: string;
 
   @Column({ type: 'bigint', nullable: true })
   githubRunId: number | null;
