@@ -1,24 +1,21 @@
 import { DataSource, MigrationExecutor, QueryRunner } from 'typeorm';
 import { InitialSchema1790985600000 } from '../migrations/1790985600000-InitialSchema';
+import { isMariaDb, isMySqlFamily } from './mysql-dialect';
+import {
+  SchemaDiffQuery,
+  schemaDiffQueries,
+  USER_GROUP_DEFAULT_KEY_COLUMN,
+} from './schema-diff';
 
 const INITIAL_MIGRATION = new InitialSchema1790985600000().name;
 const MYSQL_MIGRATION_LOCK = 'rustdesk_migrations';
-
-interface SchemaDiffQuery {
-  query: string;
-  parameters?: unknown[];
-}
-
-interface SchemaDiff {
-  upQueries: SchemaDiffQuery[];
-}
 
 /** Hold one MySQL connection's advisory lock for the entire migration flow. */
 export async function withMigrationLock<T>(
   dataSource: DataSource,
   action: () => Promise<T>,
 ): Promise<T> {
-  if (dataSource.options.type !== 'mysql') return action();
+  if (!isMySqlFamily(dataSource.options.type)) return action();
 
   const runner = dataSource.createQueryRunner();
   let locked = false;
@@ -76,26 +73,24 @@ export async function baselineExistingDatabase(
     const existingTables = await runner.getTables(tablePaths);
     if (existingTables.length === 0) return false;
 
-    const schemaDiff = await dataSource.driver.createSchemaBuilder().log();
-    if (schemaDiff.upQueries.length > 0) {
+    const schemaDiff = await schemaDiffQueries(dataSource);
+    if (schemaDiff.length > 0) {
       const migrationsTableName =
         dataSource.options.migrationsTableName ?? 'migrations';
       const hasMigrationHistory = await runner.hasTable(migrationsTableName);
       if (!hasMigrationHistory) {
         await repairSynchronizedSchema(dataSource, runner, schemaDiff);
-        const remainingDiff = await dataSource.driver
-          .createSchemaBuilder()
-          .log();
-        if (remainingDiff.upQueries.length > 0) {
+        const remainingDiff = await schemaDiffQueries(dataSource);
+        if (remainingDiff.length > 0) {
           throw new Error(
-            `Existing database schema still differs from this release after repair (${remainingDiff.upQueries.length} pending schema changes). Restore or repair the schema before baselining.`,
+            `Existing database schema still differs from this release after repair (${remainingDiff.length} pending schema changes). Restore or repair the schema before baselining.`,
           );
         }
       } else {
         // A database with migration history must be repaired explicitly.
         // Marking it as migrated would conceal missing tables or columns.
         throw new Error(
-          `Existing database schema differs from this release (${schemaDiff.upQueries.length} pending schema changes). Restore or repair the schema before baselining.`,
+          `Existing database schema differs from this release (${schemaDiff.length} pending schema changes). Restore or repair the schema before baselining.`,
         );
       }
     }
@@ -164,7 +159,7 @@ function stripStrayUniqueConstraints(
 async function repairSynchronizedSchema(
   dataSource: DataSource,
   runner: QueryRunner,
-  schemaDiff: SchemaDiff,
+  schemaDiff: SchemaDiffQuery[],
 ): Promise<void> {
   // Refuse to repair if any entity table has columns that the current
   // entities do not define — the rebuild would drop them and their data.
@@ -177,7 +172,11 @@ async function repairSynchronizedSchema(
       metadata.columns.map((column) => column.databaseName),
     );
     for (const dbColumn of table.columns) {
-      if (!entityColumns.has(dbColumn.name)) {
+      // The MariaDB default-group key is installed and kept by migrations.
+      if (
+        !entityColumns.has(dbColumn.name) &&
+        dbColumn.name !== USER_GROUP_DEFAULT_KEY_COLUMN
+      ) {
         throw new Error(
           `Table "${metadata.tableName}" has column "${dbColumn.name}" that is not defined in the current entities. Repairing the schema would drop this column and its data. Remove the column manually or add a data-preserving migration before baselining.`,
         );
@@ -186,12 +185,12 @@ async function repairSynchronizedSchema(
   }
 
   const entityUniques = entityUniqueConstraintNames(dataSource);
-  const queries = schemaDiff.upQueries.map((query) => ({
+  const queries = schemaDiff.map((query) => ({
     ...query,
     query: stripStrayUniqueConstraints(query.query, entityUniques),
   }));
 
-  if (dataSource.options.type === 'mysql') {
+  if (isMySqlFamily(dataSource.options.type)) {
     // MySQL DDL is non-transactional; only apply additive changes so a
     // failure can be retried safely and no data can be lost.
     for (const query of queries) {
@@ -227,11 +226,29 @@ async function repairSynchronizedSchema(
 }
 
 /**
+ * MariaDB and MySQL need different TypeORM dialects: connecting to MariaDB
+ * through the MySQL driver makes its schema introspection drift. Reject the
+ * mismatch before any migration runs instead of failing later with a confusing
+ * pending-schema-changes error.
+ */
+async function assertDialectMatchesServer(
+  dataSource: DataSource,
+): Promise<void> {
+  if (dataSource.options.type !== 'mysql') return;
+  if (await isMariaDb(dataSource)) {
+    throw new Error(
+      'The configured database server is MariaDB but DB_TYPE=mysql. Set DB_TYPE=mariadb so TypeORM uses the MariaDB dialect.',
+    );
+  }
+}
+
+/**
  * Bring the database schema up to date: baseline a legacy synchronized
  * database when needed, then run all pending migrations, failing when any
  * remain pending afterwards.
  */
 export async function migrateDatabase(dataSource: DataSource): Promise<void> {
+  await assertDialectMatchesServer(dataSource);
   await withMigrationLock(dataSource, async () => {
     await baselineExistingDatabase(dataSource);
     await dataSource.runMigrations({

@@ -289,11 +289,11 @@ def write_environment(file, values):
 
 def database_environment(values):
     result = {**values, 'DB_TYPE': values.get('DB_TYPE', '').strip().lower() or 'sqlite'}
-    if result['DB_TYPE'] not in ['sqlite', 'mysql']:
-        raise ValueError('DB_TYPE must be sqlite or mysql')
-    if result['DB_TYPE'] == 'mysql':
+    if result['DB_TYPE'] not in ['sqlite', 'mysql', 'mariadb']:
+        raise ValueError('DB_TYPE must be sqlite, mysql or mariadb')
+    if result['DB_TYPE'] != 'sqlite':
         if result.get('SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA') != 'true':
-            raise ValueError('MySQL requires an explicitly dedicated schema: SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA=true')
+            raise ValueError('MySQL/MariaDB requires an explicitly dedicated schema: SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA=true')
         # Persist the same effective defaults used by the application before hashing.
         for key, default in {'DB_HOST': 'localhost', 'DB_PORT': '3306', 'DB_USERNAME': 'root',
                              'DB_PASSWORD': '', 'DB_DATABASE': 'rustdesk_console'}.items():

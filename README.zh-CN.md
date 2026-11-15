@@ -278,7 +278,7 @@ npm run start:prod
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `DB_TYPE` | `sqlite` | `sqlite` 或 `mysql` |
+| `DB_TYPE` | `sqlite` | `sqlite`、`mysql` 或 `mariadb` |
 | `DB_HOST` | `localhost` | MySQL 主机 |
 | `DB_PORT` | `3306` | MySQL 端口 |
 | `DB_USERNAME` | `root` | MySQL 用户名（Compose 默认 `rustdesk_console`） |
@@ -288,7 +288,7 @@ npm run start:prod
 
 使用 MySQL 时：
 
-- 需要 MySQL 8.0.13 或更高版本。
+- 需要 MySQL 8.0.13 或更高版本；MariaDB 10.6 或更高版本用 `DB_TYPE=mariadb` 选择（MariaDB 需要独立的 TypeORM 方言，不能用 `DB_TYPE=mysql`）。
 - 自动更新要求该 schema 专用于本应用，并显式设置 `SYSTEM_UPDATE_MYSQL_EXCLUSIVE_SCHEMA=true`。
 - 多副本部署时，先单独执行一次迁移，再给所有副本设置 `DB_MIGRATE_ON_START=0`。标准 Compose 已将该变量透传给后端。
 

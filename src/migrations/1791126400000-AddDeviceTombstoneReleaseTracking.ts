@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
+import { isMySqlFamily } from '../database/mysql-dialect';
 
 export class AddDeviceTombstoneReleaseTracking1791126400000 implements MigrationInterface {
   name = 'AddDeviceTombstoneReleaseTracking1791126400000';
@@ -24,7 +25,7 @@ export class AddDeviceTombstoneReleaseTracking1791126400000 implements Migration
       return;
     }
 
-    if (type === 'mysql') {
+    if (isMySqlFamily(type)) {
       if (
         !(await queryRunner.hasColumn('device_tombstones', 'releaseRequested'))
       )

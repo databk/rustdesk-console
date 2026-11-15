@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
+import { isMySqlFamily } from '../database/mysql-dialect';
 
 export class AddDeviceTombstones1791040000000 implements MigrationInterface {
   name = 'AddDeviceTombstones1791040000000';
@@ -20,7 +21,7 @@ export class AddDeviceTombstones1791040000000 implements MigrationInterface {
       return;
     }
 
-    if (type === 'mysql') {
+    if (isMySqlFamily(type)) {
       await queryRunner.query(
         'CREATE TABLE `device_tombstones` (`uuid` varchar(255) NOT NULL, `deviceId` varchar(255) NOT NULL, `banned` tinyint NOT NULL DEFAULT 0, `deletedBy` varchar(255) NULL, `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), INDEX `IDX_device_tombstones_deviceId` (`deviceId`), PRIMARY KEY (`uuid`)) ENGINE=InnoDB',
       );

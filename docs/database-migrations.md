@@ -34,7 +34,11 @@ should use one writer process.
 
 MySQL deployments require version 8.0.13 or later for the functional unique
 index that permits multiple ordinary user groups while enforcing a single
-default group.
+default group. MariaDB 10.6 or later is supported as well, selected with
+`DB_TYPE=mariadb`: it needs its own TypeORM dialect because the MySQL dialect
+reports spurious schema drift against MariaDB. MariaDB enforces the same rule
+with a persisted `user_groups.isDefaultKey` generated column and a unique index
+created by a migration, because it cannot index expressions.
 
 Existing databases created with `synchronize: true` are automatically
 baselined. When the schema already matches this release's entities, the
@@ -69,14 +73,24 @@ old schema, review the SQL and commit the migration alongside the code:
 npm run migration:generate -- src/migrations/MeaningfulName
 ```
 
-`DB_TYPE` selects SQLite or MySQL for the CLI data source. TypeORM generates
-SQL for only the selected dialect; a committed migration must handle both
-database types. Generate and review a draft for each dialect, then combine
-them in one migration class using `queryRunner.connection.options.type`.
+`DB_TYPE` selects SQLite, MySQL or MariaDB for the CLI data source. TypeORM
+generates SQL for only the selected dialect; a committed migration must handle
+all database types. Generate and review a draft for each dialect, then combine
+them in one migration class using `queryRunner.connection.options.type`;
+`isMySqlFamily()` in `src/database/mysql-dialect.ts` covers the shared MySQL
+syntax.
 Register the new class in `src/database/data-source-options.ts`; the static
 list ensures standalone executables contain every migration.
 Preserve data explicitly when renaming columns or rebuilding SQLite tables.
 Test the upgrade on copies with real data as well as on a fresh database.
+
+MariaDB cannot index an expression, so the single-default-group rule uses the
+`user_groups.isDefaultKey` generated column and the
+`UQ_user_groups_default_key` unique index created by
+`SupportMariaDbDefaultGroupIndex1794700800000`. TypeORM does not model that
+column, so `src/database/schema-diff.ts` removes its statements from every
+schema diff; keep both the column and the index when reviewing a generated
+MariaDB draft.
 
 Do not edit a migration that has been released. Add a new migration instead.
 The entity list in `src/database/entities.ts` and data source options in

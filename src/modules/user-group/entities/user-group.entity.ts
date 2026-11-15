@@ -15,8 +15,9 @@ import { User } from '../../user/entities/user.entity';
 @Index('UQ_user_groups_single_default', ['isDefault'], {
   unique: true,
   where: '"isDefault" = 1',
-  // MySQL needs a functional index, installed by a migration.
-  synchronize: getDbType() !== 'mysql',
+  // SQLite uses the partial index above. MySQL needs a functional index and
+  // MariaDB a generated column, both installed by migrations.
+  synchronize: getDbType() === 'sqlite',
 } as IndexOptions & { synchronize: boolean })
 export class UserGroup {
   @PrimaryColumn()

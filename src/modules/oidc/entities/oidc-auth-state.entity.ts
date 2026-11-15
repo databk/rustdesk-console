@@ -51,7 +51,7 @@ export class OidcAuthState {
   op: string;
 
   @Column({
-    type: getDbType() === 'mysql' ? 'varchar' : 'text',
+    type: getDbType() !== 'sqlite' ? 'varchar' : 'text',
     default: OidcProviderType.OIDC,
   })
   providerType: OidcProviderType;
@@ -99,7 +99,7 @@ export class OidcAuthState {
    * cancelled - cancelled
    */
   @Column({
-    type: getDbType() === 'mysql' ? 'varchar' : 'text',
+    type: getDbType() !== 'sqlite' ? 'varchar' : 'text',
     default: OidcAuthStatus.PENDING,
   })
   status: OidcAuthStatus;

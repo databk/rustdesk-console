@@ -6,7 +6,7 @@ const CUSTOM_CLIENT_BUILD_SUBDIR = 'custom-client-builds';
 const CUSTOM_CLIENT_LOGO_SUBDIR = 'custom-client-logos';
 const AVATAR_SUBDIR = 'avatars';
 
-export type DbType = 'sqlite' | 'mysql';
+export type DbType = 'sqlite' | 'mysql' | 'mariadb';
 
 export function getDataDir(): string {
   return process.env.DATA_DIR || DEFAULT_DATA_DIR;
@@ -14,7 +14,7 @@ export function getDataDir(): string {
 
 export function getDbType(): DbType {
   const raw = process.env.DB_TYPE?.trim().toLowerCase() || 'sqlite';
-  if (raw === 'sqlite' || raw === 'mysql') {
+  if (raw === 'sqlite' || raw === 'mysql' || raw === 'mariadb') {
     return raw;
   }
   throw new Error(`Unsupported DB_TYPE: ${raw}`);

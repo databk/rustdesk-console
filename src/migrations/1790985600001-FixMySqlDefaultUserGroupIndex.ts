@@ -1,10 +1,15 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
+import { isMariaDb, isMySqlFamily } from '../database/mysql-dialect';
 
 export class FixMySqlDefaultUserGroupIndex1790985600001 implements MigrationInterface {
   name = 'FixMySqlDefaultUserGroupIndex1790985600001';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    if (queryRunner.connection.options.type !== 'mysql') return;
+    if (!isMySqlFamily(queryRunner.connection.options.type)) return;
+    // MariaDB has no functional key parts. The migration never succeeded
+    // there, so it can safely leave the work to
+    // SupportMariaDbDefaultGroupIndex1794700800000.
+    if (await isMariaDb(queryRunner)) return;
 
     const table = await queryRunner.getTable('user_groups');
     if (!table) throw new Error('Missing user_groups table');

@@ -7,15 +7,19 @@ import { AddPasswordResetTokens1790985600002 } from '../migrations/1790985600002
 import { AddDeviceTombstones1791040000000 } from '../migrations/1791040000000-AddDeviceTombstones';
 import { AddDeviceTombstoneReleaseTracking1791126400000 } from '../migrations/1791126400000-AddDeviceTombstoneReleaseTracking';
 import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1791212800000-ReplaceNexusWithCustomClientBuilds';
+import { SupportMariaDbDefaultGroupIndex1794700800000 } from '../migrations/1794700800000-SupportMariaDbDefaultGroupIndex';
 import { migrateDatabase } from './migration-manager';
+import { schemaDiffQueries } from './schema-diff';
 
 const describeMysql = process.env.RUN_MYSQL_MIGRATION_TESTS
   ? describe
   : describe.skip;
 
 describeMysql('MySQL database migrations', () => {
+  const dbType: 'mysql' | 'mariadb' =
+    process.env.DB_TYPE === 'mariadb' ? 'mariadb' : 'mysql';
   const common = {
-    type: 'mysql' as const,
+    type: dbType,
     host: process.env.DB_HOST || '127.0.0.1',
     port: Number(process.env.DB_PORT || 3306),
     username: process.env.DB_USERNAME || 'root',
@@ -28,6 +32,7 @@ describeMysql('MySQL database migrations', () => {
       AddDeviceTombstones1791040000000,
       AddDeviceTombstoneReleaseTracking1791126400000,
       ReplaceNexusWithCustomClientBuilds1791212800000,
+      SupportMariaDbDefaultGroupIndex1794700800000,
     ],
   };
   const databases = [
@@ -39,6 +44,14 @@ describeMysql('MySQL database migrations', () => {
 
   function source(database: string, synchronize = false): DataSource {
     return new DataSource({ ...common, database, synchronize });
+  }
+
+  /**
+   * The diff ignores the generated column MariaDB uses to enforce a single
+   * default user group (see src/database/schema-diff.ts).
+   */
+  async function schemaDrift(dataSource: DataSource) {
+    return schemaDiffQueries(dataSource);
   }
 
   beforeAll(async () => {
@@ -77,12 +90,10 @@ describeMysql('MySQL database migrations', () => {
         migrateDatabase(concurrent),
       ]);
       expect(await dataSource.showMigrations()).toBe(false);
-      expect(
-        (await dataSource.driver.createSchemaBuilder().log()).upQueries,
-      ).toHaveLength(0);
+      expect(await schemaDrift(dataSource)).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(6);
+      ).toHaveLength(7);
       await dataSource.query(
         "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0), ('d', 'D', 'd', 1)",
       );
@@ -119,7 +130,7 @@ describeMysql('MySQL database migrations', () => {
       ).toEqual([{ name: 'retained' }]);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(6);
+      ).toHaveLength(7);
       await dataSource.query(
         "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0)",
       );
@@ -170,12 +181,10 @@ describeMysql('MySQL database migrations', () => {
           "SELECT name FROM strategies WHERE guid = 'keep-me'",
         ),
       ).toEqual([{ name: 'retained' }]);
-      expect(
-        (await dataSource.driver.createSchemaBuilder().log()).upQueries,
-      ).toHaveLength(0);
+      expect(await schemaDrift(dataSource)).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(6);
+      ).toHaveLength(7);
     } finally {
       await dataSource.destroy();
     }
