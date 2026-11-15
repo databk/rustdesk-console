@@ -45,7 +45,7 @@ export class CustomClientBuild {
   @Column({ type: 'text', nullable: true })
   files: string;
 
-  @Column({ name: 'callbackToken' })
+  @Column()
   buildToken: string;
 
   @Column({ type: 'bigint', nullable: true })
