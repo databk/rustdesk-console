@@ -124,8 +124,8 @@ export class CustomClientController {
   @Get('builds/:uuid/config')
   @Public()
   async getBuildConfig(@Param('uuid') uuid: string, @Req() req: Request) {
-    const callbackToken = String(req.headers['x-callback-token'] ?? '');
-    return this.customClientService.getBuildConfig(uuid, callbackToken);
+    const uploadToken = String(req.headers['x-upload-token'] ?? '');
+    return this.customClientService.getBuildConfig(uuid, uploadToken);
   }
 
   @Get('builds/:uuid/logo/:filename')
@@ -136,11 +136,11 @@ export class CustomClientController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    const callbackToken = String(req.headers['x-callback-token'] ?? '');
+    const uploadToken = String(req.headers['x-upload-token'] ?? '');
     const filePath = await this.customClientService.getBuildLogoFile(
       uuid,
       filename,
-      callbackToken,
+      uploadToken,
     );
     if (!existsSync(filePath)) {
       throw new NotFoundException('Logo file not found');
@@ -168,7 +168,7 @@ export class CustomClientController {
     stream.pipe(res);
   }
 
-  @Post('builds/:uuid/callback')
+  @Post('builds/:uuid/upload')
   @Public()
   @UseInterceptors(
     FilesInterceptor('files', 10, {
@@ -176,21 +176,14 @@ export class CustomClientController {
     }),
   )
   @HttpCode(HttpStatus.OK)
-  async handleCallback(
+  async handleUpload(
     @Param('uuid') uuid: string,
     @Req() req: Request,
-    @Body() body: { status?: string; message?: string },
     @UploadedFiles() files: Express.Multer.File[],
   ) {
-    const callbackToken = String(req.headers['x-callback-token'] ?? '');
-    await this.customClientService.handleCallback(
-      uuid,
-      callbackToken,
-      body?.status ?? 'completed',
-      body?.message,
-      files ?? [],
-    );
-    return { message: 'Callback processed' };
+    const uploadToken = String(req.headers['x-upload-token'] ?? '');
+    await this.customClientService.handleUpload(uuid, uploadToken, files ?? []);
+    return { message: 'Upload processed' };
   }
 
   @Get('logos')
