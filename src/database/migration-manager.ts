@@ -73,6 +73,11 @@ export async function baselineExistingDatabase(
     const existingTables = await runner.getTables(tablePaths);
     if (existingTables.length === 0) return false;
 
+    // Run before trusting the diff: the MariaDB filter below hides the managed
+    // generated column, but any other undeclared column must still be refused,
+    // even when it was the only pending change.
+    await assertNoUndeclaredColumns(dataSource, runner);
+
     const schemaDiff = await schemaDiffQueries(dataSource);
     if (schemaDiff.length > 0) {
       const migrationsTableName =
@@ -140,6 +145,41 @@ function stripStrayUniqueConstraints(
 }
 
 /**
+ * Refuse to baseline when an entity table holds a column the current entities
+ * do not define: a repair rebuild would drop it and its data. The MariaDB
+ * default-group generated column is the only tolerated exception, and only
+ * where it was actually created as a generated column. The check runs before
+ * the schema diff so the MariaDB diff filter cannot hide an undeclared column
+ * that happens to have the same name.
+ */
+async function assertNoUndeclaredColumns(
+  dataSource: DataSource,
+  runner: QueryRunner,
+): Promise<void> {
+  const mariaDb = await isMariaDb(dataSource);
+  for (const metadata of dataSource.entityMetadatas) {
+    if (!metadata.synchronize || metadata.tableType !== 'regular') continue;
+    const table = await runner.getTable(metadata.tablePath);
+    if (!table) continue;
+    const entityColumns = new Set(
+      metadata.columns.map((column) => column.databaseName),
+    );
+    for (const dbColumn of table.columns) {
+      if (entityColumns.has(dbColumn.name)) continue;
+      const managedDefaultKey =
+        mariaDb &&
+        metadata.tableName === 'user_groups' &&
+        dbColumn.name === USER_GROUP_DEFAULT_KEY_COLUMN &&
+        dbColumn.generatedType !== undefined;
+      if (managedDefaultKey) continue;
+      throw new Error(
+        `Table "${metadata.tableName}" has column "${dbColumn.name}" that is not defined in the current entities. Repairing the schema would drop this column and its data. Remove the column manually or add a data-preserving migration before baselining.`,
+      );
+    }
+  }
+}
+
+/**
  * One-off repair for a database created by the old synchronize
  * configuration. Applies the pending schema diff, preserving all data: tables
  * are rebuilt through the full column list, and a rebuild is rejected up
@@ -161,34 +201,6 @@ async function repairSynchronizedSchema(
   runner: QueryRunner,
   schemaDiff: SchemaDiffQuery[],
 ): Promise<void> {
-  // Refuse to repair if any entity table has columns that the current
-  // entities do not define — the rebuild would drop them and their data.
-  // Require an explicit, data-preserving migration instead.
-  for (const metadata of dataSource.entityMetadatas) {
-    if (!metadata.synchronize || metadata.tableType !== 'regular') continue;
-    const table = await runner.getTable(metadata.tablePath);
-    if (!table) continue;
-    const entityColumns = new Set(
-      metadata.columns.map((column) => column.databaseName),
-    );
-    for (const dbColumn of table.columns) {
-      if (entityColumns.has(dbColumn.name)) continue;
-      // The MariaDB default-group key is installed and kept by migrations, so
-      // it is the only tolerated undeclared column. Keep the exemption narrow:
-      // a column with this name on SQLite or on another table is still
-      // rejected, because a rebuild would drop it and its data.
-      const managedDefaultKey =
-        metadata.tableName === 'user_groups' &&
-        isMySqlFamily(dataSource.options.type) &&
-        dbColumn.name === USER_GROUP_DEFAULT_KEY_COLUMN;
-      if (!managedDefaultKey) {
-        throw new Error(
-          `Table "${metadata.tableName}" has column "${dbColumn.name}" that is not defined in the current entities. Repairing the schema would drop this column and its data. Remove the column manually or add a data-preserving migration before baselining.`,
-        );
-      }
-    }
-  }
-
   const entityUniques = entityUniqueConstraintNames(dataSource);
   const queries = schemaDiff.map((query) => ({
     ...query,

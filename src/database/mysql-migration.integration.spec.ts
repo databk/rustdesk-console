@@ -42,6 +42,7 @@ describeMysql('MySQL database migrations', () => {
     'rustdesk_migration_destructive',
     'rustdesk_migration_retry',
     'rustdesk_migration_incompatible',
+    'rustdesk_migration_undeclared',
   ];
 
   const itMariaDb = dbType === 'mariadb' ? it : it.skip;
@@ -218,24 +219,41 @@ describeMysql('MySQL database migrations', () => {
     'retries the default-group migration after partially applied DDL',
     async () => {
       const dataSource = source(databases[4]);
+      const markPending = () =>
+        dataSource.query(
+          "DELETE FROM migrations WHERE name = 'SupportMariaDbDefaultGroupIndex1794700800000'",
+        );
       await dataSource.initialize();
       try {
         await migrateDatabase(dataSource);
 
         // MariaDB commits DDL immediately, so a crash can leave the schema
         // applied while the migration is still pending.
-        await dataSource.query(
-          "DELETE FROM migrations WHERE name = 'SupportMariaDbDefaultGroupIndex1794700800000'",
-        );
+        await markPending();
         await migrateDatabase(dataSource);
+
+        // The metadata table can be lost independently of the column.
+        await dataSource.query('DROP TABLE `typeorm_metadata`');
+        await markPending();
+        await migrateDatabase(dataSource);
+
+        // So can the metadata row describing the generated column.
+        await dataSource.query(
+          "DELETE FROM `typeorm_metadata` WHERE `name` = 'isDefaultKey'",
+        );
+        await markPending();
+        await migrateDatabase(dataSource);
+        expect(
+          await dataSource.query(
+            "SELECT `name` FROM `typeorm_metadata` WHERE `name` = 'isDefaultKey'",
+          ),
+        ).toHaveLength(1);
 
         // Same again with the unique index missing.
         await dataSource.query(
           'DROP INDEX `UQ_user_groups_default_key` ON `user_groups`',
         );
-        await dataSource.query(
-          "DELETE FROM migrations WHERE name = 'SupportMariaDbDefaultGroupIndex1794700800000'",
-        );
+        await markPending();
         await migrateDatabase(dataSource);
 
         expect(await schemaDrift(dataSource)).toHaveLength(0);
@@ -270,6 +288,31 @@ describeMysql('MySQL database migrations', () => {
       );
       await expect(migrateDatabase(dataSource)).rejects.toThrow(
         'does not enforce a unique isDefaultKey',
+      );
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('refuses an undeclared isDefaultKey column that is not generated', async () => {
+    // A plain column with the managed name exists on neither MySQL nor
+    // MariaDB; the repair must refuse it instead of dropping its data and the
+    // MariaDB diff filter must not hide it.
+    const legacy = source(databases[6], true);
+    await legacy.initialize();
+    await legacy.query(
+      'ALTER TABLE `user_groups` ADD COLUMN `isDefaultKey` tinyint NULL',
+    );
+    await legacy.query(
+      "INSERT INTO user_groups (guid, name, normalizedName, isDefault, isDefaultKey) VALUES ('a', 'A', 'a', 0, 7)",
+    );
+    await legacy.destroy();
+
+    const dataSource = source(databases[6]);
+    await dataSource.initialize();
+    try {
+      await expect(migrateDatabase(dataSource)).rejects.toThrow(
+        'not defined in the current entities',
       );
     } finally {
       await dataSource.destroy();

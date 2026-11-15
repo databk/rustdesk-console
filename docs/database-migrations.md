@@ -88,9 +88,9 @@ MariaDB cannot index an expression, so the single-default-group rule uses the
 `user_groups.isDefaultKey` generated column and the
 `UQ_user_groups_default_key` unique index created by
 `SupportMariaDbDefaultGroupIndex1794700800000`. TypeORM does not model that
-column, so `src/database/schema-diff.ts` removes its statements from every
-schema diff; keep both the column and the index when reviewing a generated
-MariaDB draft.
+column, so `src/database/schema-diff.ts` removes statements about it (and about
+that index) from MariaDB schema diffs only; keep both when reviewing a
+generated MariaDB draft.
 
 Do not edit a migration that has been released. Add a new migration instead.
 The entity list in `src/database/entities.ts` and data source options in

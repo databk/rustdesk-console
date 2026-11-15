@@ -9,10 +9,7 @@ import { isMariaDb } from './mysql-dialect';
 export const USER_GROUP_DEFAULT_KEY_COLUMN = 'isDefaultKey';
 export const USER_GROUP_DEFAULT_KEY_INDEX = 'UQ_user_groups_default_key';
 
-const MANAGED_NAMES = [
-  USER_GROUP_DEFAULT_KEY_COLUMN,
-  USER_GROUP_DEFAULT_KEY_INDEX,
-];
+const USER_GROUP_TABLE = 'user_groups';
 
 export interface SchemaDiffQuery {
   query: string;
@@ -22,17 +19,23 @@ export interface SchemaDiffQuery {
 /**
  * TypeORM cannot model a generated column that is not declared by an entity, so
  * every MariaDB schema diff proposes dropping `user_groups.isDefaultKey`, the
- * unique index on it and the metadata row describing it. Drop only those
- * statements from the diff; everything else is still reported.
+ * unique index on it and the metadata row describing it. Drop only statements
+ * about that column on that table (or about the index named after it); an
+ * identically named column anywhere else stays visible.
  */
 export function withoutManagedColumns(
   queries: SchemaDiffQuery[],
 ): SchemaDiffQuery[] {
-  return queries.filter(
-    (query) =>
-      !MANAGED_NAMES.some((name) => query.query.includes(name)) &&
-      !MANAGED_NAMES.some((name) => (query.parameters ?? []).includes(name)),
-  );
+  return queries.filter((query) => {
+    const parameters = query.parameters ?? [];
+    const mentions = (name: string) =>
+      query.query.includes(name) || parameters.includes(name);
+
+    if (mentions(USER_GROUP_DEFAULT_KEY_INDEX)) return false;
+    return !(
+      mentions(USER_GROUP_DEFAULT_KEY_COLUMN) && mentions(USER_GROUP_TABLE)
+    );
+  });
 }
 
 /**
