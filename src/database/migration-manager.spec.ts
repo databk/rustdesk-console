@@ -200,6 +200,31 @@ describe('database migrations', () => {
     }
   });
 
+  it('refuses to repair an isDefaultKey column outside MariaDB user_groups', async () => {
+    // The MariaDB default-group key is the only undeclared column the repair
+    // tolerates; the same name on SQLite still protects its data.
+    const database = databasePath();
+    const legacy = source(database, true);
+    await legacy.initialize();
+    await legacy.query(
+      'ALTER TABLE strategies ADD COLUMN isDefaultKey tinyint',
+    );
+    await legacy.query(
+      "INSERT INTO strategies (guid, name, isDefaultKey) VALUES ('keep-me', 'retained', 1)",
+    );
+    await legacy.destroy();
+
+    const dataSource = source(database);
+    await dataSource.initialize();
+    try {
+      await expect(migrateDatabase(dataSource)).rejects.toThrow(
+        'not defined in the current entities',
+      );
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
   it('refuses to baseline a drifted database with migration history', async () => {
     const dataSource = source(databasePath());
     await dataSource.initialize();

@@ -40,7 +40,11 @@ describeMysql('MySQL database migrations', () => {
     'rustdesk_migration_legacy',
     'rustdesk_migration_partial',
     'rustdesk_migration_destructive',
+    'rustdesk_migration_retry',
+    'rustdesk_migration_incompatible',
   ];
+
+  const itMariaDb = dbType === 'mariadb' ? it : it.skip;
 
   function source(database: string, synchronize = false): DataSource {
     return new DataSource({ ...common, database, synchronize });
@@ -204,6 +208,68 @@ describeMysql('MySQL database migrations', () => {
       );
       expect(await dataSource.createQueryRunner().hasTable('migrations')).toBe(
         false,
+      );
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  itMariaDb(
+    'retries the default-group migration after partially applied DDL',
+    async () => {
+      const dataSource = source(databases[4]);
+      await dataSource.initialize();
+      try {
+        await migrateDatabase(dataSource);
+
+        // MariaDB commits DDL immediately, so a crash can leave the schema
+        // applied while the migration is still pending.
+        await dataSource.query(
+          "DELETE FROM migrations WHERE name = 'SupportMariaDbDefaultGroupIndex1794700800000'",
+        );
+        await migrateDatabase(dataSource);
+
+        // Same again with the unique index missing.
+        await dataSource.query(
+          'DROP INDEX `UQ_user_groups_default_key` ON `user_groups`',
+        );
+        await dataSource.query(
+          "DELETE FROM migrations WHERE name = 'SupportMariaDbDefaultGroupIndex1794700800000'",
+        );
+        await migrateDatabase(dataSource);
+
+        expect(await schemaDrift(dataSource)).toHaveLength(0);
+        await dataSource.query(
+          "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 1)",
+        );
+        await expect(
+          dataSource.query(
+            "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('b', 'B', 'b', 1)",
+          ),
+        ).rejects.toThrow();
+      } finally {
+        await dataSource.destroy();
+      }
+    },
+    30000,
+  );
+
+  itMariaDb('refuses an incompatible default-group index', async () => {
+    const dataSource = source(databases[5]);
+    await dataSource.initialize();
+    try {
+      await migrateDatabase(dataSource);
+      await dataSource.query(
+        'DROP INDEX `UQ_user_groups_default_key` ON `user_groups`',
+      );
+      await dataSource.query(
+        'CREATE INDEX `UQ_user_groups_default_key` ON `user_groups` (`isDefault`)',
+      );
+      await dataSource.query(
+        "DELETE FROM migrations WHERE name = 'SupportMariaDbDefaultGroupIndex1794700800000'",
+      );
+      await expect(migrateDatabase(dataSource)).rejects.toThrow(
+        'does not enforce a unique isDefaultKey',
       );
     } finally {
       await dataSource.destroy();

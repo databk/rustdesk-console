@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { isMariaDb } from './mysql-dialect';
 
 /**
  * Generated column and unique index created by
@@ -34,10 +35,15 @@ export function withoutManagedColumns(
   );
 }
 
-/** Schema changes required to bring the database in line with the entities. */
+/**
+ * Schema changes required to bring the database in line with the entities.
+ * The managed MariaDB column is filtered only on MariaDB: anywhere else a
+ * column with that name is foreign and must stay visible in the diff.
+ */
 export async function schemaDiffQueries(
   dataSource: DataSource,
 ): Promise<SchemaDiffQuery[]> {
   const { upQueries } = await dataSource.driver.createSchemaBuilder().log();
+  if (!(await isMariaDb(dataSource))) return upQueries;
   return withoutManagedColumns(upQueries);
 }

@@ -172,11 +172,16 @@ async function repairSynchronizedSchema(
       metadata.columns.map((column) => column.databaseName),
     );
     for (const dbColumn of table.columns) {
-      // The MariaDB default-group key is installed and kept by migrations.
-      if (
-        !entityColumns.has(dbColumn.name) &&
-        dbColumn.name !== USER_GROUP_DEFAULT_KEY_COLUMN
-      ) {
+      if (entityColumns.has(dbColumn.name)) continue;
+      // The MariaDB default-group key is installed and kept by migrations, so
+      // it is the only tolerated undeclared column. Keep the exemption narrow:
+      // a column with this name on SQLite or on another table is still
+      // rejected, because a rebuild would drop it and its data.
+      const managedDefaultKey =
+        metadata.tableName === 'user_groups' &&
+        isMySqlFamily(dataSource.options.type) &&
+        dbColumn.name === USER_GROUP_DEFAULT_KEY_COLUMN;
+      if (!managedDefaultKey) {
         throw new Error(
           `Table "${metadata.tableName}" has column "${dbColumn.name}" that is not defined in the current entities. Repairing the schema would drop this column and its data. Remove the column manually or add a data-preserving migration before baselining.`,
         );
