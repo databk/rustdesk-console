@@ -145,6 +145,19 @@ function stripStrayUniqueConstraints(
 }
 
 /**
+ * Statements the MySQL-family repair may run: create a missing object or add
+ * to an existing table. Anything else — `DROP`, TypeORM's drop-and-recreate
+ * column change, a column rename — could delete or move data and has to be
+ * applied by an explicit, data-preserving migration instead.
+ */
+const ADDITIVE_REPAIR_STATEMENT =
+  /^\s*(?:CREATE\s+(?:TABLE|(?:UNIQUE\s+)?INDEX)\b|ALTER\s+TABLE\s+`?[\w$]+`?\s+ADD\b)/i;
+
+function isAdditiveRepairStatement(sql: string): boolean {
+  return ADDITIVE_REPAIR_STATEMENT.test(sql);
+}
+
+/**
  * Refuse to baseline when an entity table holds a column the current entities
  * do not define: a repair rebuild would drop it and its data. The MariaDB
  * default-group generated column is the only tolerated exception, and only
@@ -191,7 +204,7 @@ async function assertNoUndeclaredColumns(
  *
  * On MySQL the DDL commits implicitly and cannot be rolled back, so the
  * repair is restricted to additive statements (CREATE TABLE / CREATE INDEX /
- * ALTER TABLE ... ADD); any DROP statement fails closed and requires an
+ * ALTER TABLE ... ADD); any other statement fails closed and requires an
  * explicit, data-preserving migration instead. This still lets a MySQL
  * database left half-initialized by older releases (see the TEXT-default
  * failure) complete its missing tables automatically.
@@ -209,9 +222,11 @@ async function repairSynchronizedSchema(
 
   if (isMySqlFamily(dataSource.options.type)) {
     // MySQL DDL is non-transactional; only apply additive changes so a
-    // failure can be retried safely and no data can be lost.
+    // failure can be retried safely and no data can be lost. TypeORM changes
+    // a column type with DROP COLUMN + ADD COLUMN, so every statement has to
+    // be validated up front, not just the ones starting with DROP.
     for (const query of queries) {
-      if (/^\s*DROP\s/i.test(query.query)) {
+      if (!isAdditiveRepairStatement(query.query)) {
         throw new Error(
           `Repairing this MySQL database requires destructive statements (for example: ${query.query}). Restore or repair the schema manually, or add a data-preserving migration, before baselining.`,
         );
