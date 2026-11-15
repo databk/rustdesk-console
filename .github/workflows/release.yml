@@ -119,6 +119,7 @@ jobs:
 
           # Copy image to ACR (without provenance, which ACR does not support)
           docker buildx imagetools create \
+            --provenance=false \
             --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:latest \
             --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:$VERSION \
             --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:$MAJOR_MINOR \
