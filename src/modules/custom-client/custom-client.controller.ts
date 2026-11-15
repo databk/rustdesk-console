@@ -124,8 +124,8 @@ export class CustomClientController {
   @Get('builds/:uuid/config')
   @Public()
   async getBuildConfig(@Param('uuid') uuid: string, @Req() req: Request) {
-    const uploadToken = String(req.headers['x-upload-token'] ?? '');
-    return this.customClientService.getBuildConfig(uuid, uploadToken);
+    const buildToken = String(req.headers['x-build-token'] ?? '');
+    return this.customClientService.getBuildConfig(uuid, buildToken);
   }
 
   @Get('builds/:uuid/logo/:filename')
@@ -136,11 +136,11 @@ export class CustomClientController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    const uploadToken = String(req.headers['x-upload-token'] ?? '');
+    const buildToken = String(req.headers['x-build-token'] ?? '');
     const filePath = await this.customClientService.getBuildLogoFile(
       uuid,
       filename,
-      uploadToken,
+      buildToken,
     );
     if (!existsSync(filePath)) {
       throw new NotFoundException('Logo file not found');
@@ -181,8 +181,8 @@ export class CustomClientController {
     @Req() req: Request,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
-    const uploadToken = String(req.headers['x-upload-token'] ?? '');
-    await this.customClientService.handleUpload(uuid, uploadToken, files ?? []);
+    const buildToken = String(req.headers['x-build-token'] ?? '');
+    await this.customClientService.handleUpload(uuid, buildToken, files ?? []);
     return { message: 'Upload processed' };
   }
 
