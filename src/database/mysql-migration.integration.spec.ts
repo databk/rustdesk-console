@@ -44,6 +44,7 @@ describeMysql('MySQL database migrations', () => {
     'rustdesk_migration_incompatible',
     'rustdesk_migration_undeclared',
     'rustdesk_migration_plain_key',
+    'rustdesk_migration_retype',
   ];
 
   const itMariaDb = dbType === 'mariadb' ? it : it.skip;
@@ -370,4 +371,31 @@ describeMysql('MySQL database migrations', () => {
     },
     30000,
   );
+
+  it('refuses a repair that would change a column type destructively', async () => {
+    // TypeORM changes a column type with DROP COLUMN + ADD COLUMN, so the
+    // additive-only guard has to reject ALTER TABLE statements too.
+    const legacy = source(databases[8], true);
+    await legacy.initialize();
+    await legacy.query(
+      'ALTER TABLE `user_groups` MODIFY `note` varchar(255) NULL',
+    );
+    await legacy.query(
+      "INSERT INTO user_groups (guid, name, normalizedName, note) VALUES ('a', 'A', 'a', 'kept')",
+    );
+    await legacy.destroy();
+
+    const dataSource = source(databases[8]);
+    await dataSource.initialize();
+    try {
+      await expect(migrateDatabase(dataSource)).rejects.toThrow(
+        'requires destructive statements',
+      );
+      expect(await dataSource.createQueryRunner().hasTable('migrations')).toBe(
+        false,
+      );
+    } finally {
+      await dataSource.destroy();
+    }
+  });
 });
