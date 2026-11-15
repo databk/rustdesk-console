@@ -43,6 +43,7 @@ describeMysql('MySQL database migrations', () => {
     'rustdesk_migration_retry',
     'rustdesk_migration_incompatible',
     'rustdesk_migration_undeclared',
+    'rustdesk_migration_plain_key',
   ];
 
   const itMariaDb = dbType === 'mariadb' ? it : it.skip;
@@ -318,4 +319,55 @@ describeMysql('MySQL database migrations', () => {
       await dataSource.destroy();
     }
   });
+
+  itMariaDb(
+    'refuses an isDefaultKey column it did not generate',
+    async () => {
+      const dataSource = source(databases[7]);
+      // The initial migration stays recorded, so baselining (and its
+      // undeclared-column guard) does not run before this migration.
+      const markPending = () =>
+        dataSource.query(
+          "DELETE FROM migrations WHERE name = 'SupportMariaDbDefaultGroupIndex1794700800000'",
+        );
+      await dataSource.initialize();
+      try {
+        await migrateDatabase(dataSource);
+
+        // A plain nullable column cannot enforce the rule: it stays NULL on
+        // inserts, and a unique index accepts many NULLs.
+        await dataSource.query(
+          'ALTER TABLE `user_groups` DROP COLUMN `isDefaultKey`',
+        );
+        await dataSource.query(
+          'ALTER TABLE `user_groups` ADD COLUMN `isDefaultKey` tinyint NULL',
+        );
+        await dataSource.query(
+          "DELETE FROM `typeorm_metadata` WHERE `name` = 'isDefaultKey'",
+        );
+        await markPending();
+        await expect(migrateDatabase(dataSource)).rejects.toThrow(
+          'is not the generated column this migration manages',
+        );
+
+        // A generated column with a different expression is refused too.
+        await dataSource.query(
+          'ALTER TABLE `user_groups` DROP COLUMN `isDefaultKey`',
+        );
+        await dataSource.query(
+          'ALTER TABLE `user_groups` ADD COLUMN `isDefaultKey` tinyint GENERATED ALWAYS AS (CASE WHEN `isDefault` = 0 THEN 1 ELSE NULL END) PERSISTENT',
+        );
+        await dataSource.query(
+          "DELETE FROM `typeorm_metadata` WHERE `name` = 'isDefaultKey'",
+        );
+        await markPending();
+        await expect(migrateDatabase(dataSource)).rejects.toThrow(
+          'is not the generated column this migration manages',
+        );
+      } finally {
+        await dataSource.destroy();
+      }
+    },
+    30000,
+  );
 });

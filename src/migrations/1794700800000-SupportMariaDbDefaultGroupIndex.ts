@@ -6,6 +6,14 @@ import {
 } from '../database/schema-diff';
 
 /**
+ * MariaDB reformats generation expressions when storing them (lowercase
+ * keywords, backticks, spacing), so compare a normalized form.
+ */
+function normalizeExpression(value: string): string {
+  return value.toLowerCase().replace(/[`\s]/g, '');
+}
+
+/**
  * Enforce a single default user group on MariaDB.
  *
  * MySQL 8.0.13+ uses a functional index for this (see
@@ -51,13 +59,24 @@ export class SupportMariaDbDefaultGroupIndex1794700800000 implements MigrationIn
     }
 
     const expression = 'CASE WHEN `isDefault` = 1 THEN 1 ELSE NULL END';
-    if (
-      !table.columns.some(
-        (column) => column.name === USER_GROUP_DEFAULT_KEY_COLUMN,
-      )
-    ) {
+    // Accept an existing column only when it is the generated column this
+    // migration manages. A plain column stays NULL on inserts, and MariaDB
+    // allows many NULLs in a unique index, so it could not enforce the rule.
+    const [existingColumn] = (await queryRunner.query(
+      'SELECT `EXTRA`, `GENERATION_EXPRESSION` FROM `information_schema`.`COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ? AND `COLUMN_NAME` = ?',
+      [database, 'user_groups', USER_GROUP_DEFAULT_KEY_COLUMN],
+    )) as { EXTRA: string | null; GENERATION_EXPRESSION: string | null }[];
+    if (!existingColumn) {
       await queryRunner.query(
         `ALTER TABLE \`user_groups\` ADD COLUMN \`${USER_GROUP_DEFAULT_KEY_COLUMN}\` tinyint GENERATED ALWAYS AS (${expression}) PERSISTENT`,
+      );
+    } else if (
+      !/generated/i.test(existingColumn.EXTRA ?? '') ||
+      normalizeExpression(existingColumn.GENERATION_EXPRESSION ?? '') !==
+        normalizeExpression(expression)
+    ) {
+      throw new Error(
+        `Column user_groups.${USER_GROUP_DEFAULT_KEY_COLUMN} exists but is not the generated column this migration manages (EXTRA=${existingColumn.EXTRA ?? 'NULL'}, expression=${existingColumn.GENERATION_EXPRESSION ?? 'NULL'}); drop or repair it before migrating`,
       );
     }
 
