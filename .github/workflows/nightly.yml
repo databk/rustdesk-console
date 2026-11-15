@@ -105,11 +105,14 @@ jobs:
             --cache-to type=gha,mode=max \
             .
 
-          # Copy image to ACR (without provenance, which ACR does not support)
-          docker buildx imagetools create \
+          # Build and push to ACR (without provenance, which ACR does not support)
+          docker buildx build --push \
             --provenance=false \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg APP_VERSION=$VERSION \
             --tag ${{ vars.ACR_DOMAIN }}/databk/rustdesk-console:nightly \
-            databk/rustdesk-console:nightly
+            --cache-from type=gha \
+            .
 
       - name: Delete existing nightly tag and release
         env:
