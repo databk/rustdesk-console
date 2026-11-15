@@ -30,6 +30,7 @@ import { RbacModule } from './modules/rbac/rbac.module';
 import { RbacGuard } from './modules/rbac/guards/rbac.guard';
 import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-audit.interceptor';
 import { WebClientModule } from './modules/web-client/web-client.module';
+import { installSqliteWriteQueue } from './database/sqlite-write-queue';
 
 /**
  * Application root module
@@ -76,6 +77,9 @@ import { WebClientModule } from './modules/web-client/web-client.module';
               'Database migrations are pending. Run the migration command before starting the server.',
             );
           }
+          // SQLite shares one connection; overlapping transactions must not
+          // interleave (see installSqliteWriteQueue).
+          installSqliteWriteQueue(dataSource);
           return dataSource;
         } catch (error) {
           await dataSource.destroy();
