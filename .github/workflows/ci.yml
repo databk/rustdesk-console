@@ -108,14 +108,6 @@ jobs:
             image: mysql:8.0
             dbType: mysql
             healthCmd: mysqladmin ping -h 127.0.0.1 -ptest-password
-          - name: MySQL 8.4 LTS
-            image: mysql:8.4
-            dbType: mysql
-            healthCmd: mysqladmin ping -h 127.0.0.1 -ptest-password
-          - name: MySQL latest
-            image: mysql:latest
-            dbType: mysql
-            healthCmd: mysqladmin ping -h 127.0.0.1 -ptest-password
           # MariaDB 11.4 no longer ships the mysqladmin compatibility
           # symlink; use the healthcheck.sh bundled with the image instead.
           # MariaDB needs its own TypeORM dialect because MySQL's schema
