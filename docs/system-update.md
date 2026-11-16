@@ -19,6 +19,13 @@ official manifests and immutable image digests. It records and pins the current
 release without selecting a newer version. An independent registration container
 finishes pinning the updater itself.
 
+When registration cannot complete, the updater logs
+`Updater registration unavailable: <reason>` and exits, and Compose restarts it
+to try again. The reason names the deployment requirement that is not met, for
+example `The managed override must start with empty services.`, or the error
+code of a failed operation such as `COMMAND_FAILED`. Command output and
+configuration values are never logged.
+
 | Path                          | Purpose                                                      |
 | ----------------------------- | ------------------------------------------------------------ |
 | `data/`                       | SQLite and business files, owned by application UID/GID 1000 |
