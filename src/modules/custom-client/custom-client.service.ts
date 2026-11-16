@@ -183,7 +183,7 @@ export class CustomClientService {
       await this.buildRepository.update({ uuid }, { githubRunId });
     }
 
-    return { uuid, status: 'pending', message: 'Build submitted' };
+    return { uuid, status: 'pending' };
   }
 
   async listBuilds(userGuid: string): Promise<CustomClientBuild[]> {
@@ -381,24 +381,44 @@ export class CustomClientService {
     if (
       runData.status === 'completed' &&
       build.status !== 'completed' &&
-      build.status !== 'failed'
+      build.status !== 'failed' &&
+      build.status !== 'cancelled' &&
+      build.status !== 'skipped' &&
+      build.status !== 'timed_out' &&
+      build.status !== 'neutral' &&
+      build.status !== 'action_required'
     ) {
-      const newStatus: CustomClientBuild['status'] =
-        runData.conclusion === 'success' ? 'completed' : 'failed';
-      const newMessage =
-        runData.conclusion === 'success'
-          ? undefined
-          : `Build failed: ${runData.conclusion}`;
+      const conclusionToStatus: Record<string, CustomClientBuild['status']> = {
+        success: 'completed',
+        failure: 'failed',
+        cancelled: 'cancelled',
+        skipped: 'skipped',
+        timed_out: 'timed_out',
+        neutral: 'neutral',
+        action_required: 'action_required',
+        stale: 'failed',
+      };
+      const newStatus = conclusionToStatus[runData.conclusion ?? 'failure'] ?? 'failed';
       await this.buildRepository.update(
         { uuid },
         {
           status: newStatus,
-          message: newMessage,
           buildToken: randomUUID(),
         },
       );
       this.logger.log(
         `Build ${uuid} status auto-updated to ${newStatus} via GitHub API`,
+      );
+    } else if (
+      runData.status === 'in_progress' &&
+      build.status === 'pending'
+    ) {
+      await this.buildRepository.update(
+        { uuid, status: 'pending' },
+        { status: 'building' },
+      );
+      this.logger.log(
+        `Build ${uuid} status auto-updated to building via GitHub API`,
       );
     }
 
