@@ -70,7 +70,7 @@ export class SubmitBuildDto {
 export interface SubmitBuildResponse {
   uuid: string;
   status: string;
-  message: string;
+
 }
 
 export interface BuildProgressStep {

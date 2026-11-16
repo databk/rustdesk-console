@@ -11,7 +11,15 @@ import {
 import { User } from '../../user/entities/user.entity';
 
 export type CustomClientBuildStatus =
-  'pending' | 'building' | 'completed' | 'failed';
+  | 'pending'
+  | 'building'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'skipped'
+  | 'timed_out'
+  | 'neutral'
+  | 'action_required';
 
 @Entity('custom_client_builds')
 @Index('IDX_custom_client_builds_userGuid_createdAt', ['userGuid', 'createdAt'])
@@ -40,9 +48,7 @@ export class CustomClientBuild {
   status: CustomClientBuildStatus;
 
   @Column({ type: 'text', nullable: true })
-  message: string;
 
-  @Column({ type: 'text', nullable: true })
   files: string;
 
   @Column()
