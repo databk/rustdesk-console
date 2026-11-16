@@ -48,7 +48,6 @@ export class CustomClientBuild {
   status: CustomClientBuildStatus;
 
   @Column({ type: 'text', nullable: true })
-
   files: string;
 
   @Column()
