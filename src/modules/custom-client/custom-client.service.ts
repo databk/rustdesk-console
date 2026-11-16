@@ -413,7 +413,10 @@ export class CustomClientService {
       runData.status === 'in_progress' &&
       build.status === 'pending'
     ) {
-      await this.buildRepository.update({ uuid }, { status: 'building' });
+      await this.buildRepository.update(
+        { uuid, status: 'pending' },
+        { status: 'building' },
+      );
       this.logger.log(
         `Build ${uuid} status auto-updated to building via GitHub API`,
       );
