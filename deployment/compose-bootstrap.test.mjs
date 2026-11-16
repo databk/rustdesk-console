@@ -3,8 +3,14 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { bootstrap, validateContext } from './compose-bootstrap.mjs';
+import {
+  bootstrap,
+  describeRegistrationFailure,
+  validateContext,
+} from './compose-bootstrap.mjs';
 
 const require = createRequire(import.meta.url);
 const io = require('../dist/updater/io.js');
@@ -248,6 +254,48 @@ test('refuses a populated user override before any mutation', async (t) => {
   );
   await assert.rejects(fs.access(join(f.state, 'installation.json')));
   assert.ok(!f.calls.some((args) => args[0] === 'pull' || args.includes('up')));
+});
+
+test('names the unmet requirement without exposing other failure details', async (t) => {
+  const f = await fixture(t);
+  await fs.writeFile(f.files[1], 'services: {}\nnetworks: {}\n');
+  const error = await bootstrap(f.runtime).then(
+    () => assert.fail('registration must be refused'),
+    (rejection) => rejection,
+  );
+  assert.equal(
+    describeRegistrationFailure(error),
+    'The managed override must start with empty services.',
+  );
+  const failed = new Error('docker: DB_PASSWORD=secret');
+  failed.code = 'COMMAND_FAILED';
+  assert.equal(describeRegistrationFailure(failed), 'COMMAND_FAILED');
+  for (const unknown of [
+    new SyntaxError('Unexpected token in JSON: DB_PASSWORD=secret'),
+    Object.assign(new Error('DB_PASSWORD=secret'), { code: 'lower-case' }),
+    undefined,
+  ])
+    assert.equal(
+      describeRegistrationFailure(unknown),
+      'verify the standard deployment and official release manifests.',
+    );
+});
+
+test('logs the unmet requirement when run as the updater command', () => {
+  const env = { ...process.env };
+  delete env.SYSTEM_UPDATE_COMPOSE_ROOT;
+  delete env.SYSTEM_UPDATE_INSTALLATION;
+  const result = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL('./compose-bootstrap.mjs', import.meta.url))],
+    { encoding: 'utf8', env },
+  );
+  assert.equal(result.status, 1);
+  assert.equal(
+    result.stderr,
+    'Updater registration unavailable: ' +
+      'The standard installation paths are inconsistent.\n',
+  );
 });
 
 test('pins only exact current images and delegates helper replacement', async (t) => {

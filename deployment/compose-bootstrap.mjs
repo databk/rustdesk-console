@@ -16,8 +16,22 @@ const repositories = {
 };
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
+/** An unmet deployment requirement, described by fixed non-sensitive text. */
+class RegistrationError extends Error {}
+
 function check(condition, message) {
-  if (!condition) throw new Error(message);
+  if (!condition) throw new RegistrationError(message);
+}
+
+/**
+ * Reason logged when registration fails. Unmet requirements are reported by
+ * their fixed message and coded runtime errors by their code; any other error
+ * may carry command output or configuration values and stays generic.
+ */
+export function describeRegistrationFailure(error) {
+  if (error instanceof RegistrationError) return error.message;
+  if (error?.code && /^[A-Z_]+$/.test(error.code)) return error.code;
+  return 'verify the standard deployment and official release manifests.';
 }
 
 export function validateContext(self, root) {
@@ -578,10 +592,7 @@ if (
   } catch (error) {
     // Never log command output, environment snapshots, database values or tokens.
     console.error(
-      'Updater registration unavailable: ' +
-        (error.code && /^[A-Z_]+$/.test(error.code)
-          ? error.code
-          : 'verify the standard deployment and official release manifests.'),
+      'Updater registration unavailable: ' + describeRegistrationFailure(error),
     );
     process.exitCode = 1;
   }
