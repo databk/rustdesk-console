@@ -1,12 +1,30 @@
 #!/bin/bash
 # fnOS Native — install_init
+# 在 fnOS 首次启动 Sea 之前跑。
+# 任何失败都会把原因写到 ${TRIM_PKGVAR}/info.log。
 set -e
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - [install_init] $1" >> "${LOG_FILE}"
+}
+
+on_error() {
+  log_msg "FATAL: install_init failed at line $1"
+  log_msg "  exit code = $?; stderr above this line"
+  exit 1
+}
+trap 'on_error $LINENO' ERR
 
 DATA_DIR="${TRIM_PKGVAR}/data"
 mkdir -p "${DATA_DIR}"
 chmod 755 "${DATA_DIR}"
+log_msg "DATA_DIR ready: ${DATA_DIR}"
 
 BIN_DIR="${TRIM_APPDEST}/bin"
-chmod +x "${BIN_DIR}/rustdesk-console-"* 2>/dev/null || true
+log_msg "BIN_DIR exists = $( [ -d "${BIN_DIR}" ] && echo yes || echo no )"
+log_msg "arch = $(uname -m)"
 
-echo "[fnos-native] install_init: ready (arch=$(uname -m))"
+chmod +x "${BIN_DIR}/rustdesk-console-"* 2>/dev/null || true
+log_msg "install_init done"

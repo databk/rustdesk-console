@@ -3,7 +3,18 @@
 set -e
 
 PORT="${PORT:-3000}"
+LOG_FILE="${TRIM_PKGVAR}/info.log"
 MAX=60
+
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - [upgrade_callback] $1" >> "${LOG_FILE}"
+}
+
+on_error() {
+  log_msg "FATAL: fnOS upgrade_callback shell error at line $1 (exit=$?)"
+  exit 1
+}
+trap 'on_error $LINENO' ERR
 
 http_probe() {
   local url="$1" host port path
@@ -11,32 +22,26 @@ http_probe() {
   port=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\2|p')
   path=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\3|p')
 
-  if command -v curl >/dev/null 2>&1; then
-    curl -sf -o /dev/null --max-time 2 "$url" && return 0
-  fi
-  if command -v wget >/dev/null 2>&1; then
-    wget -qO /dev/null --timeout=2 "$url" && return 0
-  fi
+  command -v curl >/dev/null 2>&1 && curl -sf -o /dev/null --max-time 2 "$url" && return 0
+  command -v wget >/dev/null 2>&1 && wget -qO /dev/null --timeout=2 "$url" && return 0
   if [ -B /dev/tcp ] && exec 3<>"/dev/tcp/${host}/${port}" 2>/dev/null; then
     printf 'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' "$path" "$host" >&3
     grep -qE 'HTTP/1\.[01] 2[0-9][0-9]' <&3 && { exec 3>&-; return 0; }
     exec 3>&-
   fi
-  if command -v ss >/dev/null 2>&1; then
-    ss -ltn 2>/dev/null | grep -q ":${port}[[:space:]]" && return 0
-  elif command -v netstat >/dev/null 2>&1; then
-    netstat -ltn 2>/dev/null | grep -q ":${port}[[:space:]]" && return 0
-  fi
+  command -v ss >/dev/null 2>&1 && ss -ltn 2>/dev/null | grep -q ":${port}[[:space:]]" && return 0
+  command -v netstat >/dev/null 2>&1 && netstat -ltn 2>/dev/null | grep -q ":${port}[[:space:]]" && return 0
   return 1
 }
 
 for i in $(seq 1 $MAX); do
   if http_probe "http://localhost:${PORT}/api/login-options"; then
-    echo "[fnos] upgrade_callback: new version healthy on :${PORT}"
+    log_msg "OK: new version healthy on :${PORT} after $((i*2))s"
     exit 0
   fi
   sleep 2
 done
 
-echo "[fnos] upgrade_callback: health timeout on :${PORT}" >&2
+log_msg "FATAL: fnOS upgrade_callback timeout on :${PORT} (waited $((MAX*2))s)"
+docker logs rustdesk-console --tail 20 2>&1 | sed 's/^/    /' >> "${LOG_FILE}" || true
 exit 1

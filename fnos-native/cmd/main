@@ -2,6 +2,9 @@
 # fnOS Native — main entry point
 # 管理原生 Sea 二进制的 start / stop / status
 # Sea 二进制不支持 --port/--data-dir 等 CLI flag，统一用环境变量传入
+#
+# 日志策略：所有动作都写 ${LOG_FILE}；任何失败前先把最近 50 行 Sea 日志打一份到 LOG_FILE，
+# 让用户在 fnOS UI 的"日志 / 失败原因"里直接看到真实错误，而不是"执行脚本出错原因未知"。
 
 APP_BIN_DIR="${TRIM_APPDEST}/bin"
 APP_PUBLIC_DIR="${TRIM_APPDEST}/public"
@@ -9,13 +12,36 @@ DATA_DIR="${TRIM_PKGVAR}/data"
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
-# Sea 二进制通过进程内环境变量读取（参见 src/application.ts + src/common/utils/data-dir.util.ts）
-# PORT 默认 3000（内部监听端口），fnOS 框架的 service_port=21114 是公网入口
 export PORT="${PORT:-3000}"
 export NODE_ENV=production
 export DATA_DIR="${DATA_DIR}"
 
-# 按架构选择对应的 Sea 二进制
+# ── 公共诊断 helper ────────────────────────────────────────────────
+
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+# 把 Sea 进程的 stdout/stderr（都已经 redirect 到 LOG_FILE 里）最近一段抄出来当失败现场
+dump_sea_tail() {
+  local label="$1"
+  log_msg "────────────────────────────────────────────────────────────────"
+  log_msg "LAST SEA LOGS BEFORE ${label}:"
+  tail -60 "${LOG_FILE}" | sed 's/^/  │ /' >> "${LOG_FILE}"
+  log_msg "────────────────────────────────────────────────────────────────"
+}
+
+on_fatal() {
+  # 所有致命错误走到这里：打印现场 → 明确 exit 1
+  dump_sea_tail "FATAL"
+  log_msg "FATAL: cmd/main failed at $1"
+  exit 1
+}
+
+trap 'on_fatal "start_process"' ERR 2>/dev/null || true
+
+# ── 按架构选二进制 ─────────────────────────────────────────────────
+
 pick_binary() {
   local arch
   arch=$(uname -m)
@@ -31,9 +57,7 @@ pick_binary() {
   esac
 }
 
-log_msg() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
-}
+# ── 进程状态 ──────────────────────────────────────────────────────
 
 check_process() {
   local pid=$1
@@ -52,22 +76,44 @@ status() {
   return 1
 }
 
-start_process() {
-  if status; then
-    return 0
-  fi
+# ── 主流程：migrate → start ─────────────────────────────────────────
 
+run_migrations() {
+  local bin="$1"
+  log_msg "[migrate] running database migrations..."
+  local migrate_out
+  migrate_out=$(cd "${APP_BIN_DIR}" && exec "${bin}" migrate 2>&1)
+  local rc=$?
+  if [ $rc -ne 0 ]; then
+    log_msg "FATAL: migrate command failed (exit=$rc)"
+    echo "${migrate_out}" | sed 's/^/  │ /' >> "${LOG_FILE}"
+    return $rc
+  fi
+  log_msg "[migrate] done"
+  return 0
+}
+
+start_process() {
+  mkdir -p "${DATA_DIR}"
+
+  # 1. 选二进制
   local bin
   bin=$(pick_binary)
   if [ -z "${bin}" ] || [ ! -x "${bin}" ]; then
-    log_msg "ERROR: no usable rustdesk-console binary for arch $(uname -m)"
+    log_msg "FATAL: no usable rustdesk-console binary for arch $(uname -m)"
+    log_msg "  expected one of:"
+    ls -la "${APP_BIN_DIR}"/rustdesk-console-* 2>/dev/null | sed 's/^/  │ /' >> "${LOG_FILE}" || true
+    return 1
+  fi
+  log_msg "Using binary: ${bin}"
+
+  # 2. 数据库迁移（最容易失败的一步，单独包住）
+  if ! run_migrations "${bin}"; then
     return 1
   fi
 
-  mkdir -p "${DATA_DIR}"
-
-  log_msg "Starting ${bin} → :${PORT} (DATA_DIR=${DATA_DIR})"
-
+  # 3. 启动
+  log_msg "Starting → :${PORT} (DATA_DIR=${DATA_DIR})"
   (
     cd "${APP_BIN_DIR}"
     exec "${bin}" >> "${LOG_FILE}" 2>&1
@@ -76,14 +122,20 @@ start_process() {
   echo $! > "${PID_FILE}"
   sleep 1
 
-  if check_process "$(cat "${PID_FILE}")"; then
-    log_msg "Started PID=$(cat "${PID_FILE}")"
-    return 0
+  if ! check_process "$(cat "${PID_FILE}")"; then
+    log_msg "FATAL: Sea process died immediately after start"
+    log_msg "  possible causes (check tail below):"
+    log_msg "    - pending migrations (we just ran migrate, should not happen)"
+    log_msg "    - glibc / dynamic linker mismatch (try on different fnOS device)"
+    log_msg "    - missing node_modules / native addons (should be in ${APP_BIN_DIR}/node_modules/)"
+    log_msg "    - DATA_DIR permission / disk full / sqlite path"
+    dump_sea_tail "start-immediate-crash"
+    rm -f "${PID_FILE}"
+    return 1
   fi
 
-  log_msg "ERROR: process died immediately"
-  rm -f "${PID_FILE}"
-  return 1
+  log_msg "Started PID=$(cat "${PID_FILE}")"
+  return 0
 }
 
 stop_process() {
