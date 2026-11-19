@@ -1,13 +1,32 @@
 #!/bin/bash
 # fnOS Native — upgrade_callback
 set -e
-INTERNAL_PORT=3000
+
+INTERNAL_PORT="${INTERNAL_PORT:-3000}"
+
+http_probe() {
+  local url="$1"
+  local host port path
+  host=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\1|p')
+  port=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\2|p')
+  path=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\3|p')
+  if exec 3<>"/dev/tcp/${host}/${port}" 2>/dev/null; then
+    printf 'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' "$path" "$host" >&3
+    if grep -qE 'HTTP/1\.[01] 2[0-9][0-9]' <&3; then
+      exec 3>&-; return 0
+    fi
+    exec 3>&-
+  fi
+  return 1
+}
+
 for i in $(seq 1 30); do
-  if curl -sf "http://localhost:${INTERNAL_PORT}/api/login-options" >/dev/null 2>&1; then
-    echo "[fnos-native] upgrade_callback: healthy"
+  if http_probe "http://localhost:${INTERNAL_PORT}/api/login-options"; then
+    echo "[fnos-native] upgrade_callback: healthy on :${INTERNAL_PORT}"
     exit 0
   fi
   sleep 2
 done
-echo "[fnos-native] upgrade_callback: health timeout" >&2
+
+echo "[fnos-native] upgrade_callback: health timeout on :${INTERNAL_PORT}" >&2
 exit 1
