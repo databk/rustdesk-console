@@ -81,12 +81,8 @@ jobs:
   # 2. 后端 Sea 原生二进制（Native 版用，多架构）
   # ──────────────────────────────────────────────────────────────────
   backend-sea-build:
-    name: Build Backend (Sea ${{ matrix.arch }})
+    name: Build Backend (Sea x64)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [x64, arm64]
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
@@ -100,39 +96,22 @@ jobs:
           [[ "$TAG" != fnos-* ]] && VERSION="${{ inputs.version }}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: QEMU (arm64 only)
-        if: matrix.arch == 'arm64'
-        run: |
-          docker run --rm --privileged multiarch/qemu-user-static \
-            --reset -p yes --credential yes
+      - run: npm ci --ignore-scripts && npm run build:sea
+        timeout-minutes: 10
 
-      - name: Build Sea ${{ matrix.arch }}
+      - name: Package + upload
         run: |
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            # arm64 需要交叉编译：用 arm64 Node 镜像 + Docker
-            docker run --rm --platform linux/arm64 \
-              -v "${PWD}:/src" -w /src \
-              node:24-bookworm \
-              bash -c 'npm ci --ignore-scripts && npm run build:sea'
-          else
-            npm ci --ignore-scripts && npm run build:sea
-          fi
-          ls -la dist-sea/rustdesk-console
-
-      - name: Rename + upload
-        run: |
-          # 在 dist-sea 里重命名二进制，tar 一次性从 dist-sea 打
-          cp dist-sea/rustdesk-console "dist-sea/rustdesk-console-${{ matrix.arch }}"
-          tar czf "sea-${{ matrix.arch }}.tar.gz" \
+          cp dist-sea/rustdesk-console "dist-sea/rustdesk-console-x64"
+          tar czf "sea-x64.tar.gz" \
             -C dist-sea \
-            node_modules templates deployment "rustdesk-console-${{ matrix.arch }}"
-          rm -f "dist-sea/rustdesk-console-${{ matrix.arch }}"
-          ls -lh sea-${{ matrix.arch }}.tar.gz
+            node_modules templates deployment "rustdesk-console-x64"
+          rm -f "dist-sea/rustdesk-console-x64"
+          ls -lh sea-x64.tar.gz
 
       - uses: actions/upload-artifact@v4
         with:
-          name: backend-sea-${{ matrix.arch }}
-          path: sea-${{ matrix.arch }}.tar.gz
+          name: backend-sea-x64
+          path: sea-x64.tar.gz
 
   # ──────────────────────────────────────────────────────────────────
   # 3. 前端（并行）
@@ -197,6 +176,7 @@ jobs:
           echo "✓ Docker FPK workspace ready"
 
       # ── 组装 Native 版 ──
+      # 注：arm64 Sea 二进制暂缺（需原生 arm64 runner，QEMU 模拟下 V8 崩溃），arm64 fnOS 用户请用 Docker 版
       - name: Assemble Native FPK workspace
         run: |
           set -euo pipefail
@@ -204,24 +184,17 @@ jobs:
           rm -rf "$DIR"
           cp -r fnos-native "$DIR"
 
-          # 解 Sea 二进制
-          for arch in x64 arm64; do
-            tar xzf "artifacts/backend-sea-${arch}/sea-${arch}.tar.gz" \
-              -C "$DIR/bin/"
-            chmod +x "$DIR/bin/rustdesk-console-${arch}"
-          done
-
-          # node_modules / templates / deployment 共用 x64 那份（同版本）
+          # 解 Sea x64 二进制 + node_modules + templates + deployment（全在 x64 tar 里）
           tar xzf "artifacts/backend-sea-x64/sea-x64.tar.gz" \
-            --wildcards 'node_modules/*' 'templates/*' 'deployment/*' \
             -C "$DIR/bin/"
+          chmod +x "$DIR/bin/rustdesk-console-x64"
 
           # 前端静态资源
           cp -r artifacts/frontend-dist/* "$DIR/public/"
 
           sed -i "s/^version.*=.*$/version = ${VERSION}/" "$DIR/manifest"
           sed -i "s/^display_name.*=.*$/display_name = RustDesk Console (Native)/" "$DIR/manifest"
-          echo "✓ Native FPK workspace ready"
+          echo "✓ Native FPK workspace ready (x64 only; arm64 → Docker FPK)"
 
       # ── fnpack CLI ──
       - name: Download fnpack
@@ -287,7 +260,9 @@ jobs:
             | FPK | 适用 | 体积 | 要求 |
             |-----|------|------|------|
             | **Docker 版** | 所有 fnOS (x86/arm/loongarch/riscv) | ~? | fnOS Docker 已启用 |
-            | **Native 版** | fnOS x86_64 / aarch64 | ~72 MB | 无需 Docker |
+            | **Native 版** | fnOS x86_64 | ~72 MB | 无需 Docker |
+
+            > arm64 fnOS 用户请使用 Docker 版（Native arm64 构建需原生 arm64 runner，待后续支持）。
 
             ### 版本来源
             - 后端: `fengyun1980/rustdesk-console` @ ${{ github.sha }}
