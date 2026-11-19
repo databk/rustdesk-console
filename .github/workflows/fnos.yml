@@ -165,7 +165,7 @@ jobs:
       - name: Assemble Docker FPK workspace
         run: |
           set -euo pipefail
-          DIR="fnos/.fnpkg-docker"
+          DIR=".fnpkg-docker"
           rm -rf "$DIR"
           cp -r fnos "$DIR"
           mkdir -p "$DIR/app/docker/web-dist"
@@ -180,7 +180,7 @@ jobs:
       - name: Assemble Native FPK workspace
         run: |
           set -euo pipefail
-          DIR="fnos-native/.fnpkg-native"
+          DIR=".fnpkg-native"
           rm -rf "$DIR"
           cp -r fnos-native "$DIR"
 
@@ -209,10 +209,10 @@ jobs:
           KEY:  ${{ secrets.FNOS_DEV_KEY }}
         run: |
           if [ -n "$CERT" ] && [ -n "$KEY" ]; then
-            ./fnpack build -d fnos/.fnpkg-docker \
+            ./fnpack build -d .fnpkg-docker \
               --cert <(echo "$CERT" | base64 -d) --key <(echo "$KEY" | base64 -d)
           else
-            ./fnpack build -d fnos/.fnpkg-docker --nosign
+            ./fnpack build -d .fnpkg-docker --nosign
           fi
           mv rustdesk-console.fpk "rustdesk-console-docker-${VERSION}.fpk"
           ls -lh rustdesk-console-docker-*.fpk
@@ -224,10 +224,10 @@ jobs:
           KEY:  ${{ secrets.FNOS_DEV_KEY }}
         run: |
           if [ -n "$CERT" ] && [ -n "$KEY" ]; then
-            ./fnpack build -d fnos-native/.fnpkg-native \
+            ./fnpack build -d .fnpkg-native \
               --cert <(echo "$CERT" | base64 -d) --key <(echo "$KEY" | base64 -d)
           else
-            ./fnpack build -d fnos-native/.fnpkg-native --nosign
+            ./fnpack build -d .fnpkg-native --nosign
           fi
           mv rustdesk-console.fpk "rustdesk-console-native-${VERSION}.fpk"
           ls -lh rustdesk-console-native-*.fpk
