@@ -1,14 +1,19 @@
 #!/bin/bash
 # fnOS Native — main entry point
 # 管理原生 Sea 二进制的 start / stop / status
+# Sea 二进制不支持 --port/--data-dir 等 CLI flag，统一用环境变量传入
 
 APP_BIN_DIR="${TRIM_APPDEST}/bin"
 APP_PUBLIC_DIR="${TRIM_APPDEST}/public"
 DATA_DIR="${TRIM_PKGVAR}/data"
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
-PORT="${PORT:-8000}"
-INTERNAL_PORT=3000
+
+# Sea 二进制通过进程内环境变量读取（参见 src/application.ts + src/common/utils/data-dir.util.ts）
+# PORT 默认 3000（内部监听端口），fnOS 框架的 service_port=21114 是公网入口
+export PORT="${PORT:-3000}"
+export NODE_ENV=production
+export DATA_DIR="${DATA_DIR}"
 
 # 按架构选择对应的 Sea 二进制
 pick_binary() {
@@ -18,7 +23,6 @@ pick_binary() {
     x86_64|amd64)   echo "${APP_BIN_DIR}/rustdesk-console-x64" ;;
     aarch64|arm64)  echo "${APP_BIN_DIR}/rustdesk-console-arm64" ;;
     *)
-      # fallback: 尝试任意存在的
       for bin in "${APP_BIN_DIR}/rustdesk-console-"*; do
         [ -x "$bin" ] && { echo "$bin"; return; }
       done
@@ -41,11 +45,11 @@ status() {
     local pid
     pid=$(tr -d '[:space:]' < "${PID_FILE}")
     if check_process "${pid}"; then
-      return 0  # running
+      return 0
     fi
     rm -f "${PID_FILE}"
   fi
-  return 1  # not running
+  return 1
 }
 
 start_process() {
@@ -62,15 +66,11 @@ start_process() {
 
   mkdir -p "${DATA_DIR}"
 
-  log_msg "Starting ${bin} → :${INTERNAL_PORT} (public :${PORT})"
+  log_msg "Starting ${bin} → :${PORT} (DATA_DIR=${DATA_DIR})"
 
   (
     cd "${APP_BIN_DIR}"
-    exec "${bin}" \
-      --port "${INTERNAL_PORT}" \
-      --data-dir "${DATA_DIR}" \
-      --public-dir "${APP_PUBLIC_DIR}" \
-      >> "${LOG_FILE}" 2>&1
+    exec "${bin}" >> "${LOG_FILE}" 2>&1
   ) &
 
   echo $! > "${PID_FILE}"
