@@ -178,7 +178,10 @@ export class SmtpSettingsService {
       port = dto.port ?? 587;
       secure = dto.secure ?? false;
       user = dto.user;
-      pass = dto.pass;
+      pass =
+        dto.pass && dto.pass !== this.PASS_MASK
+          ? dto.pass
+          : await this.savedPasswordFor(host, user);
     } else {
       const config = await this.getActiveConfig();
       if (!config) {
@@ -216,6 +219,24 @@ export class SmtpSettingsService {
     } finally {
       transporter.close();
     }
+  }
+
+  /**
+   * Returns the saved password when the tested server and user match the
+   * saved configuration. The settings page shows the saved password only as a
+   * masked placeholder and omits it from test requests, so without this
+   * fallback every test of a saved configuration would authenticate without a
+   * password. The password is never sent to a different host or user.
+   */
+  private async savedPasswordFor(
+    host: string,
+    user: string | undefined,
+  ): Promise<string | undefined> {
+    const saved = await this.getActiveConfig();
+    if (!saved || saved.host !== host || saved.user !== user) {
+      return undefined;
+    }
+    return saved.pass;
   }
 
   /**
