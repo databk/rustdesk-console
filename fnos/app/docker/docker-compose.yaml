@@ -7,11 +7,11 @@ services:
     container_name: rustdesk-console
     restart: unless-stopped
     ports:
-      - "${PORT:-8000}:8000"
+      - "${PORT:-21114}:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - PUBLIC_PORT=${PORT:-8000}
+      - PUBLIC_PORT=${PORT:-21114}
       - DATA_DIR=/data
       - JWT_SECRET=${JWT_SECRET:-}
       - DB_MIGRATE_ON_START=1

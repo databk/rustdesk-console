@@ -236,7 +236,8 @@ jobs:
             - 配置文件：`/opt/rustdesk-console/.env`
 
             ### 端口
-            - 默认 HTTP：**8000**
-            - 安装后访问：`http://<设备IP>:8000/setup` 完成初始化配置
+            - 默认 HTTP：**3000**
+            - 如需对外访问，配置反向代理（nginx/haproxy）将 21114 转发到 127.0.0.1:3000
+            - 安装后访问：`http://<设备IP>:3000/setup` 完成初始化配置
           files: rustdesk-console-inextos-*.deb
           fail_on_unmatched_files: true
