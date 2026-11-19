@@ -1,0 +1,236 @@
+name: iNextOS Build (DEB)
+
+on:
+  push:
+    tags:
+      - 'inextos-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'DEB 版本号'
+        required: true
+        default: '1.11.10'
+        type: string
+      frontend_repo:
+        description: '前端仓库 (owner/repo)'
+        required: true
+        default: 'fengyun1980/rustdesk-console-web'
+        type: string
+      frontend_branch:
+        description: '前端分支/tag'
+        required: true
+        default: 'fnos-setup-wizard'
+        type: string
+      publish:
+        description: '发布到 Release'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────
+  # 1. arm64 Docker 里构建 NestJS dist + node_modules（npm ci 能过）
+  # ──────────────────────────────────────────────────────────────────
+  backend-arm64-build:
+    name: Build Backend (arm64, Docker)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#inextos-}"
+          [[ "$TAG" != inextos-* ]] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: QEMU
+        run: |
+          docker run --rm --privileged multiarch/qemu-user-static \
+            --reset -p yes --credential yes
+
+      - name: Build arm64 NestJS dist + node_modules (volume)
+        run: |
+          rm -rf /tmp/arm64-out && mkdir -p /tmp/arm64-out
+          docker run --rm --platform linux/arm64 \
+            -v "${PWD}:/src" \
+            -v /tmp/arm64-out:/out \
+            node:24-bookworm \
+            bash -c '
+              set -e
+              cd /src
+              npm ci --ignore-scripts --no-audit --no-fund
+              npm run build
+              npm install --omit=dev --no-audit --no-fund
+              tar czf /out/backend-arm64.tar.gz \
+                --transform "s,^dist,dist,;s,^node_modules,node_modules,;s,^templates,templates,;s,^deployment,deployment," \
+                dist node_modules templates deployment
+            '
+          ls -lh /tmp/arm64-out/backend-arm64.tar.gz
+          mkdir -p artifacts
+          cp /tmp/arm64-out/backend-arm64.tar.gz artifacts/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-arm64
+          path: artifacts/backend-arm64.tar.gz
+
+  # ──────────────────────────────────────────────────────────────────
+  # 2. 前端（并行）
+  # ──────────────────────────────────────────────────────────────────
+  frontend-build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_repo || 'fengyun1980/rustdesk-console-web' }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_branch || 'fnos-setup-wizard' }}
+          path: frontend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: cd frontend && npm ci --ignore-scripts && npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  # ──────────────────────────────────────────────────────────────────
+  # 3. 组装 deb + dpkg-deb 打包
+  # ──────────────────────────────────────────────────────────────────
+  deb-build:
+    name: Assemble DEB (aarch64)
+    needs: [backend-arm64-build, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#inextos-}"
+          [[ "$TAG" != inextos-* ]] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "→ Building iNextOS DEB v$VERSION (aarch64)"
+
+      # 组装 debroot
+      - name: Assemble debroot
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.backend-arm64-build.outputs.version }}"
+          ROOT="inextos/.debroot"
+          rm -rf "$ROOT"
+
+          # 复制模板（控制文件、unit 等）
+          cp -r inextos "$ROOT"
+          rm -rf "$ROOT/.debroot"
+
+          # 后端：arm64 dist + node_modules + templates + deployment
+          mkdir -p "$ROOT/opt/rustdesk-console"
+          tar xzf artifacts/backend-arm64/backend-arm64.tar.gz \
+            -C "$ROOT/opt/rustdesk-console"
+          echo "✓ backend extracted"
+          ls "$ROOT/opt/rustdesk-console/"
+
+          # 前端静态资源
+          mkdir -p "$ROOT/opt/rustdesk-console/public"
+          cp -r artifacts/frontend-dist/* "$ROOT/opt/rustdesk-console/public/"
+
+          # 下载 arm64 Node.js 24 runtime
+          curl -fsSL "https://nodejs.org/dist/v24.12.0/node-v24.12.0-linux-arm64.tar.xz" \
+            -o /tmp/node-arm64.tar.xz
+          tar xf /tmp/node-arm64.tar.xz -C /tmp/
+          mv /tmp/node-v24.12.0-linux-arm64 "$ROOT/opt/rustdesk-console/node"
+          chmod +x "$ROOT/opt/rustdesk-console/node/bin/node"
+          "$ROOT/opt/rustdesk-console/node/bin/node" --version
+
+          # systemd unit + .env
+          mkdir -p "$ROOT/etc/systemd/system"
+          cp inextos/etc/systemd/system/rustdesk-console.service "$ROOT/etc/systemd/system/"
+          cp inextos/opt/rustdesk-console/.env.example "$ROOT/opt/rustdesk-console/.env"
+
+          # 修 .service 里的路径 — 用模板里的即可
+          cat "$ROOT/etc/systemd/system/rustdesk-console.service"
+
+          # 数据目录
+          mkdir -p "$ROOT/var/lib/rustdesk-console"
+
+          # control 文件里写真实版本
+          sed -i "s/^Version:.*$/Version: ${VERSION}/" "$ROOT/DEBIAN/control"
+
+          # 计算 Installed-Size（512 字节块）
+          SIZE_BYTES=$(du -sb "$ROOT" | cut -f1)
+          SIZE_KB=$((SIZE_BYTES / 1024))
+          sed -i "s/^Installed-Size:.*$/Installed-Size: ${SIZE_KB}/" "$ROOT/DEBIAN/control"
+
+          # 脚本加执行权限
+          chmod +x "$ROOT/DEBIAN/postinst" "$ROOT/DEBIAN/preinst" "$ROOT/DEBIAN/postrm"
+
+          echo "✓ debroot ready"
+          find "$ROOT" -maxdepth 3 -type d | sort
+
+      # dpkg-deb 打包
+      - name: dpkg-deb build
+        run: |
+          VERSION="${{ needs.backend-arm64-build.outputs.version }}"
+          ROOT="inextos/.debroot"
+          OUT="rustdesk-console-inextos-${VERSION}-aarch64.deb"
+          dpkg-deb --build --root-owner-group "$ROOT" "$OUT"
+          ls -lh "$OUT"
+          # 验证
+          dpkg-deb -I "$OUT"
+          dpkg-deb -c "$OUT" | head -30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inextos-deb
+          path: rustdesk-console-inextos-*.deb
+
+      # Release
+      - name: Upload to Release
+        if: ${{ (inputs.publish == true) || (github.event_name == 'push') }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: iNextOS RustDesk Console v${{ needs.backend-arm64-build.outputs.version }}
+          body: |
+            ## RustDesk Console · iNextOS (aarch64)
+
+            ### 安装
+            ```bash
+            sudo dpkg -i rustdesk-console-inextos-${{ needs.backend-arm64-build.outputs.version }}-aarch64.deb
+            sudo systemctl enable --now rustdesk-console
+            ```
+
+            ### 特点
+            - 零外部依赖（自带 arm64 Node.js 24 runtime）
+            - 自包含 NestJS 后端 + 前端静态资源
+            - systemd 服务管理，开机自启
+            - 数据目录：`/var/lib/rustdesk-console`
+            - 配置文件：`/opt/rustdesk-console/.env`
+
+            ### 端口
+            - 默认 HTTP：**8000**
+            - 安装后访问：`http://<设备IP>:8000/setup` 完成初始化配置
+          files: rustdesk-console-inextos-*.deb
+          fail_on_unmatched_files: true

@@ -1,0 +1,19 @@
+[Unit]
+Description=RustDesk Console Management Server
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rustdesk-console
+EnvironmentFile=/opt/rustdesk-console/.env
+ExecStart=/opt/rustdesk-console/node/bin/node /opt/rustdesk-console/dist/main.js
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
