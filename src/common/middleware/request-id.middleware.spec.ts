@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import {
+  getCurrentRequestContext,
   getCurrentRequestId,
   requestIdMiddleware,
   resolveRequestId,
@@ -90,5 +91,60 @@ describe('requestIdMiddleware', () => {
   it('exposes no ID outside a request', () => {
     run('req-1');
     expect(getCurrentRequestId()).toBeUndefined();
+  });
+});
+
+describe('requestIdMiddleware client origin', () => {
+  const originalTrustedProxy = process.env.TRUSTED_PROXY;
+
+  afterEach(() => {
+    if (originalTrustedProxy === undefined) delete process.env.TRUSTED_PROXY;
+    else process.env.TRUSTED_PROXY = originalTrustedProxy;
+  });
+
+  function contextOf(headers: Record<string, string>) {
+    const request = {
+      headers,
+      socket: { remoteAddress: '::ffff:172.18.0.3' },
+    } as unknown as Request;
+    let context: ReturnType<typeof getCurrentRequestContext>;
+    requestIdMiddleware(
+      request,
+      { setHeader: jest.fn() } as unknown as Response,
+      () => {
+        context = getCurrentRequestContext();
+      },
+    );
+    return context;
+  }
+
+  it('scopes the socket address and User-Agent with the request ID', () => {
+    delete process.env.TRUSTED_PROXY;
+
+    expect(
+      contextOf({
+        'x-request-id': 'req-1',
+        'x-forwarded-for': '198.51.100.9',
+        'user-agent': 'Mozilla/5.0',
+      }),
+    ).toEqual({
+      requestId: 'req-1',
+      clientIp: '172.18.0.3',
+      userAgent: 'Mozilla/5.0',
+    });
+  });
+
+  it('uses the forwarded client address when TRUSTED_PROXY is enabled', () => {
+    process.env.TRUSTED_PROXY = 'true';
+
+    expect(contextOf({ 'x-forwarded-for': '198.51.100.9' })).toMatchObject({
+      clientIp: '198.51.100.9',
+      userAgent: null,
+    });
+  });
+
+  it('exposes no context outside a request', () => {
+    contextOf({});
+    expect(getCurrentRequestContext()).toBeUndefined();
   });
 });
