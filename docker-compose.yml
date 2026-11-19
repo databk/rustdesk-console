@@ -8,6 +8,9 @@ services:
       DB_TYPE: ${DB_TYPE:-sqlite}
       DB_MIGRATE_ON_START: ${DB_MIGRATE_ON_START:-1}
       LOG_LEVEL: ${LOG_LEVEL:-log}
+      # This service is not published: requests arrive through the bundled
+      # web proxy, so trust the client address it adds to X-Forwarded-For.
+      TRUSTED_PROXY: ${TRUSTED_PROXY:-true}
 
       DB_HOST: ${DB_HOST:-localhost}
       DB_PORT: ${DB_PORT:-3306}

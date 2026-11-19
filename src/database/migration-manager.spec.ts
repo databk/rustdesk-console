@@ -11,6 +11,7 @@ import { AddDeviceTombstones1791040000000 } from '../migrations/1791040000000-Ad
 import { AddDeviceTombstoneReleaseTracking1791126400000 } from '../migrations/1791126400000-AddDeviceTombstoneReleaseTracking';
 import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1791212800000-ReplaceNexusWithCustomClientBuilds';
 import { SupportMariaDbDefaultGroupIndex1794700800000 } from '../migrations/1794700800000-SupportMariaDbDefaultGroupIndex';
+import { AddConsoleAuditClientOrigin1794787200000 } from '../migrations/1794787200000-AddConsoleAuditClientOrigin';
 import { AddressBookPeer } from '../modules/address-book/entities/address-book-peer.entity';
 import { migrateDatabase } from './migration-manager';
 
@@ -23,20 +24,27 @@ describe('database migrations', () => {
     return join(directory, 'console.db');
   }
 
-  function source(database: string, synchronize = false): DataSource {
+  const migrations = [
+    InitialSchema1790985600000,
+    FixMySqlDefaultUserGroupIndex1790985600001,
+    AddPasswordResetTokens1790985600002,
+    AddDeviceTombstones1791040000000,
+    AddDeviceTombstoneReleaseTracking1791126400000,
+    ReplaceNexusWithCustomClientBuilds1791212800000,
+    SupportMariaDbDefaultGroupIndex1794700800000,
+    AddConsoleAuditClientOrigin1794787200000,
+  ];
+
+  function source(
+    database: string,
+    synchronize = false,
+    migrationClasses: (typeof migrations)[number][] = migrations,
+  ): DataSource {
     return new DataSource({
       type: 'sqlite',
       database,
       entities: DATABASE_ENTITIES,
-      migrations: [
-        InitialSchema1790985600000,
-        FixMySqlDefaultUserGroupIndex1790985600001,
-        AddPasswordResetTokens1790985600002,
-        AddDeviceTombstones1791040000000,
-        AddDeviceTombstoneReleaseTracking1791126400000,
-        ReplaceNexusWithCustomClientBuilds1791212800000,
-        SupportMariaDbDefaultGroupIndex1794700800000,
-      ],
+      migrations: migrationClasses,
       synchronize,
     });
   }
@@ -59,7 +67,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(7);
+      ).toHaveLength(8);
       await dataSource.query(
         "INSERT INTO address_books (guid, owner) VALUES ('book', 'owner')",
       );
@@ -102,7 +110,38 @@ describe('database migrations', () => {
       ).toEqual([{ name: 'retained' }]);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(7);
+      ).toHaveLength(8);
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('adds console audit client origin columns to an existing database', async () => {
+    const database = databasePath();
+    const previous = source(database, false, migrations.slice(0, -1));
+    await previous.initialize();
+    try {
+      await previous.runMigrations({ transaction: 'all' });
+      await previous.query(
+        "INSERT INTO console_audits (guid, targetType, action, result) VALUES ('kept', 'role', 'role.update', 'allowed')",
+      );
+    } finally {
+      await previous.destroy();
+    }
+
+    const dataSource = source(database);
+    await dataSource.initialize();
+    try {
+      await migrateDatabase(dataSource);
+      expect(await dataSource.showMigrations()).toBe(false);
+      expect(
+        (await dataSource.driver.createSchemaBuilder().log()).upQueries,
+      ).toHaveLength(0);
+      expect(
+        await dataSource.query(
+          "SELECT action, clientIp, userAgent FROM console_audits WHERE guid = 'kept'",
+        ),
+      ).toEqual([{ action: 'role.update', clientIp: null, userAgent: null }]);
     } finally {
       await dataSource.destroy();
     }
@@ -121,7 +160,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(7);
+      ).toHaveLength(8);
     } finally {
       await dataSource.destroy();
     }
@@ -158,7 +197,7 @@ describe('database migrations', () => {
       ).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(7);
+      ).toHaveLength(8);
       const indexes = await dataSource.query(
         "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'strategies' AND sql IS NOT NULL",
       );

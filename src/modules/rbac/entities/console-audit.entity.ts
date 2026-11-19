@@ -41,6 +41,12 @@ export class ConsoleAudit {
   @Column({ type: 'varchar', nullable: true })
   requestId: string | null;
 
+  @Column({ type: 'varchar', length: 45, nullable: true })
+  clientIp: string | null;
+
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  userAgent: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

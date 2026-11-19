@@ -8,6 +8,7 @@ import { AddDeviceTombstones1791040000000 } from '../migrations/1791040000000-Ad
 import { AddDeviceTombstoneReleaseTracking1791126400000 } from '../migrations/1791126400000-AddDeviceTombstoneReleaseTracking';
 import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1791212800000-ReplaceNexusWithCustomClientBuilds';
 import { SupportMariaDbDefaultGroupIndex1794700800000 } from '../migrations/1794700800000-SupportMariaDbDefaultGroupIndex';
+import { AddConsoleAuditClientOrigin1794787200000 } from '../migrations/1794787200000-AddConsoleAuditClientOrigin';
 
 export function createDataSourceOptions(): DataSourceOptions {
   const common = {
@@ -20,6 +21,7 @@ export function createDataSourceOptions(): DataSourceOptions {
       AddDeviceTombstoneReleaseTracking1791126400000,
       ReplaceNexusWithCustomClientBuilds1791212800000,
       SupportMariaDbDefaultGroupIndex1794700800000,
+      AddConsoleAuditClientOrigin1794787200000,
     ],
     migrationsRun: false,
     synchronize: false,

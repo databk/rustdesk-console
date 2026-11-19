@@ -50,6 +50,16 @@ characters from `A-Z a-z 0-9 . _ : -`) is reused; otherwise a UUID is
 generated. Events that are not tied to a single HTTP request may set
 `requestId` explicitly (web client sessions use the session GUID).
 
+Console audits written while handling an HTTP request also store the
+request's `client_ip` and `user_agent` (truncated to 512 characters). By
+default `client_ip` is the TCP peer address and forwarded headers are ignored,
+because clients can forge them. Behind a reverse proxy set `TRUSTED_PROXY=true`
+to use the right-most `X-Forwarded-For` entry instead, which is the address
+the proxy directly in front of the console saw; requests without a valid
+entry fall back to the peer address. Only enable it when the console is
+reachable solely through that proxy. Events recorded outside an HTTP request,
+such as scheduled jobs, store `null` for both fields.
+
 The `action` query filter also expands exact historical route-style names, so
 `user.create` matches old `POST /api/users` records and `POST /api/users`
 matches new `user.create` records.
