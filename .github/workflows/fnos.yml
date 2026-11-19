@@ -112,7 +112,7 @@ jobs:
             # arm64 需要交叉编译：用 arm64 Node 镜像 + Docker
             docker run --rm --platform linux/arm64 \
               -v "${PWD}:/src" -w /src \
-              node:24-bookworm-slim \
+              node:24-bookworm \
               bash -c 'npm ci --ignore-scripts && npm run build:sea'
           else
             npm ci --ignore-scripts && npm run build:sea
