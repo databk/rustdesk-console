@@ -1,28 +1,42 @@
 #!/bin/bash
 # fnOS Docker — install_callback
 # Called after container starts; wait for backend to become reachable.
-# 用 bash 内置 /dev/tcp，不依赖 curl/wget（fnOS 不一定装了）。
+# 多层 fallback，不假设 fnOS 上有 curl/wget 或 bash /dev/tcp。
 set -e
 
 PORT="${PORT:-3000}"
+MAX=60
 
 http_probe() {
-  local url="$1"
-  local host port path
+  local url="$1" host port path
   host=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\1|p')
   port=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\2|p')
   path=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\3|p')
-  if exec 3<>"/dev/tcp/${host}/${port}" 2>/dev/null; then
+
+  # 1. curl (最常见)
+  if command -v curl >/dev/null 2>&1; then
+    curl -sf -o /dev/null --max-time 2 "$url" && return 0
+  fi
+  # 2. wget
+  if command -v wget >/dev/null 2>&1; then
+    wget -qO /dev/null --timeout=2 "$url" && return 0
+  fi
+  # 3. bash 内置 /dev/tcp (需 bash + --enable-net-redirections)
+  if [ -B /dev/tcp ] && exec 3<>"/dev/tcp/${host}/${port}" 2>/dev/null; then
     printf 'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' "$path" "$host" >&3
-    if grep -qE 'HTTP/1\.[01] 2[0-9][0-9]' <&3; then
-      exec 3>&-; return 0
-    fi
+    grep -qE 'HTTP/1\.[01] 2[0-9][0-9]' <&3 && { exec 3>&-; return 0; }
     exec 3>&-
+  fi
+  # 4. 最低级：看端口是不是在监听（ss/netstat/lsof 任一可用）
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | grep -q ":${port}[[:space:]]" && return 0
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -ltn 2>/dev/null | grep -q ":${port}[[:space:]]" && return 0
   fi
   return 1
 }
 
-for i in $(seq 1 30); do
+for i in $(seq 1 $MAX); do
   if http_probe "http://localhost:${PORT}/api/login-options"; then
     echo "[fnos] install_callback: console healthy on :${PORT}"
     exit 0
