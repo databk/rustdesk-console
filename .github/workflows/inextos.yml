@@ -168,7 +168,7 @@ jobs:
           tar xf /tmp/node-arm64.tar.xz -C /tmp/
           mv /tmp/node-v24.12.0-linux-arm64 "$ROOT/opt/rustdesk-console/node"
           chmod +x "$ROOT/opt/rustdesk-console/node/bin/node"
-          "$ROOT/opt/rustdesk-console/node/bin/node" --version
+          # 注意：不要在这里执行 node 验证，runner 是 x86_64 跑不了 arm64 二进制
 
           # systemd unit + .env
           mkdir -p "$ROOT/etc/systemd/system"
