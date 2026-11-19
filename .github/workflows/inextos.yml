@@ -70,11 +70,17 @@ jobs:
               npm ci --ignore-scripts --no-audit --no-fund
               npm run build
               npm install --omit=dev --no-audit --no-fund
+              # 合并 templates（nest build 后在 dist/modules/*/templates/）
+              mkdir -p templates
+              cp -r dist/modules/email/templates templates/email 2>/dev/null || true
+              cp -r dist/modules/oidc/templates templates/oidc 2>/dev/null || true
+              echo "templates dir:" && ls templates/
+              # 打包
               tar czf /out/backend-arm64.tar.gz \
-                --transform "s,^dist,dist,;s,^node_modules,node_modules,;s,^templates,templates,;s,^deployment,deployment," \
                 dist node_modules templates deployment
             '
           ls -lh /tmp/arm64-out/backend-arm64.tar.gz
+          tar tzf /tmp/arm64-out/backend-arm64.tar.gz | head -20
           mkdir -p artifacts
           cp /tmp/arm64-out/backend-arm64.tar.gz artifacts/
 
