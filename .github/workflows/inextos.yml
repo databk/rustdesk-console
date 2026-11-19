@@ -144,12 +144,12 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.backend-arm64-build.outputs.version }}"
-          ROOT="inextos/.debroot"
+          ROOT=".debroot-inextos"
           rm -rf "$ROOT"
 
           # 复制模板（控制文件、unit 等）
           cp -r inextos "$ROOT"
-          rm -rf "$ROOT/.debroot"
+          rm -rf "$ROOT/.debroot-inextos"
 
           # 后端：arm64 dist + node_modules + templates + deployment
           mkdir -p "$ROOT/opt/rustdesk-console"
@@ -199,7 +199,7 @@ jobs:
       - name: dpkg-deb build
         run: |
           VERSION="${{ needs.backend-arm64-build.outputs.version }}"
-          ROOT="inextos/.debroot"
+          ROOT=".debroot-inextos"
           OUT="rustdesk-console-inextos-${VERSION}-aarch64.deb"
           dpkg-deb --build --root-owner-group "$ROOT" "$OUT"
           ls -lh "$OUT"
