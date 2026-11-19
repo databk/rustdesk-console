@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+SERVICE=rustdesk-console
+
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    systemctl stop "$SERVICE" 2>/dev/null || true
+fi
