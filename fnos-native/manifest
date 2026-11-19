@@ -1,0 +1,22 @@
+# fnOS application manifest — NATIVE 模板（单二进制）
+# 与 fnos/docker 版功能完全相同，只是启动方式不同
+appname      = rustdesk-console
+version      = 1.11.10
+display_name = RustDesk Console (Native)
+desc         = RustDesk Server Pro 管理控制台 — 原生二进制版，无需 Docker。设备管理、网页远控、定制客户端。
+platform     = all
+source       = thirdparty
+maintainer   = fengyun1980
+distributor  = fengyun1980
+service_port = 8000
+data_dir     = ${TRIM_PKGVAR}/data
+install_init    = cmd/install_init
+install_callback = cmd/install_callback
+upgrade_init    = cmd/upgrade_init
+upgrade_callback = cmd/upgrade_callback
+uninstall_init  = cmd/uninstall_init
+uninstall_callback = cmd/uninstall_callback
+config_init     = cmd/config_init
+config_callback = cmd/config_callback
+service_uidir   =
+desktop_uidir   =

@@ -1,0 +1,14 @@
+{
+  "cpu": {
+    "recommend": "0.5",
+    "limit": "2"
+  },
+  "memory": {
+    "recommend": "512MB",
+    "limit": "2GB"
+  },
+  "storage": {
+    "recommend": "1GB",
+    "limit": "10GB"
+  }
+}

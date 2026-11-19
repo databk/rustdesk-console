@@ -1,0 +1,25 @@
+services:
+  rustdesk-console:
+    build:
+      context: ../..
+      dockerfile: fnos/app/docker/Dockerfile.fnos
+    image: rustdesk-console:${VERSION:-latest}
+    container_name: rustdesk-console
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PUBLIC_PORT=${PORT:-8000}
+      - DATA_DIR=/data
+      - JWT_SECRET=${JWT_SECRET:-}
+      - DB_MIGRATE_ON_START=1
+    volumes:
+      - ${TRIM_PKGVAR}/data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/login-options', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

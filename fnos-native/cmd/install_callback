@@ -1,0 +1,14 @@
+#!/bin/bash
+# fnOS Native — install_callback
+set -e
+
+INTERNAL_PORT=3000
+for i in $(seq 1 30); do
+  if curl -sf "http://localhost:${INTERNAL_PORT}/api/login-options" >/dev/null 2>&1; then
+    echo "[fnos-native] install_callback: console healthy on :${INTERNAL_PORT}"
+    exit 0
+  fi
+  sleep 2
+done
+echo "[fnos-native] install_callback: health timeout" >&2
+exit 1

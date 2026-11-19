@@ -1,0 +1,12 @@
+#!/bin/bash
+# fnOS Native — install_init
+set -e
+
+DATA_DIR="${TRIM_PKGVAR}/data"
+mkdir -p "${DATA_DIR}"
+chmod 755 "${DATA_DIR}"
+
+BIN_DIR="${TRIM_APPDEST}/bin"
+chmod +x "${BIN_DIR}/rustdesk-console-"* 2>/dev/null || true
+
+echo "[fnos-native] install_init: ready (arch=$(uname -m))"

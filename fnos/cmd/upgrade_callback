@@ -1,0 +1,15 @@
+#!/bin/bash
+# fnOS — Upgrade callback hook
+set -e
+
+PORT="${PORT:-8000}"
+for i in $(seq 1 30); do
+  if curl -sf "http://localhost:${PORT}/api/login-options" >/dev/null 2>&1; then
+    echo "[fnos] upgrade_callback: new version healthy"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "[fnos] upgrade_callback: health check timed out" >&2
+exit 1

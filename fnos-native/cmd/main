@@ -1,0 +1,122 @@
+#!/bin/bash
+# fnOS Native — main entry point
+# 管理原生 Sea 二进制的 start / stop / status
+
+APP_BIN_DIR="${TRIM_APPDEST}/bin"
+APP_PUBLIC_DIR="${TRIM_APPDEST}/public"
+DATA_DIR="${TRIM_PKGVAR}/data"
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+PID_FILE="${TRIM_PKGVAR}/app.pid"
+PORT="${PORT:-8000}"
+INTERNAL_PORT=3000
+
+# 按架构选择对应的 Sea 二进制
+pick_binary() {
+  local arch
+  arch=$(uname -m)
+  case "$arch" in
+    x86_64|amd64)   echo "${APP_BIN_DIR}/rustdesk-console-x64" ;;
+    aarch64|arm64)  echo "${APP_BIN_DIR}/rustdesk-console-arm64" ;;
+    *)
+      # fallback: 尝试任意存在的
+      for bin in "${APP_BIN_DIR}/rustdesk-console-"*; do
+        [ -x "$bin" ] && { echo "$bin"; return; }
+      done
+      echo ""
+      ;;
+  esac
+}
+
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+check_process() {
+  local pid=$1
+  kill -0 "${pid}" 2>/dev/null
+}
+
+status() {
+  if [ -f "${PID_FILE}" ]; then
+    local pid
+    pid=$(tr -d '[:space:]' < "${PID_FILE}")
+    if check_process "${pid}"; then
+      return 0  # running
+    fi
+    rm -f "${PID_FILE}"
+  fi
+  return 1  # not running
+}
+
+start_process() {
+  if status; then
+    return 0
+  fi
+
+  local bin
+  bin=$(pick_binary)
+  if [ -z "${bin}" ] || [ ! -x "${bin}" ]; then
+    log_msg "ERROR: no usable rustdesk-console binary for arch $(uname -m)"
+    return 1
+  fi
+
+  mkdir -p "${DATA_DIR}"
+
+  log_msg "Starting ${bin} → :${INTERNAL_PORT} (public :${PORT})"
+
+  (
+    cd "${APP_BIN_DIR}"
+    exec "${bin}" \
+      --port "${INTERNAL_PORT}" \
+      --data-dir "${DATA_DIR}" \
+      --public-dir "${APP_PUBLIC_DIR}" \
+      >> "${LOG_FILE}" 2>&1
+  ) &
+
+  echo $! > "${PID_FILE}"
+  sleep 1
+
+  if check_process "$(cat "${PID_FILE}")"; then
+    log_msg "Started PID=$(cat "${PID_FILE}")"
+    return 0
+  fi
+
+  log_msg "ERROR: process died immediately"
+  rm -f "${PID_FILE}"
+  return 1
+}
+
+stop_process() {
+  if ! status; then
+    return 0
+  fi
+
+  local pid
+  pid=$(tr -d '[:space:]' < "${PID_FILE}")
+  log_msg "Stopping PID=${pid} (TERM → wait 10s → KILL)"
+
+  kill -TERM "${pid}" 2>/dev/null
+  local count=0
+  while check_process "${pid}" && [ ${count} -lt 10 ]; do
+    sleep 1
+    count=$((count + 1))
+  done
+
+  if check_process "${pid}"; then
+    kill -KILL "${pid}" 2>/dev/null
+    sleep 1
+  fi
+  rm -f "${PID_FILE}"
+  log_msg "Stopped"
+}
+
+case "$1" in
+  start)  start_process   ;;
+  stop)   stop_process    ;;
+  status)
+    if status; then exit 0; else exit 3; fi
+    ;;
+  *)
+    exit 1
+    ;;
+esac
