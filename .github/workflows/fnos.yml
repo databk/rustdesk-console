@@ -121,10 +121,12 @@ jobs:
 
       - name: Rename + upload
         run: |
-          cp dist-sea/rustdesk-console "rustdesk-console-${{ matrix.arch }}"
+          # 在 dist-sea 里重命名二进制，tar 一次性从 dist-sea 打
+          cp dist-sea/rustdesk-console "dist-sea/rustdesk-console-${{ matrix.arch }}"
           tar czf "sea-${{ matrix.arch }}.tar.gz" \
-            -C dist-sea node_modules templates deployment \
-            -C . "rustdesk-console-${{ matrix.arch }}"
+            -C dist-sea \
+            node_modules templates deployment "rustdesk-console-${{ matrix.arch }}"
+          rm -f "dist-sea/rustdesk-console-${{ matrix.arch }}"
           ls -lh sea-${{ matrix.arch }}.tar.gz
 
       - uses: actions/upload-artifact@v4
