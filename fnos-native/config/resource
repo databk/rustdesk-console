@@ -2,10 +2,10 @@
   "data-share": {
     "shares": [
       {
-        "name": "fn-native-sample"
+        "name": "rustdesk-console"
       },
       {
-        "name": "fn-native-sample/data"
+        "name": "rustdesk-console/data"
       }
     ]
   }

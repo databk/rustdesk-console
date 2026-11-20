@@ -75,7 +75,6 @@ jobs:
             package-lock.json
             tsconfig*.json
             nest-cli.json
-            deployment/
 
   # ──────────────────────────────────────────────────────────────────
   # 2. 后端 Sea 原生二进制（Native 版用，多架构）
@@ -102,9 +101,11 @@ jobs:
       - name: Package + upload
         run: |
           cp dist-sea/rustdesk-console "dist-sea/rustdesk-console-x64"
+          # 注：deployment/ (install-linux.sh, install_linux.py, systemd units)
+          # 已从 Sea 构建中移除——那是 upstream tarball 安装器，FPK/DEB 不用它
           tar czf "sea-x64.tar.gz" \
             -C dist-sea \
-            node_modules templates deployment "rustdesk-console-x64"
+            node_modules templates "rustdesk-console-x64"
           rm -f "dist-sea/rustdesk-console-x64"
           ls -lh sea-x64.tar.gz
 
@@ -190,7 +191,7 @@ jobs:
           # 创建 fnpack 需要但模板里没有的子目录
           mkdir -p "$DIR/bin" "$DIR/public"
 
-          # 解 Sea x64 二进制 + node_modules + templates + deployment（全在 x64 tar 里）
+          # 解 Sea x64 二进制 + node_modules + templates（deployment/ 已不打包）
           tar xzf "artifacts/backend-sea-x64/sea-x64.tar.gz" \
             -C "$DIR/bin/"
           chmod +x "$DIR/bin/rustdesk-console-x64"
