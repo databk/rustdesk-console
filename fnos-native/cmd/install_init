@@ -1,28 +1,15 @@
 #!/bin/bash
-# fnOS Native — install_init
-# 在 fnOS 解压文件之前执行。只能操作 TRIM_PKGVAR（var/ 数据目录，系统提前建好）。
-# ⚠️ 错误输出到 stderr（fnOS 框架会直接展示给用户）。
-set -e
+# fnOS Native — install_init (PROBE VERSION)
+# 极简探针：如果能跑到这里，/tmp/rustdesk-probe 就会有内容
+# 如果崩了还是没内容 → 说明 fnOS 框架根本没执行到这个脚本
+echo "[PROBE] install_init STARTED at $(date), TRIM_PKGVAR=${TRIM_PKGVAR:-empty}" > /tmp/rustdesk-probe 2>&1
+echo "[PROBE] TRIM_APPDEST=${TRIM_APPDEST:-empty}" >> /tmp/rustdesk-probe 2>&1
+echo "[PROBE] TRIM_TEMP_LOGFILE=${TRIM_TEMP_LOGFILE:-empty}" >> /tmp/rustdesk-probe 2>&1
+echo "[PROBE] arch=$(uname -m)" >> /tmp/rustdesk-probe 2>&1
 
-LOG_FILE="${TRIM_PKGVAR:-/tmp}/info.log"
-
-log_msg() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - [install_init] $1" >> "${LOG_FILE}"
-}
-
-fail() {
-  local msg="$1"
-  log_msg "FATAL: $msg"
-  echo "install_init: $msg" 1>&2
-  exit 1
-}
-
-log_msg "arch=$(uname -m) TRIM_PKGVAR=${TRIM_PKGVAR:-empty} TRIM_APPDEST=${TRIM_APPDEST:-empty}"
-
-# ── 数据目录（系统应已建好 var/，这里只确保子目录）──
-DATA_DIR="${TRIM_PKGVAR}/data"
-mkdir -p "${DATA_DIR}" || fail "cannot mkdir ${DATA_DIR}"
-chmod 755 "${DATA_DIR}"
-log_msg "DATA_DIR ready: ${DATA_DIR}"
-
-log_msg "install_init done"
+# 数据目录
+DATA_DIR="${TRIM_PKGVAR:-/tmp}/data"
+mkdir -p "${DATA_DIR}" 2>/tmp/rustdesk-probe && echo "[PROBE] mkdir OK: ${DATA_DIR}" >> /tmp/rustdesk-probe || echo "[PROBE] mkdir FAILED: ${DATA_DIR}" >> /tmp/rustdesk-probe
+chmod 755 "${DATA_DIR}" 2>/tmp/rustdesk-probe
+echo "[PROBE] install_init DONE" >> /tmp/rustdesk-probe 2>&1
+exit 0
