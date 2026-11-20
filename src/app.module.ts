@@ -32,6 +32,8 @@ import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-aud
 import { WebClientModule } from './modules/web-client/web-client.module';
 import { SetupModule } from './modules/setup/setup.module';
 import { installSqliteWriteQueue } from './database/sqlite-write-queue';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 /**
  * Application root module
@@ -109,6 +111,14 @@ import { installSqliteWriteQueue } from './database/sqlite-write-queue';
     ServerManagementModule,
     WebClientModule,
     SetupModule,
+    // Serve frontend static files (public/) + SPA fallback for React Router
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+      serveRoot: '/',
+      // SPA fallback: unknown routes → index.html (React Router handles /setup, /login, etc.)
+      renderPath: join(__dirname, '..', 'public', 'index.html'),
+      exclude: ['/api/*'],
+    }),
   ],
   providers: [
     {
