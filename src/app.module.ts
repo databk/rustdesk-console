@@ -32,7 +32,6 @@ import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-aud
 import { WebClientModule } from './modules/web-client/web-client.module';
 import { SetupModule } from './modules/setup/setup.module';
 import { installSqliteWriteQueue } from './database/sqlite-write-queue';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { join, dirname } from 'path';
 
 /**
@@ -111,11 +110,7 @@ import { join, dirname } from 'path';
     ServerManagementModule,
     WebClientModule,
     SetupModule,
-    // Serve frontend static files (public/) + SPA fallback for React Router
-    // 简化配置：只指定 rootPath，其他用默认
-    ServeStaticModule.forRoot({
-      rootPath: join(dirname(process.execPath), 'public'),
-    }),
+    // 静态文件服务在 application.ts 里用 express.static 手动注册（不受 NestJS globalPrefix 影响）
   ],
   providers: [
     {

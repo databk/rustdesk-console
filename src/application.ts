@@ -4,6 +4,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import express from 'express';
+import { join, dirname } from 'path';
 import type { Request, Response, NextFunction } from 'express';
 import { businessWritesAllowed } from './updater/maintenance';
 import { rbacRequestScopeMiddleware } from './modules/rbac/rbac-request-scope.middleware';
@@ -205,31 +207,24 @@ export async function bootstrap() {
     }),
   );
 
-  // ── SPA fallback for React Router ──────────────────────────────────
-  // ServeStaticModule 先尝试从 public/ serve 文件；不存在时 Express
-  // 把请求传给我们。这里捕获所有非 /api/* 的请求，返回 index.html，
-  // 让 React Router 在浏览器里处理 /setup、/login 等前端路由。
-  const path = await import('path');
+  // ── Serve 前端静态文件 + SPA fallback ────────────────────────────
+  // 用 express.static 而不是 NestJS ServeStaticModule，因为 SetGlobalPrefix('api')
+  // 会让 ServeStaticModule 的 rootPath 变成 /api/public，导致 /xxx.js 404。
+  // express.static 注册在 NestJS module 初始化之后、listen 之前，不受 globalPrefix 影响。
+  const publicDir = join(dirname(process.execPath), 'public');
+  app.use(express.static(publicDir));
+  // SPA fallback: 所有非 /api/* 的 GET/HEAD 请求返回 index.html
+  // （让 React Router 处理 /setup、/login 等前端路由）
   app.use((request: Request, response: Response, next: NextFunction) => {
-    // 只 catch 非 API 路由
     if (request.path.startsWith('/api')) {
       return next();
     }
-    // 只处理 GET/HEAD，其它 HTTP 方法让 NestJS 处理（会返回 404 JSON）
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return next();
     }
-    // public/index.html 用 process.execPath 的 dirname（SEA 兼容）
-    const indexHtml = path.join(
-      path.dirname(process.execPath),
-      'public',
-      'index.html',
-    );
+    const indexHtml = join(publicDir, 'index.html');
     response.sendFile(indexHtml, (err) => {
-      if (err) {
-        // public/ 不存在或 index.html 缺失 → 让 NestJS 返回它的 404
-        next();
-      }
+      if (err) next();
     });
   });
 
