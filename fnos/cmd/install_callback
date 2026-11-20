@@ -3,8 +3,7 @@
 set -e
 
 PORT="${PORT:-3000}"
-LOG_FILE="${TRIM_PKGVAR}/info.log"
-ERR_FILE="${TRIM_TEMP_LOGFILE:-/tmp/fnos-install-err}"
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/info.log"
 MAX=60
 
 log_msg() {
@@ -24,7 +23,7 @@ fail() {
     echo ""
     echo "docker logs (last 30):"
     docker logs rustdesk-console --tail 30 2>&1
-  } > "${ERR_FILE}"
+  } 1>&2
   exit 1
 }
 

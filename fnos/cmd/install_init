@@ -1,10 +1,8 @@
 #!/bin/bash
 # fnOS Docker — install_init
-# 在 fnOS 解压文件之前执行，TRIM_APPDEST 里还没有文件。
 set -e
 
-LOG_FILE="${TRIM_PKGVAR}/info.log"
-ERR_FILE="${TRIM_TEMP_LOGFILE:-/tmp/fnos-install-err}"
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/info.log"
 
 log_msg() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - [install_init] $1" >> "${LOG_FILE}"
@@ -13,11 +11,9 @@ log_msg() {
 fail() {
   local msg="$1"
   log_msg "FATAL: $msg"
-  echo "install_init: $msg" > "${ERR_FILE}"
+  echo "install_init: $msg" 1>&2
   exit 1
 }
-
-[ -n "${TRIM_PKGVAR:-}" ] || fail "TRIM_PKGVAR is empty"
 
 DATA_DIR="${TRIM_PKGVAR}/data"
 mkdir -p "${DATA_DIR}" || fail "cannot mkdir ${DATA_DIR}"

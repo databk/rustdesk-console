@@ -1,12 +1,12 @@
 #!/bin/bash
 # fnOS Native — install_callback
-# 文件已解压，main start 已跑 → Sea 已启动。做健康检查 + 失败诊断。
+# 文件已解压，main start 已跑。做健康检查 + 失败诊断。
+# ⚠️ 错误输出到 stderr（fnOS 框架会直接展示给用户）。
 set -e
 
 INTERNAL_PORT="${INTERNAL_PORT:-3000}"
-PID_FILE="${TRIM_PKGVAR}/app.pid"
-LOG_FILE="${TRIM_PKGVAR}/info.log"
-ERR_FILE="${TRIM_TEMP_LOGFILE:-/tmp/fnos-install-err}"
+PID_FILE="${TRIM_PKGVAR:-/tmp}/app.pid"
+LOG_FILE="${TRIM_PKGVAR:-/tmp}/info.log"
 MAX=60
 
 log_msg() {
@@ -21,10 +21,9 @@ fail() {
     echo ""
     echo "原因: $msg"
     echo ""
-    echo "完整日志: ${LOG_FILE}"
-    echo "最后 40 行:"
-    tail -40 "${LOG_FILE}"
-  } > "${ERR_FILE}"
+    echo "现场 (tail 30 from ${LOG_FILE}):"
+    tail -30 "${LOG_FILE}" 2>/dev/null || echo "(info.log 不存在)"
+  } 1>&2
   exit 1
 }
 
@@ -45,7 +44,7 @@ http_probe() {
 
 log_msg "Waiting for Sea on :${INTERNAL_PORT}..."
 
-# Sea 二进制文件现在已解压，补权限
+# Sea 二进制现在已解压，补权限
 BIN_DIR="${TRIM_APPDEST}/bin"
 if [ -d "${BIN_DIR}" ]; then
   chmod +x "${BIN_DIR}/rustdesk-console-"* 2>/dev/null || true
@@ -55,17 +54,17 @@ fi
 if [ -f "$PID_FILE" ]; then
   PID=$(tr -d '[:space:]' < "$PID_FILE")
   if ! kill -0 "$PID" 2>/dev/null; then
-    fail "Sea process PID=$PID died immediately. Check ${LOG_FILE} for migrate errors."
+    fail "Sea process PID=$PID died immediately. Check info.log for migrate errors."
   fi
   log_msg "Sea PID=$PID alive"
 fi
 
 for i in $(seq 1 $MAX); do
   if http_probe "http://localhost:${INTERNAL_PORT}/api/login-options"; then
-    log_msg "OK: console healthy on :${INTERNAL_PORT} (after $((i*2))s)"
+    log_msg "OK: healthy on :${INTERNAL_PORT} (after $((i*2))s)"
     exit 0
   fi
   sleep 2
 done
 
-fail "health timeout on :${INTERNAL_PORT} (waited $((MAX*2))s). Check ${LOG_FILE}"
+fail "health timeout on :${INTERNAL_PORT} (waited $((MAX*2))s)"
