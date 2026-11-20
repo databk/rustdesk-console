@@ -16,7 +16,7 @@ import { WebClientService } from '../web-client/web-client.service';
 import { ServerManagementSettingsService } from '../server-management/server-management-settings.service';
 import { UpdateServerManagementSettingsDto } from '../server-management/dto/server-management-settings.dto';
 import { DEFAULT_NODE_ID, DEFAULT_NODE_NAME } from '../server-management/server-management-settings.service';
-import { getCachedJwtSecret } from '../auth/jwt-secret';
+import { getCachedJwtSecret } from '../auth/auth.module';
 import { User } from '../user/entities/user.entity';
 import { CompleteSetupDto } from './dto/complete-setup.dto';
 

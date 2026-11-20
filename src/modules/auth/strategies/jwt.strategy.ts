@@ -4,7 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { JwtPayload } from '../../../common/services/token.service';
-import { getCachedJwtSecret } from '../jwt-secret';
+import { getCachedJwtSecret } from '../auth.module';
 
 /**
  * Extract the JWT token from the request
