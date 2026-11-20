@@ -33,7 +33,7 @@ import { WebClientModule } from './modules/web-client/web-client.module';
 import { SetupModule } from './modules/setup/setup.module';
 import { installSqliteWriteQueue } from './database/sqlite-write-queue';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
+import { join, dirname } from 'path';
 
 /**
  * Application root module
@@ -112,11 +112,12 @@ import { join } from 'path';
     WebClientModule,
     SetupModule,
     // Serve frontend static files (public/) + SPA fallback for React Router
+    // 用 process.execPath 的 dirname（SEA 模式下 __dirname 是虚拟路径）
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'public'),
+      rootPath: join(dirname(process.execPath), 'public'),
       serveRoot: '/',
       // SPA fallback: unknown routes → index.html (React Router handles /setup, /login, etc.)
-      renderPath: join(__dirname, '..', 'public', 'index.html'),
+      renderPath: join(dirname(process.execPath), 'public', 'index.html'),
       exclude: ['/api/*'],
     }),
   ],
