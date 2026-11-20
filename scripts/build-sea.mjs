@@ -79,6 +79,12 @@ await build({
     // NestJS optional peer dependencies (not installed, but referenced by @nestjs/core)
     '@nestjs/microservices',
     '@nestjs/websockets',
+    // @nestjs/serve-static supports both Express and Fastify; we use Express,
+    // so mark all Fastify deps external to skip their dynamic require paths.
+    '@fastify/static',
+    '@fastify/accept-negotiator',
+    'fastify',
+    '@fastify',
   ],
   banner: runtimeBundle
     ? undefined
