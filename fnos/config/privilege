@@ -1,12 +1,7 @@
 {
-  "root": false,
-  "need_docker": true,
-  "need_network": true,
-  "need_port": [3000, 8000],
-  "need_path": [
-    {
-      "path": "${TRIM_PKGVAR}/data",
-      "permission": "rw"
-    }
-  ]
+  "defaults": {
+    "run-as": "package"
+  },
+  "username": "docker-rustdesk-console",
+  "groupname": "docker-rustdesk-console"
 }

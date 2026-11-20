@@ -1,30 +1,44 @@
-# fnOS Dockerfile — 组装 console 后端 + 前端静态资源成单镜像
-# 前端静态资源在构建时由 workflow 放在 fnos/app/docker/web-dist/
+# fnOS Dockerfile — console 后端 + 前端静态资源 + hbbs/hbbr 三合一镜像
+# 前端静态资源由 workflow 放在 app/docker/web-dist/
+# 后端 dist 由 workflow 放在 app/docker/backend-src/
+# hbbs/hbbr 在构建时按架构从 rustdesk-server release 拉取
 
-FROM node:24-alpine AS backend-builder
+# Stage 1: 拉取 hbbs/hbbr 二进制（按架构）
+FROM debian:bookworm-slim AS server-bins
+ARG RUSTDESK_SERVER_VERSION=1.1.16
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN ARCH="$(dpkg --print-architecture)" && \
+    case "$ARCH" in \
+      amd64|arm64) A="$ARCH" ;; \
+      *) echo "unsupported arch for hbbs/hbbr: $ARCH" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbs_${RUSTDESK_SERVER_VERSION}_${A}.deb" -o /tmp/hbbs.deb && \
+    curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbr_${RUSTDESK_SERVER_VERSION}_${A}.deb" -o /tmp/hbbr.deb && \
+    dpkg -x /tmp/hbbs.deb /tmp/hbbs-x && \
+    dpkg -x /tmp/hbbr.deb /tmp/hbbr-x
+
+# Stage 2: 生产镜像
+FROM node:24-bookworm-slim
 WORKDIR /app
-COPY package*.json ./
-COPY tsconfig*.json ./
-COPY nest-cli.json ./
-COPY src ./src
-RUN npm ci --ignore-scripts && npm run build
 
-# Production image
-FROM node:24-alpine
-WORKDIR /app
+# 后端运行依赖（用 workflow 预构建的 dist，不再在镜像内编译）
+COPY backend-src/package.json backend-src/package-lock.json ./
+RUN npm ci --omit=dev && rm -rf /tmp/*
+COPY backend-src/dist ./dist
 
-# 后端运行依赖
-COPY --from=backend-builder /app/package*.json ./
-COPY --from=backend-builder /app/dist ./dist
-RUN npm ci --omit=dev --ignore-scripts && rm -rf /tmp/*
-
-# 前端静态资源（由 GitHub Actions 放到 fnos/app/docker/web-dist/）
+# 前端静态资源
 COPY web-dist ./public
 
-EXPOSE 3000
+# hbbs/hbbr + 入口脚本
+COPY --from=server-bins /tmp/hbbs-x/usr/bin/hbbs /usr/local/bin/hbbs
+COPY --from=server-bins /tmp/hbbr-x/usr/bin/hbbr /usr/local/bin/hbbr
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/hbbs /usr/local/bin/hbbr /usr/local/bin/entrypoint.sh
+
+EXPOSE 3000 21115 21116 21117 21118 21119 21120
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/data
 
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/login-options', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-CMD ["sh", "-c", "if [ \"${DB_MIGRATE_ON_START:-1}\" = 1 ]; then node dist/main.js migrate || exit $?; fi; exec node dist/main.js"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

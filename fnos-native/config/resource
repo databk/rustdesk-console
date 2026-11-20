@@ -1,12 +1,5 @@
 {
-  "data-share": {
-    "shares": [
-      {
-        "name": "fn-native-sample"
-      },
-      {
-        "name": "fn-native-sample/data"
-      }
-    ]
-  }
+    "port-config": {
+        "protocol-file": "RustDeskConsole.sc"
+    }
 }

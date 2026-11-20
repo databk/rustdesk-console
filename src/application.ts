@@ -4,6 +4,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import express from 'express';
+import { join, dirname } from 'path';
 import type { Request, Response, NextFunction } from 'express';
 import { businessWritesAllowed } from './updater/maintenance';
 import { rbacRequestScopeMiddleware } from './modules/rbac/rbac-request-scope.middleware';
@@ -44,6 +46,10 @@ export async function bootstrap() {
           imgSrc: ["'self'", 'data:', 'blob:'],
           connectSrc: ["'self'"],
           frameAncestors: ["'none'"],
+          // 关键！fnOS Native / 直接端口都是 HTTP，禁用 Helmet 默认的
+          // upgrade-insecure-requests — 它会让浏览器把所有资源请求
+          // 升级成 HTTPS → Sea 不跑 TLS → ERR_SSL_PROTOCOL_ERROR 白屏
+          upgradeInsecureRequests: null,
         },
       },
       // Required for JWT Bearer auth headers to stay visible
@@ -204,6 +210,27 @@ export async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  // ── Serve 前端静态文件 + SPA fallback ────────────────────────────
+  // 用 express.static 而不是 NestJS ServeStaticModule，因为 SetGlobalPrefix('api')
+  // 会让 ServeStaticModule 的 rootPath 变成 /api/public，导致 /xxx.js 404。
+  // express.static 注册在 NestJS module 初始化之后、listen 之前，不受 globalPrefix 影响。
+  const publicDir = join(dirname(process.execPath), 'public');
+  app.use(express.static(publicDir));
+  // SPA fallback: 所有非 /api/* 的 GET/HEAD 请求返回 index.html
+  // （让 React Router 处理 /setup、/login 等前端路由）
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    if (request.path.startsWith('/api')) {
+      return next();
+    }
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return next();
+    }
+    const indexHtml = join(publicDir, 'index.html');
+    response.sendFile(indexHtml, (err) => {
+      if (err) next();
+    });
+  });
 
   const port = process.env.PORT ?? 3000;
   const host = process.env.HOST;

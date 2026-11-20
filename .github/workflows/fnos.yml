@@ -38,6 +38,7 @@ permissions:
 
 env:
   FN_PACK_VERSION: '1.3.3'
+  RUSTDESK_SERVER_VERSION: '1.1.16'
 
 jobs:
   # ──────────────────────────────────────────────────────────────────
@@ -75,14 +76,16 @@ jobs:
             package-lock.json
             tsconfig*.json
             nest-cli.json
-            deployment/
 
   # ──────────────────────────────────────────────────────────────────
   # 2. 后端 Sea 原生二进制（Native 版用，多架构）
   # ──────────────────────────────────────────────────────────────────
   backend-sea-build:
     name: Build Backend (Sea x64)
-    runs-on: ubuntu-latest
+    # 重要：用 ubuntu-22.04 (glibc 2.35) 而非 ubuntu-latest (glibc 2.39+)
+    #   — sqlite3 等原生模块会在构建机上本地编译，glibc 要求和 fnOS 系统兼容
+    #   — fnOS 基于 Debian，glibc 版本通常 2.31~2.35 之间，Ubuntu 22.04 最保守
+    runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
@@ -102,11 +105,16 @@ jobs:
       - name: Package + upload
         run: |
           cp dist-sea/rustdesk-console "dist-sea/rustdesk-console-x64"
+          # 注：deployment/ (install-linux.sh, install_linux.py, systemd units)
+          # 已从 Sea 构建中移除——那是 upstream tarball 安装器，FPK/DEB 不用它
+          # 关键：release-metadata.json 必须包含！后端健康检查靠它返回 ready: true
           tar czf "sea-x64.tar.gz" \
             -C dist-sea \
-            node_modules templates deployment "rustdesk-console-x64"
+            node_modules templates "rustdesk-console-x64" release-metadata.json
           rm -f "dist-sea/rustdesk-console-x64"
           ls -lh sea-x64.tar.gz
+          echo "--- tar 内容 ---"
+          tar tzf sea-x64.tar.gz
 
       - uses: actions/upload-artifact@v4
         with:
@@ -172,7 +180,7 @@ jobs:
           cp -r artifacts/frontend-dist/* "$DIR/app/docker/web-dist/"
           mkdir -p "$DIR/app/docker/backend-src"
           cp -r artifacts/backend-dist/* "$DIR/app/docker/backend-src/"
-          sed -i "s/^version.*=.*$/version = ${VERSION}/" "$DIR/manifest"
+          sed -i "s/^version=.*/version=${VERSION}/" "$DIR/manifest"
           echo "✓ Docker FPK workspace ready"
 
       # ── 组装 Native 版 ──
@@ -184,22 +192,41 @@ jobs:
           rm -rf "$DIR"
           cp -r fnos-native "$DIR"
 
-          # 复制图标（fnos-native 模板里没有）
-          cp fnos/ICON.PNG fnos/ICON_256.PNG "$DIR/"
+          # fnpack 只打包 app/ 子目录 → 二进制直接放 app/ 根目录
+          # fnOS 解压后 app.tgz/rustdesk-console → ${TRIM_APPDEST}/rustdesk-console
+          # 完全对齐 conversun 官方 v1.11.22 结构
+          # 注：manifest 的 desktop_uidir = ui 让 fnpack 同时期望根目录 ui/ 和 app/ui/ 都存在
+          mkdir -p "$DIR/app" "$DIR/app/ui"
+          cp -r "$DIR/ui/"* "$DIR/app/ui/"
 
-          # 创建 fnpack 需要但模板里没有的子目录
-          mkdir -p "$DIR/bin" "$DIR/public"
-
-          # 解 Sea x64 二进制 + node_modules + templates + deployment（全在 x64 tar 里）
+          # 解 Sea x64 二进制 + node_modules + templates 到 app/ 根目录
           tar xzf "artifacts/backend-sea-x64/sea-x64.tar.gz" \
-            -C "$DIR/bin/"
-          chmod +x "$DIR/bin/rustdesk-console-x64"
+            -C "$DIR/app/"
+          # 重命名为 rustdesk-console（官方文件名）
+          mv "$DIR/app/rustdesk-console-x64" "$DIR/app/rustdesk-console"
+          chmod +x "$DIR/app/rustdesk-console"
 
-          # 前端静态资源
-          cp -r artifacts/frontend-dist/* "$DIR/public/"
+          # 下载并放置 hbbs + hbbr（RustDesk Server OSS 集成）
+          mkdir -p /tmp/hbbs-x /tmp/hbbr-x
+          curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbs_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbs.deb
+          curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbr_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbr.deb
+          dpkg -x /tmp/hbbs.deb /tmp/hbbs-x
+          dpkg -x /tmp/hbbr.deb /tmp/hbbr-x
+          cp /tmp/hbbs-x/usr/bin/hbbs "$DIR/app/hbbs"
+          cp /tmp/hbbr-x/usr/bin/hbbr "$DIR/app/hbbr"
+          chmod +x "$DIR/app/hbbs" "$DIR/app/hbbr"
+          ls -lh "$DIR/app/hbbs" "$DIR/app/hbbr"
 
-          sed -i "s/^version.*=.*$/version = ${VERSION}/" "$DIR/manifest"
-          sed -i "s/^display_name.*=.*$/display_name = RustDesk Console (Native)/" "$DIR/manifest"
+          # 前端静态资源 — 先清再拷，绝不能有残留
+          rm -rf "$DIR/app/public"
+          mkdir -p "$DIR/app/public"
+          cp -r artifacts/frontend-dist/* "$DIR/app/public/"
+          echo "  ✓ public/ 前端资源:" && ls "$DIR/app/public/" | head -10
+
+          sed -i "s/^version=.*/version=${VERSION}/" "$DIR/manifest"
+          sed -i "s/^display_name=.*/display_name=RustDesk Console (Native)/" "$DIR/manifest"
+          ls -lh "$DIR/app/rustdesk-console" 2>/dev/null && \
+            echo "  ✓ Sea binary in app/ (root)" || echo "  ❌ Sea binary missing!"
           echo "✓ Native FPK workspace ready (x64 only; arm64 → Docker FPK)"
 
       # ── fnpack CLI ──

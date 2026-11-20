@@ -1,174 +1,214 @@
-#!/bin/bash
-# fnOS Native — main entry point
-# 管理原生 Sea 二进制的 start / stop / status
-# Sea 二进制不支持 --port/--data-dir 等 CLI flag，统一用环境变量传入
-#
-# 日志策略：所有动作都写 ${LOG_FILE}；任何失败前先把最近 50 行 Sea 日志打一份到 LOG_FILE，
-# 让用户在 fnOS UI 的"日志 / 失败原因"里直接看到真实错误，而不是"执行脚本出错原因未知"。
+#!/bin/sh
+# 主入口 — 处理 start/stop/status/log/restart
+# 集成版：Sea 后端（NestJS + 前端静态文件）+ hbbs + hbbr
+# 完全对齐官方 v1.11.22 的 PID/日志/健康检查架构
 
-APP_BIN_DIR="${TRIM_APPDEST}/bin"
-APP_PUBLIC_DIR="${TRIM_APPDEST}/public"
-DATA_DIR="${TRIM_PKGVAR}/data"
-LOG_FILE="${TRIM_PKGVAR}/info.log"
-PID_FILE="${TRIM_PKGVAR}/app.pid"
+set -e
 
-export PORT="${PORT:-3000}"
-export NODE_ENV=production
-export DATA_DIR="${DATA_DIR}"
+# 加载公共函数
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
 
-# ── 公共诊断 helper ────────────────────────────────────────────────
+# 安装期间由 fnOS 提供的临时日志文件
+if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+    exec >>"$TRIM_TEMP_LOGFILE" 2>&1
+fi
 
-log_msg() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
-}
+# 加载应用特定的服务配置
+. "${SCRIPT_DIR}/service-setup"
 
-# 把 Sea 进程的 stdout/stderr（都已经 redirect 到 LOG_FILE 里）最近一段抄出来当失败现场
-dump_sea_tail() {
-  local label="$1"
-  log_msg "────────────────────────────────────────────────────────────────"
-  log_msg "LAST SEA LOGS BEFORE ${label}:"
-  tail -60 "${LOG_FILE}" | sed 's/^/  │ /' >> "${LOG_FILE}"
-  log_msg "────────────────────────────────────────────────────────────────"
-}
-
-on_fatal() {
-  # 所有致命错误走到这里：打印现场 → 明确 exit 1
-  dump_sea_tail "FATAL"
-  log_msg "FATAL: cmd/main failed at $1"
-  exit 1
-}
-
-trap 'on_fatal "start_process"' ERR 2>/dev/null || true
-
-# ── 按架构选二进制 ─────────────────────────────────────────────────
-
-pick_binary() {
-  local arch
-  arch=$(uname -m)
-  case "$arch" in
-    x86_64|amd64)   echo "${APP_BIN_DIR}/rustdesk-console-x64" ;;
-    aarch64|arm64)  echo "${APP_BIN_DIR}/rustdesk-console-arm64" ;;
-    *)
-      for bin in "${APP_BIN_DIR}/rustdesk-console-"*; do
-        [ -x "$bin" ] && { echo "$bin"; return; }
-      done
-      echo ""
-      ;;
-  esac
-}
-
-# ── 进程状态 ──────────────────────────────────────────────────────
-
-check_process() {
-  local pid=$1
-  kill -0 "${pid}" 2>/dev/null
-}
-
-status() {
-  if [ -f "${PID_FILE}" ]; then
-    local pid
-    pid=$(tr -d '[:space:]' < "${PID_FILE}")
-    if check_process "${pid}"; then
-      return 0
+# 健康检查：Sea 后端 ready=true
+http_ready() {
+    local url="$1"
+    local response
+    if command -v curl >/dev/null 2>&1; then
+        response=$(curl -fsS --connect-timeout 1 --max-time 2 "$url" 2>/dev/null) || return 1
+    else
+        response=$(wget -q -T 2 -O - "$url" 2>/dev/null) || return 1
     fi
-    rm -f "${PID_FILE}"
-  fi
-  return 1
+    printf '%s' "$response" | grep -Eq '"ready"[[:space:]]*:[[:space:]]*true'
 }
 
-# ── 主流程：migrate → start ─────────────────────────────────────────
-
-run_migrations() {
-  local bin="$1"
-  log_msg "[migrate] running database migrations..."
-  local migrate_out
-  migrate_out=$(cd "${APP_BIN_DIR}" && exec "${bin}" migrate 2>&1)
-  local rc=$?
-  if [ $rc -ne 0 ]; then
-    log_msg "FATAL: migrate command failed (exit=$rc)"
-    echo "${migrate_out}" | sed 's/^/  │ /' >> "${LOG_FILE}"
-    return $rc
-  fi
-  log_msg "[migrate] done"
-  return 0
+wait_for_ready() {
+    local name="$1"
+    local url="$2"
+    local attempts=120
+    local i=0
+    while [ "$i" -lt "$attempts" ]; do
+        if ! daemon_status "$name"; then
+            echo "${DNAME}: ${name} 进程已退出，详见 ${TRIM_PKGVAR}/log/${name}.log" >&2
+            return 1
+        fi
+        if http_ready "$url"; then
+            echo "${DNAME}: ${name} 已就绪"
+            return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    echo "${DNAME}: 等待 ${name} 就绪超时，详见 ${TRIM_PKGVAR}/log/${name}.log" >&2
+    return 1
 }
 
-start_process() {
-  mkdir -p "${DATA_DIR}"
-
-  # 1. 选二进制
-  local bin
-  bin=$(pick_binary)
-  if [ -z "${bin}" ] || [ ! -x "${bin}" ]; then
-    log_msg "FATAL: no usable rustdesk-console binary for arch $(uname -m)"
-    log_msg "  expected one of:"
-    ls -la "${APP_BIN_DIR}"/rustdesk-console-* 2>/dev/null | sed 's/^/  │ /' >> "${LOG_FILE}" || true
-    return 1
-  fi
-  log_msg "Using binary: ${bin}"
-
-  # 2. 数据库迁移（最容易失败的一步，单独包住）
-  if ! run_migrations "${bin}"; then
-    return 1
-  fi
-
-  # 3. 启动
-  log_msg "Starting → :${PORT} (DATA_DIR=${DATA_DIR})"
-  (
-    cd "${APP_BIN_DIR}"
-    exec "${bin}" >> "${LOG_FILE}" 2>&1
-  ) &
-
-  echo $! > "${PID_FILE}"
-  sleep 1
-
-  if ! check_process "$(cat "${PID_FILE}")"; then
-    log_msg "FATAL: Sea process died immediately after start"
-    log_msg "  possible causes (check tail below):"
-    log_msg "    - pending migrations (we just ran migrate, should not happen)"
-    log_msg "    - glibc / dynamic linker mismatch (try on different fnOS device)"
-    log_msg "    - missing node_modules / native addons (should be in ${APP_BIN_DIR}/node_modules/)"
-    log_msg "    - DATA_DIR permission / disk full / sqlite path"
-    dump_sea_tail "start-immediate-crash"
-    rm -f "${PID_FILE}"
-    return 1
-  fi
-
-  log_msg "Started PID=$(cat "${PID_FILE}")"
-  return 0
+# TCP 端口是否已监听（用于 hbbs/hbbr 健康检查）
+port_open() {
+    local port="$1"
+    if command -v ss >/dev/null 2>&1; then
+        ss -tln 2>/dev/null | awk '{print $4}' | grep -q ":${port}$"
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -tln 2>/dev/null | awk '{print $4}' | grep -q ":${port}$"
+    else
+        return 0
+    fi
 }
 
-stop_process() {
-  if ! status; then
+# 等待进程监听指定端口
+wait_for_port() {
+    local name="$1"
+    local port="$2"
+    local attempts=30
+    local i=0
+    while [ "$i" -lt "$attempts" ]; do
+        if ! daemon_status "$name"; then
+            echo "${DNAME}: ${name} 进程已退出，日志：${TRIM_PKGVAR}/log/${name}.log" >&2
+            return 1
+        fi
+        if port_open "$port"; then
+            echo "${DNAME}: ${name} 已监听端口 ${port}"
+            return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    echo "${DNAME}: 等待 ${name} 监听端口 ${port} 超时" >&2
+    return 1
+}
+
+# ── 启动服务 ──
+do_start() {
+    echo "${DNAME}: 正在启动服务..."
+
+    if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+        echo "${DNAME}: 启动健康检查需要 curl 或 wget" >&2
+        return 1
+    fi
+
+    if ! start_backend; then
+        return 1
+    fi
+
+    echo "${DNAME}: 等待 Sea 后端就绪..."
+    if ! wait_for_ready "backend" "http://127.0.0.1:${SERVICE_PORT}/api/system-update/health"; then
+        stop_daemon "backend"
+        return 1
+    fi
+
+    # 启动 hbbs + hbbr（OSS 版，无管理 API，Console 手动粘贴公钥）
+    if [ -x "$HBBS_BIN" ] && [ -x "$HBBR_BIN" ]; then
+        echo "${DNAME}: 启动 hbbs + hbbr ..."
+        start_hbbs
+        start_hbbr
+
+        if ! wait_for_port "hbbs" 21116; then
+            stop_daemon "hbbr"
+            stop_daemon "hbbs"
+            stop_daemon "backend"
+            return 1
+        fi
+        if ! wait_for_port "hbbr" 21117; then
+            stop_daemon "hbbr"
+            stop_daemon "hbbs"
+            stop_daemon "backend"
+            return 1
+        fi
+        echo "${DNAME}: hbbs/hbbr 公钥：${DATA_DIR}/id_ed25519.pub（粘贴到 Console 的 Web Client 设置）"
+    else
+        echo "${DNAME}: 未找到 hbbs/hbbr 二进制，跳过自建服务器启动"
+    fi
+
+    echo "${DNAME}: 服务已启动"
     return 0
-  fi
-
-  local pid
-  pid=$(tr -d '[:space:]' < "${PID_FILE}")
-  log_msg "Stopping PID=${pid} (TERM → wait 10s → KILL)"
-
-  kill -TERM "${pid}" 2>/dev/null
-  local count=0
-  while check_process "${pid}" && [ ${count} -lt 10 ]; do
-    sleep 1
-    count=$((count + 1))
-  done
-
-  if check_process "${pid}"; then
-    kill -KILL "${pid}" 2>/dev/null
-    sleep 1
-  fi
-  rm -f "${PID_FILE}"
-  log_msg "Stopped"
 }
 
-case "$1" in
-  start)  start_process   ;;
-  stop)   stop_process    ;;
-  status)
-    if status; then exit 0; else exit 3; fi
-    ;;
-  *)
-    exit 1
-    ;;
+# ── 停止服务 ──
+do_stop() {
+    echo "${DNAME}: 正在停止服务..."
+    stop_daemon "hbbr"
+    stop_daemon "hbbs"
+    stop_daemon "backend"
+    echo "${DNAME}: 服务已停止"
+}
+
+# ── 检查服务状态 ──
+do_status() {
+    local running=true
+
+    if daemon_status "backend"; then
+        local bpid
+        bpid=$(get_daemon_pid "backend")
+        echo "${DNAME}: Sea 后端运行中 (PID ${bpid}，端口 ${SERVICE_PORT})"
+    else
+        echo "${DNAME}: Sea 后端未运行"
+        running=false
+    fi
+
+    if daemon_status "hbbs"; then
+        echo "${DNAME}: hbbs 运行中 (PID $(get_daemon_pid hbbs)，端口 21116)"
+    else
+        echo "${DNAME}: hbbs 未运行"
+        running=false
+    fi
+
+    if daemon_status "hbbr"; then
+        echo "${DNAME}: hbbr 运行中 (PID $(get_daemon_pid hbbr)，端口 21117)"
+    else
+        echo "${DNAME}: hbbr 未运行"
+        running=false
+    fi
+
+    if $running; then
+        return 0
+    else
+        return 3
+    fi
+}
+
+# ── 输出日志 ──
+do_log() {
+    local log_dir="${TRIM_PKGVAR}/log"
+    if [ -d "$log_dir" ]; then
+        for f in "$log_dir"/*.log; do
+            if [ -f "$f" ]; then
+                echo "=== $(basename "$f") ==="
+                tail -100 "$f"
+                echo ""
+            fi
+        done
+    fi
+    echo "凭据文件: ${TRIM_PKGVAR}/credentials"
+}
+
+# ── 主入口 ──
+case "${1}" in
+    start)
+        do_start
+        ;;
+    stop)
+        do_stop
+        ;;
+    status)
+        do_status
+        ;;
+    log)
+        do_log
+        ;;
+    restart)
+        do_stop
+        sleep 1
+        do_start
+        ;;
+    *)
+        echo "用法: $0 {start|stop|restart|status|log}"
+        exit 1
+        ;;
 esac

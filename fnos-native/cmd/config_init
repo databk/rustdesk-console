@@ -1,4 +1,6 @@
-#!/bin/bash
-# fnOS Native — config_init (no-op, web setup wizard handles this)
+#!/bin/sh
+# 配置初始化 - 在配置变更前执行
 set -e
-echo "[fnos-native] config_init: no-op — use browser /setup wizard"
+
+DNAME="RustDesk Console"
+echo "${DNAME}: 配置初始化"

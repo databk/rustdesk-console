@@ -1,70 +1,16 @@
-#!/bin/bash
-# fnOS Native — install_callback
-# 文件已解压，main start 已跑。做健康检查 + 失败诊断。
-# ⚠️ 错误输出到 stderr（fnOS 框架会直接展示给用户）。
+#!/bin/sh
+# 安装回调 - 安装完成后执行
 set -e
 
-INTERNAL_PORT="${INTERNAL_PORT:-3000}"
-PID_FILE="${TRIM_PKGVAR:-/tmp}/app.pid"
-LOG_FILE="${TRIM_PKGVAR:-/tmp}/info.log"
-MAX=60
+INSTALL_LOG="${TRIM_TEMP_LOGFILE:-/tmp/rustdesk-console_install.log}"
+exec >>"$INSTALL_LOG" 2>&1
 
-log_msg() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - [install_callback] $1" >> "${LOG_FILE}"
-}
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
+. "${SCRIPT_DIR}/service-setup"
 
-fail() {
-  local msg="$1"
-  log_msg "FATAL: $msg"
-  {
-    echo "RustDesk Console Native 安装失败"
-    echo ""
-    echo "原因: $msg"
-    echo ""
-    echo "现场 (tail 30 from ${LOG_FILE}):"
-    tail -30 "${LOG_FILE}" 2>/dev/null || echo "(info.log 不存在)"
-  } 1>&2
-  exit 1
-}
+echo "${DNAME}: 安装回调，启动服务..."
+. "${SCRIPT_DIR}/installer"
 
-http_probe() {
-  local url="$1" host port path
-  host=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\1|p')
-  port=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\2|p')
-  path=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\3|p')
-  command -v curl >/dev/null 2>&1 && curl -sf -o /dev/null --max-time 2 "$url" && return 0
-  command -v wget >/dev/null 2>&1 && wget -qO /dev/null --timeout=2 "$url" && return 0
-  if [ -B /dev/tcp ] && exec 3<>"/dev/tcp/${host}/${port}" 2>/dev/null; then
-    printf 'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' "$path" "$host" >&3
-    grep -qE 'HTTP/1\.[01] 2[0-9][0-9]' <&3 && { exec 3>&-; return 0; }
-    exec 3>&-
-  fi
-  return 1
-}
-
-log_msg "Waiting for Sea on :${INTERNAL_PORT}..."
-
-# Sea 二进制现在已解压，补权限
-BIN_DIR="${TRIM_APPDEST}/bin"
-if [ -d "${BIN_DIR}" ]; then
-  chmod +x "${BIN_DIR}/rustdesk-console-"* 2>/dev/null || true
-fi
-
-# PID 快速检查
-if [ -f "$PID_FILE" ]; then
-  PID=$(tr -d '[:space:]' < "$PID_FILE")
-  if ! kill -0 "$PID" 2>/dev/null; then
-    fail "Sea process PID=$PID died immediately. Check info.log for migrate errors."
-  fi
-  log_msg "Sea PID=$PID alive"
-fi
-
-for i in $(seq 1 $MAX); do
-  if http_probe "http://localhost:${INTERNAL_PORT}/api/login-options"; then
-    log_msg "OK: healthy on :${INTERNAL_PORT} (after $((i*2))s)"
-    exit 0
-  fi
-  sleep 2
-done
-
-fail "health timeout on :${INTERNAL_PORT} (waited $((MAX*2))s)"
+# 安装完成后自动启动服务
+"${SCRIPT_DIR}/main" start

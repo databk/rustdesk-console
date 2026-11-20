@@ -1,0 +1,24 @@
+#!/bin/sh
+# 安装逻辑脚本 — 被 install_callback / upgrade_callback source 进来
+# 简化版：只创建 Sea 后端需要的目录和权限
+# 完全对齐官方 v1.11.22 的 install_callback 调用模式
+
+echo "${DNAME}: 正在安装..."
+
+# 创建持久化目录
+mkdir -p "${TRIM_PKGVAR}/data"
+mkdir -p "${TRIM_PKGVAR}/log"
+mkdir -p "${TRIM_PKGVAR}/pids"
+
+# 权限
+chmod 755 "${TRIM_PKGVAR}"
+chmod 700 "${TRIM_PKGVAR}/data"
+chmod 755 "${TRIM_PKGVAR}/log"
+chmod 755 "${TRIM_PKGVAR}/pids"
+
+# 确保二进制有执行权限（在 TRIM_APPDEST 根目录下）
+chmod +x "${TRIM_APPDEST}/rustdesk-console" 2>/dev/null || true
+chmod +x "${TRIM_APPDEST}/hbbs" 2>/dev/null || true
+chmod +x "${TRIM_APPDEST}/hbbr" 2>/dev/null || true
+
+echo "${DNAME}: 安装完成"

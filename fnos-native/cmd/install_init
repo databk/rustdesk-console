@@ -1,15 +1,12 @@
-#!/bin/bash
-# fnOS Native — install_init (PROBE VERSION)
-# 极简探针：如果能跑到这里，/tmp/rustdesk-probe 就会有内容
-# 如果崩了还是没内容 → 说明 fnOS 框架根本没执行到这个脚本
-echo "[PROBE] install_init STARTED at $(date), TRIM_PKGVAR=${TRIM_PKGVAR:-empty}" > /tmp/rustdesk-probe 2>&1
-echo "[PROBE] TRIM_APPDEST=${TRIM_APPDEST:-empty}" >> /tmp/rustdesk-probe 2>&1
-echo "[PROBE] TRIM_TEMP_LOGFILE=${TRIM_TEMP_LOGFILE:-empty}" >> /tmp/rustdesk-probe 2>&1
-echo "[PROBE] arch=$(uname -m)" >> /tmp/rustdesk-probe 2>&1
+#!/bin/sh
+# 安装初始化 - 在安装前执行
+set -e
 
-# 数据目录
-DATA_DIR="${TRIM_PKGVAR:-/tmp}/data"
-mkdir -p "${DATA_DIR}" 2>/tmp/rustdesk-probe && echo "[PROBE] mkdir OK: ${DATA_DIR}" >> /tmp/rustdesk-probe || echo "[PROBE] mkdir FAILED: ${DATA_DIR}" >> /tmp/rustdesk-probe
-chmod 755 "${DATA_DIR}" 2>/tmp/rustdesk-probe
-echo "[PROBE] install_init DONE" >> /tmp/rustdesk-probe 2>&1
-exit 0
+INSTALL_LOG="${TRIM_TEMP_LOGFILE:-/tmp/rustdesk-console_install.log}"
+exec >>"$INSTALL_LOG" 2>&1
+
+DNAME="RustDesk Console"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "${SCRIPT_DIR}/common"
+
+echo "${DNAME}: 安装初始化..."

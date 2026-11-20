@@ -32,6 +32,7 @@ import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-aud
 import { WebClientModule } from './modules/web-client/web-client.module';
 import { SetupModule } from './modules/setup/setup.module';
 import { installSqliteWriteQueue } from './database/sqlite-write-queue';
+import { join, dirname } from 'path';
 
 /**
  * Application root module
@@ -109,6 +110,7 @@ import { installSqliteWriteQueue } from './database/sqlite-write-queue';
     ServerManagementModule,
     WebClientModule,
     SetupModule,
+    // 静态文件服务在 application.ts 里用 express.static 手动注册（不受 NestJS globalPrefix 影响）
   ],
   providers: [
     {

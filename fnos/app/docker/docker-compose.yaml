@@ -1,22 +1,32 @@
 services:
   rustdesk-console:
     build:
-      context: ../..
-      dockerfile: fnos/app/docker/Dockerfile.fnos
+      context: .
+      dockerfile: Dockerfile.fnos
     image: rustdesk-console:${VERSION:-latest}
     container_name: rustdesk-console
     restart: unless-stopped
     ports:
-      - "${PORT:-21114}:3000"
+      - "${PORT:-21114}:3000"   # console 网页
+      - "21115:21115"           # hbbs NAT 类型测试
+      - "21116:21116"           # hbbs ID 注册 (TCP)
+      - "21116:21116/udp"       # hbbs ID 注册 (UDP)
+      - "21117:21117"           # hbbr 中继
+      - "21118:21118"           # Web Client (hbbs)
+      - "21119:21119"           # Web Client (hbbr)
+      - "21120:21120"           # hbbs 管理 API
     environment:
       - NODE_ENV=production
       - PORT=3000
       - PUBLIC_PORT=${PORT:-21114}
       - DATA_DIR=/data
-      - JWT_SECRET=${JWT_SECRET:-}
       - DB_MIGRATE_ON_START=1
+      # JWT_SECRET 留空由 entrypoint 自动生成并持久化到 /data/credentials
+      - JWT_SECRET=${JWT_SECRET:-}
+      # hbbs 中继地址（可选），例如你的公网域名:21117
+      - RELAY_ADDRESS=${RELAY_ADDRESS:-}
     volumes:
-      - ${TRIM_PKGVAR}/data:/data
+      - /opt/rustdesk-console:/data
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/login-options', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s

@@ -1,0 +1,5 @@
+#!/bin/bash
+# fnOS — Uninstall init hook. fnOS stops the container before this runs,
+# so a graceful shutdown already happened.
+set -e
+echo "[fnos] uninstall_init: container stopped"

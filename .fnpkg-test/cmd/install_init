@@ -1,0 +1,37 @@
+#!/bin/bash
+# fnOS Native — install_init
+# ⚠️ 重要：这个脚本在 fnOS 解压文件之前执行！
+#    所以此时 TRIM_APPDEST 里还没有任何文件。
+#    只能操作 TRIM_PKGVAR（var/ 数据目录），这个由系统提前建好。
+#    Sea 二进制的 chmod / 迁移 → 放到 install_callback 或 cmd/main 里。
+set -e
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+ERR_FILE="${TRIM_TEMP_LOGFILE:-/tmp/fnos-install-err}"
+
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - [install_init] $1" >> "${LOG_FILE}"
+}
+
+fail() {
+  local msg="$1"
+  log_msg "FATAL: $msg"
+  echo "install_init: $msg" > "${ERR_FILE}"
+  exit 1
+}
+
+# ── 1. 系统变量必须有 ──
+[ -n "${TRIM_PKGVAR:-}" ] || fail "TRIM_PKGVAR is empty (fnOS runtime missing)"
+[ -n "${TRIM_APPDEST:-}" ] || fail "TRIM_APPDEST is empty (fnOS runtime missing)"
+
+# ── 2. 数据目录（系统应已建好 var/，这里只确保子目录存在）──
+DATA_DIR="${TRIM_PKGVAR}/data"
+mkdir -p "${DATA_DIR}" || fail "cannot mkdir ${DATA_DIR}"
+chmod 755 "${DATA_DIR}"
+log_msg "DATA_DIR ready: ${DATA_DIR}"
+
+# ── 3. 打印上下文到日志（install_callback 会用到）──
+log_msg "arch = $(uname -m)"
+log_msg "TRIM_APPDEST = ${TRIM_APPDEST}"
+log_msg "TRIM_PKGVAR  = ${TRIM_PKGVAR}"
+log_msg "install_init done (files not yet extracted)"

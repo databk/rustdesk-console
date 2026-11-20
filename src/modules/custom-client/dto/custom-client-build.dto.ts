@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsObject,
   IsString,
+  IsArray,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -90,4 +91,19 @@ export interface BuildProgressResponse {
   runStatus: string;
   runConclusion: string | null;
   jobs: BuildProgressJob[];
+}
+
+export class BuildFileDto {
+  @IsString()
+  name: string;
+
+  @IsString()
+  url: string;
+}
+
+export class UploadFilesDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BuildFileDto)
+  files: BuildFileDto[];
 }

@@ -21,7 +21,16 @@ export const PASSWORD_RESET_TOKEN_BYTES = 32;
 /** Password reset token validity period (minutes) */
 export const PASSWORD_RESET_EXPIRY_MINUTES = 30;
 
-/** Default JWT secret (development only; must be overridden via JWT_SECRET in production) */
+/**
+ * Default JWT secret — DEPRECATED.
+ *
+ * JWT signing secret is now resolved dynamically by JwtSecretService:
+ *   1. JWT_SECRET env var (explicit override)
+ *   2. DB-persisted value (system_setting: auth.jwt.secret)
+ *   3. Auto-generated random secret, persisted to DB
+ *
+ * See src/modules/auth/jwt-secret.ts
+ */
 export const JWT_DEFAULT_SECRET =
   'rustdesk-api-secret-key-change-in-production';
 
