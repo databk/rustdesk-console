@@ -36,12 +36,12 @@ HBBS_ARGS=""
 
 # ── 启动 hbbs（ID/发现服务器，管理 API 21120）──
 cd "$HBBS_DIR"
-/usr/local/bin/hbbs $HBBS_ARGS &
+/usr/local/bin/hbbs -p 21116 $HBBS_ARGS &
 HBBS_PID=$!
 
 # ── 启动 hbbr（中继服务器）──
 cd "$HBBR_DIR"
-/usr/local/bin/hbbr &
+/usr/local/bin/hbbr -p 21117 &
 HBBR_PID=$!
 
 # ── console 数据库迁移（可选）──

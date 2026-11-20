@@ -69,9 +69,9 @@ start_hbbs() {
     if ! daemon_status "hbbs"; then
         cd "$DATA_DIR"
         if [ -n "$RELAY_ADDRESS" ]; then
-            start_daemon "hbbs" "$HBBS_BIN" -r "$RELAY_ADDRESS"
+            start_daemon "hbbs" "$HBBS_BIN" -r "$RELAY_ADDRESS" -p 21116
         else
-            start_daemon "hbbs" "$HBBS_BIN"
+            start_daemon "hbbs" "$HBBS_BIN" -p 21116
         fi
     fi
 }
@@ -80,6 +80,6 @@ start_hbbs() {
 start_hbbr() {
     if ! daemon_status "hbbr"; then
         cd "$DATA_DIR"
-        start_daemon "hbbr" "$HBBR_BIN"
+        start_daemon "hbbr" "$HBBR_BIN" -p 21117
     fi
 }
