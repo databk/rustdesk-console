@@ -188,19 +188,22 @@ jobs:
           # 复制图标（fnos-native 模板里没有）
           cp fnos/ICON.PNG fnos/ICON_256.PNG "$DIR/"
 
-          # 创建 fnpack 需要但模板里没有的子目录
-          mkdir -p "$DIR/bin" "$DIR/public"
+          # fnpack 只打包 app/ 子目录 → bin/public 必须放 app/ 下
+          # fnOS 解压后 app.tgz/bin/ → ${TRIM_APPDEST}/bin/
+          mkdir -p "$DIR/app/bin" "$DIR/app/public"
 
           # 解 Sea x64 二进制 + node_modules + templates（deployment/ 已不打包）
           tar xzf "artifacts/backend-sea-x64/sea-x64.tar.gz" \
-            -C "$DIR/bin/"
-          chmod +x "$DIR/bin/rustdesk-console-x64"
+            -C "$DIR/app/bin/"
+          chmod +x "$DIR/app/bin/rustdesk-console-x64"
 
           # 前端静态资源
-          cp -r artifacts/frontend-dist/* "$DIR/public/"
+          cp -r artifacts/frontend-dist/* "$DIR/app/public/"
 
           sed -i "s/^version.*=.*$/version = ${VERSION}/" "$DIR/manifest"
           sed -i "s/^display_name.*=.*$/display_name = RustDesk Console (Native)/" "$DIR/manifest"
+          ls -lh "$DIR/app/bin/rustdesk-console-x64" 2>/dev/null && \
+            echo "  ✓ Sea binary in app/bin/" || echo "  ❌ Sea binary missing!"
           echo "✓ Native FPK workspace ready (x64 only; arm64 → Docker FPK)"
 
       # ── fnpack CLI ──
