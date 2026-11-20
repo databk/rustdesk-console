@@ -1,6 +1,7 @@
-#!/bin/bash
-# fnOS Native — upgrade_init
+#!/bin/sh
+# 升级初始化 — 升级前执行
 set -e
-DATA_DIR="${TRIM_PKGVAR}/data"
-[ -d "${DATA_DIR}" ] || mkdir -p "${DATA_DIR}"
-echo "[fnos-native] upgrade_init: data dir verified"
+DNAME="RustDesk Console (Native)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+echo "${DNAME}: 升级初始化，停止服务..."
+"${SCRIPT_DIR}/main" stop

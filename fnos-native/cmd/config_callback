@@ -1,4 +1,17 @@
-#!/bin/bash
-# fnOS Native — config_callback (no-op)
+#!/bin/sh
+# 配置回调 — 保存设置并重启服务
 set -e
-echo "[fnos-native] config_callback: no-op"
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+DNAME="RustDesk Console (Native)"
+
+mkdir -p "${TRIM_PKGETC}"
+printf 'LOG_LEVEL=%s\n' "${wizard_log_level:-log}" > "${TRIM_PKGETC}/settings.conf"
+chmod 644 "${TRIM_PKGETC}/settings.conf"
+
+if "${SCRIPT_DIR}/main" status >/dev/null 2>&1; then
+    echo "${DNAME}: 配置已保存，重启服务..."
+    "${SCRIPT_DIR}/main" restart
+else
+    echo "${DNAME}: 配置已保存"
+fi

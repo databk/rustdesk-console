@@ -1,4 +1,10 @@
-#!/bin/bash
-# fnOS Native — uninstall_callback
+#!/bin/sh
+# 卸载回调 — 清理数据
 set -e
-echo "[fnos-native] uninstall_callback done. data preserved at ${TRIM_PKGVAR}/data"
+DNAME="RustDesk Console (Native)"
+echo "${DNAME}: 卸载回调"
+if [ "${wizard_delete_data:-false}" = "true" ] && [ -n "${TRIM_PKGVAR:-}" ]; then
+    rm -rf "${TRIM_PKGVAR}/data" "${TRIM_PKGVAR}/credentials"
+    rm -rf "${TRIM_PKGVAR}/log" "${TRIM_PKGVAR}/pids"
+    echo "${DNAME}: 数据已清理"
+fi

@@ -1,4 +1,7 @@
-#!/bin/bash
-# fnOS Native — uninstall_init
+#!/bin/sh
+# 卸载初始化 — 卸载前执行
 set -e
-echo "[fnos-native] uninstall_init"
+DNAME="RustDesk Console (Native)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+echo "${DNAME}: 卸载初始化，停止服务..."
+"${SCRIPT_DIR}/main" stop

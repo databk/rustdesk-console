@@ -1,23 +1,18 @@
-# fnOS application manifest — NATIVE 模板（单二进制）
-# 官方 fnpack 格式：key = value（等号前后有空格）
-appname               = rustdesk-console
-version               = 1.11.10
-display_name          = RustDesk Console (Native)
-desc                  = RustDesk Server Pro 管理控制台 — 原生二进制版，无需 Docker。设备管理、网页远控、定制客户端。
-platform              = all
-source                = thirdparty
-maintainer            = fengyun1980
-distributor           = fengyun1980
-service_port          = 21114
-checkport             = true
-ctl_stop              = true
-desktop_uidir         = ui
+# fnOS application manifest — NATIVE 模板
+# 完全对齐 conversun 官方格式（v1.11.22），避免 fnOS manifest 解析失败
+appname         = rustdesk-console
+version         = 1.11.17
+fpk_version     = 1.11.1-r10
+display_name    = RustDesk Console (Native)
+platform        = x86
+maintainer      = fengyun1980
+maintainer_url  = https://github.com/fengyun1980/rustdesk-console
+distributor     = fengyun1980
+distributor_url = https://github.com/fengyun1980/rustdesk-console
+desktop_uidir   = ui
 desktop_applaunchname = rustdesk-console.Application
-install_init          = cmd/install_init
-install_callback      = cmd/install_callback
-upgrade_init          = cmd/upgrade_init
-upgrade_callback      = cmd/upgrade_callback
-uninstall_init        = cmd/uninstall_init
-uninstall_callback    = cmd/uninstall_callback
-config_init           = cmd/config_init
-config_callback       = cmd/config_callback
+service_port    = 21114
+checkport       = false
+desc            = RustDesk 远程桌面管理平台，企业级自建管理控制台 — 原生二进制版，无需 Docker。设备管理、网页远控、定制客户端。
+source          = thirdparty
+checksum        = auto-generated-by-fnpack

@@ -1,12 +1,5 @@
 {
-  "data-share": {
-    "shares": [
-      {
-        "name": "rustdesk-console"
-      },
-      {
-        "name": "rustdesk-console/data"
-      }
-    ]
-  }
+    "port-config": {
+        "protocol-file": "RustDeskConsole.sc"
+    }
 }

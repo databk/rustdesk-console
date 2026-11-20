@@ -1,0 +1,53 @@
+#!/bin/sh
+# 服务配置 — 被 main source 进来
+# 定义 DNAME、端口、环境变量、启动函数
+# 简化版：只有 Sea 后端（NestJS + 内置前端静态文件），无 hbbs/hbbr/web 反向代理
+
+DNAME="RustDesk Console (Native)"
+
+# 端口
+# Sea 后端（同时 serve 前端静态文件）直接监听 service_port
+SERVICE_PORT=21114
+
+# 数据目录（持久化存储，存放 SQLite 数据库）
+DATA_DIR="${TRIM_PKGVAR}/data"
+
+# ── 环境变量 ──
+export NODE_ENV=production
+export HOST=0.0.0.0
+export PORT="${SERVICE_PORT}"
+export DB_TYPE=sqlite
+export DATA_DIR="${DATA_DIR}"
+
+# ── 首次启动时生成 JWT Secret ──
+CREDENTIALS_FILE="${TRIM_PKGVAR}/credentials"
+if [ ! -f "$CREDENTIALS_FILE" ]; then
+    JWT_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
+    cat > "$CREDENTIALS_FILE" << CREDEOF
+JWT_SECRET=$JWT_SECRET
+CREDEOF
+    chmod 600 "$CREDENTIALS_FILE"
+    echo "${DNAME}: 首次启动，已生成 JWT Secret"
+fi
+. "$CREDENTIALS_FILE"
+export JWT_SECRET
+
+# ── 数据目录初始化 ──
+mkdir -p "$DATA_DIR"
+chmod 700 "$DATA_DIR"
+
+# ── 启动 Sea 后端 ──
+start_backend() {
+    if ! daemon_status "backend"; then
+        cd "$DATA_DIR"
+        echo "${DNAME}: 执行数据库迁移..."
+        mkdir -p "${TRIM_PKGVAR}/log"
+        if ! env PORT="${SERVICE_PORT}" "${TRIM_APPDEST}/rustdesk-console" migrate >>"${TRIM_PKGVAR}/log/backend.log" 2>&1; then
+            cp "${TRIM_PKGVAR}/log/backend.log" /tmp/rustdesk-console-backend.log 2>/dev/null || true
+            echo "${DNAME}: 数据库迁移失败，真实错误如下（已保存到 /tmp/rustdesk-console-backend.log）：" >&2
+            tail -n 30 "${TRIM_PKGVAR}/log/backend.log" >&2
+            return 1
+        fi
+    fi
+    start_daemon "backend" env PORT="${SERVICE_PORT}" "${TRIM_APPDEST}/rustdesk-console"
+}

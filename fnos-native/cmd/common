@@ -1,0 +1,78 @@
+#!/bin/sh
+# 公共函数库 — 被 main / install_callback / upgrade_callback source 进来
+# 提供 PATH 导出、daemon 管理和 PID 文件操作
+# 完全对齐 conversun 官方实现
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+PID_DIR="${TRIM_PKGVAR}/pids"
+
+ensure_pid_dir() {
+    mkdir -p "$PID_DIR"
+}
+
+# 检查 daemon 是否正在运行
+daemon_status() {
+    local name="$1"
+    local pidfile="${PID_DIR}/${name}.pid"
+    [ ! -f "$pidfile" ] && return 1
+    local pid
+    pid=$(cat "$pidfile")
+    [ -z "$pid" ] && rm -f "$pidfile" && return 1
+    kill -0 "$pid" 2>/dev/null && return 0
+    rm -f "$pidfile"
+    return 1
+}
+
+# 启动 daemon 进程，保存 PID
+start_daemon() {
+    local name="$1"
+    shift
+    local pidfile="${PID_DIR}/${name}.pid"
+    ensure_pid_dir
+    if daemon_status "$name"; then
+        echo "${DNAME}: ${name} 已在运行"
+        return 0
+    fi
+    local log_file="${TRIM_PKGVAR}/log/${name}.log"
+    mkdir -p "${TRIM_PKGVAR}/log"
+    "$@" >> "$log_file" 2>&1 &
+    local pid=$!
+    echo "$pid" > "$pidfile"
+    echo "${DNAME}: 已启动 ${name} (PID ${pid})"
+}
+
+# 停止 daemon 进程
+stop_daemon() {
+    local name="$1"
+    local pidfile="${PID_DIR}/${name}.pid"
+    if ! daemon_status "$name"; then
+        echo "${DNAME}: ${name} 未运行"
+        return 0
+    fi
+    local pid
+    pid=$(cat "$pidfile")
+    echo "${DNAME}: 正在停止 ${name} (PID ${pid})..."
+    kill "$pid" 2>/dev/null
+    local i=0
+    while [ $i -lt 20 ]; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            rm -f "$pidfile"
+            echo "${DNAME}: ${name} 已停止"
+            return 0
+        fi
+        sleep 0.5
+        i=$((i + 1))
+    done
+    echo "${DNAME}: ${name} 未响应 SIGTERM，强制终止..."
+    kill -9 "$pid" 2>/dev/null
+    rm -f "$pidfile"
+    echo "${DNAME}: ${name} 已强制终止"
+    return 0
+}
+
+get_daemon_pid() {
+    local name="$1"
+    local pidfile="${PID_DIR}/${name}.pid"
+    daemon_status "$name" && cat "$pidfile"
+}
