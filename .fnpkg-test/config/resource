@@ -1,0 +1,12 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "fn-native-sample"
+      },
+      {
+        "name": "fn-native-sample/data"
+      }
+    ]
+  }
+}
