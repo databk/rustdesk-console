@@ -204,27 +204,13 @@ copyDir(
   path.join(rootDir, 'dist/modules/oidc/templates'),
   path.join(templatesDir, 'oidc'),
 );
-if (process.platform === 'linux' && !runtimeBundle) {
-  const deploymentDir = path.join(distDir, 'deployment');
-  fs.mkdirSync(deploymentDir, { recursive: true });
-  for (const file of [
-    'install-linux.sh',
-    'install_linux.py',
-    'rustdesk-console-recover',
-  ]) {
-    fs.copyFileSync(
-      path.join(rootDir, 'deployment', file),
-      path.join(deploymentDir, file),
-    );
-  }
-  copyDir(
-    path.join(rootDir, 'deployment/systemd'),
-    path.join(deploymentDir, 'systemd'),
-  );
-  for (const file of ['install-linux.sh', 'rustdesk-console-recover']) {
-    fs.chmodSync(path.join(deploymentDir, file), 0o755);
-  }
-}
+// NOTE: deployment/ (install-linux.sh, install_linux.py, systemd units)
+// is intentionally NOT bundled in the Sea binary. Those files are the
+// upstream tarball installer — for users who manually download a .tar.gz.
+// Our fnOS/iNextOS FPK and DEB packages have their own install hooks
+// (fnos-native/cmd/install_callback, inextos/DEBIAN/postinst) and never
+// invoke the tarball installer. Shipping it here just confuses debugging.
+// If you need it, grab it from the git repo directly.
 fs.writeFileSync(
   path.join(distDir, 'build-info.json'),
   JSON.stringify({
