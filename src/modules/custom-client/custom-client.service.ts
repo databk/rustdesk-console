@@ -11,14 +11,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID, timingSafeEqual } from 'crypto';
-import {
-  existsSync,
-  readdirSync,
-  mkdirSync,
-  writeFileSync,
-  rmSync,
-  statSync,
-} from 'fs';
+import { rmSync } from 'fs';
 import { resolve, relative } from 'path';
 import { getCustomClientStoragePath } from '../../common/utils/data-dir.util';
 import { CustomClientBuild } from './entities/custom-client-build.entity';
@@ -31,6 +24,7 @@ import {
   SubmitBuildResponse,
   BuildProgressResponse,
   CustomClientCustomDto,
+  BuildFileDto,
 } from './dto/custom-client-build.dto';
 
 const GITHUB_API = 'https://api.github.com';
@@ -209,34 +203,20 @@ export class CustomClientService {
     rmSync(this.safeJoin(uuid), { recursive: true, force: true });
   }
 
-  async listBuildFiles(uuid: string, userGuid: string): Promise<string[]> {
-    await this.findOwnedBuild(uuid, userGuid);
-    const dir = this.safeJoin(uuid);
-    if (!existsSync(dir)) {
+  async listBuildFiles(
+    uuid: string,
+    userGuid: string,
+  ): Promise<BuildFileDto[]> {
+    const build = await this.findOwnedBuild(uuid, userGuid);
+    if (!build.files) {
       return [];
     }
-    return readdirSync(dir).filter((f) => {
-      try {
-        return statSync(this.safeJoin(uuid, f)).isFile();
-      } catch {
-        return false;
-      }
-    });
-  }
-
-  async getLocalFilePath(
-    uuid: string,
-    filename: string,
-    userGuid: string,
-  ): Promise<string> {
-    await this.findOwnedBuild(uuid, userGuid);
-    const buildDir = this.safeJoin(uuid);
-    const filePath = this.safeJoin(uuid, filename);
-    const rel = relative(buildDir, filePath);
-    if (rel.startsWith('..') || resolve(buildDir) === filePath) {
-      throw new BadRequestException('Invalid filename');
+    try {
+      const parsed = JSON.parse(build.files);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
     }
-    return filePath;
   }
 
   async getBuildConfig(
@@ -281,7 +261,7 @@ export class CustomClientService {
   async handleUpload(
     uuid: string,
     buildToken: string,
-    files: Express.Multer.File[],
+    files: BuildFileDto[],
   ): Promise<void> {
     const build = await this.buildRepository.findOne({ where: { uuid } });
     if (!build) {
@@ -292,28 +272,15 @@ export class CustomClientService {
       throw new BadRequestException('Build already finished');
     }
 
-    const savedNames: string[] = [];
     if (files && files.length > 0) {
-      const dir = this.safeJoin(uuid);
-      mkdirSync(dir, { recursive: true });
-      for (const file of files) {
-        const target = this.safeJoin(uuid, file.originalname);
-        writeFileSync(target, file.buffer);
-        savedNames.push(file.originalname);
-      }
-    }
-
-    if (savedNames.length > 0) {
       await this.buildRepository.update(
         { uuid },
-        {
-          files: JSON.stringify(savedNames),
-        },
+        { files: JSON.stringify(files) },
       );
     }
 
     this.logger.log(
-      `Upload processed for build ${uuid}: ${savedNames.length} files`,
+      `Upload processed for build ${uuid}: ${files?.length ?? 0} files`,
     );
   }
 

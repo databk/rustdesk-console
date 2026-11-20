@@ -13,18 +13,17 @@ import {
   NotFoundException,
   UseGuards,
   UseInterceptors,
-  UploadedFiles,
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
-import { FilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import { createReadStream, existsSync, statSync } from 'fs';
 import { basename } from 'path';
 import { CustomClientService } from './custom-client.service';
 import { CustomClientSettingsService } from './services/custom-client-settings.service';
 import { CustomClientLogoService } from './services/custom-client-logo.service';
-import { SubmitBuildDto } from './dto/custom-client-build.dto';
+import { SubmitBuildDto, UploadFilesDto } from './dto/custom-client-build.dto';
 import { UpdateCustomClientSettingsDto } from './dto/custom-client-settings.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
@@ -73,44 +72,6 @@ export class CustomClientController {
     @Param('uuid') uuid: string,
   ) {
     return this.customClientService.listBuildFiles(uuid, userGuid);
-  }
-
-  @Get('builds/:uuid/files/:filename')
-  async downloadBuildFile(
-    @CurrentUser('id') userGuid: string,
-    @Param('uuid') uuid: string,
-    @Param('filename') filename: string,
-    @Res() res: Response,
-  ) {
-    const filePath = await this.customClientService.getLocalFilePath(
-      uuid,
-      filename,
-      userGuid,
-    );
-    if (!existsSync(filePath)) {
-      throw new NotFoundException('File not found');
-    }
-    const stat = statSync(filePath);
-    if (!stat.isFile()) {
-      throw new NotFoundException('File not found');
-    }
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${basename(filePath)}"`,
-    );
-    res.setHeader('Content-Length', stat.size);
-    const stream = createReadStream(filePath);
-    stream.on('error', () => {
-      if (res.headersSent) {
-        res.destroy();
-      } else {
-        res.removeHeader('Content-Length');
-        res.removeHeader('Content-Disposition');
-        res.status(500).end();
-      }
-    });
-    stream.pipe(res);
   }
 
   @Get('builds/:uuid/progress')
@@ -170,19 +131,14 @@ export class CustomClientController {
 
   @Post('builds/:uuid/upload')
   @Public()
-  @UseInterceptors(
-    FilesInterceptor('files', 10, {
-      limits: { fileSize: 200 * 1024 * 1024, files: 10 },
-    }),
-  )
   @HttpCode(HttpStatus.OK)
   async handleUpload(
     @Param('uuid') uuid: string,
     @Req() req: Request,
-    @UploadedFiles() files: Express.Multer.File[],
+    @Body() dto: UploadFilesDto,
   ) {
     const buildToken = String(req.headers['x-build-token'] ?? '');
-    await this.customClientService.handleUpload(uuid, buildToken, files ?? []);
+    await this.customClientService.handleUpload(uuid, buildToken, dto.files ?? []);
     return { message: 'Upload processed' };
   }
 
