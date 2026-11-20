@@ -81,7 +81,10 @@ jobs:
   # ──────────────────────────────────────────────────────────────────
   backend-sea-build:
     name: Build Backend (Sea x64)
-    runs-on: ubuntu-latest
+    # 重要：用 ubuntu-22.04 (glibc 2.35) 而非 ubuntu-latest (glibc 2.39+)
+    #   — sqlite3 等原生模块会在构建机上本地编译，glibc 要求和 fnOS 系统兼容
+    #   — fnOS 基于 Debian，glibc 版本通常 2.31~2.35 之间，Ubuntu 22.04 最保守
+    runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
