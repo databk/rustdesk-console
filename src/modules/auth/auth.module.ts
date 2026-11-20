@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { TypeOrmModule, DataSource } from '@nestjs/typeorm';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { AuthController } from './auth.controller';
 import { PasswordResetController } from './password-reset.controller';
 import { randomBytes } from 'crypto';
@@ -65,23 +66,24 @@ async function resolveSecret(dataSource: DataSource): Promise<string> {
       return cachedSecret;
     }
   } catch {
-    // DB might not be ready yet on very first call; fall through to gen
+    // DB might not be ready yet; fall through to generate
   }
 
   // Priority 3: generate random + persist
-  cachedSecret = randomBytes(48).toString('base64');
+  const secret = randomBytes(48).toString('base64');
+  cachedSecret = secret;
   try {
     await dataSource.getRepository(SystemSetting).save({
       key: 'auth.jwt.secret',
-      value: cachedSecret,
+      value: secret,
       category: 'auth',
       description: 'Auto-generated JWT signing secret. Shared with hbbs RD_MANAGEMENT_TOKEN.',
       isSensitive: true,
     });
   } catch {
-    // Best-effort persistence; keep the secret in memory
+    // Best-effort persistence
   }
-  return cachedSecret;
+  return secret;
 }
 
 /**
