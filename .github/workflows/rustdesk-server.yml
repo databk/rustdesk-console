@@ -1,0 +1,127 @@
+name: RustDesk Server (hbbs+hbbr) fnOS Build
+
+# 打 hbbs + hbbr 开源版 FPK（独立于 Console）
+#
+# Triggers: tag server-* 自动 / workflow_dispatch 手动
+
+on:
+  push:
+    tags:
+      - 'server-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'FPK 版本号 (e.g. 1.1.16)'
+        required: true
+        type: string
+      rustdesk_server_version:
+        description: 'RustDesk Server OSS 版本'
+        required: false
+        default: '1.1.16'
+        type: string
+      publish:
+        description: '构建后发布到 Release 吗？'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  FN_PACK_VERSION: '1.3.3'
+
+jobs:
+  fpk-build:
+    name: fnpack → RustDesk Server FPK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine version
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#server-}"
+          [[ "$TAG" != server-* ]] && VERSION="${{ inputs.version }}"
+          RD_VERSION="${{ inputs.rustdesk_server_version }}"
+          [[ -z "$RD_VERSION" ]] && RD_VERSION="1.1.16"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RD_VERSION=$RD_VERSION" >> "$GITHUB_ENV"
+          echo "→ Building fnOS RustDesk Server v$VERSION (hbbs/hbbr $RD_VERSION)"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Download hbbs + hbbr (.deb)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hbbs-extract /tmp/hbbr-extract
+          curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RD_VERSION}/rustdesk-server-hbbs_${RD_VERSION}_amd64.deb" -o /tmp/hbbs.deb
+          curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RD_VERSION}/rustdesk-server-hbbr_${RD_VERSION}_amd64.deb" -o /tmp/hbbr.deb
+          dpkg -x /tmp/hbbs.deb /tmp/hbbs-extract
+          dpkg -x /tmp/hbbr.deb /tmp/hbbr-extract
+          ls -lh /tmp/hbbs-extract/usr/bin/hbbs /tmp/hbbr-extract/usr/bin/hbbr
+
+      - name: Assemble FPK workspace
+        run: |
+          set -euo pipefail
+          DIR=".fnpkg-server"
+          rm -rf "$DIR"
+          cp -r fnos-server "$DIR"
+          mkdir -p "$DIR/app"
+          cp /tmp/hbbs-extract/usr/bin/hbbs "$DIR/app/hbbs"
+          cp /tmp/hbbr-extract/usr/bin/hbbr "$DIR/app/hbbr"
+          chmod +x "$DIR/app/hbbs" "$DIR/app/hbbr"
+          sed -i "s/^version=.*/version=${VERSION}/" "$DIR/manifest"
+          ls -lh "$DIR/app/hbbs" "$DIR/app/hbbr"
+          echo "✓ RustDesk Server FPK workspace ready"
+
+      - name: Download fnpack
+        run: |
+          curl -fsSL "https://static2.fnnas.com/fnpack/fnpack-${FN_PACK_VERSION}-linux-amd64" -o fnpack
+          chmod +x fnpack
+
+      - name: Build .fpk
+        env:
+          CERT: ${{ secrets.FNOS_DEV_CERT }}
+          KEY:  ${{ secrets.FNOS_DEV_KEY }}
+        run: |
+          if [ -n "$CERT" ] && [ -n "$KEY" ]; then
+            ./fnpack build -d .fnpkg-server \
+              --cert <(echo "$CERT" | base64 -d) --key <(echo "$KEY" | base64 -d)
+          else
+            ./fnpack build -d .fnpkg-server --nosign
+          fi
+          mv rustdesk-server.fpk "rustdesk-server-${VERSION}.fpk"
+          ls -lh rustdesk-server-*.fpk
+
+      - name: Upload FPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-server-fpk
+          path: rustdesk-server-*.fpk
+
+      - name: Upload to Release
+        if: ${{ (inputs.publish == true) || (github.event_name == 'push') }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: fnOS RustDesk Server v${{ env.VERSION }}
+          body: |
+            ## RustDesk Server · fnOS v${{ env.VERSION }}
+
+            ### 包含
+            - **hbbs**（ID/发现服务器）: 监听 21115 / 21116 (TCP+UDP) / 21118
+            - **hbbr**（中继服务器）: 监听 21117 / 21119
+
+            ### 版本来源
+            - RustDesk Server OSS: ${{ env.RD_VERSION }}
+            - 打包仓库: `fengyun1980/rustdesk-console` @ ${{ github.sha }}
+
+            ### 安装后
+            1. 应用中心安装 RustDesk Server（与 Console 独立）
+            2. 配置向导填写「服务器公网地址」（可选，用于 hbbs 指定中继地址）
+            3. SSH 查看公钥: `cat /vol1/@appdata/rustdesk-server/data/id_ed25519.pub`
+            4. 把公钥粘贴到 RustDesk Console 的「Web Client」设置
+            5. RustDesk 客户端填: ID 服务器 = 地址:21116，中继服务器 = 地址:21117
+          files: rustdesk-server-*.fpk
+          fail_on_unmatched_files: true

@@ -1,0 +1,45 @@
+#!/bin/sh
+# 服务配置 — 被 main source 进来
+# RustDesk Server OSS：hbbs (ID/发现服务器) + hbbr (中继服务器)
+
+# 应用显示名称
+DNAME="RustDesk Server"
+
+# 数据目录（持久化存储，存放 id_ed25519 密钥 + SQLite 数据库）
+DATA_DIR="${TRIM_PKGVAR}/data"
+
+# 二进制路径（安装后位于 TRIM_APPDEST 根目录）
+HBBS_BIN="${TRIM_APPDEST}/hbbs"
+HBBR_BIN="${TRIM_APPDEST}/hbbr"
+
+# 读取用户配置的服务器公网地址（用于 hbbs -r 指定中继地址）
+SETTINGS_FILE="${TRIM_PKGETC}/settings.conf"
+RELAY_ADDRESS=""
+if [ -f "$SETTINGS_FILE" ]; then
+    . "$SETTINGS_FILE"
+fi
+
+# ── 数据目录初始化 ──
+mkdir -p "$DATA_DIR"
+chmod 700 "$DATA_DIR"
+
+# ── 启动 hbbs（ID/发现服务器，监听 21115/21116/21118）──
+# cwd 必须是数据目录，hbbs 在此生成 id_ed25519 密钥和数据库
+start_hbbs() {
+    if ! daemon_status "hbbs"; then
+        cd "$DATA_DIR"
+        if [ -n "$RELAY_ADDRESS" ]; then
+            start_daemon "hbbs" "$HBBS_BIN" -r "$RELAY_ADDRESS"
+        else
+            start_daemon "hbbs" "$HBBS_BIN"
+        fi
+    fi
+}
+
+# ── 启动 hbbr（中继服务器，监听 21117/21119）──
+start_hbbr() {
+    if ! daemon_status "hbbr"; then
+        cd "$DATA_DIR"
+        start_daemon "hbbr" "$HBBR_BIN"
+    fi
+}

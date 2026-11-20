@@ -1,0 +1,9 @@
+#!/bin/sh
+# 升级初始化 - 在升级前执行
+set -e
+
+DNAME="RustDesk Server"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+echo "${DNAME}: 升级初始化，停止服务..."
+"${SCRIPT_DIR}/main" stop

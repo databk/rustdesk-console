@@ -1,0 +1,21 @@
+[
+    {
+        "stepTitle": "RustDesk Server 设置",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "hbbs（ID/发现服务器）监听 21115/21116/21118 端口，hbbr（中继服务器）监听 21117/21119 端口。<br/>RustDesk 客户端在「设置 → 网络 → ID/中继服务器」中填写：<br/>· ID 服务器：服务器地址:21116<br/>· 中继服务器：服务器地址:21117"
+            },
+            {
+                "type": "text",
+                "field": "wizard_relay_address",
+                "label": "服务器公网地址（可选）",
+                "initValue": ""
+            },
+            {
+                "type": "tips",
+                "helpText": "公钥（Key）在首次启动后生成于数据目录 id_ed25519.pub，需粘贴到 RustDesk Console 面板的「Web Client」设置中。安装完成后可 SSH 查看：<br/>cat /vol1/@appdata/rustdesk-server/data/id_ed25519.pub"
+            }
+        ]
+    }
+]

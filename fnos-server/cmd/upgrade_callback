@@ -1,0 +1,11 @@
+#!/bin/sh
+# 升级回调 - 升级完成后执行
+set -e
+
+DNAME="RustDesk Server"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+echo "${DNAME}: 升级回调，重新安装并启动服务..."
+
+. "${SCRIPT_DIR}/installer"
+"${SCRIPT_DIR}/main" start

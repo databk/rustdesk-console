@@ -1,0 +1,17 @@
+[
+    {
+        "stepTitle": "确认卸载",
+        "items": [
+            {
+                "type": "radio",
+                "field": "wizard_delete_data",
+                "label": "应用数据处理",
+                "initValue": "false",
+                "options": [
+                    { "label": "保留密钥、数据库和设置，供以后重新安装使用", "value": "false" },
+                    { "label": "删除密钥、数据库和日志（不可恢复）", "value": "true" }
+                ]
+            }
+        ]
+    }
+]
