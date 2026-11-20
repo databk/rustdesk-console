@@ -34,7 +34,8 @@ http_probe() {
   path=$(echo "$url" | sed -n 's|http://\([^:]*\):\([0-9]*\)\(.*\)|\3|p')
   command -v curl >/dev/null 2>&1 && curl -sf -o /dev/null --max-time 2 "$url" && return 0
   command -v wget >/dev/null 2>&1 && wget -qO /dev/null --timeout=2 "$url" && return 0
-  if [ -B /dev/tcp ] && exec 3<>"/dev/tcp/${host}/${port}" 2>/dev/null; then
+  # bash /dev/tcp 探测 — 不要加 [ -B ... ]，那不是合法 test 参数
+  if exec 3<>"/dev/tcp/${host}/${port}" 2>/dev/null; then
     printf 'GET %s HTTP/1.0\r\nHost: %s\r\n\r\n' "$path" "$host" >&3
     grep -qE 'HTTP/1\.[01] 2[0-9][0-9]' <&3 && { exec 3>&-; return 0; }
     exec 3>&-
@@ -42,12 +43,30 @@ http_probe() {
   return 1
 }
 
+log_msg "=== install_callback 启动 ==="
 log_msg "Waiting for Sea on :${INTERNAL_PORT}..."
 
 # Sea 二进制现在已解压，补权限
 BIN_DIR="${TRIM_APPDEST}/bin"
 if [ -d "${BIN_DIR}" ]; then
   chmod +x "${BIN_DIR}/rustdesk-console-"* 2>/dev/null || true
+fi
+
+# 🔴 关键修复：显式调 cmd/main start，不依赖 fnOS 框架
+# 之前假设 fnOS 会自动调，但日志里完全没有 cmd/main 输出 → 框架可能没调
+MAIN="${TRIM_APPDEST}/cmd/main"
+if [ -x "${MAIN}" ]; then
+  # 先检查 Sea 是不是已经在跑（fnOS 可能已经自动调过）
+  if pidof rustdesk-console >/dev/null 2>&1 || pidof rustdesk-console-x64 >/dev/null 2>&1; then
+    log_msg "Sea already running (pidof matched), skip start"
+  else
+    log_msg "Calling ${MAIN} start ..."
+    "${MAIN}" start >> "${LOG_FILE}" 2>&1
+    rc=$?
+    log_msg "cmd/main start exited with rc=${rc}"
+  fi
+else
+  log_msg "WARN: ${MAIN} not found or not executable!"
 fi
 
 # PID 快速检查

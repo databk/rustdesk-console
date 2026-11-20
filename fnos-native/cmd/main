@@ -8,13 +8,27 @@
 
 APP_BIN_DIR="${TRIM_APPDEST}/bin"
 APP_PUBLIC_DIR="${TRIM_APPDEST}/public"
-DATA_DIR="${TRIM_PKGVAR}/data"
-LOG_FILE="${TRIM_PKGVAR}/info.log"
-PID_FILE="${TRIM_PKGVAR}/app.pid"
+DATA_DIR="${TRIM_PKGVAR:-/var/apps-data/rustdesk-console}/data"
+
+# LOG_FILE 3 层 fallback：TRIM_PKGVAR → TRIM_APPDEST → /tmp
+# 之前 TRIM_PKGVAR 为空时直接拼成 /info.log（根目录不可写）→ 所有日志静默丢失
+if [ -n "${TRIM_PKGVAR}" ] && [ -d "${TRIM_PKGVAR}" ]; then
+    LOG_FILE="${TRIM_PKGVAR}/info.log"
+elif [ -n "${TRIM_APPDEST}" ]; then
+    LOG_FILE="${TRIM_APPDEST}/info.log"
+else
+    LOG_FILE="/tmp/rustdesk-console.log"
+fi
+mkdir -p "$(dirname "${LOG_FILE}")" 2>/dev/null || LOG_FILE="/tmp/rustdesk-console.log"
+
+PID_FILE="${TRIM_PKGVAR:-/tmp}/app.pid"
 
 export PORT="${PORT:-3000}"
 export NODE_ENV=production
 export DATA_DIR="${DATA_DIR}"
+
+# 启动第一行立刻 dump 环境变量 — 确保哪怕后续崩了，日志里也有根因线索
+echo "=== cmd/main 启动: TRIM_PKGVAR=${TRIM_PKGVAR:-<empty>} TRIM_APPDEST=${TRIM_APPDEST:-<empty>} LOG_FILE=${LOG_FILE} arch=$(uname -m) ===" >> "${LOG_FILE}"
 
 # ── 公共诊断 helper ────────────────────────────────────────────────
 
