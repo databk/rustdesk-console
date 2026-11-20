@@ -30,8 +30,10 @@ import { EmailModule } from '../email/email.module';
 import { LdapModule } from '../ldap/ldap.module';
 import { UserGroupModule } from '../user-group/user-group.module';
 import { SettingsModule } from '../settings/settings.module';
-import { JWT_DEFAULT_SECRET, TOKEN_EXPIRY_DAYS } from './auth.constants';
+import { JwtSecretService } from './jwt-secret';
+import { TOKEN_EXPIRY_DAYS } from './auth.constants';
 import { RbacModule } from '../rbac/rbac.module';
+import { SystemSetting } from '../settings/entities/system-setting.entity';
 
 /**
  * Auth module
@@ -61,6 +63,7 @@ import { RbacModule } from '../rbac/rbac.module';
       LoginSession,
       PasskeyCredential,
       PasswordResetToken,
+      SystemSetting, // JwtSecretService 需要查 system_settings 表
     ]),
     EmailModule,
     LdapModule,
@@ -68,15 +71,23 @@ import { RbacModule } from '../rbac/rbac.module';
     SettingsModule,
     RbacModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || JWT_DEFAULT_SECRET,
-      signOptions: {
-        expiresIn: `${TOKEN_EXPIRY_DAYS}d`,
+    JwtModule.registerAsync({
+      imports: [TypeOrmModule.forFeature([SystemSetting])],
+      inject: [JwtSecretService],
+      useFactory: async (jwtSecretService: JwtSecretService) => {
+        const secret = await jwtSecretService.resolveSecret();
+        return {
+          secret,
+          signOptions: {
+            expiresIn: `${TOKEN_EXPIRY_DAYS}d`,
+          },
+        };
       },
     }),
   ],
   controllers: [AuthController, PasswordResetController],
   providers: [
+    JwtSecretService,
     AuthService,
     AuthTokenService,
     AuthTfaService,
@@ -92,6 +103,6 @@ import { RbacModule } from '../rbac/rbac.module';
     PasswordResetService,
     JwtStrategy,
   ],
-  exports: [AuthService, AuthTokenService, AuthDeviceService, JwtModule],
+  exports: [AuthService, AuthTokenService, AuthDeviceService, JwtModule, JwtSecretService],
 })
 export class AuthModule {}
