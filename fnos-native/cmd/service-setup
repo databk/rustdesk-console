@@ -43,6 +43,11 @@ fi
 . "$CREDENTIALS_FILE"
 export JWT_SECRET
 
+# hbbs/hbbr 管理 API：console 与 hbbs 共用 JWT_SECRET 作为管理 token
+export RD_MANAGEMENT_TOKEN="$JWT_SECRET"
+export RD_MANAGEMENT_BIND="0.0.0.0:21120"
+export RD_HBBS_API_URL="http://127.0.0.1:21120"
+
 # ── 数据目录初始化 ──
 mkdir -p "$DATA_DIR"
 chmod 700 "$DATA_DIR"

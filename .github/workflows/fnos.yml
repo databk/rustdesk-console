@@ -38,7 +38,7 @@ permissions:
 
 env:
   FN_PACK_VERSION: '1.3.3'
-  RUSTDESK_SERVER_VERSION: '1.1.16'
+  RUSTDESK_SERVER_VERSION: '1.1.1'
 
 jobs:
   # ──────────────────────────────────────────────────────────────────
@@ -208,8 +208,8 @@ jobs:
 
           # 下载并放置 hbbs + hbbr（RustDesk Server OSS 集成）
           mkdir -p /tmp/hbbs-x /tmp/hbbr-x
-          curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbs_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbs.deb
-          curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbr_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbr.deb
+          curl -fsSL "https://github.com/databk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbs_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbs.deb
+          curl -fsSL "https://github.com/databk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbr_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbr.deb
           dpkg -x /tmp/hbbs.deb /tmp/hbbs-x
           dpkg -x /tmp/hbbr.deb /tmp/hbbr-x
           cp /tmp/hbbs-x/usr/bin/hbbs "$DIR/app/hbbs"

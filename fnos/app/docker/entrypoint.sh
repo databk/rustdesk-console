@@ -25,6 +25,11 @@ if [ -z "${JWT_SECRET:-}" ]; then
 fi
 export JWT_SECRET
 
+# hbbs/hbbr 管理 API：console 与 hbbs 共用 JWT_SECRET 作为管理 token
+export RD_MANAGEMENT_TOKEN="$JWT_SECRET"
+export RD_MANAGEMENT_BIND="0.0.0.0:21120"
+export RD_HBBS_API_URL="http://127.0.0.1:21120"
+
 export NODE_ENV=production
 export HOST=0.0.0.0
 export PORT="${PORT:-3000}"

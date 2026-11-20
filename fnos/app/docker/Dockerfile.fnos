@@ -5,15 +5,15 @@
 
 # Stage 1: 拉取 hbbs/hbbr 二进制（按架构）
 FROM debian:bookworm-slim AS server-bins
-ARG RUSTDESK_SERVER_VERSION=1.1.16
+ARG RUSTDESK_SERVER_VERSION=1.1.1
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN ARCH="$(dpkg --print-architecture)" && \
     case "$ARCH" in \
       amd64|arm64) A="$ARCH" ;; \
       *) echo "unsupported arch for hbbs/hbbr: $ARCH" >&2; exit 1 ;; \
     esac && \
-    curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbs_${RUSTDESK_SERVER_VERSION}_${A}.deb" -o /tmp/hbbs.deb && \
-    curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbr_${RUSTDESK_SERVER_VERSION}_${A}.deb" -o /tmp/hbbr.deb && \
+    curl -fsSL "https://github.com/databk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbs_${RUSTDESK_SERVER_VERSION}_${A}.deb" -o /tmp/hbbs.deb && \
+    curl -fsSL "https://github.com/databk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbr_${RUSTDESK_SERVER_VERSION}_${A}.deb" -o /tmp/hbbr.deb && \
     dpkg -x /tmp/hbbs.deb /tmp/hbbs-x && \
     dpkg -x /tmp/hbbr.deb /tmp/hbbr-x
 
