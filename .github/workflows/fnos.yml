@@ -106,11 +106,14 @@ jobs:
           cp dist-sea/rustdesk-console "dist-sea/rustdesk-console-x64"
           # 注：deployment/ (install-linux.sh, install_linux.py, systemd units)
           # 已从 Sea 构建中移除——那是 upstream tarball 安装器，FPK/DEB 不用它
+          # 关键：release-metadata.json 必须包含！后端健康检查靠它返回 ready: true
           tar czf "sea-x64.tar.gz" \
             -C dist-sea \
-            node_modules templates "rustdesk-console-x64"
+            node_modules templates "rustdesk-console-x64" release-metadata.json
           rm -f "dist-sea/rustdesk-console-x64"
           ls -lh sea-x64.tar.gz
+          echo "--- tar 内容 ---"
+          tar tzf sea-x64.tar.gz
 
       - uses: actions/upload-artifact@v4
         with:
