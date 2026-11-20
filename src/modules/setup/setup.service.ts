@@ -253,7 +253,10 @@ export class SetupService {
     // Console and hbbs share one JWT_SECRET in integrated deployments.
     const jwtSecret = process.env.JWT_SECRET || JWT_DEFAULT_SECRET;
     const usingDefaultSecret = !process.env.JWT_SECRET;
-    const managementUrl = `http://${parsed.host}:${HBBS_MANAGEMENT_PORT}`;
+    // hbbs 管理 API 走 HTTP（RustDesk Server Pro 默认 HTTP 21120），
+    // 但主机名必须用 parsed.hostname（不带端口），不能用 parsed.host
+    // （它包含用户填的反代端口如 :4443，会导致 URL 变成 host:反代端口:21120）
+    const managementUrl = `http://${parsed.hostname}:${HBBS_MANAGEMENT_PORT}`;
     const smUpdate: UpdateServerManagementSettingsDto = {
       url: managementUrl,
       token: jwtSecret,
