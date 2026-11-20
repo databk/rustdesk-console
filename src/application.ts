@@ -205,6 +205,34 @@ export async function bootstrap() {
     }),
   );
 
+  // ── SPA fallback for React Router ──────────────────────────────────
+  // ServeStaticModule 先尝试从 public/ serve 文件；不存在时 Express
+  // 把请求传给我们。这里捕获所有非 /api/* 的请求，返回 index.html，
+  // 让 React Router 在浏览器里处理 /setup、/login 等前端路由。
+  const path = await import('path');
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    // 只 catch 非 API 路由
+    if (request.path.startsWith('/api')) {
+      return next();
+    }
+    // 只处理 GET/HEAD，其它 HTTP 方法让 NestJS 处理（会返回 404 JSON）
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return next();
+    }
+    // public/index.html 用 process.execPath 的 dirname（SEA 兼容）
+    const indexHtml = path.join(
+      path.dirname(process.execPath),
+      'public',
+      'index.html',
+    );
+    response.sendFile(indexHtml, (err) => {
+      if (err) {
+        // public/ 不存在或 index.html 缺失 → 让 NestJS 返回它的 404
+        next();
+      }
+    });
+  });
+
   const port = process.env.PORT ?? 3000;
   const host = process.env.HOST;
   if (host) await app.listen(port, host);

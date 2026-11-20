@@ -112,13 +112,9 @@ import { join, dirname } from 'path';
     WebClientModule,
     SetupModule,
     // Serve frontend static files (public/) + SPA fallback for React Router
-    // 用 process.execPath 的 dirname（SEA 模式下 __dirname 是虚拟路径）
+    // 简化配置：只指定 rootPath，其他用默认
     ServeStaticModule.forRoot({
       rootPath: join(dirname(process.execPath), 'public'),
-      serveRoot: '/',
-      // SPA fallback: unknown routes → index.html (React Router handles /setup, /login, etc.)
-      renderPath: join(dirname(process.execPath), 'public', 'index.html'),
-      exclude: ['/api/*'],
     }),
   ],
   providers: [
