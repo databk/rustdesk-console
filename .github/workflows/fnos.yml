@@ -195,7 +195,7 @@ jobs:
           # fnOS 解压后 app.tgz/rustdesk-console → ${TRIM_APPDEST}/rustdesk-console
           # 完全对齐 conversun 官方 v1.11.22 结构
           # 注：manifest 的 desktop_uidir = ui 让 fnpack 同时期望根目录 ui/ 和 app/ui/ 都存在
-          mkdir -p "$DIR/app/public" "$DIR/app/ui"
+          mkdir -p "$DIR/app" "$DIR/app/ui"
           cp -r "$DIR/ui/"* "$DIR/app/ui/"
 
           # 解 Sea x64 二进制 + node_modules + templates 到 app/ 根目录
@@ -205,8 +205,11 @@ jobs:
           mv "$DIR/app/rustdesk-console-x64" "$DIR/app/rustdesk-console"
           chmod +x "$DIR/app/rustdesk-console"
 
-          # 前端静态资源
+          # 前端静态资源 — 先清再拷，绝不能有残留
+          rm -rf "$DIR/app/public"
+          mkdir -p "$DIR/app/public"
           cp -r artifacts/frontend-dist/* "$DIR/app/public/"
+          echo "  ✓ public/ 前端资源:" && ls "$DIR/app/public/" | head -10
 
           sed -i "s/^version.*=.*$/version = ${VERSION}/" "$DIR/manifest"
           sed -i "s/^display_name.*=.*$/display_name = RustDesk Console (Native)/" "$DIR/manifest"
