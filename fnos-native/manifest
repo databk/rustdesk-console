@@ -1,5 +1,5 @@
 appname         = rustdesk-console
-version         = 1.11.18
+version         = 1.11.23
 fpk_version     = 1.11.1-r10
 display_name    = RustDesk Console (Native)
 platform        = x86
