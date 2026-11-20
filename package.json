@@ -99,7 +99,7 @@
     "@types/supertest": "^7.2.1",
     "@types/uuid": "^10.0.0",
     "@types/ws": "8.18.2",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
