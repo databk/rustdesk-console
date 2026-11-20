@@ -1,9 +1,0 @@
-#!/bin/sh
-# 卸载初始化 - 在卸载前执行
-set -e
-
-DNAME="RustDesk Server"
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-
-echo "${DNAME}: 卸载初始化，停止服务..."
-"${SCRIPT_DIR}/main" stop

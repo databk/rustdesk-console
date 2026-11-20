@@ -11,6 +11,16 @@
                 "helpText": "如需使用「自定义客户端」（由 GitHub Actions 编译安装包），请在面板的「设置 → 通用 → 站点地址」中把前端、后端都填成公网可访问的 HTTPS 反代地址（例如 https://rdc.tmnas.top），并确保该地址能回传到本机 21114。仅填内网地址（如 192.168.51.7）时，GitHub 构建完成后无法回传产物。"
             },
             {
+                "type": "tips",
+                "helpText": "本包已集成 hbbs（ID/发现服务器）和 hbbr（中继服务器）。RustDesk 客户端在「设置 → 网络 → ID/中继服务器」中填写：ID 服务器 = 服务器地址:21116，中继服务器 = 服务器地址:21117。<br/>公钥（Key）首次启动后生成在数据目录 id_ed25519.pub，SSH 查看：cat /vol1/@appdata/rustdesk-console/data/id_ed25519.pub，并粘贴到 Console 面板的「Web Client」设置。"
+            },
+            {
+                "type": "text",
+                "field": "wizard_relay_address",
+                "label": "服务器公网地址（可选）",
+                "initValue": ""
+            },
+            {
                 "type": "select",
                 "field": "wizard_log_level",
                 "label": "后端日志级别",

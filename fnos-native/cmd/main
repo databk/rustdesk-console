@@ -1,6 +1,6 @@
 #!/bin/sh
 # 主入口 — 处理 start/stop/status/log/restart
-# 简化版：只有 Sea 后端（NestJS + 内置前端静态文件）
+# 集成版：Sea 后端（NestJS + 前端静态文件）+ hbbs + hbbr
 # 完全对齐官方 v1.11.22 的 PID/日志/健康检查架构
 
 set -e
@@ -50,6 +50,40 @@ wait_for_ready() {
     return 1
 }
 
+# TCP 端口是否已监听（用于 hbbs/hbbr 健康检查）
+port_open() {
+    local port="$1"
+    if command -v ss >/dev/null 2>&1; then
+        ss -tln 2>/dev/null | awk '{print $4}' | grep -q ":${port}$"
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -tln 2>/dev/null | awk '{print $4}' | grep -q ":${port}$"
+    else
+        return 0
+    fi
+}
+
+# 等待进程监听指定端口
+wait_for_port() {
+    local name="$1"
+    local port="$2"
+    local attempts=30
+    local i=0
+    while [ "$i" -lt "$attempts" ]; do
+        if ! daemon_status "$name"; then
+            echo "${DNAME}: ${name} 进程已退出，日志：${TRIM_PKGVAR}/log/${name}.log" >&2
+            return 1
+        fi
+        if port_open "$port"; then
+            echo "${DNAME}: ${name} 已监听端口 ${port}"
+            return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    echo "${DNAME}: 等待 ${name} 监听端口 ${port} 超时" >&2
+    return 1
+}
+
 # ── 启动服务 ──
 do_start() {
     echo "${DNAME}: 正在启动服务..."
@@ -69,6 +103,29 @@ do_start() {
         return 1
     fi
 
+    # 启动 hbbs + hbbr（OSS 版，无管理 API，Console 手动粘贴公钥）
+    if [ -x "$HBBS_BIN" ] && [ -x "$HBBR_BIN" ]; then
+        echo "${DNAME}: 启动 hbbs + hbbr ..."
+        start_hbbs
+        start_hbbr
+
+        if ! wait_for_port "hbbs" 21116; then
+            stop_daemon "hbbr"
+            stop_daemon "hbbs"
+            stop_daemon "backend"
+            return 1
+        fi
+        if ! wait_for_port "hbbr" 21117; then
+            stop_daemon "hbbr"
+            stop_daemon "hbbs"
+            stop_daemon "backend"
+            return 1
+        fi
+        echo "${DNAME}: hbbs/hbbr 公钥：${DATA_DIR}/id_ed25519.pub（粘贴到 Console 的 Web Client 设置）"
+    else
+        echo "${DNAME}: 未找到 hbbs/hbbr 二进制，跳过自建服务器启动"
+    fi
+
     echo "${DNAME}: 服务已启动"
     return 0
 }
@@ -76,6 +133,8 @@ do_start() {
 # ── 停止服务 ──
 do_stop() {
     echo "${DNAME}: 正在停止服务..."
+    stop_daemon "hbbr"
+    stop_daemon "hbbs"
     stop_daemon "backend"
     echo "${DNAME}: 服务已停止"
 }
@@ -90,6 +149,20 @@ do_status() {
         echo "${DNAME}: Sea 后端运行中 (PID ${bpid}，端口 ${SERVICE_PORT})"
     else
         echo "${DNAME}: Sea 后端未运行"
+        running=false
+    fi
+
+    if daemon_status "hbbs"; then
+        echo "${DNAME}: hbbs 运行中 (PID $(get_daemon_pid hbbs)，端口 21116)"
+    else
+        echo "${DNAME}: hbbs 未运行"
+        running=false
+    fi
+
+    if daemon_status "hbbr"; then
+        echo "${DNAME}: hbbr 运行中 (PID $(get_daemon_pid hbbr)，端口 21117)"
+    else
+        echo "${DNAME}: hbbr 未运行"
         running=false
     fi
 

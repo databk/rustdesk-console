@@ -38,6 +38,7 @@ permissions:
 
 env:
   FN_PACK_VERSION: '1.3.3'
+  RUSTDESK_SERVER_VERSION: '1.1.16'
 
 jobs:
   # ──────────────────────────────────────────────────────────────────
@@ -204,6 +205,17 @@ jobs:
           # 重命名为 rustdesk-console（官方文件名）
           mv "$DIR/app/rustdesk-console-x64" "$DIR/app/rustdesk-console"
           chmod +x "$DIR/app/rustdesk-console"
+
+          # 下载并放置 hbbs + hbbr（RustDesk Server OSS 集成）
+          mkdir -p /tmp/hbbs-x /tmp/hbbr-x
+          curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbs_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbs.deb
+          curl -fsSL "https://github.com/rustdesk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbr_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbr.deb
+          dpkg -x /tmp/hbbs.deb /tmp/hbbs-x
+          dpkg -x /tmp/hbbr.deb /tmp/hbbr-x
+          cp /tmp/hbbs-x/usr/bin/hbbs "$DIR/app/hbbs"
+          cp /tmp/hbbr-x/usr/bin/hbbr "$DIR/app/hbbr"
+          chmod +x "$DIR/app/hbbs" "$DIR/app/hbbr"
+          ls -lh "$DIR/app/hbbs" "$DIR/app/hbbr"
 
           # 前端静态资源 — 先清再拷，绝不能有残留
           rm -rf "$DIR/app/public"

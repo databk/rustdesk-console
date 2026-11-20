@@ -1,7 +1,6 @@
 #!/bin/sh
 # 服务配置 — 被 main source 进来
-# 简化版：只有 Sea 后端（NestJS + 内置前端静态文件），无 hbbs/hbbr/web 反向代理
-# 完全对齐官方 v1.11.22 的目录结构和 PID/日志策略
+# 集成版：Sea 后端（NestJS + 内置前端静态文件）+ hbbs/hbbr（RustDesk 自建服务器）
 
 # 应用显示名称
 DNAME="RustDesk Console (Native)"
@@ -10,8 +9,19 @@ DNAME="RustDesk Console (Native)"
 # Sea 后端（同时 serve 前端静态文件）直接监听 service_port
 SERVICE_PORT=21114
 
-# 数据目录（持久化存储，存放 SQLite 数据库）
+# 数据目录（持久化存储，存放 SQLite 数据库 + hbbs 密钥）
 DATA_DIR="${TRIM_PKGVAR}/data"
+
+# hbbs/hbbr 二进制路径
+HBBS_BIN="${TRIM_APPDEST}/hbbs"
+HBBR_BIN="${TRIM_APPDEST}/hbbr"
+
+# 读取用户配置的服务器公网地址（用于 hbbs -r 指定中继地址）
+SETTINGS_FILE="${TRIM_PKGETC}/settings.conf"
+RELAY_ADDRESS=""
+if [ -f "$SETTINGS_FILE" ]; then
+    . "$SETTINGS_FILE"
+fi
 
 # ── 环境变量 ──
 export NODE_ENV=production
@@ -51,4 +61,25 @@ start_backend() {
         fi
     fi
     start_daemon "backend" env PORT="${SERVICE_PORT}" "${TRIM_APPDEST}/rustdesk-console"
+}
+
+# ── 启动 hbbs（ID/发现服务器，监听 21115/21116/21118）──
+# cwd 必须是数据目录，hbbs 在此生成 id_ed25519 密钥和数据库
+start_hbbs() {
+    if ! daemon_status "hbbs"; then
+        cd "$DATA_DIR"
+        if [ -n "$RELAY_ADDRESS" ]; then
+            start_daemon "hbbs" "$HBBS_BIN" -r "$RELAY_ADDRESS"
+        else
+            start_daemon "hbbs" "$HBBS_BIN"
+        fi
+    fi
+}
+
+# ── 启动 hbbr（中继服务器，监听 21117/21119）──
+start_hbbr() {
+    if ! daemon_status "hbbr"; then
+        cd "$DATA_DIR"
+        start_daemon "hbbr" "$HBBR_BIN"
+    fi
 }

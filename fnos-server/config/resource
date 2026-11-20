@@ -1,5 +1,0 @@
-{
-    "port-config": {
-        "protocol-file": "RustDeskServer.sc"
-    }
-}
