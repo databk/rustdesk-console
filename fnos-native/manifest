@@ -1,7 +1,5 @@
-# fnOS application manifest — NATIVE 模板
-# 完全对齐 conversun 官方格式（v1.11.22），避免 fnOS manifest 解析失败
 appname         = rustdesk-console
-version         = 1.11.17
+version         = 1.11.18
 fpk_version     = 1.11.1-r10
 display_name    = RustDesk Console (Native)
 platform        = x86

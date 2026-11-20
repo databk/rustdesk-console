@@ -1,8 +1,11 @@
 #!/bin/sh
 # 主入口 — 处理 start/stop/status/log/restart
-# 完全对齐 conversun 官方实现，简化为单一 Sea 后端
+# 简化版：只有 Sea 后端（NestJS + 内置前端静态文件）
+# 完全对齐官方 v1.11.22 的 PID/日志/健康检查架构
+
 set -e
 
+# 加载公共函数
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 . "${SCRIPT_DIR}/common"
 
@@ -11,6 +14,7 @@ if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
     exec >>"$TRIM_TEMP_LOGFILE" 2>&1
 fi
 
+# 加载应用特定的服务配置
 . "${SCRIPT_DIR}/service-setup"
 
 # 健康检查：Sea 后端 ready=true
@@ -46,7 +50,7 @@ wait_for_ready() {
     return 1
 }
 
-# ── 启动 ──
+# ── 启动服务 ──
 do_start() {
     echo "${DNAME}: 正在启动服务..."
 
@@ -69,32 +73,43 @@ do_start() {
     return 0
 }
 
-# ── 停止 ──
+# ── 停止服务 ──
 do_stop() {
     echo "${DNAME}: 正在停止服务..."
     stop_daemon "backend"
     echo "${DNAME}: 服务已停止"
 }
 
-# ── 状态 ──
+# ── 检查服务状态 ──
 do_status() {
+    local running=true
+
     if daemon_status "backend"; then
         local bpid
         bpid=$(get_daemon_pid "backend")
         echo "${DNAME}: Sea 后端运行中 (PID ${bpid}，端口 ${SERVICE_PORT})"
-        return 0
     else
         echo "${DNAME}: Sea 后端未运行"
+        running=false
+    fi
+
+    if $running; then
+        return 0
+    else
         return 3
     fi
 }
 
-# ── 日志 ──
+# ── 输出日志 ──
 do_log() {
     local log_dir="${TRIM_PKGVAR}/log"
     if [ -d "$log_dir" ]; then
         for f in "$log_dir"/*.log; do
-            [ -f "$f" ] && echo "=== $(basename "$f") ===" && tail -100 "$f" && echo ""
+            if [ -f "$f" ]; then
+                echo "=== $(basename "$f") ==="
+                tail -100 "$f"
+                echo ""
+            fi
         done
     fi
     echo "凭据文件: ${TRIM_PKGVAR}/credentials"
@@ -102,10 +117,25 @@ do_log() {
 
 # ── 主入口 ──
 case "${1}" in
-    start)   do_start ;;
-    stop)    do_stop ;;
-    status)  do_status ;;
-    log)     do_log ;;
-    restart) do_stop; sleep 1; do_start ;;
-    *)       echo "用法: $0 {start|stop|restart|status|log}"; exit 1 ;;
+    start)
+        do_start
+        ;;
+    stop)
+        do_stop
+        ;;
+    status)
+        do_status
+        ;;
+    log)
+        do_log
+        ;;
+    restart)
+        do_stop
+        sleep 1
+        do_start
+        ;;
+    *)
+        echo "用法: $0 {start|stop|restart|status|log}"
+        exit 1
+        ;;
 esac

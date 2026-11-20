@@ -185,9 +185,6 @@ jobs:
           rm -rf "$DIR"
           cp -r fnos-native "$DIR"
 
-          # 复制图标（fnos-native 模板里没有）
-          cp fnos/ICON.PNG fnos/ICON_256.PNG "$DIR/"
-
           # fnpack 只打包 app/ 子目录 → 二进制直接放 app/ 根目录
           # fnOS 解压后 app.tgz/rustdesk-console → ${TRIM_APPDEST}/rustdesk-console
           # 完全对齐 conversun 官方 v1.11.22 结构

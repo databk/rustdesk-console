@@ -1,13 +1,12 @@
 #!/bin/sh
-# 安装初始化 — 安装前执行
+# 安装初始化 - 在安装前执行
 set -e
 
 INSTALL_LOG="${TRIM_TEMP_LOGFILE:-/tmp/rustdesk-console_install.log}"
 exec >>"$INSTALL_LOG" 2>&1
 
-DNAME="RustDesk Console (Native)"
+DNAME="RustDesk Console"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 . "${SCRIPT_DIR}/common"
 
 echo "${DNAME}: 安装初始化..."
-echo "${DNAME}: TRIM_APPDEST=${TRIM_APPDEST} TRIM_PKGVAR=${TRIM_PKGVAR}"

@@ -1,5 +1,5 @@
 #!/bin/sh
-# 安装回调 — 安装完成后执行
+# 安装回调 - 安装完成后执行
 set -e
 
 INSTALL_LOG="${TRIM_TEMP_LOGFILE:-/tmp/rustdesk-console_install.log}"
@@ -9,8 +9,8 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 . "${SCRIPT_DIR}/common"
 . "${SCRIPT_DIR}/service-setup"
 
-echo "${DNAME}: 安装回调，执行 installer..."
+echo "${DNAME}: 安装回调，启动服务..."
 . "${SCRIPT_DIR}/installer"
 
-echo "${DNAME}: 启动服务..."
+# 安装完成后自动启动服务
 "${SCRIPT_DIR}/main" start

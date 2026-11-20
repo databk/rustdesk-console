@@ -1,12 +1,21 @@
 #!/bin/sh
-# 配置回调 — 保存设置并重启服务
+# 配置回调 - 保存系统设置并在服务运行时重启
 set -e
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-DNAME="RustDesk Console (Native)"
+DNAME="RustDesk Console"
+LOG_LEVEL="${wizard_log_level:-log}"
+
+case "$LOG_LEVEL" in
+    verbose|debug|log|warn|error|fatal) ;;
+    *)
+        echo "${DNAME}: 不支持的日志级别: ${LOG_LEVEL}" >&2
+        exit 1
+        ;;
+esac
 
 mkdir -p "${TRIM_PKGETC}"
-printf 'LOG_LEVEL=%s\n' "${wizard_log_level:-log}" > "${TRIM_PKGETC}/settings.conf"
+printf 'LOG_LEVEL=%s\n' "$LOG_LEVEL" > "${TRIM_PKGETC}/settings.conf"
 chmod 644 "${TRIM_PKGETC}/settings.conf"
 
 if "${SCRIPT_DIR}/main" status >/dev/null 2>&1; then

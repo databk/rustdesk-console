@@ -1,0 +1,32 @@
+[
+    {
+        "stepTitle": "RustDesk Console 设置",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "服务器端口、Key、重启等管理功能在 RustDesk Console 管理面板中操作，不在飞牛「应用设置」里。请点击应用中心的「打开」按钮或桌面图标进入；也可在浏览器访问 http://飞牛NAS地址:21114 。<br/>下方仅为后端日志级别。"
+            },
+            {
+                "type": "tips",
+                "helpText": "如需使用「自定义客户端」（由 GitHub Actions 编译安装包），请在面板的「设置 → 通用 → 站点地址」中把前端、后端都填成公网可访问的 HTTPS 反代地址（例如 https://rdc.tmnas.top），并确保该地址能回传到本机 21114。仅填内网地址（如 192.168.51.7）时，GitHub 构建完成后无法回传产物。"
+            },
+            {
+                "type": "select",
+                "field": "wizard_log_level",
+                "label": "后端日志级别",
+                "initValue": "log",
+                "options": [
+                    { "label": "详细（verbose）", "value": "verbose" },
+                    { "label": "调试（debug）", "value": "debug" },
+                    { "label": "普通（log）", "value": "log" },
+                    { "label": "警告（warn）", "value": "warn" },
+                    { "label": "错误（error）", "value": "error" },
+                    { "label": "致命错误（fatal）", "value": "fatal" }
+                ],
+                "rules": [
+                    { "required": true, "message": "请选择日志级别" }
+                ]
+            }
+        ]
+    }
+]

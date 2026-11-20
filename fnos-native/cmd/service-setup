@@ -1,8 +1,9 @@
 #!/bin/sh
 # 服务配置 — 被 main source 进来
-# 定义 DNAME、端口、环境变量、启动函数
 # 简化版：只有 Sea 后端（NestJS + 内置前端静态文件），无 hbbs/hbbr/web 反向代理
+# 完全对齐官方 v1.11.22 的目录结构和 PID/日志策略
 
+# 应用显示名称
 DNAME="RustDesk Console (Native)"
 
 # 端口

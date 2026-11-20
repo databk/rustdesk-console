@@ -1,9 +1,7 @@
 #!/bin/sh
 # 安装逻辑脚本 — 被 install_callback / upgrade_callback source 进来
-# 创建数据目录、日志目录、PID 目录，设置权限，chmod 二进制
-# 完全对齐 conversun 官方实现
-
-DNAME="RustDesk Console (Native)"
+# 简化版：只创建 Sea 后端需要的目录和权限
+# 完全对齐官方 v1.11.22 的 install_callback 调用模式
 
 echo "${DNAME}: 正在安装..."
 

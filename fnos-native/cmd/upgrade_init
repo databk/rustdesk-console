@@ -1,7 +1,11 @@
 #!/bin/sh
-# 升级初始化 — 升级前执行
+# 升级初始化 - 在升级前执行
 set -e
-DNAME="RustDesk Console (Native)"
+
+DNAME="RustDesk Console"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
 echo "${DNAME}: 升级初始化，停止服务..."
+
+# 升级前先停止服务
 "${SCRIPT_DIR}/main" stop

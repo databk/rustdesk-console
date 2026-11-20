@@ -1,7 +1,11 @@
 #!/bin/sh
-# 卸载初始化 — 卸载前执行
+# 卸载初始化 - 在卸载前执行
 set -e
-DNAME="RustDesk Console (Native)"
+
+DNAME="RustDesk Console"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
 echo "${DNAME}: 卸载初始化，停止服务..."
+
+# 卸载前先停止服务
 "${SCRIPT_DIR}/main" stop

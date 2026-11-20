@@ -1,39 +1,63 @@
 #!/bin/sh
-# 公共函数库 — 被 main / install_callback / upgrade_callback source 进来
+# 公共函数库 - 被 main 脚本 source 进来
 # 提供 PATH 导出、daemon 管理和 PID 文件操作
-# 完全对齐 conversun 官方实现
 
+# 导出标准 PATH
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# PID 文件目录
 PID_DIR="${TRIM_PKGVAR}/pids"
 
+# 确保 PID 目录存在
 ensure_pid_dir() {
     mkdir -p "$PID_DIR"
 }
 
 # 检查 daemon 是否正在运行
+# 参数: $1 = daemon 名称
+# 返回: 0 = 运行中, 1 = 未运行
 daemon_status() {
     local name="$1"
     local pidfile="${PID_DIR}/${name}.pid"
-    [ ! -f "$pidfile" ] && return 1
+
+    if [ ! -f "$pidfile" ]; then
+        return 1
+    fi
+
     local pid
     pid=$(cat "$pidfile")
-    [ -z "$pid" ] && rm -f "$pidfile" && return 1
-    kill -0 "$pid" 2>/dev/null && return 0
-    rm -f "$pidfile"
-    return 1
+
+    if [ -z "$pid" ]; then
+        rm -f "$pidfile"
+        return 1
+    fi
+
+    # 检查进程是否存在
+    if kill -0 "$pid" 2>/dev/null; then
+        return 0
+    else
+        # 进程已死，清理 PID 文件
+        rm -f "$pidfile"
+        return 1
+    fi
 }
 
-# 启动 daemon 进程，保存 PID
+# 启动 daemon 进程
+# 参数: $1 = daemon 名称, $2+ = 命令和参数
 start_daemon() {
     local name="$1"
     shift
     local pidfile="${PID_DIR}/${name}.pid"
+
     ensure_pid_dir
+
+    # 如果已在运行则跳过
     if daemon_status "$name"; then
         echo "${DNAME}: ${name} 已在运行"
         return 0
     fi
+
+    # 启动进程，保存日志并将 PID 写入文件
     local log_file="${TRIM_PKGVAR}/log/${name}.log"
     mkdir -p "${TRIM_PKGVAR}/log"
     "$@" >> "$log_file" 2>&1 &
@@ -43,17 +67,26 @@ start_daemon() {
 }
 
 # 停止 daemon 进程
+# 参数: $1 = daemon 名称
+# 返回: 0 = 成功, 1 = 失败
 stop_daemon() {
     local name="$1"
     local pidfile="${PID_DIR}/${name}.pid"
+
     if ! daemon_status "$name"; then
         echo "${DNAME}: ${name} 未运行"
         return 0
     fi
+
     local pid
     pid=$(cat "$pidfile")
+
     echo "${DNAME}: 正在停止 ${name} (PID ${pid})..."
+
+    # 发送 SIGTERM 信号
     kill "$pid" 2>/dev/null
+
+    # 等待进程退出（最多 10 秒）
     local i=0
     while [ $i -lt 20 ]; do
         if ! kill -0 "$pid" 2>/dev/null; then
@@ -64,6 +97,8 @@ stop_daemon() {
         sleep 0.5
         i=$((i + 1))
     done
+
+    # 超时则强制杀死
     echo "${DNAME}: ${name} 未响应 SIGTERM，强制终止..."
     kill -9 "$pid" 2>/dev/null
     rm -f "$pidfile"
@@ -71,8 +106,13 @@ stop_daemon() {
     return 0
 }
 
+# 获取 daemon 的 PID
+# 参数: $1 = daemon 名称
 get_daemon_pid() {
     local name="$1"
     local pidfile="${PID_DIR}/${name}.pid"
-    daemon_status "$name" && cat "$pidfile"
+
+    if daemon_status "$name"; then
+        cat "$pidfile"
+    fi
 }
