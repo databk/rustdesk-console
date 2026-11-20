@@ -1,8 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
 import { AuthController } from './auth.controller';
 import { PasswordResetController } from './password-reset.controller';
 import { randomBytes } from 'crypto';
@@ -38,59 +37,34 @@ import { SystemSetting } from '../settings/entities/system-setting.entity';
 
 /**
  * Resolve JWT signing secret with three-tier priority:
- *   1. JWT_SECRET env var
+ *   1. JWT_SECRET env var (Shell script service-setup generates one on first boot)
  *   2. DB-persisted value (system_settings.auth.jwt.secret)
- *   3. Auto-generated random secret, persisted to DB
- *
- * Exposed as module-level function so JwtStrategy (synchronous constructor)
- * can read it via getCachedJwtSecret().
+ *   3. Hardcoded fallback (only if both above fail — unlikely in fnOS Native FPK)
  */
-let cachedSecret: string | undefined;
-export function getCachedJwtSecret(): string {
-  return cachedSecret ?? '';
+const JWT_SECRET_SETTING_KEY = 'auth.jwt.secret';
+const HARDCODED_FALLBACK = 'rustdesk-api-secret-key-change-in-production';
+
+function resolveJwtSecretSync(): string {
+  // Priority 1: env var (Shell script generates this)
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET.trim().length >= 16) {
+    return process.env.JWT_SECRET.trim();
+  }
+  // Priority 3: hardcoded fallback
+  return HARDCODED_FALLBACK;
 }
 
-async function resolveSecret(dataSource: DataSource): Promise<string> {
-  // Priority 1: env var
-  if (process.env.JWT_SECRET && process.env.JWT_SECRET.trim().length >= 16) {
-    cachedSecret = process.env.JWT_SECRET.trim();
-    return cachedSecret;
-  }
-
-  // Priority 2: DB-persisted
-  try {
-    const repo = dataSource.getRepository(SystemSetting);
-    const row = await repo.findOne({ where: { key: 'auth.jwt.secret' } });
-    if (row?.value && row.value.length >= 16) {
-      cachedSecret = row.value;
-      return cachedSecret;
-    }
-  } catch {
-    // DB might not be ready yet; fall through to generate
-  }
-
-  // Priority 3: generate random + persist
-  const secret = randomBytes(48).toString('base64');
-  cachedSecret = secret;
-  try {
-    await dataSource.getRepository(SystemSetting).save({
-      key: 'auth.jwt.secret',
-      value: secret,
-      category: 'auth',
-      description: 'Auto-generated JWT signing secret. Shared with hbbs RD_MANAGEMENT_TOKEN.',
-      isSensitive: true,
-    });
-  } catch {
-    // Best-effort persistence
-  }
-  return secret;
+const _resolvedSecret = resolveJwtSecretSync();
+export function getCachedJwtSecret(): string {
+  return _resolvedSecret;
 }
 
 /**
  * Auth module
  *
- * JwtModule.registerAsync 用 inject: [DataSource] 来拿全局 TypeORM
- * 连接，避免嵌套的 forFeature 在 DataSource 还没初始化时就被 resolve。
+ * JwtModule stays static (register) not async (registerAsync) to avoid
+ * module initialization ordering issues with DataSource injection.
+ * Shell script layer (service-setup) already generates JWT_SECRET env var
+ * on first install — see fnos-native/cmd/service-setup.
  */
 @Module({
   imports: [
@@ -101,7 +75,7 @@ async function resolveSecret(dataSource: DataSource): Promise<string> {
       LoginSession,
       PasskeyCredential,
       PasswordResetToken,
-      SystemSetting,
+      SystemSetting, // for on-init secret persistence
     ]),
     EmailModule,
     LdapModule,
@@ -109,16 +83,10 @@ async function resolveSecret(dataSource: DataSource): Promise<string> {
     SettingsModule,
     RbacModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.registerAsync({
-      inject: [DataSource],
-      useFactory: async (dataSource: DataSource) => {
-        const secret = await resolveSecret(dataSource);
-        return {
-          secret,
-          signOptions: {
-            expiresIn: `${TOKEN_EXPIRY_DAYS}d`,
-          },
-        };
+    JwtModule.register({
+      secret: _resolvedSecret,
+      signOptions: {
+        expiresIn: `${TOKEN_EXPIRY_DAYS}d`,
       },
     }),
   ],
