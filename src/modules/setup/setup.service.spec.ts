@@ -190,12 +190,12 @@ describe('SetupService', () => {
     // ServerManagement auto-configured
     expect(mockServerManagementSettings.updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: 'http://rdc.tmnas.top:21120',
+        url: 'http://127.0.0.1:21120',
         nodeId: 'rustdesk',
         nodeName: 'RustDesk',
       }),
     );
-    expect(result.serverManagement.url).toBe('http://rdc.tmnas.top:21120');
+    expect(result.serverManagement.url).toBe('http://127.0.0.1:21120');
     expect(result.serverManagement.tokenConfigured).toBe(true);
     expect(result.serverManagement.usingDefaultSecret).toBe(true);
   });

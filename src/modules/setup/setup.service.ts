@@ -253,10 +253,11 @@ export class SetupService {
     // Console and hbbs share one JWT_SECRET in integrated deployments.
     const jwtSecret = getCachedJwtSecret();
     const usingDefaultSecret = !process.env.JWT_SECRET;
-    // hbbs 管理 API 走 HTTP（RustDesk Server Pro 默认 HTTP 21120），
-    // 但主机名必须用 parsed.hostname（不带端口），不能用 parsed.host
-    // （它包含用户填的反代端口如 :4443，会导致 URL 变成 host:反代端口:21120）
-    const managementUrl = `http://${parsed.hostname}:${HBBS_MANAGEMENT_PORT}`;
+    // fnOS 集成部署：hbbs/hbbr 与 console 跑在同一台 NAS 上，管理 API 必须
+    // 直连本机回环 127.0.0.1:21120。不能用用户填的公网域名——公网域名:21120
+    // 经公网回环（hairpin NAT）/反代会返回 404/503，导致 server-management
+    // 报「节点不可达」或服务状态异常。
+    const managementUrl = `http://127.0.0.1:${HBBS_MANAGEMENT_PORT}`;
     const smUpdate: UpdateServerManagementSettingsDto = {
       url: managementUrl,
       token: jwtSecret,
@@ -385,8 +386,10 @@ export class SetupService {
       return undefined;
     }
 
-    // SSRF gate 1: hostname
-    if (isPrivateIp(url.hostname)) {
+    // SSRF gate 1: hostname — 127.0.0.1 是集成部署下访问同机 hbbs 管理 API
+    // 的正常路径（managementUrl 硬编码为本机回环），放行；其余私有/保留
+    // 地址仍拦截，防止 setup 被用来探测内网。
+    if (url.hostname !== '127.0.0.1' && isPrivateIp(url.hostname)) {
       this.logger.warn(
         `fetchHbbsPublicKey: SSRF block — private/reserved host ${url.hostname}`,
       );

@@ -28,7 +28,11 @@ export JWT_SECRET
 # hbbs/hbbr 管理 API：console 与 hbbs 共用 JWT_SECRET 作为管理 token
 export RD_MANAGEMENT_TOKEN="$JWT_SECRET"
 export RD_MANAGEMENT_BIND="0.0.0.0:21120"
+export RD_MANAGEMENT_DIR="$ROOT"
 export RD_HBBS_API_URL="http://127.0.0.1:21120"
+
+# hbbs/hbbr 需要往 $HOME/.config/rustdesk 写配置（id 等）；显式指到数据目录
+export HOME="$ROOT"
 
 export NODE_ENV=production
 export HOST=0.0.0.0
