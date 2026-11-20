@@ -46,6 +46,10 @@ export async function bootstrap() {
           imgSrc: ["'self'", 'data:', 'blob:'],
           connectSrc: ["'self'"],
           frameAncestors: ["'none'"],
+          // 关键！fnOS Native / 直接端口都是 HTTP，禁用 Helmet 默认的
+          // upgrade-insecure-requests — 它会让浏览器把所有资源请求
+          // 升级成 HTTPS → Sea 不跑 TLS → ERR_SSL_PROTOCOL_ERROR 白屏
+          upgradeInsecureRequests: null,
         },
       },
       // Required for JWT Bearer auth headers to stay visible
