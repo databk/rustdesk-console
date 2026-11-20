@@ -188,7 +188,9 @@ jobs:
           # fnpack 只打包 app/ 子目录 → 二进制直接放 app/ 根目录
           # fnOS 解压后 app.tgz/rustdesk-console → ${TRIM_APPDEST}/rustdesk-console
           # 完全对齐 conversun 官方 v1.11.22 结构
-          mkdir -p "$DIR/app/public"
+          # 注：manifest 的 desktop_uidir = ui 让 fnpack 同时期望根目录 ui/ 和 app/ui/ 都存在
+          mkdir -p "$DIR/app/public" "$DIR/app/ui"
+          cp -r "$DIR/ui/"* "$DIR/app/ui/"
 
           # 解 Sea x64 二进制 + node_modules + templates 到 app/ 根目录
           tar xzf "artifacts/backend-sea-x64/sea-x64.tar.gz" \
