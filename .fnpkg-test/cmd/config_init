@@ -1,4 +1,0 @@
-#!/bin/bash
-# fnOS Native — config_init (no-op, web setup wizard handles this)
-set -e
-echo "[fnos-native] config_init: no-op — use browser /setup wizard"

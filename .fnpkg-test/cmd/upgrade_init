@@ -1,6 +1,0 @@
-#!/bin/bash
-# fnOS Native — upgrade_init
-set -e
-DATA_DIR="${TRIM_PKGVAR}/data"
-[ -d "${DATA_DIR}" ] || mkdir -p "${DATA_DIR}"
-echo "[fnos-native] upgrade_init: data dir verified"

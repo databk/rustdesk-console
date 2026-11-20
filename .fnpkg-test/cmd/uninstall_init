@@ -1,4 +1,0 @@
-#!/bin/bash
-# fnOS Native — uninstall_init
-set -e
-echo "[fnos-native] uninstall_init"

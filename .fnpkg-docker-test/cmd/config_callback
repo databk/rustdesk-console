@@ -1,4 +1,0 @@
-#!/bin/bash
-# fnOS — Config-callback (no-op, see config_init)
-set -e
-echo "[fnos] config_callback: no-op"

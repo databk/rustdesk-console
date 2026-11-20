@@ -1,5 +1,0 @@
-#!/bin/bash
-# fnOS — Uninstall callback hook. ${TRIM_PKGVAR}/data persists by default
-# (用户数据不删); 留空即可。
-set -e
-echo "[fnos] uninstall_callback: done. user data preserved in ${TRIM_PKGVAR}/data"

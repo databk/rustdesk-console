@@ -1,4 +1,0 @@
-#!/bin/bash
-# fnOS Native — uninstall_callback
-set -e
-echo "[fnos-native] uninstall_callback done. data preserved at ${TRIM_PKGVAR}/data"
