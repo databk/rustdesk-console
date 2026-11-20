@@ -179,7 +179,7 @@ jobs:
           cp -r artifacts/frontend-dist/* "$DIR/app/docker/web-dist/"
           mkdir -p "$DIR/app/docker/backend-src"
           cp -r artifacts/backend-dist/* "$DIR/app/docker/backend-src/"
-          sed -i "s/^version.*=.*$/version = ${VERSION}/" "$DIR/manifest"
+          sed -i "s/^version=.*/version=${VERSION}/" "$DIR/manifest"
           echo "✓ Docker FPK workspace ready"
 
       # ── 组装 Native 版 ──
@@ -211,8 +211,8 @@ jobs:
           cp -r artifacts/frontend-dist/* "$DIR/app/public/"
           echo "  ✓ public/ 前端资源:" && ls "$DIR/app/public/" | head -10
 
-          sed -i "s/^version.*=.*$/version = ${VERSION}/" "$DIR/manifest"
-          sed -i "s/^display_name.*=.*$/display_name = RustDesk Console (Native)/" "$DIR/manifest"
+          sed -i "s/^version=.*/version=${VERSION}/" "$DIR/manifest"
+          sed -i "s/^display_name=.*/display_name=RustDesk Console (Native)/" "$DIR/manifest"
           ls -lh "$DIR/app/rustdesk-console" 2>/dev/null && \
             echo "  ✓ Sea binary in app/ (root)" || echo "  ❌ Sea binary missing!"
           echo "✓ Native FPK workspace ready (x64 only; arm64 → Docker FPK)"
