@@ -17,12 +17,19 @@ describe('isTrustedProxyEnabled', () => {
     expect(isTrustedProxyEnabled(value)).toBe(true);
   });
 
-  it.each([undefined, '', 'false', '0', 'yes', 'on'])(
+  it.each(['', 'false', '0', 'yes', 'on'])(
     'stays disabled on %p',
     (value) => {
       expect(isTrustedProxyEnabled(value)).toBe(false);
     },
   );
+
+  it('stays disabled when TRUSTED_PROXY is unset', () => {
+    const saved = process.env.TRUSTED_PROXY;
+    delete process.env.TRUSTED_PROXY;
+    expect(isTrustedProxyEnabled()).toBe(false);
+    process.env.TRUSTED_PROXY = saved;
+  });
 });
 
 describe('normalizeIp', () => {
@@ -91,6 +98,7 @@ describe('extractClientIp', () => {
     ['missing', undefined],
     ['empty', ''],
     ['malformed', '198.51.100.9, not-an-ip'],
+    ['trailing comma', '198.51.100.9,'],
   ])(
     'falls back to the socket address when the header is %s',
     (_case, header) => {

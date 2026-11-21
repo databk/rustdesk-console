@@ -60,10 +60,12 @@ export function extractClientIp(
     const header = request.headers['x-forwarded-for'];
     const entries = (Array.isArray(header) ? header.join(',') : (header ?? ''))
       .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    const forwarded = normalizeIp(entries[entries.length - 1]);
-    if (forwarded) return forwarded;
+      .map((entry) => entry.trim());
+    const last = entries[entries.length - 1];
+    if (last) {
+      const forwarded = normalizeIp(last);
+      if (forwarded) return forwarded;
+    }
   }
   return normalizeIp(request.socket?.remoteAddress);
 }
