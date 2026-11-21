@@ -181,6 +181,24 @@ export class CustomClientService {
   }
 
   async listBuilds(userGuid: string): Promise<CustomClientBuild[]> {
+    const builds = await this.buildRepository.find({
+      where: { userGuid },
+      order: { createdAt: 'DESC' },
+    });
+
+    // 对进行中的构建，拉取 GitHub 运行状态并同步本地状态。
+    // 前端列表每 5 秒轮询本接口，借此自动推进 pending → building → completed。
+    const activeBuilds = builds.filter(
+      (b) => b.status === 'pending' || b.status === 'building',
+    );
+    if (activeBuilds.length > 0) {
+      await Promise.allSettled(
+        activeBuilds.map((b) =>
+          this.getBuildProgress(b.uuid, userGuid).catch(() => undefined),
+        ),
+      );
+    }
+
     return this.buildRepository.find({
       where: { userGuid },
       order: { createdAt: 'DESC' },
