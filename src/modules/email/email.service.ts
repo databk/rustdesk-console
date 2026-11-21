@@ -56,7 +56,7 @@ export class EmailService {
       await transporter.sendMail({
         from: config.from,
         to: email,
-        subject: 'Login verification code',
+        subject: '登录验证码',
         html,
       });
 
@@ -107,7 +107,7 @@ export class EmailService {
       await transporter.sendMail({
         from: config.from,
         to: email,
-        subject: 'Invitation to join RustDesk Console',
+        subject: 'RustDesk Console 邀请',
         html,
       });
 
@@ -155,7 +155,7 @@ export class EmailService {
       await transporter.sendMail({
         from: config.from,
         to: email,
-        subject: 'Reset your RustDesk Console password',
+        subject: '重置 RustDesk Console 密码',
         html,
       });
 
