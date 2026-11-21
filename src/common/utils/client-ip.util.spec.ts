@@ -27,8 +27,15 @@ describe('isTrustedProxyEnabled', () => {
   it('stays disabled when TRUSTED_PROXY is unset', () => {
     const saved = process.env.TRUSTED_PROXY;
     delete process.env.TRUSTED_PROXY;
-    expect(isTrustedProxyEnabled()).toBe(false);
-    process.env.TRUSTED_PROXY = saved;
+    try {
+      expect(isTrustedProxyEnabled()).toBe(false);
+    } finally {
+      if (saved === undefined) {
+        delete process.env.TRUSTED_PROXY;
+      } else {
+        process.env.TRUSTED_PROXY = saved;
+      }
+    }
   });
 });
 
