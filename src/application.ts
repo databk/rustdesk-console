@@ -41,7 +41,9 @@ export async function bootstrap() {
         // disable dangerous inline script by default
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
+          // Web client decodes via WebAssembly; allow wasm instantiation
+          // without enabling general eval.
+          scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'blob:'],
           connectSrc: ["'self'"],
