@@ -2,7 +2,8 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, EntityManager, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { getCurrentRequestId } from '../../../common/middleware/request-id.middleware';
+import { getCurrentRequestContext } from '../../../common/middleware/request-id.middleware';
+import { MAX_CLIENT_IP_LENGTH } from '../../../common/utils/client-ip.util';
 import { User } from '../../user/entities/user.entity';
 import { ConsoleAudit } from '../entities/console-audit.entity';
 
@@ -16,6 +17,8 @@ export interface RbacAuditEvent {
   beforeState?: unknown;
   afterState?: unknown;
   requestId?: string | null;
+  clientIp?: string | null;
+  userAgent?: string | null;
 }
 
 interface ConsoleAuditQueryRaw {
@@ -31,6 +34,7 @@ const MAX_STATE_BYTES = 60_000;
 const MAX_STATE_PREVIEW_BYTES = MAX_STATE_BYTES - 128;
 
 const MAX_TARGET_GUID_LENGTH = 255;
+const MAX_USER_AGENT_LENGTH = 512;
 
 /**
  * Historical console audit records used HTTP method and route strings. Keep
@@ -127,6 +131,7 @@ export class RbacAuditService {
     manager?: EntityManager,
   ): Promise<ConsoleAudit> {
     const repository = manager?.getRepository(ConsoleAudit) || this.repository;
+    const context = getCurrentRequestContext();
     const audit = repository.create({
       guid: uuidv4(),
       actorUserGuid: event.actorUserGuid ?? null,
@@ -137,7 +142,9 @@ export class RbacAuditService {
       reason: event.reason ?? null,
       beforeState: this.serializeState(event.beforeState),
       afterState: this.serializeState(event.afterState),
-      requestId: event.requestId ?? getCurrentRequestId() ?? null,
+      requestId: event.requestId ?? context?.requestId ?? null,
+      clientIp: this.boundClientIp(event.clientIp ?? context?.clientIp),
+      userAgent: this.boundUserAgent(event.userAgent ?? context?.userAgent),
     });
     return repository.save(audit);
   }
@@ -233,6 +240,8 @@ export class RbacAuditService {
         before_state: this.parseState(row.beforeState),
         after_state: this.parseState(row.afterState),
         request_id: row.requestId,
+        client_ip: row.clientIp,
+        user_agent: row.userAgent,
         created_at: row.createdAt,
       })),
       total,
@@ -258,6 +267,20 @@ export class RbacAuditService {
     if (value === undefined || value === null) return null;
     if (value.length > MAX_TARGET_GUID_LENGTH) return null;
     return value;
+  }
+
+  /** Drops addresses that exceed the audited varchar column width. */
+  private boundClientIp(value: string | null | undefined): string | null {
+    if (!value || value.length > MAX_CLIENT_IP_LENGTH) return null;
+    return value;
+  }
+
+  /** Truncates User-Agent strings to the audited varchar column width. */
+  private boundUserAgent(value: string | null | undefined): string | null {
+    if (!value) return null;
+    return value.length > MAX_USER_AGENT_LENGTH
+      ? value.slice(0, MAX_USER_AGENT_LENGTH)
+      : value;
   }
 
   private serializeState(value: unknown): string | null {

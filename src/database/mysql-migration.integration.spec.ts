@@ -8,6 +8,7 @@ import { AddDeviceTombstones1791040000000 } from '../migrations/1791040000000-Ad
 import { AddDeviceTombstoneReleaseTracking1791126400000 } from '../migrations/1791126400000-AddDeviceTombstoneReleaseTracking';
 import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1791212800000-ReplaceNexusWithCustomClientBuilds';
 import { SupportMariaDbDefaultGroupIndex1794700800000 } from '../migrations/1794700800000-SupportMariaDbDefaultGroupIndex';
+import { AddConsoleAuditClientOrigin1794787200000 } from '../migrations/1794787200000-AddConsoleAuditClientOrigin';
 import { migrateDatabase } from './migration-manager';
 import { schemaDiffQueries } from './schema-diff';
 
@@ -33,6 +34,7 @@ describeMysql('MySQL database migrations', () => {
       AddDeviceTombstoneReleaseTracking1791126400000,
       ReplaceNexusWithCustomClientBuilds1791212800000,
       SupportMariaDbDefaultGroupIndex1794700800000,
+      AddConsoleAuditClientOrigin1794787200000,
     ],
   };
   const databases = [
@@ -45,6 +47,7 @@ describeMysql('MySQL database migrations', () => {
     'rustdesk_migration_undeclared',
     'rustdesk_migration_plain_key',
     'rustdesk_migration_retype',
+    'rustdesk_migration_upgrade',
   ];
 
   const itMariaDb = dbType === 'mariadb' ? it : it.skip;
@@ -100,7 +103,7 @@ describeMysql('MySQL database migrations', () => {
       expect(await schemaDrift(dataSource)).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(7);
+      ).toHaveLength(8);
       await dataSource.query(
         "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0), ('d', 'D', 'd', 1)",
       );
@@ -137,7 +140,7 @@ describeMysql('MySQL database migrations', () => {
       ).toEqual([{ name: 'retained' }]);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(7);
+      ).toHaveLength(8);
       await dataSource.query(
         "INSERT INTO user_groups (guid, name, normalizedName, isDefault) VALUES ('a', 'A', 'a', 0), ('b', 'B', 'b', 0)",
       );
@@ -191,7 +194,7 @@ describeMysql('MySQL database migrations', () => {
       expect(await schemaDrift(dataSource)).toHaveLength(0);
       expect(
         await dataSource.query('SELECT name FROM migrations'),
-      ).toHaveLength(7);
+      ).toHaveLength(8);
     } finally {
       await dataSource.destroy();
     }
@@ -394,6 +397,39 @@ describeMysql('MySQL database migrations', () => {
       expect(await dataSource.createQueryRunner().hasTable('migrations')).toBe(
         false,
       );
+    } finally {
+      await dataSource.destroy();
+    }
+  });
+
+  it('adds console audit client origin columns to an existing database', async () => {
+    const database = databases[9];
+    const previous = new DataSource({
+      ...common,
+      database,
+      migrations: common.migrations.slice(0, -1),
+    });
+    await previous.initialize();
+    try {
+      await previous.runMigrations({ transaction: 'none' });
+      await previous.query(
+        "INSERT INTO console_audits (guid, targetType, action, result) VALUES ('kept', 'role', 'role.update', 'allowed')",
+      );
+    } finally {
+      await previous.destroy();
+    }
+
+    const dataSource = source(database);
+    await dataSource.initialize();
+    try {
+      await migrateDatabase(dataSource);
+      expect(await dataSource.showMigrations()).toBe(false);
+      expect(await schemaDrift(dataSource)).toHaveLength(0);
+      expect(
+        await dataSource.query(
+          "SELECT action, clientIp, userAgent FROM console_audits WHERE guid = 'kept'",
+        ),
+      ).toEqual([{ action: 'role.update', clientIp: null, userAgent: null }]);
     } finally {
       await dataSource.destroy();
     }

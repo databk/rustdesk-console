@@ -30,13 +30,17 @@ describe('RbacAuditService request correlation', () => {
   function withinRequest<T>(
     requestId: string,
     callback: () => Promise<T>,
+    headers: Record<string, string> = {},
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const next: NextFunction = () => {
         callback().then(resolve, reject);
       };
       requestIdMiddleware(
-        { headers: { 'x-request-id': requestId } } as unknown as Request,
+        {
+          headers: { ...headers, 'x-request-id': requestId },
+          socket: { remoteAddress: '203.0.113.7' },
+        } as unknown as Request,
         { setHeader: jest.fn() } as unknown as Response,
         next,
       );
@@ -73,5 +77,57 @@ describe('RbacAuditService request correlation', () => {
     const audit = await service.record(event);
 
     expect(audit.requestId).toBeNull();
+  });
+
+  it('stamps records with the client IP and User-Agent of the request', async () => {
+    const audit = await withinRequest('req-4', () => service.record(event), {
+      'user-agent': 'Mozilla/5.0',
+    });
+
+    expect(audit).toMatchObject({
+      clientIp: '203.0.113.7',
+      userAgent: 'Mozilla/5.0',
+    });
+  });
+
+  it('stamps denials with the client IP of the request', async () => {
+    await withinRequest('req-5', () => service.recordDenied(event));
+
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ result: 'denied', clientIp: '203.0.113.7' }),
+    );
+  });
+
+  it('keeps an explicitly supplied client IP and User-Agent', async () => {
+    const audit = await withinRequest('req-6', () =>
+      service.record({
+        ...event,
+        clientIp: '198.51.100.9',
+        userAgent: 'RustDesk',
+      }),
+    );
+
+    expect(audit).toMatchObject({
+      clientIp: '198.51.100.9',
+      userAgent: 'RustDesk',
+    });
+  });
+
+  it('bounds values to the audited column widths', async () => {
+    const audit = await service.record({
+      ...event,
+      clientIp: 'x'.repeat(46),
+      userAgent: 'a'.repeat(600),
+    });
+
+    expect(audit.clientIp).toBeNull();
+    expect(audit.userAgent).toBe('a'.repeat(512));
+  });
+
+  it('stores no client origin outside an HTTP request', async () => {
+    const audit = await service.record(event);
+
+    expect(audit.clientIp).toBeNull();
+    expect(audit.userAgent).toBeNull();
   });
 });
