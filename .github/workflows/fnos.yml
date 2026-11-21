@@ -24,7 +24,7 @@ on:
       frontend_branch:
         description: '前端分支/tag'
         required: true
-        default: 'fnos-setup-wizard'
+        default: 'fnos-setup-wizard-v2'
         type: string
       publish:
         description: '构建后发布到 Release 吗？'
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_repo || 'fengyun1980/rustdesk-console-web' }}
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_branch || 'fnos-setup-wizard' }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_branch || 'fnos-setup-wizard-v2' }}
           path: frontend
 
       - uses: actions/setup-node@v4
