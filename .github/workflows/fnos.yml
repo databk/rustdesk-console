@@ -299,7 +299,7 @@ jobs:
 
             ### 版本来源
             - 后端: `fengyun1980/rustdesk-console` @ ${{ github.sha }}
-            - 前端: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_repo || 'fengyun1980/rustdesk-console-web' }} @ ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_branch || 'fnos-setup-wizard' }}
+            - 前端: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_repo || 'fengyun1980/rustdesk-console-web' }} @ ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_branch || 'fnos-setup-wizard-v2' }}
 
             ### 安装后
             打开浏览器 → 自动跳 `/setup` → 填地址 → 填 admin 账号 → 确认无误 → 进入系统
