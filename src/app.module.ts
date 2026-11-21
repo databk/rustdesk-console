@@ -30,7 +30,9 @@ import { RbacModule } from './modules/rbac/rbac.module';
 import { RbacGuard } from './modules/rbac/guards/rbac.guard';
 import { ConsoleAuditInterceptor } from './modules/rbac/interceptors/console-audit.interceptor';
 import { WebClientModule } from './modules/web-client/web-client.module';
+import { SetupModule } from './modules/setup/setup.module';
 import { installSqliteWriteQueue } from './database/sqlite-write-queue';
+import { join, dirname } from 'path';
 
 /**
  * Application root module
@@ -107,6 +109,8 @@ import { installSqliteWriteQueue } from './database/sqlite-write-queue';
     RbacModule,
     ServerManagementModule,
     WebClientModule,
+    SetupModule,
+    // 静态文件服务在 application.ts 里用 express.static 手动注册（不受 NestJS globalPrefix 影响）
   ],
   providers: [
     {

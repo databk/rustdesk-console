@@ -1,0 +1,20 @@
+{
+  "docker-project": {
+    "projects": [
+      {
+        "name": "rustdesk-console",
+        "path": "docker"
+      }
+    ]
+  },
+  "data-share": {
+    "shares": [
+      {
+        "name": "rustdesk-console"
+      },
+      {
+        "name": "rustdesk-console/data"
+      }
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+#!/bin/bash
+# fnOS Native — config_callback (no-op)
+set -e
+echo "[fnos-native] config_callback: no-op"

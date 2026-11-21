@@ -1,0 +1,13 @@
+{
+    ".url": {
+        "rustdesk-console.Application": {
+            "title": "RustDesk Console",
+            "icon": "images/{0}.png",
+            "type": "url",
+            "protocol": "http",
+            "port": "21114",
+            "url": "/",
+            "allUsers": true
+        }
+    }
+}

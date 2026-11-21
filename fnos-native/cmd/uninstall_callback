@@ -1,0 +1,11 @@
+#!/bin/sh
+# 卸载回调 - 按用户选择清理应用数据
+set -e
+
+DNAME="RustDesk Console"
+if [ "${wizard_delete_data:-false}" = "true" ] && [ -n "${TRIM_PKGVAR:-}" ]; then
+    rm -rf "${TRIM_PKGVAR}/data" "${TRIM_PKGVAR}/credentials"
+    rm -rf "${TRIM_PKGVAR}/log" "${TRIM_PKGVAR}/pids"
+fi
+
+echo "${DNAME}: 卸载回调，清理完成"

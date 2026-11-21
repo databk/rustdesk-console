@@ -1,0 +1,7 @@
+{
+  "type": "http",
+  "port": 21114,
+  "path": "/api/system-update/health",
+  "timeout": 10,
+  "retries": 30
+}

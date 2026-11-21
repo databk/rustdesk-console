@@ -1,0 +1,95 @@
+#!/bin/sh
+# 服务配置 — 被 main source 进来
+# 集成版：Sea 后端（NestJS + 内置前端静态文件）+ hbbs/hbbr（RustDesk 自建服务器）
+
+# 应用显示名称
+DNAME="RustDesk Console (Native)"
+
+# 端口
+# Sea 后端（同时 serve 前端静态文件）直接监听 service_port
+SERVICE_PORT=21114
+
+# 数据目录（持久化存储，存放 SQLite 数据库 + hbbs 密钥）
+DATA_DIR="${TRIM_PKGVAR}/data"
+
+# hbbs/hbbr 二进制路径
+HBBS_BIN="${TRIM_APPDEST}/hbbs"
+HBBR_BIN="${TRIM_APPDEST}/hbbr"
+
+# 读取用户配置的服务器公网地址（用于 hbbs -r 指定中继地址）
+SETTINGS_FILE="${TRIM_PKGETC}/settings.conf"
+RELAY_ADDRESS=""
+if [ -f "$SETTINGS_FILE" ]; then
+    . "$SETTINGS_FILE"
+fi
+
+# ── 环境变量 ──
+export NODE_ENV=production
+export HOST=0.0.0.0
+export PORT="${SERVICE_PORT}"
+export DB_TYPE=sqlite
+export DATA_DIR="${DATA_DIR}"
+
+# ── 首次启动时生成 JWT Secret ──
+CREDENTIALS_FILE="${TRIM_PKGVAR}/credentials"
+if [ ! -f "$CREDENTIALS_FILE" ]; then
+    JWT_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
+    cat > "$CREDENTIALS_FILE" << CREDEOF
+JWT_SECRET=$JWT_SECRET
+CREDEOF
+    chmod 600 "$CREDENTIALS_FILE"
+    echo "${DNAME}: 首次启动，已生成 JWT Secret"
+fi
+. "$CREDENTIALS_FILE"
+export JWT_SECRET
+
+# hbbs/hbbr 管理 API：console 与 hbbs 共用 JWT_SECRET 作为管理 token
+export RD_MANAGEMENT_TOKEN="$JWT_SECRET"
+export RD_MANAGEMENT_BIND="0.0.0.0:21120"
+export RD_MANAGEMENT_DIR="$DATA_DIR"
+export RD_HBBS_API_URL="http://127.0.0.1:21120"
+
+# hbbs/hbbr 需要往 $HOME/.config/rustdesk 写配置（id 等）；fnOS daemon 环境
+# 的 HOME 可能指向不存在/不可写路径，导致 "Failed to store config"。显式指到数据目录。
+export HOME="$DATA_DIR"
+
+# ── 数据目录初始化 ──
+mkdir -p "$DATA_DIR"
+chmod 700 "$DATA_DIR"
+
+# ── 启动 Sea 后端 ──
+start_backend() {
+    if ! daemon_status "backend"; then
+        cd "$DATA_DIR"
+        echo "${DNAME}: 执行数据库迁移..."
+        mkdir -p "${TRIM_PKGVAR}/log"
+        if ! env PORT="${SERVICE_PORT}" "${TRIM_APPDEST}/rustdesk-console" migrate >>"${TRIM_PKGVAR}/log/backend.log" 2>&1; then
+            cp "${TRIM_PKGVAR}/log/backend.log" /tmp/rustdesk-console-backend.log 2>/dev/null || true
+            echo "${DNAME}: 数据库迁移失败，真实错误如下（已保存到 /tmp/rustdesk-console-backend.log）：" >&2
+            tail -n 30 "${TRIM_PKGVAR}/log/backend.log" >&2
+            return 1
+        fi
+    fi
+    start_daemon "backend" env PORT="${SERVICE_PORT}" "${TRIM_APPDEST}/rustdesk-console"
+}
+
+# ── 启动 hbbs（ID/发现服务器，监听 21115/21116/21118）──
+# cwd 必须是数据目录，hbbs 在此生成 id_ed25519 密钥和数据库
+start_hbbs() {
+    if ! daemon_status "hbbs"; then
+        cd "$DATA_DIR"
+        if [ -n "$RELAY_ADDRESS" ]; then
+            start_daemon "hbbs" "$HBBS_BIN" -r "$RELAY_ADDRESS" -p 21116
+        else
+            start_daemon "hbbs" "$HBBS_BIN" -p 21116
+        fi
+    fi
+}
+
+# ── 启动 hbbr（中继服务器，监听 21117/21119）──
+start_hbbr() {
+    if ! daemon_status "hbbr"; then
+        cd "$DATA_DIR"
+        start_daemon "hbbr" "$HBBR_BIN" -p 21117
+    fi
+}

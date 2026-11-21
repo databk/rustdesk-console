@@ -1,0 +1,15 @@
+Package: rustdesk-console
+Version: 1.11.10
+Architecture: arm64
+Maintainer: RustDesk Console <support@rustdesk.com>
+Homepage: https://github.com/fengyun1980/rustdesk-console
+Description: RustDesk Console — Remote Desktop Management Server
+ Self-hosted RustDesk management console. Provides web-based dashboard,
+ license management, group policies, audit logs, and device monitoring
+ for fleet administration. This package bundles its own Node.js runtime
+ (arm64) so it has zero external dependencies.
+Depends: systemd
+Suggests: rustdesk-hbbs, rustdesk-hbbr
+Section: net
+Priority: optional
+Installed-Size: 0

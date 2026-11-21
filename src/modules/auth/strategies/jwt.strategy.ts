@@ -4,7 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { AuthService } from '../services/auth.service';
 import { JwtPayload } from '../../../common/services/token.service';
-import { JWT_DEFAULT_SECRET } from '../auth.constants';
+import { getCachedJwtSecret } from '../auth.module';
 
 /**
  * Extract the JWT token from the request
@@ -41,23 +41,20 @@ function extractToken(req: Request): string | null {
  * 3. Check whether the token has been revoked
  * 4. Extract the user info and return it
  *
- * Security measures:
- * - Token expiry is not ignored
- * - Supports a token revocation mechanism
- * - JWT secret is configured via environment variable
- * - Supports dual-mode authentication (Header + Cookie)
+ * The JWT secret is resolved dynamically (environment → DB → auto-generated)
+ * by JwtSecretService during AuthModule initialization; this strategy reads
+ * the cached value synchronously from getCachedJwtSecret().
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly logger = new Logger(JwtStrategy.name);
 
   constructor(private authService: AuthService) {
-    const jwtSecret = process.env.JWT_SECRET || JWT_DEFAULT_SECRET;
+    const jwtSecret = getCachedJwtSecret();
 
-    if (!process.env.JWT_SECRET) {
-      const logger = new Logger('JwtStrategy');
-      logger.warn(
-        'WARNING: Using default JWT secret key. Please set JWT_SECRET environment variable in production!',
+    if (!jwtSecret) {
+      throw new Error(
+        'JWT secret is empty — JwtSecretService.resolveSecret() must complete before JwtStrategy is instantiated',
       );
     }
 
@@ -67,6 +64,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey: jwtSecret,
       passReqToCallback: true,
     });
+
+    if (!process.env.JWT_SECRET) {
+      this.logger.warn(
+        'JWT_SECRET not set — using DB-persisted or auto-generated secret. For production, set JWT_SECRET in the environment.',
+      );
+    }
   }
 
   /**

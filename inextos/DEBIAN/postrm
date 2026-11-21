@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+SERVICE=rustdesk-console
+
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    systemctl disable "$SERVICE" 2>/dev/null || true
+    systemctl stop "$SERVICE" 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+fi
+
+# purge 时删数据
+if [ "$1" = "purge" ]; then
+    rm -rf /var/lib/rustdesk-console
+fi

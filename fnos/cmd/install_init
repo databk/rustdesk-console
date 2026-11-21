@@ -1,0 +1,8 @@
+#!/bin/bash
+# fnOS Docker — install_init (PROBE VERSION)
+echo "[PROBE-DOCKER] install_init STARTED at $(date)" > /tmp/rustdesk-probe-docker 2>&1
+DATA_DIR="${TRIM_PKGVAR:-/tmp}/data"
+mkdir -p "${DATA_DIR}" 2>/tmp/rustdesk-probe-docker
+chmod 755 "${DATA_DIR}" 2>/tmp/rustdesk-probe-docker
+echo "[PROBE-DOCKER] DONE" >> /tmp/rustdesk-probe-docker
+exit 0

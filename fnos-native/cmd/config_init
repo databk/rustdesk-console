@@ -1,0 +1,6 @@
+#!/bin/sh
+# 配置初始化 - 在配置变更前执行
+set -e
+
+DNAME="RustDesk Console"
+echo "${DNAME}: 配置初始化"

@@ -1,0 +1,86 @@
+#!/bin/sh
+set -e
+
+SERVICE=rustdesk-console
+
+# ── 找实际安装路径（iNextOS 可能装到 /vol1/@appcenter/ 或 /opt/）───
+if [ -d /vol1/@appcenter/rustdesk-console ]; then
+    APP_DIR=/vol1/@appcenter/rustdesk-console
+elif [ -d /opt/rustdesk-console ]; then
+    APP_DIR=/opt/rustdesk-console
+else
+    # DEB 标准位置兜底
+    APP_DIR=/opt/rustdesk-console
+fi
+
+echo "[postinst] APP_DIR=${APP_DIR}"
+echo "[postinst] arch=$(uname -m)"
+
+DATADIR=/var/lib/rustdesk-console
+mkdir -p "$DATADIR"
+chmod 755 "$DATADIR"
+
+# ── 确保 .env 存在 ──
+ENV_FILE="${APP_DIR}/.env"
+if [ ! -f "$ENV_FILE" ] && [ -f "${APP_DIR}/.env.example" ]; then
+    cp "${APP_DIR}/.env.example" "$ENV_FILE"
+    echo "[postinst] 从 .env.example 复制生成 .env"
+fi
+chmod 644 "$ENV_FILE" 2>/dev/null || true
+
+# ── 跑 migrate ──
+NODE_BIN="${APP_DIR}/node/bin/node"
+MAIN_JS="${APP_DIR}/dist/main.js"
+if [ -x "$NODE_BIN" ] && [ -f "$MAIN_JS" ]; then
+    echo "[postinst] 运行 migrate..."
+    PORT=3000 DATA_DIR="$DATADIR" DATABASE_TYPE=sqlite SQLITE_PATH="$DATADIR/rustdesk-console.db" \
+        "$NODE_BIN" "$MAIN_JS" migrate 2>&1 || {
+        echo "[postinst] ❌ migrate 失败！" 1>&2
+        exit 1
+    }
+    echo "[postinst] migrate 完成 ✅"
+else
+    echo "[postinst] ⚠️ 没找到 node 或 dist/main.js，跳过 migrate"
+    echo "  NODE_BIN=$NODE_BIN (exists? $([ -x "$NODE_BIN" ] && echo yes || echo no))"
+    echo "  MAIN_JS=$MAIN_JS (exists? $([ -f "$MAIN_JS" ] && echo yes || echo no))"
+fi
+
+# ── systemd 启动 ──
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    # 如果 service 文件指向错的路径，动态修正
+    SVC_FILE=/etc/systemd/system/${SERVICE}.service
+    if [ -f "$SVC_FILE" ]; then
+        echo "[postinst] 使用 systemd service=${SVC_FILE}"
+    fi
+    systemctl daemon-reload
+    systemctl enable "$SERVICE" || true
+    systemctl restart "$SERVICE" || {
+        echo "[postinst] ❌ 服务启动失败！journalctl 输出：" 1>&2
+        journalctl -u "$SERVICE" --no-pager --tail 30 2>&1 || true
+        exit 1
+    }
+    sleep 2
+    if systemctl is-active "$SERVICE" >/dev/null 2>&1; then
+        echo "[postinst] 服务启动成功 ✅"
+    else
+        echo "[postinst] ⚠️ 服务未运行，但没报错" 1>&2
+        journalctl -u "$SERVICE" --no-pager --tail 20 2>&1 | tee /dev/stderr
+    fi
+else
+    echo "[postinst] ⚠️ 不是 systemd 系统，跳过服务管理"
+    # 直接前台启动一次验证能跑
+    if [ -x "$NODE_BIN" ] && [ -f "$MAIN_JS" ]; then
+        echo "[postinst] 直接启动测试..."
+        PORT=3000 DATA_DIR="$DATADIR" DATABASE_TYPE=sqlite SQLITE_PATH="$DATADIR/rustdesk-console.db" \
+            nohup "$NODE_BIN" "$MAIN_JS" > /tmp/rustdesk-console.log 2>&1 &
+        echo $! > /tmp/rustdesk-console.pid
+        sleep 3
+        curl -sf http://127.0.0.1:3000/api/settings/setup >/dev/null 2>&1 \
+            && echo "[postinst] 直接启动成功 ✅" \
+            || echo "[postinst] ⚠️ 直接启动失败，看 /tmp/rustdesk-console.log" 1>&2
+    fi
+fi
+
+echo ""
+echo "✓ RustDesk Console installed on iNextOS"
+echo "  Access: http://<your-ip>:3000/setup"
