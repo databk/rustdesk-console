@@ -67,7 +67,7 @@ describe('SetupService', () => {
 
   const freshGeneralSettings = () => ({
     watermarkEnabled: true,
-    defaultLanguage: 'en-US',
+    defaultLanguage: 'zh-CN',
     jwtExpiryDays: 30,
     auditRetentionDays: 0,
     deviceCloneIsolation: false,

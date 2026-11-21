@@ -13,7 +13,7 @@ import { GeneralSettingsService } from './services/general-settings.service';
 
 const DEFAULT_SETTINGS = {
   watermarkEnabled: true,
-  defaultLanguage: 'en-US',
+  defaultLanguage: 'zh-CN',
   jwtExpiryDays: 30,
   auditRetentionDays: 0,
   deviceCloneIsolation: false,
