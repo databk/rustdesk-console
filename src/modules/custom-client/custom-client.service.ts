@@ -19,6 +19,7 @@ import { CustomClientSettingsService } from './services/custom-client-settings.s
 import { CustomClientSigningService } from './services/custom-client-signing.service';
 import { CustomClientLogoService } from './services/custom-client-logo.service';
 import { GeneralSettingsService } from '../settings/services/general-settings.service';
+import { WebClientSettingsService } from '../web-client/web-client-settings.service';
 import {
   SubmitBuildDto,
   SubmitBuildResponse,
@@ -84,6 +85,7 @@ export class CustomClientService {
     private readonly signingService: CustomClientSigningService,
     private readonly logoService: CustomClientLogoService,
     private readonly generalSettingsService: GeneralSettingsService,
+    private readonly webClientSettingsService: WebClientSettingsService,
   ) {
     this.storagePath = getCustomClientStoragePath();
   }
@@ -363,9 +365,17 @@ export class CustomClientService {
     }
     this.assertBuildToken(build, buildToken);
 
-    const customObj: CustomClientCustomDto | undefined = build.custom
+    const customObj: CustomClientCustomDto = build.custom
       ? (JSON.parse(build.custom) as CustomClientCustomDto)
-      : undefined;
+      : {};
+    const apiServer = await this.resolveApiServer(customObj);
+    if (apiServer) {
+      // 用户显式配置的 api-server 优先，自动推导值只作为默认值。
+      customObj['default-settings'] = {
+        'api-server': apiServer,
+        ...(customObj['default-settings'] ?? {}),
+      };
+    }
     const customTxt =
       await this.signingService.generateSignedCustomTxt(customObj);
     const publicKey = await this.signingService.getPublicKeyBase64();
@@ -567,6 +577,43 @@ export class CustomClientService {
     ) {
       throw new UnauthorizedException('Invalid build token');
     }
+  }
+
+  /** wss://host/ws/id -> https://host；网页客户端与 API 共用同一来源 */
+  private originFromWsUrl(url: string | undefined): string | undefined {
+    if (!url) return undefined;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+        return undefined;
+      }
+      const protocol = parsed.protocol === 'wss:' ? 'https:' : 'http:';
+      return `${protocol}//${parsed.host}`;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * 客户端账号登录会请求 {api-server}/api/login。RustDesk 默认把 api-server
+   * 猜成「ID 服务器主机:21114」，控制台挂在 443 或反向代理后面时会连不上。
+   * 优先用控制台配置的站点地址，其次从网页客户端地址推导；显式配置则不动。
+   */
+  private async resolveApiServer(
+    custom: CustomClientCustomDto,
+  ): Promise<string | undefined> {
+    const override = custom['override-settings'];
+    const defaults = custom['default-settings'];
+    if (override?.['api-server'] || defaults?.['api-server']) {
+      return undefined;
+    }
+    const site = await this.generalSettingsService.getSiteSettings();
+    const configured = (site.backendUrl || site.frontendUrl || '').trim();
+    if (configured) {
+      return configured.replace(/\/+$/, '');
+    }
+    const webClient = await this.webClientSettingsService.getActiveConfig();
+    return this.originFromWsUrl(webClient.idServerUrl);
   }
 
   private async githubFetch<T>(url: string, token: string): Promise<T> {

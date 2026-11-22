@@ -8,11 +8,13 @@ import { CustomClientSigningService } from './services/custom-client-signing.ser
 import { CustomClientLogoService } from './services/custom-client-logo.service';
 import { SystemSetting } from '../settings/entities/system-setting.entity';
 import { SettingsModule } from '../settings/settings.module';
+import { WebClientModule } from '../web-client/web-client.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([CustomClientBuild, SystemSetting]),
     SettingsModule,
+    WebClientModule,
   ],
   controllers: [CustomClientController],
   providers: [
