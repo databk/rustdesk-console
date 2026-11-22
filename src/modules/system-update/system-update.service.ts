@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { request } from 'node:http';
 import type {
   Capabilities,
@@ -116,12 +116,16 @@ export function ipcRequest<T>(
 }
 @Injectable()
 export class SystemUpdateService {
+  private readonly logger = new Logger(SystemUpdateService.name);
+
   async capabilities(): Promise<Capabilities> {
     try {
       return await ipcRequest<Capabilities>('capabilities');
     } catch (error) {
       const safe = safeError(error);
-      if (safe.code === 'HELPER_NOT_INSTALLED')
+      if (safe.code === 'HELPER_NOT_INSTALLED') {
+        // Expected on installations without the managed updater.
+        this.logger.debug('Updater helper is not installed');
         return {
           protocolVersion: 1,
           installationId: null,
@@ -133,6 +137,10 @@ export class SystemUpdateService {
           blockers: [safe.blocker()],
           activeJobId: null,
         };
+      }
+      this.logger.warn(
+        `Updater capabilities request failed: ${safe.code} ${safe.message}`,
+      );
       throw new HttpException(
         { code: safe.code, message: safe.message },
         safe.status,
@@ -148,6 +156,15 @@ export class SystemUpdateService {
       return await ipcRequest<T>(operation, body, actorId);
     } catch (error) {
       const safe = safeError(error);
+      // Installations without the managed updater (e.g. TrueNAS) poll
+      // into HELPER_NOT_INSTALLED routinely; only real failures warn.
+      if (safe.code === 'HELPER_NOT_INSTALLED') {
+        this.logger.debug(`Updater ${operation} request: helper not installed`);
+      } else {
+        this.logger.warn(
+          `Updater ${operation} request failed: ${safe.code} ${safe.message}`,
+        );
+      }
       throw new HttpException(
         { code: safe.code, message: safe.message },
         safe.status,
@@ -157,8 +174,14 @@ export class SystemUpdateService {
   plan(actorId: string): Promise<UpdatePlan> {
     return this.call('plans', {}, actorId);
   }
-  create(body: CreateJobRequest, actorId: string): Promise<CreateJobResponse> {
-    return this.call('jobs', body, actorId);
+  async create(
+    body: CreateJobRequest,
+    actorId: string,
+  ): Promise<CreateJobResponse> {
+    this.logger.log(`System update job requested by user ${actorId}`);
+    const response = await this.call<CreateJobResponse>('jobs', body, actorId);
+    this.logger.log(`System update job accepted: ${response.jobId}`);
+    return response;
   }
   current(): Promise<CurrentJobResponse> {
     return this.call('current');

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -36,6 +36,8 @@ import { AddressBookPermissionService } from './address-book-permission.service'
  */
 @Injectable()
 export class AddressBookService {
+  private readonly logger = new Logger(AddressBookService.name);
+
   constructor(
     @InjectRepository(AddressBook)
     private addressBookRepository: Repository<AddressBook>,
@@ -81,6 +83,9 @@ export class AddressBookService {
         isPersonal: true,
       });
       await this.addressBookRepository.save(addressBook);
+      this.logger.log(
+        `Personal address book created: ${addressBook.guid} for user ${userId}`,
+      );
     }
 
     return { guid: addressBook.guid };
@@ -141,7 +146,7 @@ export class AddressBookService {
    * @returns Operation result
    */
   async addPeer(addressBookGuid: string, dto: AddPeerDto, userId?: string) {
-    return this.peerService.addPeer(
+    const result = await this.peerService.addPeer(
       addressBookGuid,
       dto,
       userId,
@@ -150,6 +155,10 @@ export class AddressBookService {
       (abGuid: string, tagName: string) =>
         this.tagService.getOrCreateTag(abGuid, tagName),
     );
+    this.logger.debug(
+      `Address book ${addressBookGuid}: peer added by user ${userId ?? '-'}`,
+    );
+    return result;
   }
 
   /**
@@ -166,7 +175,7 @@ export class AddressBookService {
     dto: UpdatePeerDto,
     userId?: string,
   ) {
-    return this.peerService.updatePeer(
+    const result = await this.peerService.updatePeer(
       addressBookGuid,
       dto,
       userId,
@@ -175,6 +184,10 @@ export class AddressBookService {
       (abGuid: string, tagName: string) =>
         this.tagService.getOrCreateTag(abGuid, tagName),
     );
+    this.logger.debug(
+      `Address book ${addressBookGuid}: peer updated by user ${userId ?? '-'}`,
+    );
+    return result;
   }
 
   /**
@@ -187,13 +200,17 @@ export class AddressBookService {
    * @returns Operation result
    */
   async deletePeers(addressBookGuid: string, ids: string[], userId?: string) {
-    return this.peerService.deletePeers(
+    const result = await this.peerService.deletePeers(
       addressBookGuid,
       ids,
       userId,
       (abGuid: string, uId: string, rule: ShareRule) =>
         this.permissionService.checkAddressBookAccess(abGuid, uId, rule),
     );
+    this.logger.debug(
+      `Address book ${addressBookGuid}: ${ids.length} peer(s) deleted by user ${userId ?? '-'}`,
+    );
+    return result;
   }
 
   // ============ Tag management (delegated to TagService) ============
@@ -225,13 +242,17 @@ export class AddressBookService {
    * @returns Operation result
    */
   async addTag(addressBookGuid: string, dto: AddTagDto, userId?: string) {
-    return this.tagService.addTag(
+    const result = await this.tagService.addTag(
       addressBookGuid,
       dto,
       userId,
       (abGuid: string, uId: string, rule: ShareRule) =>
         this.permissionService.checkAddressBookAccess(abGuid, uId, rule),
     );
+    this.logger.debug(
+      `Address book ${addressBookGuid}: tag added by user ${userId ?? '-'}`,
+    );
+    return result;
   }
 
   /**
@@ -244,13 +265,17 @@ export class AddressBookService {
    * @returns Operation result
    */
   async renameTag(addressBookGuid: string, dto: RenameTagDto, userId?: string) {
-    return this.tagService.renameTag(
+    const result = await this.tagService.renameTag(
       addressBookGuid,
       dto,
       userId,
       (abGuid: string, uId: string, rule: ShareRule) =>
         this.permissionService.checkAddressBookAccess(abGuid, uId, rule),
     );
+    this.logger.debug(
+      `Address book ${addressBookGuid}: tag renamed by user ${userId ?? '-'}`,
+    );
+    return result;
   }
 
   /**
@@ -263,13 +288,17 @@ export class AddressBookService {
    * @returns Operation result
    */
   async updateTag(addressBookGuid: string, dto: UpdateTagDto, userId?: string) {
-    return this.tagService.updateTag(
+    const result = await this.tagService.updateTag(
       addressBookGuid,
       dto,
       userId,
       (abGuid: string, uId: string, rule: ShareRule) =>
         this.permissionService.checkAddressBookAccess(abGuid, uId, rule),
     );
+    this.logger.debug(
+      `Address book ${addressBookGuid}: tag updated by user ${userId ?? '-'}`,
+    );
+    return result;
   }
 
   /**
@@ -282,13 +311,17 @@ export class AddressBookService {
    * @returns Operation result
    */
   async deleteTags(addressBookGuid: string, names: string[], userId?: string) {
-    return this.tagService.deleteTags(
+    const result = await this.tagService.deleteTags(
       addressBookGuid,
       names,
       userId,
       (abGuid: string, uId: string, rule: ShareRule) =>
         this.permissionService.checkAddressBookAccess(abGuid, uId, rule),
     );
+    this.logger.debug(
+      `Address book ${addressBookGuid}: ${names.length} tag(s) deleted by user ${userId ?? '-'}`,
+    );
+    return result;
   }
 
   // ============ Share management (delegated to RuleService) ============
@@ -399,6 +432,11 @@ export class AddressBookService {
    * @returns Operation result
    */
   async updateLegacyAddressBook(userId: string, data: string) {
-    return this.legacyService.updateLegacyAddressBook(userId, data);
+    const result = await this.legacyService.updateLegacyAddressBook(
+      userId,
+      data,
+    );
+    this.logger.debug(`Legacy address book synchronised by user ${userId}`);
+    return result;
   }
 }

@@ -14,6 +14,7 @@ describe('resolveLogLevels', () => {
     ['log', ['log', 'warn', 'error', 'fatal']],
     ['info', ['log', 'warn', 'error', 'fatal']],
     ['warn', ['warn', 'error', 'fatal']],
+    ['warning', ['warn', 'error', 'fatal']],
     ['error', ['error', 'fatal']],
     ['fatal', ['fatal']],
   ])('maps %s to the minimum level', (value, expected) => {
@@ -32,6 +33,7 @@ describe('resolveLogLevels', () => {
       'error',
       'fatal',
     ]);
+    expect(resolveLogLevels('loud')).toEqual(['log', 'warn', 'error', 'fatal']);
   });
 });
 
@@ -44,5 +46,6 @@ describe('isValidLogLevel', () => {
 
   it('rejects unknown values', () => {
     expect(isValidLogLevel('trace')).toBe(false);
+    expect(isValidLogLevel('loud')).toBe(false);
   });
 });

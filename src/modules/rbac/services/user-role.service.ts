@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -29,6 +30,8 @@ import { RbacAuthorizationService } from './rbac-authorization.service';
 
 @Injectable()
 export class UserRoleService {
+  private readonly logger = new Logger(UserRoleService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -569,6 +572,9 @@ export class UserRoleService {
         manager,
       );
     });
+    this.logger.log(
+      `Roles replaced for user ${userGuid} by user ${actorGuid} (${normalized.length} assignment(s))`,
+    );
     return this.getUserRoles(userGuid);
   }
 

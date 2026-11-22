@@ -76,7 +76,7 @@ export class UserController {
         'user_groups.membership',
       );
     }
-    return this.userService.createUser(dto);
+    return this.userService.createUser(dto, actorGuid);
   }
 
   @Patch('users/me')
@@ -142,7 +142,7 @@ export class UserController {
         'user_groups.membership',
       );
     }
-    return this.userService.inviteUser(dto);
+    return this.userService.inviteUser(dto, actorGuid);
   }
 
   @Public()

@@ -105,6 +105,8 @@ The frontend is accessible at `http://localhost:21114`. The updater is included 
 
 See [Managed system updates](docs/system-update.md) for SQLite/MySQL prerequisites, data protection, supported installations and recovery. The backend runs as UID/GID 1000. The override file is reserved for the updater's pinned image digests.
 
+Log verbosity is controlled with `LOG_LEVEL` (default `log`); see [Logging](docs/logging.md).
+
 Images are published to both Docker Hub (`databk/rustdesk-console`) and GitHub Container Registry (`ghcr.io/databk/rustdesk-console`) for `linux/amd64` and `linux/arm64`. To use the GitHub Container Registry mirror, replace `databk/rustdesk-console` with `ghcr.io/databk/rustdesk-console`.
 
 <details>

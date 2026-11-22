@@ -45,7 +45,7 @@ export class StrategyService {
     private readonly rbacAuthorizationService: RbacAuthorizationService,
   ) {}
 
-  async createStrategy(dto: CreateStrategyDto) {
+  async createStrategy(dto: CreateStrategyDto, actorGuid?: string) {
     const existing = await this.strategyRepository.findOne({
       where: { name: dto.name },
     });
@@ -62,6 +62,9 @@ export class StrategyService {
       : '';
 
     await this.strategyRepository.save(strategy);
+    this.logger.log(
+      `Strategy created: ${strategy.guid} by user ${actorGuid ?? '-'}`,
+    );
 
     return {
       guid: strategy.guid,
@@ -72,7 +75,11 @@ export class StrategyService {
     };
   }
 
-  async updateStrategy(guid: string, dto: UpdateStrategyDto) {
+  async updateStrategy(
+    guid: string,
+    dto: UpdateStrategyDto,
+    actorGuid?: string,
+  ) {
     const strategy = await this.strategyRepository.findOne({
       where: { guid },
     });
@@ -100,6 +107,7 @@ export class StrategyService {
 
     await this.strategyRepository.save(strategy);
     this.strategyObjectCache.set(guid, strategy);
+    this.logger.log(`Strategy updated: ${guid} by user ${actorGuid ?? '-'}`);
 
     const configOptions: Record<string, string> = dto.config_options
       ? dto.config_options
@@ -114,7 +122,7 @@ export class StrategyService {
     };
   }
 
-  async deleteStrategy(guid: string) {
+  async deleteStrategy(guid: string, actorGuid?: string) {
     const strategy = await this.strategyRepository.findOne({
       where: { guid },
     });
@@ -124,6 +132,7 @@ export class StrategyService {
 
     await this.strategyRepository.remove(strategy);
     this.strategyObjectCache.delete(guid);
+    this.logger.log(`Strategy deleted: ${guid} by user ${actorGuid ?? '-'}`);
     for (const [uuid, sGuid] of this.deviceStrategyCache) {
       if (sGuid === guid) {
         this.deviceStrategyCache.delete(uuid);
@@ -400,6 +409,9 @@ export class StrategyService {
     }
 
     this.invalidateDeviceStrategyCache();
+    this.logger.log(
+      `Strategy ${strategyGuid} assigned to ${success.length} ${targetType}(s) by user ${actorGuid}`,
+    );
     return { success, errors };
   }
 
@@ -579,6 +591,9 @@ export class StrategyService {
     }
 
     this.invalidateDeviceStrategyCache();
+    this.logger.log(
+      `Strategy ${strategyGuid} unassigned from ${success.length} ${targetType}(s) by user ${actorGuid}`,
+    );
     return { success, errors };
   }
 

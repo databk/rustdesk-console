@@ -43,8 +43,11 @@ export class UserGroupController {
   @RequirePermission('user_groups.create')
   @ConsoleAuditAction('user_group.create')
   @HttpCode(HttpStatus.OK)
-  createGroup(@Body() dto: CreateUserGroupDto) {
-    return this.userGroupService.createGroup(dto);
+  createGroup(
+    @Body() dto: CreateUserGroupDto,
+    @CurrentUser('id') actorGuid: string,
+  ) {
+    return this.userGroupService.createGroup(dto, actorGuid);
   }
 
   @Put(':guid')
@@ -54,8 +57,9 @@ export class UserGroupController {
   updateGroup(
     @Param('guid', new ParseUUIDPipe({ version: '4' })) guid: string,
     @Body() dto: UpdateUserGroupDto,
+    @CurrentUser('id') actorGuid: string,
   ) {
-    return this.userGroupService.updateGroup(guid, dto);
+    return this.userGroupService.updateGroup(guid, dto, actorGuid);
   }
 
   @Delete(':guid')

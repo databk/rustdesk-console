@@ -25,6 +25,7 @@ import {
   RequestPasswordResetDto,
   ConfirmPasswordResetDto,
 } from '../dto/password-reset.dto';
+import { errorTrace } from '../../../common/logging/error-trace';
 
 @Injectable()
 /**
@@ -146,7 +147,7 @@ export class PasswordResetService {
     } catch (error: unknown) {
       this.logger.error(
         `Failed to send the password reset email for user ${username} to ${email}`,
-        error,
+        errorTrace(error),
       );
     }
   }

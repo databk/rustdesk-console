@@ -10,16 +10,19 @@ import {
   REQUEST_ID_HEADER,
   requestIdMiddleware,
 } from './common/middleware/request-id.middleware';
+import { createAppLogger } from './common/logging/create-app-logger';
 import {
   isValidLogLevel,
   resolveLogLevels,
-} from './common/utils/log-level.util';
+} from './common/logging/log-level.util';
+import { requestLoggingMiddleware } from './common/logging/request-logging.middleware';
 
 export async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    logger: resolveLogLevels(process.env.LOG_LEVEL),
+    logger: createAppLogger(),
   });
   const logger = new Logger('Bootstrap');
+
   if (!isValidLogLevel(process.env.LOG_LEVEL)) {
     logger.warn(
       `Unknown LOG_LEVEL "${process.env.LOG_LEVEL}", falling back to "log". ` +
@@ -27,11 +30,21 @@ export async function bootstrap() {
     );
   }
 
+  const minimumLevel = resolveLogLevels(process.env.LOG_LEVEL)[0];
+  logger.log(
+    minimumLevel === 'verbose' || minimumLevel === 'debug'
+      ? `Log level: ${minimumLevel}`
+      : `Log level: ${minimumLevel} (set LOG_LEVEL=debug for diagnostic output)`,
+  );
+
   app.enableShutdownHooks();
 
   // Assign the correlation ID first so every response, including maintenance
   // rejections, carries it and all audit records of a request share it.
   app.use(requestIdMiddleware);
+  // Log every finished request, including responses produced by the
+  // middleware below (such as the maintenance 503).
+  app.use(requestLoggingMiddleware);
   // Bind the request-scoped RBAC cache before the remaining middleware so
   // guards, interceptors and handlers all share one authorization snapshot.
   app.use(rbacRequestScopeMiddleware);

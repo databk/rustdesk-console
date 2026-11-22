@@ -5,6 +5,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { SmtpSettingsService } from '../settings/services/smtp-settings.service';
 import { resolveAssetPath } from '../../common/utils/runtime-paths';
+import { errorTrace } from '../../common/logging/error-trace';
 
 @Injectable()
 /**
@@ -66,7 +67,7 @@ export class EmailService {
     } catch (error) {
       this.logger.error(
         `Failed to send verification code email: ${email}`,
-        error,
+        errorTrace(error),
       );
       return false;
     }
@@ -115,7 +116,10 @@ export class EmailService {
       this.logger.log(`Invitation email sent to: ${email}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send invitation email: ${email}`, error);
+      this.logger.error(
+        `Failed to send invitation email: ${email}`,
+        errorTrace(error),
+      );
       return false;
     }
   }
@@ -163,7 +167,10 @@ export class EmailService {
       this.logger.log(`Password reset email sent to: ${email}`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send password reset email: ${email}`, error);
+      this.logger.error(
+        `Failed to send password reset email: ${email}`,
+        errorTrace(error),
+      );
       return false;
     }
   }

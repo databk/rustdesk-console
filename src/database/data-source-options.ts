@@ -10,6 +10,12 @@ import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1
 import { SupportMariaDbDefaultGroupIndex1794700800000 } from '../migrations/1794700800000-SupportMariaDbDefaultGroupIndex';
 import { AddConsoleAuditClientOrigin1794787200000 } from '../migrations/1794787200000-AddConsoleAuditClientOrigin';
 
+import {
+  resolveDbLogMode,
+  resolveSlowQueryMs,
+  TypeOrmNestLogger,
+} from './typeorm-logger';
+
 export function createDataSourceOptions(): DataSourceOptions {
   const common = {
     entities: DATABASE_ENTITIES,
@@ -25,7 +31,10 @@ export function createDataSourceOptions(): DataSourceOptions {
     ],
     migrationsRun: false,
     synchronize: false,
-    logging: false,
+    // TypeOrmNestLogger does its own filtering based on DB_LOG.
+    logging: true,
+    logger: new TypeOrmNestLogger(resolveDbLogMode(process.env.DB_LOG)),
+    maxQueryExecutionTime: resolveSlowQueryMs(process.env.DB_SLOW_QUERY_MS),
   };
 
   const dbType = getDbType();

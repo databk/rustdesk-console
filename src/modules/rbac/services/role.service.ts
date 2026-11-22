@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -24,6 +25,8 @@ import { RbacAuthorizationService } from './rbac-authorization.service';
 
 @Injectable()
 export class RoleService {
+  private readonly logger = new Logger(RoleService.name);
+
   constructor(
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
@@ -93,7 +96,7 @@ export class RoleService {
     const name = this.normalizeName(dto.name);
     const permissions = this.validatePermissions(dto.permissions);
     await this.ensureNameAvailable(name);
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       await this.authorizationService.requireSuperAdmin(actorGuid, manager);
       const role = manager.getRepository(Role).create({
         guid: uuidv4(),
@@ -127,6 +130,8 @@ export class RoleService {
       );
       return this.toResponse(role, permissions);
     });
+    this.logger.log(`Role created: ${result.guid} by user ${actorGuid}`);
+    return result;
   }
 
   async updateRole(guid: string, dto: UpdateRoleDto, actorGuid: string) {
@@ -136,7 +141,7 @@ export class RoleService {
       const candidate = this.validatePermissions(dto.permissions);
       await this.ensureScopedAssignmentsRemainValid(guid, candidate);
     }
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       await this.authorizationService.requireSuperAdmin(actorGuid, manager);
       const roleRepository = manager.getRepository(Role);
       const permissionRepository = manager.getRepository(RolePermission);
@@ -237,6 +242,8 @@ export class RoleService {
       );
       return this.toResponse(role, permissions);
     });
+    this.logger.log(`Role updated: ${guid} by user ${actorGuid}`);
+    return result;
   }
 
   async deleteRole(guid: string, actorGuid: string): Promise<void> {
@@ -317,6 +324,7 @@ export class RoleService {
         manager,
       );
     });
+    this.logger.log(`Role deleted: ${guid} by user ${actorGuid}`);
   }
 
   private async loadPermissionCodes(guid: string): Promise<PermissionCode[]> {
