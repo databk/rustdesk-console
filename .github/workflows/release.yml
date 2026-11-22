@@ -19,6 +19,7 @@ jobs:
     outputs:
       version: ${{ steps.changelog.outputs.version }}
       skipped: ${{ steps.changelog.outputs.skipped }}
+      clean_changelog: ${{ steps.changelog.outputs.clean_changelog }}
       source_commit: ${{ steps.identity.outputs.source_commit }}
     steps:
       - name: Checkout code
