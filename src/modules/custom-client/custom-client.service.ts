@@ -25,6 +25,7 @@ import {
   BuildProgressResponse,
   CustomClientCustomDto,
   BuildFileDto,
+  RustdeskReleaseInfo,
 } from './dto/custom-client-build.dto';
 
 const GITHUB_API = 'https://api.github.com';
@@ -34,6 +35,7 @@ interface GithubDispatchInputs {
   'build-id': string;
   'backend-url': string;
   'build-token': string;
+  'rustdesk-version': string;
 }
 
 function resolveWorkflowFile(os: string, arch: string | undefined): string {
@@ -72,6 +74,8 @@ function resolveWorkflowFile(os: string, arch: string | undefined): string {
 export class CustomClientService {
   private readonly logger = new Logger(CustomClientService.name);
   private readonly storagePath: string;
+  private releasesCache: { at: number; data: RustdeskReleaseInfo[] } | null =
+    null;
 
   constructor(
     @InjectRepository(CustomClientBuild)
@@ -82,6 +86,52 @@ export class CustomClientService {
     private readonly generalSettingsService: GeneralSettingsService,
   ) {
     this.storagePath = getCustomClientStoragePath();
+  }
+
+  async listRustdeskReleases(): Promise<RustdeskReleaseInfo[]> {
+    const now = Date.now();
+    if (this.releasesCache && now - this.releasesCache.at < 10 * 60_000) {
+      return this.releasesCache.data;
+    }
+
+    const settings = await this.settingsService.getActiveSettings();
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2026-03-10',
+    };
+    if (settings.githubToken) {
+      headers.Authorization = `Bearer ${settings.githubToken}`;
+    }
+
+    const response = await fetch(
+      `${GITHUB_API}/repos/rustdesk/rustdesk/releases?per_page=30`,
+      { headers, signal: AbortSignal.timeout(CALLBACK_TIMEOUT_MS) },
+    );
+    if (!response.ok) {
+      throw new BadGatewayException(
+        `Failed to fetch RustDesk releases: ${response.status}`,
+      );
+    }
+
+    const rows = (await response.json()) as Array<{
+      tag_name?: string;
+      name?: string;
+      published_at?: string;
+      prerelease?: boolean;
+      draft?: boolean;
+    }>;
+
+    const data: RustdeskReleaseInfo[] = rows
+      .filter((row) => !row.draft && !!row.tag_name)
+      .map((row) => ({
+        tag: row.tag_name as string,
+        name: row.name || (row.tag_name as string),
+        publishedAt: row.published_at ?? '',
+        prerelease: Boolean(row.prerelease),
+      }));
+
+    this.releasesCache = { at: now, data };
+    return data;
   }
 
   async submitBuild(
@@ -122,6 +172,7 @@ export class CustomClientService {
       'build-id': uuid,
       'backend-url': backendUrl,
       'build-token': buildToken,
+      'rustdesk-version': dto.version ?? '',
     };
 
     const dispatchUrl = `${GITHUB_API}/repos/${settings.generatorRepo}/actions/workflows/${workflowFile}/dispatches`;

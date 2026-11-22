@@ -51,6 +51,12 @@ export class CustomClientController {
     return this.customClientService.submitBuild(userGuid, dto);
   }
 
+  @Get('rustdesk-releases')
+  @UseGuards(AdminGuard)
+  async listRustdeskReleases() {
+    return this.customClientService.listRustdeskReleases();
+  }
+
   @Get('builds')
   async listBuilds(@CurrentUser('id') userGuid: string) {
     return this.customClientService.listBuilds(userGuid);

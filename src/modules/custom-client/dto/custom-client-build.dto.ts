@@ -4,6 +4,7 @@ import {
   IsObject,
   IsString,
   IsArray,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -63,6 +64,13 @@ export class SubmitBuildDto {
   arch?: string;
 
   @IsOptional()
+  @Matches(/^[0-9A-Za-z][0-9A-Za-z._-]{0,31}$/, {
+    message:
+      'version must be a RustDesk release tag, e.g. 1.5.3 (letters, digits, dot, dash, underscore)',
+  })
+  version?: string;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => CustomClientCustomDto)
   custom?: CustomClientCustomDto;
@@ -71,6 +79,13 @@ export class SubmitBuildDto {
 export interface SubmitBuildResponse {
   uuid: string;
   status: string;
+}
+
+export interface RustdeskReleaseInfo {
+  tag: string;
+  name: string;
+  publishedAt: string;
+  prerelease: boolean;
 }
 
 export interface BuildProgressStep {
