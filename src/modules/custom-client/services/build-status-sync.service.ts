@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
+import { businessWritesAllowed } from '../../../updater/maintenance';
 import { CustomClientBuild } from '../entities/custom-client-build.entity';
 import { CustomClientSettingsService } from './custom-client-settings.service';
 
@@ -86,11 +88,12 @@ export class BuildStatusSyncService {
         runData.status === 'completed' &&
         !TERMINAL_STATUSES.includes(build.status)
       ) {
+        if (!businessWritesAllowed()) return;
         const newStatus =
           CONCLUSION_TO_STATUS[runData.conclusion ?? 'failure'] ?? 'failed';
         await this.buildRepository.update(
           { uuid: build.uuid },
-          { status: newStatus },
+          { status: newStatus, buildToken: randomUUID() },
         );
         this.logger.log(
           `Build ${build.uuid} status auto-updated to ${newStatus} via sync`,
@@ -99,6 +102,7 @@ export class BuildStatusSyncService {
         runData.status === 'in_progress' &&
         build.status === 'pending'
       ) {
+        if (!businessWritesAllowed()) return;
         await this.buildRepository.update(
           { uuid: build.uuid, status: 'pending' },
           { status: 'building' },
