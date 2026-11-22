@@ -1,0 +1,13 @@
+appname=rustdesk-console
+version=0.0.0
+display_name=RustDesk Console (Docker)
+desc=RustDesk Server Pro 管理控制台 — Docker 版，需设备已开启 Docker。设备管理、网页远控、定制客户端。
+platform=all
+source=thirdparty
+maintainer=fengyun1980
+distributor=fengyun1980
+service_port=21114
+checkport=true
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=rustdesk-console.Application

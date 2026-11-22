@@ -1,0 +1,2 @@
+/etc/systemd/system/rustdesk-console.service
+/opt/rustdesk-console/.env

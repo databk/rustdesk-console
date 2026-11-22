@@ -1,0 +1,16 @@
+#!/bin/bash
+# fnOS — Install callback hook
+# Called after the container has started and health passes.
+set -e
+
+PORT="${PORT:-8000}"
+for i in $(seq 1 30); do
+  if curl -sf "http://localhost:${PORT}/api/login-options" >/dev/null 2>&1; then
+    echo "[fnos] install_callback: console is healthy"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "[fnos] install_callback: health check timed out" >&2
+exit 1

@@ -1,0 +1,12 @@
+#!/bin/bash
+# fnOS — Install init hook
+# Called before the container is first started.
+set -e
+
+DATA_DIR="${TRIM_PKGVAR}/data"
+mkdir -p "$DATA_DIR"
+chmod 755 "$DATA_DIR"
+
+# JWT_SECRET: fnOS 可能已生成; 否则留空让 setup 向导走默认值
+# 这里不写死，setup 向导首次提交时系统会自动派生管理 token
+echo "[fnos] install_init: data dir ready at $DATA_DIR"

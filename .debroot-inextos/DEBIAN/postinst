@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+SERVICE=rustdesk-console
+DATADIR=/var/lib/rustdesk-console
+
+mkdir -p "$DATADIR"
+chown -R root:root /opt/rustdesk-console 2>/dev/null || true
+
+# systemd unit 已放在 /etc/systemd/system/
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    systemctl daemon-reload
+    systemctl enable "$SERVICE" || true
+    systemctl restart "$SERVICE" || true
+fi
+
+echo "✓ RustDesk Console installed on iNextOS"
+echo "  Access: http://<your-ip>:8000/setup"

@@ -1,0 +1,6 @@
+#!/bin/bash
+# fnOS — Config-init (not used for RustDesk Console, which does all setup
+# through the browser wizard at /setup). Left executable and no-op so fnpack
+# won't complain about missing scripts.
+set -e
+echo "[fnos] config_init: no-op — web setup wizard handles first-run configuration"

@@ -11,14 +11,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID, timingSafeEqual } from 'crypto';
-import {
-  existsSync,
-  readdirSync,
-  mkdirSync,
-  writeFileSync,
-  rmSync,
-  statSync,
-} from 'fs';
+import { rmSync } from 'fs';
 import { resolve, relative } from 'path';
 import { getCustomClientStoragePath } from '../../common/utils/data-dir.util';
 import { CustomClientBuild } from './entities/custom-client-build.entity';
@@ -31,6 +24,8 @@ import {
   SubmitBuildResponse,
   BuildProgressResponse,
   CustomClientCustomDto,
+  BuildFileDto,
+  RustdeskReleaseInfo,
 } from './dto/custom-client-build.dto';
 
 const GITHUB_API = 'https://api.github.com';
@@ -40,6 +35,7 @@ interface GithubDispatchInputs {
   'build-id': string;
   'backend-url': string;
   'build-token': string;
+  'rustdesk-version': string;
 }
 
 function resolveWorkflowFile(os: string, arch: string | undefined): string {
@@ -78,6 +74,8 @@ function resolveWorkflowFile(os: string, arch: string | undefined): string {
 export class CustomClientService {
   private readonly logger = new Logger(CustomClientService.name);
   private readonly storagePath: string;
+  private releasesCache: { at: number; data: RustdeskReleaseInfo[] } | null =
+    null;
 
   constructor(
     @InjectRepository(CustomClientBuild)
@@ -88,6 +86,52 @@ export class CustomClientService {
     private readonly generalSettingsService: GeneralSettingsService,
   ) {
     this.storagePath = getCustomClientStoragePath();
+  }
+
+  async listRustdeskReleases(): Promise<RustdeskReleaseInfo[]> {
+    const now = Date.now();
+    if (this.releasesCache && now - this.releasesCache.at < 10 * 60_000) {
+      return this.releasesCache.data;
+    }
+
+    const settings = await this.settingsService.getActiveSettings();
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2026-03-10',
+    };
+    if (settings.githubToken) {
+      headers.Authorization = `Bearer ${settings.githubToken}`;
+    }
+
+    const response = await fetch(
+      `${GITHUB_API}/repos/rustdesk/rustdesk/releases?per_page=30`,
+      { headers, signal: AbortSignal.timeout(CALLBACK_TIMEOUT_MS) },
+    );
+    if (!response.ok) {
+      throw new BadGatewayException(
+        `Failed to fetch RustDesk releases: ${response.status}`,
+      );
+    }
+
+    const rows = (await response.json()) as Array<{
+      tag_name?: string;
+      name?: string;
+      published_at?: string;
+      prerelease?: boolean;
+      draft?: boolean;
+    }>;
+
+    const data: RustdeskReleaseInfo[] = rows
+      .filter((row) => !row.draft && !!row.tag_name)
+      .map((row) => ({
+        tag: row.tag_name as string,
+        name: row.name || (row.tag_name as string),
+        publishedAt: row.published_at ?? '',
+        prerelease: Boolean(row.prerelease),
+      }));
+
+    this.releasesCache = { at: now, data };
+    return data;
   }
 
   async submitBuild(
@@ -128,6 +172,7 @@ export class CustomClientService {
       'build-id': uuid,
       'backend-url': backendUrl,
       'build-token': buildToken,
+      'rustdesk-version': dto.version ?? '',
     };
 
     const dispatchUrl = `${GITHUB_API}/repos/${settings.generatorRepo}/actions/workflows/${workflowFile}/dispatches`;
@@ -187,9 +232,35 @@ export class CustomClientService {
   }
 
   async listBuilds(userGuid: string): Promise<CustomClientBuild[]> {
-    return this.buildRepository.find({
+    const builds = await this.buildRepository.find({
       where: { userGuid },
       order: { createdAt: 'DESC' },
+    });
+
+    // 对进行中的构建，拉取 GitHub 运行状态并同步本地状态。
+    // 前端列表每 5 秒轮询本接口，借此自动推进 pending → building → completed。
+    const activeBuilds = builds.filter(
+      (b) => b.status === 'pending' || b.status === 'building',
+    );
+    const progressMap = new Map<string, BuildProgressResponse>();
+    if (activeBuilds.length > 0) {
+      await Promise.allSettled(
+        activeBuilds.map(async (b) => {
+          const progress = await this.getBuildProgress(b.uuid, userGuid);
+          progressMap.set(b.uuid, progress);
+        }),
+      );
+    }
+
+    const fresh = await this.buildRepository.find({
+      where: { userGuid },
+      order: { createdAt: 'DESC' },
+    });
+    return fresh.map((b) => {
+      const progress = progressMap.get(b.uuid);
+      return (progress
+        ? { ...b, progress }
+        : b) as CustomClientBuild & { progress?: BuildProgressResponse };
     });
   }
 
@@ -209,34 +280,20 @@ export class CustomClientService {
     rmSync(this.safeJoin(uuid), { recursive: true, force: true });
   }
 
-  async listBuildFiles(uuid: string, userGuid: string): Promise<string[]> {
-    await this.findOwnedBuild(uuid, userGuid);
-    const dir = this.safeJoin(uuid);
-    if (!existsSync(dir)) {
+  async listBuildFiles(
+    uuid: string,
+    userGuid: string,
+  ): Promise<BuildFileDto[]> {
+    const build = await this.findOwnedBuild(uuid, userGuid);
+    if (!build.files) {
       return [];
     }
-    return readdirSync(dir).filter((f) => {
-      try {
-        return statSync(this.safeJoin(uuid, f)).isFile();
-      } catch {
-        return false;
-      }
-    });
-  }
-
-  async getLocalFilePath(
-    uuid: string,
-    filename: string,
-    userGuid: string,
-  ): Promise<string> {
-    await this.findOwnedBuild(uuid, userGuid);
-    const buildDir = this.safeJoin(uuid);
-    const filePath = this.safeJoin(uuid, filename);
-    const rel = relative(buildDir, filePath);
-    if (rel.startsWith('..') || resolve(buildDir) === filePath) {
-      throw new BadRequestException('Invalid filename');
+    try {
+      const parsed = JSON.parse(build.files);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
     }
-    return filePath;
   }
 
   async getBuildConfig(
@@ -281,7 +338,7 @@ export class CustomClientService {
   async handleUpload(
     uuid: string,
     buildToken: string,
-    files: Express.Multer.File[],
+    files: BuildFileDto[],
   ): Promise<void> {
     const build = await this.buildRepository.findOne({ where: { uuid } });
     if (!build) {
@@ -292,28 +349,15 @@ export class CustomClientService {
       throw new BadRequestException('Build already finished');
     }
 
-    const savedNames: string[] = [];
     if (files && files.length > 0) {
-      const dir = this.safeJoin(uuid);
-      mkdirSync(dir, { recursive: true });
-      for (const file of files) {
-        const target = this.safeJoin(uuid, file.originalname);
-        writeFileSync(target, file.buffer);
-        savedNames.push(file.originalname);
-      }
-    }
-
-    if (savedNames.length > 0) {
       await this.buildRepository.update(
         { uuid },
-        {
-          files: JSON.stringify(savedNames),
-        },
+        { files: JSON.stringify(files) },
       );
     }
 
     this.logger.log(
-      `Upload processed for build ${uuid}: ${savedNames.length} files`,
+      `Upload processed for build ${uuid}: ${files?.length ?? 0} files`,
     );
   }
 
@@ -328,6 +372,11 @@ export class CustomClientService {
         runId: null,
         runStatus: 'queued',
         runConclusion: null,
+        percent: 0,
+        totalSteps: 0,
+        completedSteps: 0,
+        currentJob: null,
+        currentStep: null,
         jobs: [],
       };
     }
@@ -362,10 +411,25 @@ export class CustomClientService {
       ),
     ]);
 
+    const allSteps = jobsData.jobs.flatMap((job) => job.steps);
+    const completedSteps = allSteps.filter((s) => s.status === 'completed').length;
+    const totalSteps = allSteps.length;
+    let percent =
+      totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+    if (runData.status === 'completed') percent = 100;
+
     const result: BuildProgressResponse = {
       runId,
       runStatus: runData.status,
       runConclusion: runData.conclusion,
+      percent,
+      totalSteps,
+      completedSteps,
+      currentJob:
+        jobsData.jobs.find((j) => j.status === 'in_progress')?.name ?? null,
+      currentStep:
+        (allSteps.find((s) => s.status === 'in_progress') ??
+          allSteps.find((s) => s.status === 'queued'))?.name ?? null,
       jobs: jobsData.jobs.map((job) => ({
         name: job.name,
         status: job.status,

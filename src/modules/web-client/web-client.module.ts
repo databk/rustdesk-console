@@ -31,5 +31,6 @@ import { WebClientSettingsService } from './web-client-settings.service';
     WebClientGateway,
     AdminGuard,
   ],
+  exports: [WebClientService, WebClientSettingsService],
 })
 export class WebClientModule {}

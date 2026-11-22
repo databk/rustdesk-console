@@ -1,0 +1,16 @@
+appname=rustdesk-console
+version=0.0.0
+fpk_version=1.11.1-r10
+display_name=RustDesk Console (Native)
+platform=x86
+maintainer=fengyun1980
+maintainer_url=https://github.com/fengyun1980/rustdesk-console
+distributor=fengyun1980
+distributor_url=https://github.com/fengyun1980/rustdesk-console
+desktop_uidir=ui
+desktop_applaunchname=rustdesk-console.Application
+service_port=21114
+checkport=false
+ctl_stop=true
+desc=RustDesk 远程桌面管理平台，企业级自建管理控制台 — 原生二进制版，无需 Docker。内置 hbbs/hbbr 自建服务器。设备管理、网页远控、定制客户端。
+source=thirdparty

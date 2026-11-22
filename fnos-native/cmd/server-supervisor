@@ -1,0 +1,72 @@
+#!/bin/sh
+# 守护 HBBS/HBBR 子进程：崩溃或管理 API 重启后拉起，主动停止时禁止复活。
+
+if [ "$#" -lt 3 ]; then
+    echo "用法: $0 <名称> <工作目录> <命令> [参数...]" >&2
+    exit 2
+fi
+
+NAME="$1"
+WORK_DIR="$2"
+shift 2
+
+PID_DIR="${TRIM_PKGVAR}/pids"
+CHILD_PID_FILE="${PID_DIR}/${NAME}.child.pid"
+STOP_FILE="${PID_DIR}/${NAME}.stop"
+CHILD=""
+STOPPING=0
+
+request_stop() {
+    STOPPING=1
+    : > "$STOP_FILE"
+    if [ -n "$CHILD" ] && kill -0 "$CHILD" 2>/dev/null; then
+        kill -TERM "$CHILD" 2>/dev/null || true
+    fi
+}
+
+cleanup() {
+    trap - EXIT TERM INT
+    request_stop
+    if [ -n "$CHILD" ]; then
+        i=0
+        while kill -0 "$CHILD" 2>/dev/null && [ "$i" -lt 20 ]; do
+            sleep 0.25
+            i=$((i + 1))
+        done
+        kill -KILL "$CHILD" 2>/dev/null || true
+        wait "$CHILD" 2>/dev/null || true
+    fi
+    rm -f "$CHILD_PID_FILE"
+}
+
+trap request_stop TERM INT
+trap cleanup EXIT
+
+mkdir -p "$PID_DIR"
+rm -f "$STOP_FILE"
+cd "$WORK_DIR" || exit 1
+
+BACKOFF=1
+while [ "$STOPPING" -eq 0 ] && [ ! -f "$STOP_FILE" ]; do
+    "$@" &
+    CHILD=$!
+    echo "$CHILD" > "$CHILD_PID_FILE"
+
+    wait "$CHILD"
+    STATUS=$?
+    rm -f "$CHILD_PID_FILE"
+    CHILD=""
+
+    if [ "$STOPPING" -eq 1 ] || [ -f "$STOP_FILE" ]; then
+        break
+    fi
+
+    echo "${NAME}: 子进程已退出（状态 ${STATUS}），${BACKOFF} 秒后重启"
+    sleep "$BACKOFF"
+    if [ "$BACKOFF" -lt 5 ]; then
+        BACKOFF=$((BACKOFF * 2))
+        if [ "$BACKOFF" -gt 5 ]; then
+            BACKOFF=5
+        fi
+    fi
+done

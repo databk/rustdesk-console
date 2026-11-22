@@ -1,0 +1,7 @@
+{
+  "defaults": {
+    "run-as": "package"
+  },
+  "username": "docker-rustdesk-console",
+  "groupname": "docker-rustdesk-console"
+}

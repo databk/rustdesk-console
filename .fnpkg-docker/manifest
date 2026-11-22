@@ -1,0 +1,24 @@
+# fnOS application manifest (INI format)
+# Generated for RustDesk Console v1.11.10
+appname      = rustdesk-console
+version      = 1.11.10
+display_name = RustDesk Console
+desc         = RustDesk Server Pro 管理控制台 — 设备管理、网页远控、定制客户端。飞牛 fnOS 一键部署。
+platform     = all
+source       = thirdparty
+maintainer   = fengyun1980
+distributor  = fengyun1980
+service_port = 8000
+data_dir     = ${TRIM_PKGVAR}/data
+docker_dir   = app/docker
+container_name = rustdesk-console
+install_init    = cmd/install_init
+install_callback = cmd/install_callback
+upgrade_init    = cmd/upgrade_init
+upgrade_callback = cmd/upgrade_callback
+uninstall_init  = cmd/uninstall_init
+uninstall_callback = cmd/uninstall_callback
+config_init     = cmd/config_init
+config_callback = cmd/config_callback
+service_uidir   = 
+desktop_uidir   = 

@@ -18,6 +18,6 @@ import { ServerManagementService } from './server-management.service';
     ServerEventsService,
     AdminGuard,
   ],
-  exports: [ServerManagementService],
+  exports: [ServerManagementService, ServerManagementSettingsService],
 })
 export class ServerManagementModule {}

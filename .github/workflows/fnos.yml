@@ -1,0 +1,307 @@
+name: fnOS Build (FPK)
+
+# 同时打两份 FPK：
+#   · Docker 版  — 任何 fnOS（需开 Docker）跨架构一份 FPK
+#   · Native 版  — Sea 原生二进制，多架构（x64 + arm64）
+#
+# Triggers: tag fnos-* 自动 / workflow_dispatch 手动
+
+on:
+  push:
+    tags:
+      - 'fnos-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'FPK 版本号 (e.g. 1.11.10)'
+        required: true
+        type: string
+      frontend_repo:
+        description: '前端仓库 (owner/repo)'
+        required: true
+        default: 'fengyun1980/rustdesk-console-web'
+        type: string
+      frontend_branch:
+        description: '前端分支/tag'
+        required: true
+        default: 'fnos-setup-wizard-v2'
+        type: string
+      publish:
+        description: '构建后发布到 Release 吗？'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  FN_PACK_VERSION: '1.3.3'
+  RUSTDESK_SERVER_VERSION: '1.1.1'
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────
+  # 1. 后端 NestJS dist（Docker 版用）
+  # ──────────────────────────────────────────────────────────────────
+  backend-build:
+    name: Build Backend (NestJS dist)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#fnos-}"
+          [[ "$TAG" != fnos-* ]] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - run: npm ci --ignore-scripts && npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: |
+            dist
+            package.json
+            package-lock.json
+            tsconfig*.json
+            nest-cli.json
+
+  # ──────────────────────────────────────────────────────────────────
+  # 2. 后端 Sea 原生二进制（Native 版用，多架构）
+  # ──────────────────────────────────────────────────────────────────
+  backend-sea-build:
+    name: Build Backend (Sea x64)
+    # 重要：用 ubuntu-22.04 (glibc 2.35) 而非 ubuntu-latest (glibc 2.39+)
+    #   — sqlite3 等原生模块会在构建机上本地编译，glibc 要求和 fnOS 系统兼容
+    #   — fnOS 基于 Debian，glibc 版本通常 2.31~2.35 之间，Ubuntu 22.04 最保守
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#fnos-}"
+          [[ "$TAG" != fnos-* ]] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci --ignore-scripts && npm run build:sea
+        timeout-minutes: 10
+
+      - name: Package + upload
+        run: |
+          cp dist-sea/rustdesk-console "dist-sea/rustdesk-console-x64"
+          # 注：deployment/ (install-linux.sh, install_linux.py, systemd units)
+          # 已从 Sea 构建中移除——那是 upstream tarball 安装器，FPK/DEB 不用它
+          # 关键：release-metadata.json 必须包含！后端健康检查靠它返回 ready: true
+          tar czf "sea-x64.tar.gz" \
+            -C dist-sea \
+            node_modules templates "rustdesk-console-x64" release-metadata.json
+          rm -f "dist-sea/rustdesk-console-x64"
+          ls -lh sea-x64.tar.gz
+          echo "--- tar 内容 ---"
+          tar tzf sea-x64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-sea-x64
+          path: sea-x64.tar.gz
+
+  # ──────────────────────────────────────────────────────────────────
+  # 3. 前端（并行）
+  # ──────────────────────────────────────────────────────────────────
+  frontend-build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_repo || 'fengyun1980/rustdesk-console-web' }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_branch || 'fnos-setup-wizard-v2' }}
+          path: frontend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: cd frontend && npm ci --ignore-scripts && npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  # ──────────────────────────────────────────────────────────────────
+  # 4. fnpack 打包 Docker 版 + Native 版
+  # ──────────────────────────────────────────────────────────────────
+  fpk-build:
+    name: fnpack → Docker + Native FPK
+    needs: [backend-build, backend-sea-build, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine version
+        run: |
+          v="${{ needs.backend-build.outputs.version }}"
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "→ Building fnOS v$v (Docker + Native)"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # ── 组装 Docker 版 ──
+      - name: Assemble Docker FPK workspace
+        run: |
+          set -euo pipefail
+          DIR=".fnpkg-docker"
+          rm -rf "$DIR"
+          cp -r fnos "$DIR"
+          mkdir -p "$DIR/app/docker/web-dist"
+          cp -r artifacts/frontend-dist/* "$DIR/app/docker/web-dist/"
+          mkdir -p "$DIR/app/docker/backend-src"
+          cp -r artifacts/backend-dist/* "$DIR/app/docker/backend-src/"
+          sed -i "s/^version=.*/version=${VERSION}/" "$DIR/manifest"
+          echo "✓ Docker FPK workspace ready"
+
+      # ── 组装 Native 版 ──
+      # 注：arm64 Sea 二进制暂缺（需原生 arm64 runner，QEMU 模拟下 V8 崩溃），arm64 fnOS 用户请用 Docker 版
+      - name: Assemble Native FPK workspace
+        run: |
+          set -euo pipefail
+          DIR=".fnpkg-native"
+          rm -rf "$DIR"
+          cp -r fnos-native "$DIR"
+
+          # fnpack 只打包 app/ 子目录 → 二进制直接放 app/ 根目录
+          # fnOS 解压后 app.tgz/rustdesk-console → ${TRIM_APPDEST}/rustdesk-console
+          # 完全对齐 conversun 官方 v1.11.22 结构
+          # 注：manifest 的 desktop_uidir = ui 让 fnpack 同时期望根目录 ui/ 和 app/ui/ 都存在
+          mkdir -p "$DIR/app" "$DIR/app/ui"
+          cp -r "$DIR/ui/"* "$DIR/app/ui/"
+
+          # 解 Sea x64 二进制 + node_modules + templates 到 app/ 根目录
+          tar xzf "artifacts/backend-sea-x64/sea-x64.tar.gz" \
+            -C "$DIR/app/"
+          # 重命名为 rustdesk-console（官方文件名）
+          mv "$DIR/app/rustdesk-console-x64" "$DIR/app/rustdesk-console"
+          chmod +x "$DIR/app/rustdesk-console"
+
+          # 下载并放置 hbbs + hbbr（RustDesk Server OSS 集成）
+          mkdir -p /tmp/hbbs-x /tmp/hbbr-x
+          curl -fsSL "https://github.com/databk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbs_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbs.deb
+          curl -fsSL "https://github.com/databk/rustdesk-server/releases/download/${RUSTDESK_SERVER_VERSION}/rustdesk-server-hbbr_${RUSTDESK_SERVER_VERSION}_amd64.deb" -o /tmp/hbbr.deb
+          dpkg -x /tmp/hbbs.deb /tmp/hbbs-x
+          dpkg -x /tmp/hbbr.deb /tmp/hbbr-x
+          cp /tmp/hbbs-x/usr/bin/hbbs "$DIR/app/hbbs"
+          cp /tmp/hbbr-x/usr/bin/hbbr "$DIR/app/hbbr"
+          chmod +x "$DIR/app/hbbs" "$DIR/app/hbbr"
+          ls -lh "$DIR/app/hbbs" "$DIR/app/hbbr"
+
+          # 前端静态资源 — 先清再拷，绝不能有残留
+          rm -rf "$DIR/app/public"
+          mkdir -p "$DIR/app/public"
+          cp -r artifacts/frontend-dist/* "$DIR/app/public/"
+          echo "  ✓ public/ 前端资源:" && ls "$DIR/app/public/" | head -10
+
+          sed -i "s/^version=.*/version=${VERSION}/" "$DIR/manifest"
+          sed -i "s/^display_name=.*/display_name=RustDesk Console (Native)/" "$DIR/manifest"
+          ls -lh "$DIR/app/rustdesk-console" 2>/dev/null && \
+            echo "  ✓ Sea binary in app/ (root)" || echo "  ❌ Sea binary missing!"
+          echo "✓ Native FPK workspace ready (x64 only; arm64 → Docker FPK)"
+
+      # ── fnpack CLI ──
+      - name: Download fnpack
+        run: |
+          curl -fsSL "https://static2.fnnas.com/fnpack/fnpack-${FN_PACK_VERSION}-linux-amd64" -o fnpack
+          chmod +x fnpack
+
+      # ── Build Docker FPK ──
+      - name: Build Docker .fpk
+        env:
+          CERT: ${{ secrets.FNOS_DEV_CERT }}
+          KEY:  ${{ secrets.FNOS_DEV_KEY }}
+        run: |
+          if [ -n "$CERT" ] && [ -n "$KEY" ]; then
+            ./fnpack build -d .fnpkg-docker \
+              --cert <(echo "$CERT" | base64 -d) --key <(echo "$KEY" | base64 -d)
+          else
+            ./fnpack build -d .fnpkg-docker --nosign
+          fi
+          mv rustdesk-console.fpk "rustdesk-console-docker-${VERSION}.fpk"
+          ls -lh rustdesk-console-docker-*.fpk
+
+      # ── Build Native FPK ──
+      - name: Build Native .fpk
+        env:
+          CERT: ${{ secrets.FNOS_DEV_CERT }}
+          KEY:  ${{ secrets.FNOS_DEV_KEY }}
+        run: |
+          if [ -n "$CERT" ] && [ -n "$KEY" ]; then
+            ./fnpack build -d .fnpkg-native \
+              --cert <(echo "$CERT" | base64 -d) --key <(echo "$KEY" | base64 -d)
+          else
+            ./fnpack build -d .fnpkg-native --nosign
+          fi
+          mv rustdesk-console.fpk "rustdesk-console-native-${VERSION}.fpk"
+          ls -lh rustdesk-console-native-*.fpk
+
+      # ── Upload artifacts ──
+      - name: Upload FPKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fnos-fpks
+          path: rustdesk-console-*.fpk
+
+      # ── Release ──
+      - name: Upload to Release
+        if: ${{ (inputs.publish == true) || (github.event_name == 'push') }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: fnOS RustDesk Console v${{ env.VERSION }}
+          body: |
+            ## RustDesk Console · fnOS v${{ env.VERSION }}
+
+            ### 包含（Setup Wizard）
+            - 首次安装进入 `/setup` 向导，**一处填写 serverUrl + admin 账号**
+            - 系统自动配置：常规设置 + ServerManagement（hbbs）+ Web Client
+            - ServerManagement.token 取自 `JWT_SECRET`
+            - Web Client 公钥自动从 hbbs `GET /v1/status` 拉取
+
+            ### 两个安装包
+
+            | FPK | 适用 | 体积 | 要求 |
+            |-----|------|------|------|
+            | **Docker 版** | 所有 fnOS (x86/arm/loongarch/riscv) | ~? | fnOS Docker 已启用 |
+            | **Native 版** | fnOS x86_64 | ~72 MB | 无需 Docker |
+
+            > arm64 fnOS 用户请使用 Docker 版（Native arm64 构建需原生 arm64 runner，待后续支持）。
+
+            ### 版本来源
+            - 后端: `fengyun1980/rustdesk-console` @ ${{ github.sha }}
+            - 前端: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_repo || 'fengyun1980/rustdesk-console-web' }} @ ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_branch || 'fnos-setup-wizard-v2' }}
+
+            ### 安装后
+            打开浏览器 → 自动跳 `/setup` → 填地址 → 填 admin 账号 → 确认无误 → 进入系统
+          files: rustdesk-console-*.fpk
+          fail_on_unmatched_files: true
