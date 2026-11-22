@@ -40,6 +40,9 @@ export class CustomClientBuild {
   @Column()
   arch: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  rustdeskVersion: string | null;
+
   @Column({ type: 'text', nullable: true })
   custom: string;
 

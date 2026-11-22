@@ -161,6 +161,7 @@ export class CustomClientService {
       userGuid,
       os: dto.os,
       arch: dto.os === 'all' ? 'all' : (dto.arch ?? ''),
+      rustdeskVersion: dto.version ?? null,
       custom: dto.custom ? JSON.stringify(dto.custom) : undefined,
       status: 'pending',
       buildToken: buildToken,
