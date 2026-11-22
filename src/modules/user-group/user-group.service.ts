@@ -292,7 +292,7 @@ export class UserGroupService {
       };
     });
     this.logger.log(
-      `User group deleted: ${guid} by user ${actorGuid} (${affectedUsers.length} users moved to the default group)`,
+      `User group deleted: ${guid} by user ${actorGuid} (${result.moved_user_count} users moved to the default group)`,
     );
     return result;
   }
@@ -397,7 +397,7 @@ export class UserGroupService {
       };
     });
     this.logger.log(
-      `${uniqueGuids.length} user(s) moved to group ${guid} by user ${actorGuid}`,
+      `${result.moved_user_count} user(s) moved to group ${guid} by user ${actorGuid}`,
     );
     return result;
   }

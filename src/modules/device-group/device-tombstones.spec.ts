@@ -98,7 +98,7 @@ describe('device deletion tombstones', () => {
       dataSource as never,
       authorization as never,
       {} as never,
-      serverManagement as never,
+      serverManagement,
       {} as never,
     );
     return {

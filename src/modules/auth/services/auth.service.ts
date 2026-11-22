@@ -285,19 +285,25 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      this.logger.warn(`Login failed: wrong password for ${user.username}`);
+      this.logger.warn(
+        `Login failed: wrong password for ${logSafe(user.username)}`,
+      );
       throw new UnauthorizedException({
         error: 'Incorrect username or password',
       });
     }
 
     if (user.status === UserStatus.DISABLED) {
-      this.logger.warn(`Login refused: account disabled ${user.username}`);
+      this.logger.warn(
+        `Login refused: account disabled ${logSafe(user.username)}`,
+      );
       throw new UnauthorizedException({ error: 'Account has been disabled' });
     }
 
     if (user.status === UserStatus.UNVERIFIED) {
-      this.logger.warn(`Login refused: email not verified ${user.username}`);
+      this.logger.warn(
+        `Login refused: email not verified ${logSafe(user.username)}`,
+      );
       throw new UnauthorizedException({
         error: 'Please verify your email first',
       });

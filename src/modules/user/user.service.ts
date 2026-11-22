@@ -35,6 +35,7 @@ import { LoginSession } from '../auth/entities/login-session.entity';
 import { EmailService } from '../email/email.service';
 import { GeneralSettingsService } from '../settings/services/general-settings.service';
 import { getAvatarDir } from '../../common/utils/data-dir.util';
+import { logSafe } from '../../common/logging/log-safe';
 
 const AVATAR_DIR = getAvatarDir();
 const AVATAR_SIZE = 256;
@@ -218,7 +219,7 @@ export class UserService {
 
     await this.userRepository.save(user);
     this.logger.log(
-      `User created: ${user.guid} (${user.username}) by user ${actorGuid ?? '-'}`,
+      `User created: ${user.guid} (${logSafe(user.username)}) by user ${actorGuid ?? '-'}`,
     );
 
     return { message: 'User created successfully' };
@@ -278,7 +279,7 @@ export class UserService {
 
     await this.invitationRepository.save(invitation);
     this.logger.log(
-      `User invited: ${user.guid} (${user.username}) by user ${actorGuid ?? '-'}`,
+      `User invited: ${user.guid} (${logSafe(user.username)}) by user ${actorGuid ?? '-'}`,
     );
 
     // Send invitation email
@@ -378,7 +379,7 @@ export class UserService {
     invitation.usedAt = new Date();
     await this.invitationRepository.save(invitation);
 
-    this.logger.log(`User ${user.username} activated via invitation`);
+    this.logger.log(`User ${logSafe(user.username)} activated via invitation`);
 
     return {
       message: 'Account activated, please log in',
@@ -635,7 +636,9 @@ export class UserService {
       await this.revokeActiveTokens([guid], manager);
       await users.remove(user);
     });
-    this.logger.log(`User deleted: ${guid} (${username}) by user ${actorGuid}`);
+    this.logger.log(
+      `User deleted: ${guid} (${logSafe(username)}) by user ${actorGuid}`,
+    );
   }
 
   async forceLogout(userGuids: string[], actorGuid: string) {

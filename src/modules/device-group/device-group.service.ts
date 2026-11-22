@@ -36,6 +36,7 @@ import {
   ServerManagementService,
   type DeviceBanSyncResult,
 } from '../server-management/server-management.service';
+import { logSafe } from '../../common/logging/log-safe';
 
 @Injectable()
 /**
@@ -1121,7 +1122,7 @@ export class DeviceGroupService {
     }
 
     this.logger.log(
-      `Device deleted: ${guid} (id ${deviceId ?? '-'}) by user ${actorGuid}`,
+      `Device deleted: ${guid} (id ${logSafe(deviceId ?? '-')}) by user ${actorGuid}`,
     );
 
     let protocolEnforcement: DeviceBanSyncResult | undefined;

@@ -17,6 +17,7 @@ import { AuthUserHelper } from './auth-user.helper';
 import { AuthLoginHelper, LoginContext } from './auth-login.helper';
 import { UserPayload } from './auth-response.helper';
 import { errorTrace } from '../../../common/logging/error-trace';
+import { logSafe } from '../../../common/logging/log-safe';
 
 @Injectable()
 export class AuthTfaService {
@@ -75,7 +76,7 @@ export class AuthTfaService {
       const isValid = this.verifyTfaCode(user.tfaSecret, currentCode);
       if (!isValid) {
         this.logger.warn(
-          `TFA reset rejected: wrong current code for ${user.username}`,
+          `TFA reset rejected: wrong current code for ${logSafe(user.username)}`,
         );
         throw new UnauthorizedException(
           'Current verification code is incorrect',
@@ -130,7 +131,9 @@ export class AuthTfaService {
 
     const isValid = this.verifyTfaCode(pendingSecret, code);
     if (!isValid) {
-      this.logger.warn(`TFA binding rejected: wrong code for ${user.username}`);
+      this.logger.warn(
+        `TFA binding rejected: wrong code for ${logSafe(user.username)}`,
+      );
       throw new UnauthorizedException(
         'Incorrect verification code, please try again',
       );
@@ -143,7 +146,7 @@ export class AuthTfaService {
     user.setUserInfo(userInfo);
 
     await this.userRepository.save(user);
-    this.logger.log(`TFA enabled for user ${user.username}`);
+    this.logger.log(`TFA enabled for user ${logSafe(user.username)}`);
 
     return { message: '2FA bound successfully' };
   }
@@ -175,13 +178,15 @@ export class AuthTfaService {
 
     const isValid = this.verifyTfaCode(user.tfaSecret, code);
     if (!isValid) {
-      this.logger.warn(`TFA disable rejected: wrong code for ${user.username}`);
+      this.logger.warn(
+        `TFA disable rejected: wrong code for ${logSafe(user.username)}`,
+      );
       throw new UnauthorizedException('Incorrect verification code');
     }
 
     user.tfaSecret = '';
     await this.userRepository.save(user);
-    this.logger.log(`TFA disabled for user ${user.username}`);
+    this.logger.log(`TFA disabled for user ${logSafe(user.username)}`);
 
     return { message: '2FA disabled' };
   }
@@ -275,14 +280,18 @@ export class AuthTfaService {
 
     const isValidTfa = this.verifyTfaCode(user.tfaSecret, tfaCode);
     if (!isValidTfa) {
-      this.logger.warn(`Login failed: wrong TFA code for ${user.username}`);
+      this.logger.warn(
+        `Login failed: wrong TFA code for ${logSafe(user.username)}`,
+      );
       throw new UnauthorizedException({
         error: 'Incorrect two-factor authentication code',
       });
     }
 
     if (user.status === UserStatus.DISABLED) {
-      this.logger.warn(`Login refused: account disabled ${user.username}`);
+      this.logger.warn(
+        `Login refused: account disabled ${logSafe(user.username)}`,
+      );
       throw new UnauthorizedException({ error: 'Account has been disabled' });
     }
 

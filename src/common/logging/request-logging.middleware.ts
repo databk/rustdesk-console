@@ -1,5 +1,6 @@
 import { Logger, type LogLevel } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
+import { logSafe } from './log-safe';
 
 const logger = new Logger('HTTP');
 
@@ -27,7 +28,7 @@ function clientAddress(request: Request): string {
   const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)
     ?.split(',')[0]
     ?.trim();
-  return first ? `${socketAddress} fwd=${first}` : socketAddress;
+  return first ? `${socketAddress} fwd=${logSafe(first)}` : socketAddress;
 }
 
 /**

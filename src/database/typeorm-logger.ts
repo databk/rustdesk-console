@@ -46,10 +46,13 @@ function collapse(query: string): string {
  * Driver messages can quote the offending value, for example MySQL's
  * "Duplicate entry 'alice@example.com' for key 'users.IDX_email'" or
  * "Incorrect string value: '...' for column ...". Keep the message, drop
- * the value.
+ * the value. Also covers MySQL error 1292 "Truncated incorrect %s value:
+ * '%s'" which has no trailing " for ".
  */
 export function redactDriverMessage(message: string): string {
-  return message.replace(/\b(entry|value:?) '.*' for /gi, "$1 '?' for ");
+  return message
+    .replace(/\b(entry|value:?) '.*' for /gi, "$1 '?' for ")
+    .replace(/\b(value:?) '[^']*'(?!\s+for\s)/gi, "$1 '?'");
 }
 
 function isUniqueViolation(error: string | Error, message: string): boolean {
@@ -85,10 +88,10 @@ export class TypeOrmNestLogger implements TypeOrmLogger {
   logQueryError(error: string | Error, query: string): void {
     if (this.mode === 'off') return;
     const raw = error instanceof Error ? error.message : error;
-    const line = `Query failed: ${redactDriverMessage(raw)} | ${collapse(query)}`;
     // Unique conflicts are part of normal operation (callers turn them into
     // a 409 or retry), so they are debug. Other failures are warnings;
     // callers and Nest's exception handler log real failures as errors.
+    const line = `Query failed: ${redactDriverMessage(raw)} | ${collapse(query)}`;
     if (isUniqueViolation(error, raw)) {
       this.logger.debug(line);
     } else {

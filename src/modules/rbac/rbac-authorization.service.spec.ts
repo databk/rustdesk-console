@@ -1419,7 +1419,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
+      {},
       inactivePresence as never,
     );
 
@@ -1465,7 +1465,7 @@ describe('DeviceGroupService delegated management query', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
+      {},
       inactivePresence as never,
     );
 
@@ -1542,7 +1542,7 @@ describe('DeviceGroupService scoped writes', () => {
       dataSource as never,
       authorizationService as never,
       {} as never,
-      serverManagement as never,
+      serverManagement,
       {} as never,
     );
     return {

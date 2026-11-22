@@ -11,10 +11,12 @@ export function errorTrace(error: unknown): string {
     return error;
   }
   try {
-    // JSON.stringify returns undefined for undefined, functions and symbols,
-    // and throws on circular structures and BigInt.
     return JSON.stringify(error) ?? String(error);
   } catch {
-    return String(error);
+    try {
+      return String(error);
+    } catch {
+      return '[unserializable error]';
+    }
   }
 }

@@ -47,6 +47,11 @@ describe('redactDriverMessage', () => {
         "Incorrect string value: 'it''s secret' for column 'note' at row 1",
       ),
     ).toBe("Incorrect string value: '?' for column 'note' at row 1");
+    expect(
+      redactDriverMessage(
+        "Truncated incorrect DOUBLE value: 'alice@example.com'",
+      ),
+    ).toBe("Truncated incorrect DOUBLE value: '?'");
   });
 
   it('leaves other messages unchanged', () => {
