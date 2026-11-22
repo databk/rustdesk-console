@@ -1,3 +1,35 @@
+# [1.12.0](https://github.com/databk/rustdesk-console/compare/1.11.0...1.12.0) (2026-11-22)
+
+
+### Bug Fixes
+
+* add --provenance=false to imagetools create for ACR ([#508](https://github.com/databk/rustdesk-console/issues/508)) ([cb2e6f3](https://github.com/databk/rustdesk-console/commit/cb2e6f38a16bc74be62ee761fbd95de8106ec5f8))
+* **database:** run SQLite transactions and writes one at a time ([#510](https://github.com/databk/rustdesk-console/issues/510)) ([48112ac](https://github.com/databk/rustdesk-console/commit/48112ac9da703d7ccb67161ab855cf31833df1e2))
+* **db:** validate every MySQL repair statement as additive ([#514](https://github.com/databk/rustdesk-console/issues/514)) ([4a7a48b](https://github.com/databk/rustdesk-console/commit/4a7a48b41b24be120ebf8670ca9b54be2237ef57))
+* disable provenance for ACR compatibility ([#506](https://github.com/databk/rustdesk-console/issues/506)) ([be3b732](https://github.com/databk/rustdesk-console/commit/be3b73282e44a88d7f53bd2f0486032e71ac4ed1))
+* replace imagetools with second build for ACR push ([#509](https://github.com/databk/rustdesk-console/issues/509)) ([2d343d6](https://github.com/databk/rustdesk-console/commit/2d343d65b3b5e40558c22a3f9a3544b344c0a51f))
+* **settings:** reuse the saved SMTP password when testing a saved configuration ([#527](https://github.com/databk/rustdesk-console/issues/527)) ([0fbea4d](https://github.com/databk/rustdesk-console/commit/0fbea4dc7cf69003d9eda513c511f6cc146450f7))
+* unify build token naming across frontend and backend ([#513](https://github.com/databk/rustdesk-console/issues/513)) ([0b8018f](https://github.com/databk/rustdesk-console/commit/0b8018fe97c6461aa4059eb0834cfbf2372249eb))
+* **updater:** log which registration requirement is not met ([#524](https://github.com/databk/rustdesk-console/issues/524)) ([03303d9](https://github.com/databk/rustdesk-console/commit/03303d9b82b29a0f85efb96fbc1043545fa95923)), closes [#481](https://github.com/databk/rustdesk-console/issues/481) [#481](https://github.com/databk/rustdesk-console/issues/481)
+
+
+### Features
+
+* add ACR Docker image push to CI workflows ([#504](https://github.com/databk/rustdesk-console/issues/504)) ([00ca532](https://github.com/databk/rustdesk-console/commit/00ca5321b8c2b579f3dc36e23ef977d86cb4aebe))
+* add background build status sync service ([#532](https://github.com/databk/rustdesk-console/issues/532)) ([684ebce](https://github.com/databk/rustdesk-console/commit/684ebce78875726ac0fb40ccd05c9f4ce6eb90f3))
+* **audit:** correlate console audit records with a per-request ID ([#503](https://github.com/databk/rustdesk-console/issues/503)) ([07d05e5](https://github.com/databk/rustdesk-console/commit/07d05e509642ff1bcadfec795d6257ed049c68de)), closes [#364](https://github.com/databk/rustdesk-console/issues/364)
+* **audit:** record client IP and user agent on console audit records ([#528](https://github.com/databk/rustdesk-console/issues/528)) ([6c381cb](https://github.com/databk/rustdesk-console/commit/6c381cb8995bfa0b36fcb315f4ddfcbb84cb4139))
+* **custom-client:** align build status with GitHub Actions conclusion ([#525](https://github.com/databk/rustdesk-console/issues/525)) ([7511509](https://github.com/databk/rustdesk-console/commit/75115092e02e85733d9da0d7e9a70a89ee7d5484))
+* **custom-client:** replace Nexus with GitHub Actions-based custom client builder ([#473](https://github.com/databk/rustdesk-console/issues/473)) ([c396340](https://github.com/databk/rustdesk-console/commit/c39634088aab07aaebc0201fb14812ca0cf8eea4)), closes [PKCS#8](https://github.com/PKCS/issues/8) [#490](https://github.com/databk/rustdesk-console/issues/490)
+* **db:** support MariaDB 10.6+ with its own TypeORM dialect ([#512](https://github.com/databk/rustdesk-console/issues/512)) ([5f05b70](https://github.com/databk/rustdesk-console/commit/5f05b70589d911f6c5bf9f0fafad79f3e7517849)), closes [#507](https://github.com/databk/rustdesk-console/issues/507) [#507](https://github.com/databk/rustdesk-console/issues/507) [#511](https://github.com/databk/rustdesk-console/issues/511)
+* **devices:** add server-side sorting to device lists ([#501](https://github.com/databk/rustdesk-console/issues/501)) ([b885bfc](https://github.com/databk/rustdesk-console/commit/b885bfc0210f23cb774d546a121227d9f1e7c17e))
+* **devices:** merge hbbs peer presence into device inventory ([#500](https://github.com/databk/rustdesk-console/issues/500)) ([c5ae56a](https://github.com/databk/rustdesk-console/commit/c5ae56aee74c63c885091db4febd98e69ef75562))
+* **logging:** add LOG_LEVEL environment variable ([#499](https://github.com/databk/rustdesk-console/issues/499)) ([a8368c3](https://github.com/databk/rustdesk-console/commit/a8368c3a4efdfadea5bc2bad7d9d287cb411237d)), closes [#494](https://github.com/databk/rustdesk-console/issues/494)
+* **logging:** configurable log level, DB logging, request logging and audit coverage ([#533](https://github.com/databk/rustdesk-console/issues/533)) ([55ac780](https://github.com/databk/rustdesk-console/commit/55ac780fe1dc917baeccba13e9a7f8d9636c8197))
+* **openwrt:** add native APK packages with procd and LuCI ([#496](https://github.com/databk/rustdesk-console/issues/496)) ([c28415f](https://github.com/databk/rustdesk-console/commit/c28415fbd3465312e38d081b62c01d4eb6caabc4))
+
+
+
 # [1.11.0](https://github.com/databk/rustdesk-console/compare/1.10.0...1.11.0) (2026-11-08)
 
 
@@ -91,17 +123,6 @@
 * **settings:** add audit retention days to general settings API ([#308](https://github.com/databk/rustdesk-console/issues/308)) ([660c51d](https://github.com/databk/rustdesk-console/commit/660c51d9f0d6ce8e4f9e58eb04bb000784b82c24))
 * **settings:** make JWT token expiry configurable via settings/general API ([#306](https://github.com/databk/rustdesk-console/issues/306)) ([5476354](https://github.com/databk/rustdesk-console/commit/5476354e7bcbe137a6562255e41f877585b94e5e))
 * **user:** add admin password reset via security endpoint ([#329](https://github.com/databk/rustdesk-console/issues/329)) ([28d31d1](https://github.com/databk/rustdesk-console/commit/28d31d1e262e200b0f3c11c701f9b826bde258a1)), closes [#289](https://github.com/databk/rustdesk-console/issues/289)
-
-
-
-## [1.8.1](https://github.com/databk/rustdesk-console/compare/1.8.0...1.8.1) (2026-08-26)
-
-
-### Bug Fixes
-
-* **avatar:** bust browser cache with timestamp query parameter ([#282](https://github.com/databk/rustdesk-console/issues/282)) ([5780528](https://github.com/databk/rustdesk-console/commit/5780528e18863d02943e172bc4cb8fcb37b87278))
-* **avatar:** persist user avatars across Docker updates via DATA_DIR ([#279](https://github.com/databk/rustdesk-console/issues/279)) ([ee70b40](https://github.com/databk/rustdesk-console/commit/ee70b401fef27ed2d8dc2d2cb3503bbb51f11077))
-* **nexus:** persist build artifacts across Docker updates via unified DATA_DIR ([#276](https://github.com/databk/rustdesk-console/issues/276)) ([6df09fe](https://github.com/databk/rustdesk-console/commit/6df09fe32e135210fea6046cabb91e520af94d47))
 
 
 
