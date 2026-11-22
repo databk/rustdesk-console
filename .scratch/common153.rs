@@ -1,0 +1,3622 @@
+use std::{
+    collections::HashMap,
+    future::Future,
+    net::SocketAddr,
+    sync::{Arc, Mutex, RwLock},
+    task::Poll,
+};
+
+use serde_json::{json, Map, Value};
+
+use base::{config::keys, message_proto::*};
+#[cfg(not(target_os = "ios"))]
+use hbb_common::whoami;
+use hbb_common::{
+    allow_err,
+    anyhow::{anyhow, Context},
+    async_recursion::async_recursion,
+    bail, base64,
+    bytes::Bytes,
+    config::{self, use_ws, Config, LocalConfig, CONNECT_TIMEOUT, READ_TIMEOUT, RENDEZVOUS_PORT},
+    futures::future::join_all,
+    futures_util::future::poll_fn,
+    get_version_number, log,
+    protobuf::{Enum, Message as _},
+    rendezvous_proto::*,
+    socket_client,
+    sodiumoxide::crypto::{box_, secretbox, sign},
+    timeout,
+    tls::{get_cached_tls_accept_invalid_cert, get_cached_tls_type, upsert_tls_cache, TlsType},
+    tokio::{
+        self,
+        net::UdpSocket,
+        time::{Duration, Instant, Interval},
+    },
+    ResultType, Stream,
+};
+
+use crate::{
+    hbbs_http::{create_http_client_async, get_url_for_tls},
+    ui_interface::{get_api_server as ui_get_api_server, get_option, set_option},
+};
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum GrabState {
+    Ready,
+    Run,
+    Wait,
+    Exit,
+}
+
+pub type NotifyMessageBox = fn(String, String, String, String) -> dyn Future<Output = ()>;
+
+// the executable name of the portable version
+pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
+
+pub const PLATFORM_WINDOWS: &str = "Windows";
+pub const PLATFORM_LINUX: &str = "Linux";
+pub const PLATFORM_MACOS: &str = "Mac OS";
+pub const PLATFORM_ANDROID: &str = "Android";
+
+pub const TIMER_OUT: Duration = Duration::from_secs(1);
+pub(crate) const API_LOG_INTERVAL: Duration = Duration::from_secs(600);
+pub const DEFAULT_KEEP_ALIVE: i32 = 60_000;
+
+const MIN_VER_MULTI_UI_SESSION: &str = "1.2.4";
+
+pub mod input {
+    pub const MOUSE_TYPE_MOVE: i32 = 0;
+    pub const MOUSE_TYPE_DOWN: i32 = 1;
+    pub const MOUSE_TYPE_UP: i32 = 2;
+    pub const MOUSE_TYPE_WHEEL: i32 = 3;
+    pub const MOUSE_TYPE_TRACKPAD: i32 = 4;
+    /// Relative mouse movement type for gaming/3D applications.
+    /// This type sends delta (dx, dy) values instead of absolute coordinates.
+    /// NOTE: This is only supported by the Flutter client. The Sciter client (deprecated)
+    /// does not support relative mouse mode due to:
+    /// 1. Fixed send_mouse() function signature that doesn't allow type differentiation
+    /// 2. Lack of pointer lock API in Sciter/TIS
+    /// 3. No OS cursor control (hide/show/clip) FFI bindings in Sciter UI
+    pub const MOUSE_TYPE_MOVE_RELATIVE: i32 = 5;
+
+    /// Mask to extract the mouse event type from the mask field.
+    /// The lower 3 bits contain the event type (MOUSE_TYPE_*), giving a valid range of 0-7.
+    /// Currently defined types use values 0-5; values 6 and 7 are reserved for future use.
+    pub const MOUSE_TYPE_MASK: i32 = 0x7;
+
+    pub const MOUSE_BUTTON_LEFT: i32 = 0x01;
+    pub const MOUSE_BUTTON_RIGHT: i32 = 0x02;
+    pub const MOUSE_BUTTON_WHEEL: i32 = 0x04;
+    pub const MOUSE_BUTTON_BACK: i32 = 0x08;
+    pub const MOUSE_BUTTON_FORWARD: i32 = 0x10;
+}
+
+lazy_static::lazy_static! {
+    pub static ref SOFTWARE_UPDATE_URL: Arc<Mutex<String>> = Default::default();
+    pub static ref DEVICE_ID: Arc<Mutex<String>> = Default::default();
+    pub static ref DEVICE_NAME: Arc<Mutex<String>> = Default::default();
+    static ref PUBLIC_IPV6_ADDR: Arc<Mutex<(Option<SocketAddr>, Option<Instant>)>> = Default::default();
+}
+
+lazy_static::lazy_static! {
+    // Is server process, with "--server" args
+    static ref IS_SERVER: bool = std::env::args().nth(1) == Some("--server".to_owned());
+    // Is server logic running. The server code can invoked to run by the main process if --server is not running.
+    static ref SERVER_RUNNING: Arc<RwLock<bool>> = Default::default();
+    static ref IS_MAIN: bool = std::env::args().nth(1).map_or(true, |arg| !arg.starts_with("--"));
+    static ref IS_CM: bool = std::env::args().nth(1) == Some("--cm".to_owned());
+}
+
+pub struct SimpleCallOnReturn {
+    pub b: bool,
+    pub f: Box<dyn Fn() + Send + 'static>,
+}
+
+impl Drop for SimpleCallOnReturn {
+    fn drop(&mut self) {
+        if self.b {
+            (self.f)();
+        }
+    }
+}
+
+pub fn global_init() -> bool {
+    #[cfg(all(target_os = "linux", feature = "drm"))]
+    crate::platform::linux::dispatch_wayland_display_probe();
+    #[cfg(target_os = "linux")]
+    {
+        if !crate::platform::linux::is_x11() {
+            crate::server::wayland::init();
+        }
+    }
+    true
+}
+
+pub fn global_clean() {}
+
+#[inline]
+pub fn set_server_running(b: bool) {
+    *SERVER_RUNNING.write().unwrap() = b;
+}
+
+#[inline]
+pub fn is_support_multi_ui_session(ver: &str) -> bool {
+    is_support_multi_ui_session_num(hbb_common::get_version_number(ver))
+}
+
+#[inline]
+pub fn is_support_multi_ui_session_num(ver: i64) -> bool {
+    ver >= hbb_common::get_version_number(MIN_VER_MULTI_UI_SESSION)
+}
+
+/// Peers from the 1.5.0 release name a cursor by `cursor_content_id`; older ones by the
+/// platform handle, which apps mint anew for the same shape.
+#[inline]
+pub fn is_peer_naming_cursors_by_content(ver: i64) -> bool {
+    ver >= hbb_common::get_version_number("1.5.0")
+}
+
+/// One id per cursor look, however many handles a platform gives it. Held to 53 bits: the web
+/// client decodes a u64 into a JS number and drops the whole message when it does not fit.
+pub fn cursor_content_id(width: i32, height: i32, hotx: i32, hoty: i32, colors: &[u8]) -> u64 {
+    let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+    for v in [width, height, hotx, hoty] {
+        hasher.update(&v.to_le_bytes());
+    }
+    hasher.update(colors);
+    hasher.digest() & ((1 << 53) - 1)
+}
+
+#[inline]
+#[cfg(feature = "unix-file-copy-paste")]
+pub fn is_support_file_copy_paste(ver: &str) -> bool {
+    is_support_file_copy_paste_num(hbb_common::get_version_number(ver))
+}
+
+#[inline]
+#[cfg(feature = "unix-file-copy-paste")]
+pub fn is_support_file_copy_paste_num(ver: i64) -> bool {
+    ver >= hbb_common::get_version_number("1.3.8")
+}
+
+pub fn is_support_remote_print(ver: &str) -> bool {
+    hbb_common::get_version_number(ver) >= hbb_common::get_version_number("1.3.9")
+}
+
+pub fn is_support_file_paste_if_macos(ver: &str) -> bool {
+    hbb_common::get_version_number(ver) >= hbb_common::get_version_number("1.3.9")
+}
+
+#[inline]
+pub fn is_support_screenshot(ver: &str) -> bool {
+    is_support_multi_ui_session_num(hbb_common::get_version_number(ver))
+}
+
+#[inline]
+pub fn is_support_screenshot_num(ver: i64) -> bool {
+    ver >= hbb_common::get_version_number("1.4.0")
+}
+
+#[inline]
+pub fn is_support_file_transfer_resume(ver: &str) -> bool {
+    is_support_file_transfer_resume_num(hbb_common::get_version_number(ver))
+}
+
+#[inline]
+pub fn is_support_file_transfer_resume_num(ver: i64) -> bool {
+    ver >= hbb_common::get_version_number("1.4.2")
+}
+
+/// Minimum server version required for relative mouse mode support.
+/// This constant must mirror Flutter's `kMinVersionForRelativeMouseMode` in `consts.dart`.
+const MIN_VERSION_RELATIVE_MOUSE_MODE: &str = "1.4.5";
+
+#[inline]
+pub fn is_support_relative_mouse_mode(ver: &str) -> bool {
+    is_support_relative_mouse_mode_num(hbb_common::get_version_number(ver))
+}
+
+#[inline]
+pub fn is_support_relative_mouse_mode_num(ver: i64) -> bool {
+    ver >= hbb_common::get_version_number(MIN_VERSION_RELATIVE_MOUSE_MODE)
+}
+
+// is server process, with "--server" args
+#[inline]
+pub fn is_server() -> bool {
+    *IS_SERVER
+}
+
+#[inline]
+pub fn need_fs_cm_send_files() -> bool {
+    #[cfg(windows)]
+    {
+        is_server()
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
+/// Android peers may access only the current shared file-transfer location.
+///
+/// Every peer supplied path must be validated with this before it reaches the
+/// filesystem, for reads, writes, renames, creations and deletions alike. The path is
+/// resolved to its canonical form (of the deepest existing ancestor, so paths that are
+/// about to be created are handled too) so symlinks cannot escape the workspace.
+///
+/// Only the `ReadDir` protocol action treats an empty path as the home directory.
+/// Callers must opt in to that protocol-specific behavior with `allow_empty`.
+#[cfg(target_os = "android")]
+pub fn is_peer_path_allowed(path: &str, allow_empty: bool) -> bool {
+    use std::path::{Component, Path, PathBuf};
+
+    if base::fs::android::is_path(Path::new(path)) {
+        return match base::fs::android::allowed(path) {
+            Ok(allowed) => allowed,
+            Err(error) => {
+                const ERROR_LOG_INTERVAL: Duration = Duration::from_secs(60);
+                hbb_common::throttled_log!(
+                    ERROR_LOG_INTERVAL,
+                    warn,
+                    "Document access denied: {}",
+                    error
+                );
+                false
+            }
+        };
+    }
+
+    // Canonicalize the deepest existing ancestor and re-append the missing tail.
+    fn resolve(path: &Path) -> Option<PathBuf> {
+        let mut tail: Vec<std::ffi::OsString> = Vec::new();
+        let mut base = path.to_path_buf();
+        loop {
+            if let Ok(mut resolved) = base.canonicalize() {
+                while let Some(component) = tail.pop() {
+                    resolved.push(component);
+                }
+                return Some(resolved);
+            }
+            tail.push(base.file_name()?.to_os_string());
+            if !base.pop() {
+                return None;
+            }
+        }
+    }
+
+    if path.is_empty() {
+        return allow_empty;
+    }
+    let path = Path::new(path);
+    // `..` is never needed by the protocol and would defeat the prefix check below.
+    if !path.is_absolute() || path.components().any(|c| c == Component::ParentDir) {
+        return false;
+    }
+    let home = base::fs::get_path(&base::fs::get_home_as_string());
+    let home = home.canonicalize().unwrap_or(home);
+    if home.as_os_str().is_empty() {
+        return false;
+    }
+    // `Path::starts_with` compares whole components, and is true for equal paths.
+    resolve(path).map_or(false, |target| target.starts_with(&home))
+}
+
+#[inline]
+#[cfg(not(target_os = "android"))]
+pub fn is_peer_path_allowed(_path: &str, _allow_empty: bool) -> bool {
+    true
+}
+
+#[cfg(target_os = "android")]
+pub async fn is_peer_path_allowed_async(path: &str, allow_empty: bool) -> bool {
+    let path = path.to_owned();
+    match tokio::task::spawn_blocking(move || is_peer_path_allowed(&path, allow_empty)).await {
+        Ok(allowed) => allowed,
+        Err(error) => {
+            const ERROR_LOG_INTERVAL: Duration = Duration::from_secs(60);
+            hbb_common::throttled_log!(
+                ERROR_LOG_INTERVAL,
+                error,
+                "File-transfer access check failed: {}",
+                error
+            );
+            false
+        }
+    }
+}
+
+#[inline]
+pub fn is_main() -> bool {
+    *IS_MAIN
+}
+
+#[inline]
+pub fn is_cm() -> bool {
+    *IS_CM
+}
+
+// Is server logic running.
+#[inline]
+pub fn is_server_running() -> bool {
+    *SERVER_RUNNING.read().unwrap()
+}
+
+#[inline]
+pub fn valid_for_numlock(evt: &KeyEvent) -> bool {
+    if let Some(key_event::Union::ControlKey(ck)) = evt.union {
+        let v = ck.value();
+        (v >= ControlKey::Numpad0.value() && v <= ControlKey::Numpad9.value())
+            || v == ControlKey::Decimal.value()
+    } else {
+        false
+    }
+}
+
+/// Set sound input device.
+pub fn set_sound_input(device: String) {
+    let prior_device = get_option("audio-input".to_owned());
+    if prior_device != device {
+        log::info!("switch to audio input device {}", device);
+        std::thread::spawn(move || {
+            set_option("audio-input".to_owned(), device);
+        });
+    } else {
+        log::info!("audio input is already set to {}", device);
+    }
+}
+
+/// Get system's default sound input device name.
+#[inline]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn get_default_sound_input() -> Option<String> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        use cpal::traits::{DeviceTrait, HostTrait};
+        let host = cpal::default_host();
+        let dev = host.default_input_device();
+        return if let Some(dev) = dev {
+            match dev.name() {
+                Ok(name) => Some(name),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let input = crate::platform::linux::get_default_pa_source();
+        return if let Some(input) = input {
+            Some(input.1)
+        } else {
+            None
+        };
+    }
+}
+
+#[inline]
+#[cfg(any(target_os = "android", target_os = "ios"))]
+pub fn get_default_sound_input() -> Option<String> {
+    None
+}
+
+#[cfg(feature = "use_rubato")]
+pub fn resample_channels(
+    data: &[f32],
+    sample_rate0: u32,
+    sample_rate: u32,
+    channels: u16,
+) -> Vec<f32> {
+    use rubato::{
+        InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction,
+    };
+    let params = InterpolationParameters {
+        sinc_len: 256,
+        f_cutoff: 0.95,
+        interpolation: InterpolationType::Nearest,
+        oversampling_factor: 160,
+        window: WindowFunction::BlackmanHarris2,
+    };
+    let mut resampler = SincFixedIn::<f64>::new(
+        sample_rate as f64 / sample_rate0 as f64,
+        params,
+        data.len() / (channels as usize),
+        channels as _,
+    );
+    let mut waves_in = Vec::new();
+    if channels == 2 {
+        waves_in.push(
+            data.iter()
+                .step_by(2)
+                .map(|x| *x as f64)
+                .collect::<Vec<_>>(),
+        );
+        waves_in.push(
+            data.iter()
+                .skip(1)
+                .step_by(2)
+                .map(|x| *x as f64)
+                .collect::<Vec<_>>(),
+        );
+    } else {
+        waves_in.push(data.iter().map(|x| *x as f64).collect::<Vec<_>>());
+    }
+    if let Ok(x) = resampler.process(&waves_in) {
+        if x.is_empty() {
+            Vec::new()
+        } else if x.len() == 2 {
+            x[0].chunks(1)
+                .zip(x[1].chunks(1))
+                .flat_map(|(a, b)| a.into_iter().chain(b))
+                .map(|x| *x as f32)
+                .collect()
+        } else {
+            x[0].iter().map(|x| *x as f32).collect()
+        }
+    } else {
+        Vec::new()
+    }
+}
+
+#[cfg(all(feature = "use_dasp", feature = "use_samplerate"))]
+compile_error!(
+    "features `use_dasp` and `use_samplerate` are mutually exclusive; disable default features before selecting `use_samplerate`"
+);
+
+#[cfg(feature = "use_dasp")]
+pub fn audio_resample(
+    data: &[f32],
+    sample_rate0: u32,
+    sample_rate: u32,
+    channels: u16,
+) -> Vec<f32> {
+    use dasp::{interpolate::linear::Linear, signal, Signal};
+    let n = data.len() / (channels as usize);
+    let n = n * sample_rate as usize / sample_rate0 as usize;
+    if channels == 2 {
+        let mut source = signal::from_interleaved_samples_iter::<_, [_; 2]>(data.iter().cloned());
+        let a = source.next();
+        let b = source.next();
+        let interp = Linear::new(a, b);
+        let mut data = Vec::with_capacity(n << 1);
+        for x in source
+            .from_hz_to_hz(interp, sample_rate0 as _, sample_rate as _)
+            .take(n)
+        {
+            data.push(x[0]);
+            data.push(x[1]);
+        }
+        data
+    } else {
+        let mut source = signal::from_iter(data.iter().cloned());
+        let a = source.next();
+        let b = source.next();
+        let interp = Linear::new(a, b);
+        source
+            .from_hz_to_hz(interp, sample_rate0 as _, sample_rate as _)
+            .take(n)
+            .collect()
+    }
+}
+
+#[cfg(all(feature = "use_samplerate", not(feature = "use_dasp")))]
+pub fn audio_resample(
+    data: &[f32],
+    sample_rate0: u32,
+    sample_rate: u32,
+    channels: u16,
+) -> Vec<f32> {
+    use samplerate::{convert, ConverterType};
+    convert(
+        sample_rate0 as _,
+        sample_rate as _,
+        channels as _,
+        ConverterType::SincBestQuality,
+        data,
+    )
+    .unwrap_or_default()
+}
+
+pub fn audio_rechannel(
+    input: Vec<f32>,
+    in_hz: u32,
+    out_hz: u32,
+    in_chan: u16,
+    output_chan: u16,
+) -> Vec<f32> {
+    if in_chan == output_chan {
+        return input;
+    }
+    let mut input = input;
+    input.truncate(input.len() / in_chan as usize * in_chan as usize);
+    match (in_chan, output_chan) {
+        (1, 2) => audio_rechannel_1_2(&input, in_hz, out_hz),
+        (1, 3) => audio_rechannel_1_3(&input, in_hz, out_hz),
+        (1, 4) => audio_rechannel_1_4(&input, in_hz, out_hz),
+        (1, 5) => audio_rechannel_1_5(&input, in_hz, out_hz),
+        (1, 6) => audio_rechannel_1_6(&input, in_hz, out_hz),
+        (1, 7) => audio_rechannel_1_7(&input, in_hz, out_hz),
+        (1, 8) => audio_rechannel_1_8(&input, in_hz, out_hz),
+        (2, 1) => audio_rechannel_2_1(&input, in_hz, out_hz),
+        (2, 3) => audio_rechannel_2_3(&input, in_hz, out_hz),
+        (2, 4) => audio_rechannel_2_4(&input, in_hz, out_hz),
+        (2, 5) => audio_rechannel_2_5(&input, in_hz, out_hz),
+        (2, 6) => audio_rechannel_2_6(&input, in_hz, out_hz),
+        (2, 7) => audio_rechannel_2_7(&input, in_hz, out_hz),
+        (2, 8) => audio_rechannel_2_8(&input, in_hz, out_hz),
+        (3, 1) => audio_rechannel_3_1(&input, in_hz, out_hz),
+        (3, 2) => audio_rechannel_3_2(&input, in_hz, out_hz),
+        (3, 4) => audio_rechannel_3_4(&input, in_hz, out_hz),
+        (3, 5) => audio_rechannel_3_5(&input, in_hz, out_hz),
+        (3, 6) => audio_rechannel_3_6(&input, in_hz, out_hz),
+        (3, 7) => audio_rechannel_3_7(&input, in_hz, out_hz),
+        (3, 8) => audio_rechannel_3_8(&input, in_hz, out_hz),
+        (4, 1) => audio_rechannel_4_1(&input, in_hz, out_hz),
+        (4, 2) => audio_rechannel_4_2(&input, in_hz, out_hz),
+        (4, 3) => audio_rechannel_4_3(&input, in_hz, out_hz),
+        (4, 5) => audio_rechannel_4_5(&input, in_hz, out_hz),
+        (4, 6) => audio_rechannel_4_6(&input, in_hz, out_hz),
+        (4, 7) => audio_rechannel_4_7(&input, in_hz, out_hz),
+        (4, 8) => audio_rechannel_4_8(&input, in_hz, out_hz),
+        (5, 1) => audio_rechannel_5_1(&input, in_hz, out_hz),
+        (5, 2) => audio_rechannel_5_2(&input, in_hz, out_hz),
+        (5, 3) => audio_rechannel_5_3(&input, in_hz, out_hz),
+        (5, 4) => audio_rechannel_5_4(&input, in_hz, out_hz),
+        (5, 6) => audio_rechannel_5_6(&input, in_hz, out_hz),
+        (5, 7) => audio_rechannel_5_7(&input, in_hz, out_hz),
+        (5, 8) => audio_rechannel_5_8(&input, in_hz, out_hz),
+        (6, 1) => audio_rechannel_6_1(&input, in_hz, out_hz),
+        (6, 2) => audio_rechannel_6_2(&input, in_hz, out_hz),
+        (6, 3) => audio_rechannel_6_3(&input, in_hz, out_hz),
+        (6, 4) => audio_rechannel_6_4(&input, in_hz, out_hz),
+        (6, 5) => audio_rechannel_6_5(&input, in_hz, out_hz),
+        (6, 7) => audio_rechannel_6_7(&input, in_hz, out_hz),
+        (6, 8) => audio_rechannel_6_8(&input, in_hz, out_hz),
+        (7, 1) => audio_rechannel_7_1(&input, in_hz, out_hz),
+        (7, 2) => audio_rechannel_7_2(&input, in_hz, out_hz),
+        (7, 3) => audio_rechannel_7_3(&input, in_hz, out_hz),
+        (7, 4) => audio_rechannel_7_4(&input, in_hz, out_hz),
+        (7, 5) => audio_rechannel_7_5(&input, in_hz, out_hz),
+        (7, 6) => audio_rechannel_7_6(&input, in_hz, out_hz),
+        (7, 8) => audio_rechannel_7_8(&input, in_hz, out_hz),
+        (8, 1) => audio_rechannel_8_1(&input, in_hz, out_hz),
+        (8, 2) => audio_rechannel_8_2(&input, in_hz, out_hz),
+        (8, 3) => audio_rechannel_8_3(&input, in_hz, out_hz),
+        (8, 4) => audio_rechannel_8_4(&input, in_hz, out_hz),
+        (8, 5) => audio_rechannel_8_5(&input, in_hz, out_hz),
+        (8, 6) => audio_rechannel_8_6(&input, in_hz, out_hz),
+        (8, 7) => audio_rechannel_8_7(&input, in_hz, out_hz),
+        _ => input,
+    }
+}
+
+macro_rules! audio_rechannel {
+    ($name:ident, $in_channels:expr, $out_channels:expr) => {
+        fn $name(input: &[f32], in_hz: u32, out_hz: u32) -> Vec<f32> {
+            use fon::{chan::Ch32, Audio, Frame};
+            let mut in_audio =
+                Audio::<Ch32, $in_channels>::with_silence(in_hz, input.len() / $in_channels);
+            for (x, y) in input.chunks_exact($in_channels).zip(in_audio.iter_mut()) {
+                let mut f = Frame::<Ch32, $in_channels>::default();
+                let mut i = 0;
+                for c in f.channels_mut() {
+                    *c = x[i].into();
+                    i += 1;
+                }
+                *y = f;
+            }
+            Audio::<Ch32, $out_channels>::with_audio(out_hz, &in_audio)
+                .as_f32_slice()
+                .to_owned()
+        }
+    };
+}
+
+audio_rechannel!(audio_rechannel_1_2, 1, 2);
+audio_rechannel!(audio_rechannel_1_3, 1, 3);
+audio_rechannel!(audio_rechannel_1_4, 1, 4);
+audio_rechannel!(audio_rechannel_1_5, 1, 5);
+audio_rechannel!(audio_rechannel_1_6, 1, 6);
+audio_rechannel!(audio_rechannel_1_7, 1, 7);
+audio_rechannel!(audio_rechannel_1_8, 1, 8);
+audio_rechannel!(audio_rechannel_2_1, 2, 1);
+audio_rechannel!(audio_rechannel_2_3, 2, 3);
+audio_rechannel!(audio_rechannel_2_4, 2, 4);
+audio_rechannel!(audio_rechannel_2_5, 2, 5);
+audio_rechannel!(audio_rechannel_2_6, 2, 6);
+audio_rechannel!(audio_rechannel_2_7, 2, 7);
+audio_rechannel!(audio_rechannel_2_8, 2, 8);
+audio_rechannel!(audio_rechannel_3_1, 3, 1);
+audio_rechannel!(audio_rechannel_3_2, 3, 2);
+audio_rechannel!(audio_rechannel_3_4, 3, 4);
+audio_rechannel!(audio_rechannel_3_5, 3, 5);
+audio_rechannel!(audio_rechannel_3_6, 3, 6);
+audio_rechannel!(audio_rechannel_3_7, 3, 7);
+audio_rechannel!(audio_rechannel_3_8, 3, 8);
+audio_rechannel!(audio_rechannel_4_1, 4, 1);
+audio_rechannel!(audio_rechannel_4_2, 4, 2);
+audio_rechannel!(audio_rechannel_4_3, 4, 3);
+audio_rechannel!(audio_rechannel_4_5, 4, 5);
+audio_rechannel!(audio_rechannel_4_6, 4, 6);
+audio_rechannel!(audio_rechannel_4_7, 4, 7);
+audio_rechannel!(audio_rechannel_4_8, 4, 8);
+audio_rechannel!(audio_rechannel_5_1, 5, 1);
+audio_rechannel!(audio_rechannel_5_2, 5, 2);
+audio_rechannel!(audio_rechannel_5_3, 5, 3);
+audio_rechannel!(audio_rechannel_5_4, 5, 4);
+audio_rechannel!(audio_rechannel_5_6, 5, 6);
+audio_rechannel!(audio_rechannel_5_7, 5, 7);
+audio_rechannel!(audio_rechannel_5_8, 5, 8);
+audio_rechannel!(audio_rechannel_6_1, 6, 1);
+audio_rechannel!(audio_rechannel_6_2, 6, 2);
+audio_rechannel!(audio_rechannel_6_3, 6, 3);
+audio_rechannel!(audio_rechannel_6_4, 6, 4);
+audio_rechannel!(audio_rechannel_6_5, 6, 5);
+audio_rechannel!(audio_rechannel_6_7, 6, 7);
+audio_rechannel!(audio_rechannel_6_8, 6, 8);
+audio_rechannel!(audio_rechannel_7_1, 7, 1);
+audio_rechannel!(audio_rechannel_7_2, 7, 2);
+audio_rechannel!(audio_rechannel_7_3, 7, 3);
+audio_rechannel!(audio_rechannel_7_4, 7, 4);
+audio_rechannel!(audio_rechannel_7_5, 7, 5);
+audio_rechannel!(audio_rechannel_7_6, 7, 6);
+audio_rechannel!(audio_rechannel_7_8, 7, 8);
+audio_rechannel!(audio_rechannel_8_1, 8, 1);
+audio_rechannel!(audio_rechannel_8_2, 8, 2);
+audio_rechannel!(audio_rechannel_8_3, 8, 3);
+audio_rechannel!(audio_rechannel_8_4, 8, 4);
+audio_rechannel!(audio_rechannel_8_5, 8, 5);
+audio_rechannel!(audio_rechannel_8_6, 8, 6);
+audio_rechannel!(audio_rechannel_8_7, 8, 7);
+
+pub struct CheckTestNatType {
+    is_direct: bool,
+}
+
+impl CheckTestNatType {
+    pub fn new() -> Self {
+        Self {
+            is_direct: Config::get_socks().is_none() && !config::use_ws(),
+        }
+    }
+}
+
+impl Drop for CheckTestNatType {
+    fn drop(&mut self) {
+        let is_direct = Config::get_socks().is_none() && !config::use_ws();
+        if self.is_direct != is_direct {
+            test_nat_type();
+        }
+    }
+}
+
+pub fn test_nat_type() {
+    test_ipv6_sync();
+    use std::sync::atomic::{AtomicBool, Ordering};
+    std::thread::spawn(move || {
+        static IS_RUNNING: AtomicBool = AtomicBool::new(false);
+        if IS_RUNNING.load(Ordering::SeqCst) {
+            return;
+        }
+        IS_RUNNING.store(true, Ordering::SeqCst);
+
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::ipc::get_socks_ws();
+        let is_direct = Config::get_socks().is_none() && !config::use_ws();
+        if !is_direct {
+            Config::set_nat_type(NatType::SYMMETRIC as _);
+            IS_RUNNING.store(false, Ordering::SeqCst);
+            return;
+        }
+
+        let mut i = 0;
+        loop {
+            match test_nat_type_() {
+                Ok(true) => break,
+                Err(err) => {
+                    log::error!("test nat: {}", err);
+                }
+                _ => {}
+            }
+            if Config::get_nat_type() != 0 {
+                break;
+            }
+            i = i * 2 + 1;
+            if i > 300 {
+                i = 300;
+            }
+            std::thread::sleep(std::time::Duration::from_secs(i));
+        }
+
+        IS_RUNNING.store(false, Ordering::SeqCst);
+    });
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn test_nat_type_() -> ResultType<bool> {
+    log::info!("Testing nat ...");
+    let start = std::time::Instant::now();
+    let server1 = Config::get_rendezvous_server();
+    let server2 = crate::increase_port(&server1, -1);
+    let mut msg_out = RendezvousMessage::new();
+    let serial = Config::get_serial();
+    msg_out.set_test_nat_request(TestNatRequest {
+        serial,
+        ..Default::default()
+    });
+    let mut port1 = 0;
+    let mut port2 = 0;
+    let mut local_addr = None;
+    for i in 0..2 {
+        let server = if i == 0 { &*server1 } else { &*server2 };
+        let mut socket =
+            socket_client::connect_tcp_local(server, local_addr, CONNECT_TIMEOUT).await?;
+        if i == 0 {
+            // reuse the local addr is required for nat test
+            local_addr = Some(socket.local_addr());
+            Config::set_option(
+                "local-ip-addr".to_owned(),
+                socket.local_addr().ip().to_string(),
+            );
+        }
+        socket.send(&msg_out).await?;
+        if let Some(msg_in) = get_next_nonkeyexchange_msg(&mut socket, None).await {
+            if let Some(rendezvous_message::Union::TestNatResponse(tnr)) = msg_in.union {
+                log::debug!("Got nat response from {}: port={}", server, tnr.port);
+                if i == 0 {
+                    port1 = tnr.port;
+                } else {
+                    port2 = tnr.port;
+                }
+            }
+        } else {
+            break;
+        }
+    }
+    let ok = port1 > 0 && port2 > 0;
+    if ok {
+        let t = if port1 == port2 {
+            NatType::ASYMMETRIC
+        } else {
+            NatType::SYMMETRIC
+        };
+        Config::set_nat_type(t as _);
+        log::info!("Tested nat type: {:?} in {:?}", t, start.elapsed());
+    }
+    Ok(ok)
+}
+
+pub async fn get_rendezvous_server(ms_timeout: u64) -> (String, Vec<String>, bool) {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let (mut a, mut b) = get_rendezvous_server_(ms_timeout);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let (mut a, mut b) = get_rendezvous_server_(ms_timeout).await;
+    #[cfg(windows)]
+    if let Ok(lic) = crate::platform::get_license_from_exe_name() {
+        if !lic.host.is_empty() {
+            a = lic.host;
+        }
+    }
+    let mut b: Vec<String> = b
+        .drain(..)
+        .map(|x| socket_client::check_port(x, config::RENDEZVOUS_PORT))
+        .collect();
+    let c = if b.contains(&a) {
+        b = b.drain(..).filter(|x| x != &a).collect();
+        true
+    } else {
+        a = b.pop().unwrap_or(a);
+        false
+    };
+    (a, b, c)
+}
+
+#[inline]
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn get_rendezvous_server_(_ms_timeout: u64) -> (String, Vec<String>) {
+    (
+        Config::get_rendezvous_server(),
+        Config::get_rendezvous_servers(),
+    )
+}
+
+#[inline]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+async fn get_rendezvous_server_(ms_timeout: u64) -> (String, Vec<String>) {
+    crate::ipc::get_rendezvous_server(ms_timeout).await
+}
+
+#[inline]
+#[cfg(any(target_os = "android", target_os = "ios"))]
+pub async fn get_nat_type(_ms_timeout: u64) -> i32 {
+    Config::get_nat_type()
+}
+
+#[inline]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub async fn get_nat_type(ms_timeout: u64) -> i32 {
+    crate::ipc::get_nat_type(ms_timeout).await
+}
+
+// used for client to test which server is faster in case stop-servic=Y
+#[tokio::main(flavor = "current_thread")]
+async fn test_rendezvous_server_() {
+    let servers = Config::get_rendezvous_servers();
+    if servers.len() <= 1 {
+        return;
+    }
+    let mut futs = Vec::new();
+    for host in servers {
+        futs.push(tokio::spawn(async move {
+            let tm = std::time::Instant::now();
+            if socket_client::connect_tcp(
+                crate::check_port(&host, RENDEZVOUS_PORT),
+                CONNECT_TIMEOUT,
+            )
+            .await
+            .is_ok()
+            {
+                let elapsed = tm.elapsed().as_micros();
+                Config::update_latency(&host, elapsed as _);
+            } else {
+                Config::update_latency(&host, -1);
+            }
+        }));
+    }
+    join_all(futs).await;
+    Config::reset_online();
+}
+
+pub fn test_rendezvous_server() {
+    std::thread::spawn(test_rendezvous_server_);
+}
+
+pub fn refresh_rendezvous_server() {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    test_rendezvous_server();
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    std::thread::spawn(|| {
+        if crate::ipc::test_rendezvous_server().is_err() {
+            test_rendezvous_server();
+        }
+    });
+}
+
+pub fn run_me<T: AsRef<std::ffi::OsStr>>(args: Vec<T>) -> std::io::Result<std::process::Child> {
+    #[cfg(target_os = "linux")]
+    if let Ok(appdir) = std::env::var("APPDIR") {
+        let appimage_cmd = std::path::Path::new(&appdir).join("AppRun");
+        if appimage_cmd.exists() {
+            log::info!("path: {:?}", appimage_cmd);
+            return std::process::Command::new(appimage_cmd).args(&args).spawn();
+        }
+    }
+    let cmd = std::env::current_exe()?;
+    let mut cmd = std::process::Command::new(cmd);
+    #[cfg(windows)]
+    let mut force_foreground = false;
+    #[cfg(windows)]
+    {
+        let arg_strs = args
+            .iter()
+            .map(|x| x.as_ref().to_string_lossy())
+            .collect::<Vec<_>>();
+        if arg_strs == vec!["--install"] || arg_strs == &["--noinstall"] {
+            cmd.env(crate::platform::SET_FOREGROUND_WINDOW, "1");
+            force_foreground = true;
+        }
+    }
+    let result = cmd.args(&args).spawn();
+    match result.as_ref() {
+        Ok(_child) =>
+        {
+            #[cfg(windows)]
+            if force_foreground {
+                unsafe { winapi::um::winuser::AllowSetForegroundWindow(_child.id() as u32) };
+            }
+        }
+        Err(err) => log::error!("run_me: {err:?}"),
+    }
+    result
+}
+
+#[inline]
+pub fn username() -> String {
+    // fix bug of whoami
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return whoami::username().trim_end_matches('\0').to_owned();
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    return DEVICE_NAME.lock().unwrap().clone();
+}
+
+// Exactly the implementation of "whoami::hostname()".
+// This wrapper is to suppress warnings.
+#[inline(always)]
+#[cfg(not(target_os = "ios"))]
+pub fn whoami_hostname() -> String {
+    let mut hostname = whoami::fallible::hostname().unwrap_or_else(|_| "localhost".to_string());
+    hostname.make_ascii_lowercase();
+    hostname
+}
+
+#[inline]
+pub fn hostname() -> String {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        #[allow(unused_mut)]
+        let mut name = whoami_hostname();
+        // some time, there is .local, some time not, so remove it for osx
+        #[cfg(target_os = "macos")]
+        if name.ends_with(".local") {
+            name = name.trim_end_matches(".local").to_owned();
+        }
+        name
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    return DEVICE_NAME.lock().unwrap().clone();
+}
+
+#[inline]
+pub fn get_sysinfo() -> serde_json::Value {
+    use hbb_common::sysinfo::System;
+    let mut system = System::new();
+    system.refresh_memory();
+    system.refresh_cpu();
+    let memory = system.total_memory();
+    let memory = (memory as f64 / 1024. / 1024. / 1024. * 100.).round() / 100.;
+    let cpus = system.cpus();
+    let cpu_name = cpus.first().map(|x| x.brand()).unwrap_or_default();
+    let cpu_name = cpu_name.trim_end();
+    let cpu_freq = cpus.first().map(|x| x.frequency()).unwrap_or_default();
+    let cpu_freq = (cpu_freq as f64 / 1024. * 100.).round() / 100.;
+    let cpu = if cpu_freq > 0. {
+        format!("{}, {}GHz, ", cpu_name, cpu_freq)
+    } else {
+        "".to_owned() // android
+    };
+    let num_cpus = num_cpus::get();
+    let num_pcpus = num_cpus::get_physical();
+    let mut os = system.distribution_id();
+    os = format!("{} / {}", os, system.long_os_version().unwrap_or_default());
+    #[cfg(windows)]
+    {
+        os = format!("{os} - {}", system.os_version().unwrap_or_default());
+    }
+    let hostname = hostname(); // sys.hostname() return localhost on android in my test
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let out;
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let mut out;
+    out = json!({
+        "cpu": format!("{cpu}{num_cpus}/{num_pcpus} cores"),
+        "memory": format!("{memory}GB"),
+        "os": os,
+        "hostname": hostname,
+    });
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let username = crate::platform::get_active_username();
+        if !username.is_empty() && (!cfg!(windows) || username != "SYSTEM") {
+            out["username"] = json!(username);
+        }
+    }
+    out
+}
+
+#[inline]
+pub fn check_port<T: std::string::ToString>(host: T, port: i32) -> String {
+    hbb_common::socket_client::check_port(host, port)
+}
+
+#[inline]
+pub fn increase_port<T: std::string::ToString>(host: T, offset: i32) -> String {
+    hbb_common::socket_client::increase_port(host, offset)
+}
+
+pub const POSTFIX_SERVICE: &'static str = "_service";
+
+#[inline]
+pub fn is_control_key(evt: &KeyEvent, key: &ControlKey) -> bool {
+    if let Some(key_event::Union::ControlKey(ck)) = evt.union {
+        ck.value() == key.value()
+    } else {
+        false
+    }
+}
+
+#[inline]
+pub fn is_modifier(evt: &KeyEvent) -> bool {
+    if let Some(key_event::Union::ControlKey(ck)) = evt.union {
+        let v = ck.value();
+        v == ControlKey::Alt.value()
+            || v == ControlKey::Shift.value()
+            || v == ControlKey::Control.value()
+            || v == ControlKey::Meta.value()
+            || v == ControlKey::RAlt.value()
+            || v == ControlKey::RShift.value()
+            || v == ControlKey::RControl.value()
+            || v == ControlKey::RWin.value()
+    } else {
+        false
+    }
+}
+
+pub fn check_software_update() {
+    if is_custom_client() {
+        return;
+    }
+    let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
+    if config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt) {
+        std::thread::spawn(move || allow_err!(do_check_software_update()));
+    }
+}
+
+pub(crate) fn release_id_from_update_url(update_url: &str) -> ResultType<String> {
+    let url = url::Url::parse(update_url)?;
+    if url.scheme() != "https" || url.host_str() != Some("github.com") {
+        bail!(
+            "Update URL is not a GitHub HTTPS release URL: {}",
+            update_url
+        );
+    }
+    if url_has_explicit_port(update_url)
+        || url.port().is_some()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        bail!(
+            "Update URL must not contain credentials or an explicit port: {}",
+            update_url
+        );
+    }
+    if url.query().is_some() || url.fragment().is_some() {
+        bail!(
+            "Update URL must not contain query or fragment: {}",
+            update_url
+        );
+    }
+
+    let Some(segments) = url.path_segments() else {
+        bail!("Update URL has no path: {}", update_url);
+    };
+    let segments = segments.collect::<Vec<_>>();
+    let release_id = match segments.as_slice() {
+        ["rustdesk", "rustdesk", "releases", "tag", release_id] => *release_id,
+        ["rustdesk", "rustdesk", "releases", "tag", release_id, ""] => *release_id,
+        _ => bail!(
+            "Update URL is not a RustDesk release tag URL: {}",
+            update_url
+        ),
+    };
+    if release_id.is_empty()
+        || release_id == "."
+        || release_id == ".."
+        || release_id.contains([' ', '/', '\\', '?', '#'])
+        || release_id.contains('%')
+    {
+        bail!("Update URL has no release id: {}", update_url);
+    }
+    Ok(release_id.to_owned())
+}
+
+pub(crate) fn url_has_explicit_port(raw_url: &str) -> bool {
+    let Some((_, rest)) = raw_url.split_once("://") else {
+        return false;
+    };
+    let authority = rest
+        .split(|c| matches!(c, '/' | '?' | '#'))
+        .next()
+        .unwrap_or_default();
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    host_port.rsplit_once(':').is_some()
+}
+
+pub(crate) fn display_version_from_release_id(release_id: &str) -> ResultType<String> {
+    let display_version = release_id.strip_prefix('v').unwrap_or(release_id);
+    let segments = display_version.split('.').collect::<Vec<_>>();
+    if segments.len() != 3
+        || segments.iter().any(|segment| {
+            segment.is_empty()
+                || !segment.chars().all(|c| c.is_ascii_digit())
+                || segment.parse::<u16>().is_err()
+        })
+    {
+        bail!("Release id is not a stable display version: {}", release_id);
+    }
+    if get_version_number(display_version) <= 0 {
+        bail!("Release id has invalid display version: {}", release_id);
+    }
+    Ok(display_version.to_owned())
+}
+
+fn clear_software_update_url() {
+    let mut update_url = SOFTWARE_UPDATE_URL.lock().unwrap();
+    *update_url = String::new();
+}
+
+fn process_software_update_check_response(bytes: Bytes) -> ResultType<()> {
+    let resp: hbb_common::VersionCheckResponse = serde_json::from_slice(&bytes)?;
+    let response_url = resp.url;
+    let release_id = release_id_from_update_url(&response_url)?;
+    let latest_release_version = display_version_from_release_id(&release_id)?;
+
+    if get_version_number(&latest_release_version) > get_version_number(crate::VERSION) {
+        #[cfg(feature = "flutter")]
+        {
+            let mut m = HashMap::new();
+            m.insert("name", "check_software_update_finish");
+            m.insert("url", &response_url);
+            if let Ok(data) = serde_json::to_string(&m) {
+                let _ = crate::flutter::push_global_event(crate::flutter::APP_TYPE_MAIN, data);
+            }
+        }
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = response_url;
+    } else {
+        clear_software_update_url();
+    }
+    Ok(())
+}
+
+// No need to check `danger_accept_invalid_cert` for now.
+// Because the url is always `https://api.rustdesk.com/version/latest`.
+#[tokio::main(flavor = "current_thread")]
+pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
+    let (request, url) =
+        hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
+    let proxy_conf = Config::get_socks();
+    let tls_url = get_url_for_tls(&url, &proxy_conf);
+    let tls_type = get_cached_tls_type(tls_url);
+    let is_tls_not_cached = tls_type.is_none();
+    let tls_type = tls_type.unwrap_or(TlsType::Rustls);
+    let client = create_http_client_async(tls_type, false);
+    let latest_release_response: ResultType<_> = match client.post(&url).json(&request).send().await
+    {
+        Ok(resp) => Ok((tls_type, resp)),
+        Err(err) => {
+            if is_tls_not_cached && err.is_request() {
+                let tls_type = TlsType::NativeTls;
+                let client = create_http_client_async(tls_type, false);
+                match client.post(&url).json(&request).send().await {
+                    Ok(resp) => Ok((tls_type, resp)),
+                    Err(err) => Err(err.into()),
+                }
+            } else {
+                Err(err.into())
+            }
+        }
+    };
+    let response_bytes = match latest_release_response {
+        Ok((used_tls_type, response)) => {
+            upsert_tls_cache(tls_url, used_tls_type, false);
+            let status = response.status();
+            if !status.is_success() {
+                Err(anyhow!(
+                    "Software update check failed with HTTP status: {status}"
+                ))
+            } else {
+                response.bytes().await.map_err(|err| err.into())
+            }
+        }
+        Err(err) => Err(err),
+    };
+    let result = response_bytes.and_then(process_software_update_check_response);
+    if result.is_err() {
+        clear_software_update_url();
+    }
+    result
+}
+
+#[inline]
+pub fn get_app_name() -> String {
+    hbb_common::config::APP_NAME.read().unwrap().clone()
+}
+
+#[inline]
+pub fn is_rustdesk() -> bool {
+    hbb_common::config::APP_NAME.read().unwrap().eq("RustDesk")
+}
+
+#[inline]
+pub fn get_uri_prefix() -> String {
+    format!("{}://", get_app_name().to_lowercase())
+}
+
+#[cfg(target_os = "macos")]
+pub fn get_full_name() -> String {
+    format!(
+        "{}.{}",
+        hbb_common::config::ORG.read().unwrap(),
+        hbb_common::config::APP_NAME.read().unwrap(),
+    )
+}
+
+pub fn is_setup(name: &str) -> bool {
+    !config::is_disable_installation() && name.to_lowercase().ends_with("install.exe")
+}
+
+pub fn get_custom_rendezvous_server(custom: String) -> String {
+    #[cfg(windows)]
+    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
+        if !lic.host.is_empty() {
+            return lic.host.clone();
+        }
+    }
+    if !custom.is_empty() {
+        return custom;
+    }
+    if !config::PROD_RENDEZVOUS_SERVER.read().unwrap().is_empty() {
+        return config::PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
+    }
+    "".to_owned()
+}
+
+#[inline]
+pub fn get_api_server(api: String, custom: String) -> String {
+    if Config::no_register_device() {
+        return "".to_owned();
+    }
+    let mut res = get_api_server_(api, custom);
+    if res.ends_with('/') {
+        res.pop();
+    }
+    if res.starts_with("https")
+        && res.ends_with(":21114")
+        && get_builtin_option(keys::OPTION_ALLOW_HTTPS_21114) != "Y"
+    {
+        return res.replace(":21114", "");
+    }
+    res
+}
+
+fn get_api_server_(api: String, custom: String) -> String {
+    #[cfg(windows)]
+    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
+        if !lic.api.is_empty() {
+            return lic.api.clone();
+        }
+    }
+    if !api.is_empty() {
+        return api.to_owned();
+    }
+    let s0 = get_custom_rendezvous_server(custom);
+    if !s0.is_empty() {
+        let s = crate::increase_port(&s0, -2);
+        if s == s0 {
+            let s = if hbb_common::is_ipv6_str(&s) && !s.starts_with('[') {
+                format!("[{s}]")
+            } else {
+                s
+            };
+            return format!("http://{}:{}", s, config::RENDEZVOUS_PORT - 2);
+        } else {
+            return format!("http://{}", s);
+        }
+    }
+    "https://admin.rustdesk.com".to_owned()
+}
+
+#[inline]
+pub fn is_public(url: &str) -> bool {
+    let parsed = url::Url::parse(url)
+        .ok()
+        .filter(|parsed| parsed.has_host())
+        .or_else(|| url::Url::parse(&format!("http://{url}")).ok());
+    let Some(host) = parsed.as_ref().and_then(url::Url::host_str) else {
+        return false;
+    };
+    let host = host.strip_suffix('.').unwrap_or(host);
+    host == "rustdesk.com" || host.ends_with(".rustdesk.com")
+}
+
+pub fn get_tcp_punch_enabled() -> bool {
+    config::option2bool(
+        keys::OPTION_ENABLE_TCP_PUNCH,
+        &get_local_option(keys::OPTION_ENABLE_TCP_PUNCH),
+    )
+}
+
+pub fn get_udp_punch_enabled() -> bool {
+    config::option2bool(
+        keys::OPTION_ENABLE_UDP_PUNCH,
+        &get_local_option(keys::OPTION_ENABLE_UDP_PUNCH),
+    )
+}
+
+pub fn get_ipv6_punch_enabled() -> bool {
+    config::option2bool(
+        keys::OPTION_ENABLE_IPV6_PUNCH,
+        &get_local_option(keys::OPTION_ENABLE_IPV6_PUNCH),
+    )
+}
+
+pub fn get_webrtc_enabled() -> bool {
+    config::option2bool(
+        keys::OPTION_ENABLE_WEBRTC,
+        &get_local_option(keys::OPTION_ENABLE_WEBRTC),
+    )
+}
+
+pub fn get_local_option(key: &str) -> String {
+    let v = LocalConfig::get_option(key);
+    if key == keys::OPTION_ENABLE_UDP_PUNCH
+        || key == keys::OPTION_ENABLE_IPV6_PUNCH
+        || key == keys::OPTION_ENABLE_WEBRTC
+    {
+        if v.is_empty() {
+            if !is_public(&Config::get_rendezvous_server()) {
+                return "N".to_owned();
+            }
+        }
+    }
+    if key == "lang" && (v == "pt" || v == "br") {
+        return "pt-br".to_owned();
+    }
+    v
+}
+
+pub fn get_audit_server(api: String, custom: String, typ: String) -> String {
+    let url = get_api_server(api, custom);
+    if url.is_empty() || is_public(&url) {
+        return "".to_owned();
+    }
+    format!("{}/api/audit/{}", url, typ)
+}
+
+/// Check if we should use raw TCP proxy for API calls.
+/// Returns true if USE_RAW_TCP_FOR_API builtin option is "Y", WebSocket is off,
+/// and the target URL belongs to the configured non-public API host.
+#[inline]
+fn should_use_raw_tcp_for_api(url: &str) -> bool {
+    get_builtin_option(keys::OPTION_USE_RAW_TCP_FOR_API) == "Y"
+        && !use_ws()
+        && is_tcp_proxy_api_target(url)
+}
+
+/// Check if we can attempt raw TCP proxy fallback for this target URL.
+#[inline]
+fn can_fallback_to_raw_tcp(url: &str) -> bool {
+    !use_ws() && is_tcp_proxy_api_target(url)
+}
+
+#[inline]
+fn should_use_tcp_proxy_for_api_url(url: &str, api_url: &str) -> bool {
+    if api_url.is_empty() || is_public(api_url) {
+        return false;
+    }
+
+    let target_host = url::Url::parse(url)
+        .ok()
+        .and_then(|parsed| parsed.host_str().map(|host| host.to_ascii_lowercase()));
+    let api_host = url::Url::parse(api_url)
+        .ok()
+        .and_then(|parsed| parsed.host_str().map(|host| host.to_ascii_lowercase()));
+
+    matches!((target_host, api_host), (Some(target), Some(api)) if target == api)
+}
+
+#[inline]
+fn is_tcp_proxy_api_target(url: &str) -> bool {
+    should_use_tcp_proxy_for_api_url(url, &ui_get_api_server())
+}
+
+#[inline]
+fn should_throttle_log(url: &str) -> bool {
+    url::Url::parse(url)
+        .map(|parsed| parsed.path().ends_with("/api/heartbeat"))
+        .unwrap_or(false)
+}
+
+macro_rules! api_log {
+    ($level:ident, $url:expr, $interval:expr, $($arg:tt)+) => {{
+        if should_throttle_log($url) {
+            hbb_common::throttled_log!($interval, $level, $($arg)+);
+        } else {
+            log::$level!($($arg)+);
+        }
+    }};
+}
+
+fn tcp_proxy_log_target(url: &str) -> String {
+    url::Url::parse(url)
+        .ok()
+        .map(|parsed| {
+            let mut redacted = format!("{}://", parsed.scheme());
+            let Some(host) = parsed.host() else {
+                return "<invalid-url>".to_owned();
+            };
+            redacted.push_str(&host.to_string());
+            if let Some(port) = parsed.port() {
+                redacted.push(':');
+                redacted.push_str(&port.to_string());
+            }
+            redacted.push_str(parsed.path());
+            redacted
+        })
+        .unwrap_or_else(|| "<invalid-url>".to_owned())
+}
+
+#[inline]
+fn get_tcp_proxy_addr() -> String {
+    check_port(Config::get_rendezvous_server(), RENDEZVOUS_PORT)
+}
+
+/// Send an HTTP request via the rendezvous server's TCP proxy using protobuf.
+/// Connects with `connect_tcp` + `secure_tcp`, sends `HttpProxyRequest`,
+/// receives `HttpProxyResponse`.
+///
+/// The entire operation (connect + handshake + send + receive) is wrapped in
+/// an overall timeout of `CONNECT_TIMEOUT + READ_TIMEOUT` so that a stall at
+/// any stage cannot block the caller indefinitely.
+async fn tcp_proxy_request(
+    method: &str,
+    url: &str,
+    body: &[u8],
+    headers: Vec<HeaderEntry>,
+) -> ResultType<HttpProxyResponse> {
+    let tcp_addr = get_tcp_proxy_addr();
+    if tcp_addr.is_empty() {
+        bail!("No rendezvous server configured for TCP proxy");
+    }
+
+    let parsed = url::Url::parse(url)?;
+    let path = if let Some(query) = parsed.query() {
+        format!("{}?{}", parsed.path(), query)
+    } else {
+        parsed.path().to_string()
+    };
+
+    api_log!(
+        debug,
+        url,
+        API_LOG_INTERVAL,
+        "Sending {} {} via TCP proxy to {}",
+        method,
+        parsed.path(),
+        tcp_addr
+    );
+
+    let overall_timeout = CONNECT_TIMEOUT + READ_TIMEOUT;
+    timeout(overall_timeout, async {
+        let mut conn = socket_client::connect_tcp(&*tcp_addr, CONNECT_TIMEOUT).await?;
+        let key = crate::get_key(true).await;
+        secure_tcp_silent(&mut conn, &key).await?;
+
+        let mut req = HttpProxyRequest::new();
+        req.method = method.to_uppercase();
+        req.path = path;
+        req.headers = headers.into();
+        req.body = Bytes::from(body.to_vec());
+
+        let mut msg_out = RendezvousMessage::new();
+        msg_out.set_http_proxy_request(req);
+        conn.send(&msg_out).await?;
+
+        match conn.next().await {
+            Some(Ok(bytes)) => {
+                let msg_in = RendezvousMessage::parse_from_bytes(&bytes)?;
+                match msg_in.union {
+                    Some(rendezvous_message::Union::HttpProxyResponse(resp)) => Ok(resp),
+                    _ => bail!("Unexpected response from TCP proxy"),
+                }
+            }
+            Some(Err(e)) => bail!("TCP proxy read error: {}", e),
+            None => bail!("TCP proxy connection closed without response"),
+        }
+    })
+    .await?
+}
+
+/// Build HeaderEntry list from "Key: Value" style header string (used by post_request).
+/// If the caller supplies a Content-Type header it overrides the default `application/json`.
+fn parse_simple_header(header: &str) -> Vec<HeaderEntry> {
+    let mut entries = Vec::new();
+    let mut has_content_type = false;
+    if !header.is_empty() {
+        let tmp: Vec<&str> = header.splitn(2, ": ").collect();
+        if tmp.len() == 2 {
+            if tmp[0].eq_ignore_ascii_case("Content-Type") {
+                has_content_type = true;
+            }
+            entries.push(HeaderEntry {
+                name: tmp[0].into(),
+                value: tmp[1].into(),
+                ..Default::default()
+            });
+        }
+    }
+    if !has_content_type {
+        entries.insert(
+            0,
+            HeaderEntry {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+                ..Default::default()
+            },
+        );
+    }
+    entries
+}
+
+/// POST request via TCP proxy.
+async fn post_request_via_tcp_proxy(url: &str, body: &str, header: &str) -> ResultType<String> {
+    let headers = parse_simple_header(header);
+    let resp = tcp_proxy_request("POST", url, body.as_bytes(), headers).await?;
+    if !resp.error.is_empty() {
+        bail!("TCP proxy error: {}", resp.error);
+    }
+    Ok(String::from_utf8_lossy(&resp.body).to_string())
+}
+
+fn http_proxy_response_to_json(resp: HttpProxyResponse) -> ResultType<String> {
+    if !resp.error.is_empty() {
+        bail!("TCP proxy error: {}", resp.error);
+    }
+
+    let mut response_headers = Map::new();
+    for entry in resp.headers.iter() {
+        response_headers.insert(entry.name.to_lowercase(), json!(entry.value));
+    }
+
+    let mut result = Map::new();
+    result.insert("status_code".to_string(), json!(resp.status));
+    result.insert("headers".to_string(), Value::Object(response_headers));
+    result.insert(
+        "body".to_string(),
+        json!(String::from_utf8_lossy(&resp.body)),
+    );
+
+    serde_json::to_string(&result).map_err(|e| anyhow!("Failed to serialize response: {}", e))
+}
+
+fn parse_json_header_entries(header: &str) -> ResultType<Vec<HeaderEntry>> {
+    let v: Value = serde_json::from_str(header)?;
+    if let Value::Object(obj) = v {
+        Ok(obj
+            .iter()
+            .map(|(key, value)| HeaderEntry {
+                name: key.clone(),
+                value: value.as_str().unwrap_or_default().into(),
+                ..Default::default()
+            })
+            .collect())
+    } else {
+        Err(anyhow!("HTTP header information parsing failed!"))
+    }
+}
+
+/// Returns (status_code, body_text). Separating status so the wrapper can decide on fallback.
+async fn post_request_http(url: &str, body: &str, header: &str) -> ResultType<(u16, String)> {
+    let proxy_conf = Config::get_socks();
+    let tls_url = get_url_for_tls(url, &proxy_conf);
+    let tls_type = get_cached_tls_type(tls_url);
+    let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(tls_url);
+    let response = post_request_(
+        url,
+        tls_url,
+        body.to_owned(),
+        header,
+        tls_type,
+        danger_accept_invalid_cert,
+        danger_accept_invalid_cert,
+    )
+    .await?;
+    let status = response.status().as_u16();
+    let text = response.text().await?;
+    Ok((status, text))
+}
+
+/// Try `http_fn` first; on connection failure or 5xx, fall back to `tcp_fn`
+/// if the URL is eligible. 4xx responses are returned as-is.
+async fn with_tcp_proxy_fallback<HttpFut, TcpFut>(
+    url: &str,
+    method: &str,
+    http_fn: HttpFut,
+    tcp_fn: TcpFut,
+) -> ResultType<String>
+where
+    HttpFut: Future<Output = ResultType<(u16, String)>>,
+    TcpFut: Future<Output = ResultType<String>>,
+{
+    if should_use_raw_tcp_for_api(url) {
+        return tcp_fn.await;
+    }
+
+    let http_result = http_fn.await;
+    let should_fallback = match &http_result {
+        Err(_) => true,
+        Ok((status, _)) => *status >= 500,
+    };
+
+    if should_fallback && can_fallback_to_raw_tcp(url) {
+        api_log!(
+            warn,
+            url,
+            API_LOG_INTERVAL,
+            "HTTP {} to {} failed or 5xx (result: {:?}), trying TCP proxy fallback",
+            method,
+            tcp_proxy_log_target(url),
+            http_result
+                .as_ref()
+                .map(|(s, _)| *s)
+                .map_err(|e| e.to_string()),
+        );
+        match tcp_fn.await {
+            Ok(resp) => return Ok(resp),
+            Err(tcp_err) => {
+                api_log!(
+                    warn,
+                    url,
+                    API_LOG_INTERVAL,
+                    "TCP proxy fallback also failed: {:?}",
+                    tcp_err
+                );
+            }
+        }
+    }
+
+    http_result.map(|(_status, text)| text)
+}
+
+/// POST request with raw TCP proxy support.
+/// - If `USE_RAW_TCP_FOR_API` is "Y" and WS is off, goes directly through TCP proxy.
+/// - Otherwise tries HTTP first; on connection failure or 5xx status,
+///   falls back to TCP proxy if WS is off.
+/// - 4xx responses are returned as-is (server is reachable, business logic error).
+/// - If fallback also fails, returns the original HTTP result (text or error).
+pub async fn post_request(url: String, body: String, header: &str) -> ResultType<String> {
+    with_tcp_proxy_fallback(
+        &url,
+        "POST",
+        post_request_http(&url, &body, header),
+        post_request_via_tcp_proxy(&url, &body, header),
+    )
+    .await
+}
+
+/// POST request via TCP proxy, preserving the HTTP status code.
+async fn post_request_via_tcp_proxy_status(
+    url: &str,
+    body: &str,
+    header: &str,
+) -> ResultType<(u16, String)> {
+    let headers = parse_simple_header(header);
+    let resp = tcp_proxy_request("POST", url, body.as_bytes(), headers).await?;
+    if !resp.error.is_empty() {
+        bail!("TCP proxy error: {}", resp.error);
+    }
+    Ok((
+        resp.status as u16,
+        String::from_utf8_lossy(&resp.body).to_string(),
+    ))
+}
+
+/// Like `post_request`, but returns the HTTP status code so callers can tell
+/// a server-side failure from success. Same fallback rules: on connection
+/// failure or 5xx, retry once through the raw TCP proxy when eligible.
+pub async fn post_request_with_status(
+    url: String,
+    body: String,
+    header: &str,
+) -> ResultType<(u16, String)> {
+    if should_use_raw_tcp_for_api(&url) {
+        return post_request_via_tcp_proxy_status(&url, &body, header).await;
+    }
+    let http_result = post_request_http(&url, &body, header).await;
+    let should_fallback = match &http_result {
+        Err(_) => true,
+        Ok((status, _)) => *status >= 500,
+    };
+    if should_fallback && can_fallback_to_raw_tcp(&url) {
+        api_log!(
+            warn,
+            &url,
+            API_LOG_INTERVAL,
+            "HTTP POST to {} failed or 5xx (result: {:?}), trying TCP proxy fallback",
+            tcp_proxy_log_target(&url),
+            http_result
+                .as_ref()
+                .map(|(s, _)| *s)
+                .map_err(|e| e.to_string()),
+        );
+        match post_request_via_tcp_proxy_status(&url, &body, header).await {
+            Ok(resp) => return Ok(resp),
+            Err(tcp_err) => {
+                api_log!(
+                    warn,
+                    &url,
+                    API_LOG_INTERVAL,
+                    "TCP proxy fallback also failed: {:?}",
+                    tcp_err
+                );
+            }
+        }
+    }
+    http_result
+}
+
+#[async_recursion]
+async fn post_request_(
+    url: &str,
+    tls_url: &str,
+    body: String,
+    header: &str,
+    tls_type: Option<TlsType>,
+    danger_accept_invalid_cert: Option<bool>,
+    original_danger_accept_invalid_cert: Option<bool>,
+) -> ResultType<reqwest::Response> {
+    let mut req = create_http_client_async(
+        tls_type.unwrap_or(TlsType::Rustls),
+        danger_accept_invalid_cert.unwrap_or(false),
+    )
+    .post(url);
+    if !header.is_empty() {
+        let tmp: Vec<&str> = header.split(": ").collect();
+        if tmp.len() == 2 {
+            req = req.header(tmp[0], tmp[1]);
+        }
+    }
+    req = req.header("Content-Type", "application/json");
+    let to = std::time::Duration::from_secs(12);
+    if tls_type.is_some() && danger_accept_invalid_cert.is_some() {
+        // This branch is used to reduce a `clone()` when both `tls_type` and
+        // `danger_accept_invalid_cert` are cached.
+        match req.body(body.clone()).timeout(to).send().await {
+            Ok(resp) => {
+                upsert_tls_cache(
+                    tls_url,
+                    tls_type.unwrap_or(TlsType::Rustls),
+                    danger_accept_invalid_cert.unwrap_or(false),
+                );
+                Ok(resp)
+            }
+            Err(e) => Err(anyhow!("{:?}", e)),
+        }
+    } else {
+        match req.body(body.clone()).timeout(to).send().await {
+            Ok(resp) => {
+                upsert_tls_cache(
+                    tls_url,
+                    tls_type.unwrap_or(TlsType::Rustls),
+                    danger_accept_invalid_cert.unwrap_or(false),
+                );
+                Ok(resp)
+            }
+            Err(e) => {
+                if (tls_type.is_none() || danger_accept_invalid_cert.is_none()) && e.is_request() {
+                    if danger_accept_invalid_cert.is_none() {
+                        api_log!(
+                            warn,
+                            url,
+                            API_LOG_INTERVAL,
+                            "HTTP request failed: {:?}, try again, danger accept invalid cert",
+                            e
+                        );
+                        post_request_(
+                            url,
+                            tls_url,
+                            body,
+                            header,
+                            tls_type,
+                            Some(true),
+                            original_danger_accept_invalid_cert,
+                        )
+                        .await
+                    } else {
+                        api_log!(
+                            warn,
+                            url,
+                            API_LOG_INTERVAL,
+                            "HTTP request failed: {:?}, try again with native-tls",
+                            e
+                        );
+                        post_request_(
+                            url,
+                            tls_url,
+                            body,
+                            header,
+                            Some(TlsType::NativeTls),
+                            original_danger_accept_invalid_cert,
+                            original_danger_accept_invalid_cert,
+                        )
+                        .await
+                    }
+                } else {
+                    Err(anyhow!("{:?}", e))
+                }
+            }
+        }
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+pub async fn post_request_sync(url: String, body: String, header: &str) -> ResultType<String> {
+    post_request(url, body, header).await
+}
+
+#[async_recursion]
+async fn get_http_response_async(
+    url: &str,
+    tls_url: &str,
+    method: &str,
+    body: Option<String>,
+    header: &str,
+    tls_type: Option<TlsType>,
+    danger_accept_invalid_cert: Option<bool>,
+    original_danger_accept_invalid_cert: Option<bool>,
+) -> ResultType<reqwest::Response> {
+    let http_client = create_http_client_async(
+        tls_type.unwrap_or(TlsType::Rustls),
+        danger_accept_invalid_cert.unwrap_or(false),
+    );
+    let normalized_method = method.to_ascii_lowercase();
+    let mut http_client = match normalized_method.as_str() {
+        "get" => http_client.get(url),
+        "post" => http_client.post(url),
+        "put" => http_client.put(url),
+        "delete" => http_client.delete(url),
+        _ => return Err(anyhow!("The HTTP request method is not supported!")),
+    };
+    for entry in parse_json_header_entries(header)? {
+        http_client = http_client.header(entry.name, entry.value);
+    }
+
+    if tls_type.is_some() && danger_accept_invalid_cert.is_some() {
+        if let Some(b) = body {
+            http_client = http_client.body(b);
+        }
+        match http_client
+            .timeout(std::time::Duration::from_secs(12))
+            .send()
+            .await
+        {
+            Ok(resp) => {
+                upsert_tls_cache(
+                    tls_url,
+                    tls_type.unwrap_or(TlsType::Rustls),
+                    danger_accept_invalid_cert.unwrap_or(false),
+                );
+                Ok(resp)
+            }
+            Err(e) => Err(anyhow!("{:?}", e)),
+        }
+    } else {
+        if let Some(b) = body.clone() {
+            http_client = http_client.body(b);
+        }
+
+        match http_client
+            .timeout(std::time::Duration::from_secs(12))
+            .send()
+            .await
+        {
+            Ok(resp) => {
+                upsert_tls_cache(
+                    tls_url,
+                    tls_type.unwrap_or(TlsType::Rustls),
+                    danger_accept_invalid_cert.unwrap_or(false),
+                );
+                Ok(resp)
+            }
+            Err(e) => {
+                if (tls_type.is_none() || danger_accept_invalid_cert.is_none()) && e.is_request() {
+                    if danger_accept_invalid_cert.is_none() {
+                        log::warn!(
+                            "HTTP request failed: {:?}, try again, danger accept invalid cert",
+                            e
+                        );
+                        get_http_response_async(
+                            url,
+                            tls_url,
+                            method,
+                            body,
+                            header,
+                            tls_type,
+                            Some(true),
+                            original_danger_accept_invalid_cert,
+                        )
+                        .await
+                    } else {
+                        log::warn!("HTTP request failed: {:?}, try again with native-tls", e);
+                        get_http_response_async(
+                            url,
+                            tls_url,
+                            method,
+                            body,
+                            header,
+                            Some(TlsType::NativeTls),
+                            original_danger_accept_invalid_cert,
+                            original_danger_accept_invalid_cert,
+                        )
+                        .await
+                    }
+                } else {
+                    Err(anyhow!("{:?}", e))
+                }
+            }
+        }
+    }
+}
+
+/// Returns (status_code, json_string) so the caller can inspect the status
+/// without re-parsing the serialized JSON.
+async fn http_request_http(
+    url: &str,
+    method: &str,
+    body: Option<String>,
+    header: &str,
+) -> ResultType<(u16, String)> {
+    let proxy_conf = Config::get_socks();
+    let tls_url = get_url_for_tls(url, &proxy_conf);
+    let tls_type = get_cached_tls_type(tls_url);
+    let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(tls_url);
+    let response = get_http_response_async(
+        url,
+        tls_url,
+        method,
+        body,
+        header,
+        tls_type,
+        danger_accept_invalid_cert,
+        danger_accept_invalid_cert,
+    )
+    .await?;
+    // Serialize response headers
+    let mut response_headers = Map::new();
+    for (key, value) in response.headers() {
+        response_headers.insert(key.to_string(), json!(value.to_str().unwrap_or("")));
+    }
+
+    let status_code = response.status().as_u16();
+    let response_body = response.text().await?;
+
+    // Construct the JSON object
+    let mut result = Map::new();
+    result.insert("status_code".to_string(), json!(status_code));
+    result.insert("headers".to_string(), Value::Object(response_headers));
+    result.insert("body".to_string(), json!(response_body));
+
+    // Convert map to JSON string
+    let json_str = serde_json::to_string(&result)
+        .map_err(|e| anyhow!("Failed to serialize response: {}", e))?;
+    Ok((status_code, json_str))
+}
+
+/// HTTP request with raw TCP proxy support.
+#[tokio::main(flavor = "current_thread")]
+pub async fn http_request_sync(
+    url: String,
+    method: String,
+    body: Option<String>,
+    header: String,
+) -> ResultType<String> {
+    with_tcp_proxy_fallback(
+        &url,
+        &method,
+        http_request_http(&url, &method, body.clone(), &header),
+        http_request_via_tcp_proxy(&url, &method, body.as_deref(), &header),
+    )
+    .await
+}
+
+/// General HTTP request via TCP proxy. Header is a JSON string (used by http_request_sync).
+/// Returns a JSON string with status_code, headers, body (same format as http_request_sync).
+async fn http_request_via_tcp_proxy(
+    url: &str,
+    method: &str,
+    body: Option<&str>,
+    header: &str,
+) -> ResultType<String> {
+    let headers = parse_json_header_entries(header)?;
+    let body_bytes = body.unwrap_or("").as_bytes();
+
+    let resp = tcp_proxy_request(method, url, body_bytes, headers).await?;
+    http_proxy_response_to_json(resp)
+}
+
+#[inline]
+pub fn make_privacy_mode_msg_with_details(
+    state: back_notification::PrivacyModeState,
+    details: String,
+    impl_key: String,
+) -> Message {
+    let mut misc = Misc::new();
+    let mut back_notification = BackNotification {
+        details,
+        impl_key,
+        ..Default::default()
+    };
+    back_notification.set_privacy_mode_state(state);
+    misc.set_back_notification(back_notification);
+    let mut msg_out = Message::new();
+    msg_out.set_misc(misc);
+    msg_out
+}
+
+#[inline]
+pub fn make_privacy_mode_msg(
+    state: back_notification::PrivacyModeState,
+    impl_key: String,
+) -> Message {
+    make_privacy_mode_msg_with_details(state, "".to_owned(), impl_key)
+}
+
+pub fn is_keyboard_mode_supported(
+    keyboard_mode: &KeyboardMode,
+    version_number: i64,
+    peer_platform: &str,
+) -> bool {
+    match keyboard_mode {
+        KeyboardMode::Legacy => true,
+        KeyboardMode::Map => {
+            if peer_platform.to_lowercase() == crate::PLATFORM_ANDROID.to_lowercase() {
+                false
+            } else {
+                version_number >= hbb_common::get_version_number("1.2.0")
+            }
+        }
+        KeyboardMode::Translate => version_number >= hbb_common::get_version_number("1.2.0"),
+        KeyboardMode::Auto => version_number >= hbb_common::get_version_number("1.2.0"),
+    }
+}
+
+pub fn get_supported_keyboard_modes(version: i64, peer_platform: &str) -> Vec<KeyboardMode> {
+    KeyboardMode::iter()
+        .filter(|&mode| is_keyboard_mode_supported(mode, version, peer_platform))
+        .map(|&mode| mode)
+        .collect::<Vec<_>>()
+}
+
+pub fn make_fd_to_json(id: i32, path: String, entries: &Vec<FileEntry>) -> String {
+    let fd_json = _make_fd_to_json(id, path, entries);
+    serde_json::to_string(&fd_json).unwrap_or("".into())
+}
+
+pub fn _make_fd_to_json(id: i32, path: String, entries: &Vec<FileEntry>) -> Map<String, Value> {
+    let mut fd_json = serde_json::Map::new();
+    fd_json.insert("id".into(), json!(id));
+    fd_json.insert("path".into(), json!(path));
+
+    let mut entries_out = vec![];
+    for entry in entries {
+        let mut entry_map = serde_json::Map::new();
+        entry_map.insert("entry_type".into(), json!(entry.entry_type.value()));
+        entry_map.insert("name".into(), json!(entry.name));
+        entry_map.insert("size".into(), json!(entry.size));
+        entry_map.insert("modified_time".into(), json!(entry.modified_time));
+        entries_out.push(entry_map);
+    }
+    fd_json.insert("entries".into(), json!(entries_out));
+    fd_json
+}
+
+pub fn make_vec_fd_to_json(fds: &[FileDirectory]) -> String {
+    let mut fd_jsons = vec![];
+
+    for fd in fds.iter() {
+        let fd_json = _make_fd_to_json(fd.id, fd.path.clone(), &fd.entries);
+        fd_jsons.push(fd_json);
+    }
+
+    serde_json::to_string(&fd_jsons).unwrap_or("".into())
+}
+
+pub fn make_empty_dirs_response_to_json(res: &ReadEmptyDirsResponse) -> String {
+    let mut map: Map<String, Value> = serde_json::Map::new();
+    map.insert("path".into(), json!(res.path));
+
+    let mut fd_jsons = vec![];
+
+    for fd in res.empty_dirs.iter() {
+        let fd_json = _make_fd_to_json(fd.id, fd.path.clone(), &fd.entries);
+        fd_jsons.push(fd_json);
+    }
+    map.insert("empty_dirs".into(), fd_jsons.into());
+
+    serde_json::to_string(&map).unwrap_or("".into())
+}
+
+/// The function to handle the url scheme sent by the system.
+///
+/// 1. Try to send the url scheme from ipc.
+/// 2. If failed to send the url scheme, we open a new main window to handle this url scheme.
+pub fn handle_url_scheme(url: String) {
+    #[cfg(not(target_os = "ios"))]
+    if let Err(err) = crate::ipc::send_url_scheme(url.clone()) {
+        log::debug!("Send the url to the existing flutter process failed, {}. Let's open a new program to handle this.", err);
+        let _ = crate::run_me(vec![url]);
+    }
+}
+
+#[inline]
+pub fn encode64<T: AsRef<[u8]>>(input: T) -> String {
+    #[allow(deprecated)]
+    base64::encode(input)
+}
+
+#[inline]
+pub fn decode64<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>, base64::DecodeError> {
+    #[allow(deprecated)]
+    base64::decode(input)
+}
+
+pub async fn get_key(sync: bool) -> String {
+    #[cfg(windows)]
+    if let Ok(lic) = crate::platform::windows::get_license_from_exe_name() {
+        if !lic.key.is_empty() {
+            return lic.key;
+        }
+    }
+    #[cfg(target_os = "ios")]
+    let mut key = Config::get_option("key");
+    #[cfg(not(target_os = "ios"))]
+    let mut key = if sync {
+        Config::get_option("key")
+    } else {
+        let mut options = crate::ipc::get_options_async().await;
+        options.remove("key").unwrap_or_default()
+    };
+    if key.is_empty() {
+        key = config::RS_PUB_KEY.to_owned();
+    }
+    key
+}
+
+pub fn pk_to_fingerprint(pk: Vec<u8>) -> String {
+    let s: String = pk.iter().map(|u| format!("{:02x}", u)).collect();
+    s.chars()
+        .enumerate()
+        .map(|(i, c)| {
+            if i > 0 && i % 4 == 0 {
+                format!(" {}", c)
+            } else {
+                format!("{}", c)
+            }
+        })
+        .collect()
+}
+
+#[inline]
+pub async fn get_next_nonkeyexchange_msg(
+    conn: &mut Stream,
+    timeout: Option<u64>,
+) -> Option<RendezvousMessage> {
+    let timeout = timeout.unwrap_or(READ_TIMEOUT);
+    for _ in 0..2 {
+        if let Some(Ok(bytes)) = conn.next_timeout(timeout).await {
+            if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
+                match &msg_in.union {
+                    Some(rendezvous_message::Union::KeyExchange(_)) => {
+                        continue;
+                    }
+                    _ => {
+                        return Some(msg_in);
+                    }
+                }
+            }
+        }
+        break;
+    }
+    None
+}
+
+#[cfg(all(target_os = "windows", not(target_pointer_width = "64")))]
+pub fn check_process(arg: &str, same_session_id: bool) -> bool {
+    let mut path = std::env::current_exe().unwrap_or_default();
+    if let Ok(linked) = path.read_link() {
+        path = linked;
+    }
+    let Some(filename) = path.file_name() else {
+        return false;
+    };
+    let filename = filename.to_string_lossy().to_string();
+    match crate::platform::windows::get_pids_with_first_arg_check_session(
+        &filename,
+        arg,
+        same_session_id,
+    ) {
+        Ok(pids) => {
+            let self_pid = hbb_common::sysinfo::Pid::from_u32(std::process::id());
+            pids.into_iter().filter(|pid| *pid != self_pid).count() > 0
+        }
+        Err(e) => {
+            log::error!("Failed to check process with arg: \"{}\", {}", arg, e);
+            false
+        }
+    }
+}
+
+#[allow(unused_mut)]
+#[cfg(not(all(target_os = "windows", not(target_pointer_width = "64"))))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn check_process(arg: &str, mut same_uid: bool) -> bool {
+    #[cfg(target_os = "macos")]
+    if !crate::platform::is_root() && !same_uid {
+        log::warn!("Can not get other process's command line arguments on macos without root");
+        same_uid = true;
+    }
+    use hbb_common::sysinfo::System;
+    let mut sys = System::new();
+    sys.refresh_processes();
+    let mut path = std::env::current_exe().unwrap_or_default();
+    if let Ok(linked) = path.read_link() {
+        path = linked;
+    }
+    let path = path.to_string_lossy().to_lowercase();
+    let my_uid = sys
+        .process((std::process::id() as usize).into())
+        .map(|x| x.user_id())
+        .unwrap_or_default();
+    for (_, p) in sys.processes().iter() {
+        let mut cur_path = p.exe().to_path_buf();
+        if let Ok(linked) = cur_path.read_link() {
+            cur_path = linked;
+        }
+        if cur_path.to_string_lossy().to_lowercase() != path {
+            continue;
+        }
+        if p.pid().to_string() == std::process::id().to_string() {
+            continue;
+        }
+        if same_uid && p.user_id() != my_uid {
+            continue;
+        }
+        // on mac, p.cmd() get "/Applications/RustDesk.app/Contents/MacOS/RustDesk", "XPC_SERVICE_NAME=com.carriez.RustDesk_server"
+        let parg = if p.cmd().len() <= 1 { "" } else { &p.cmd()[1] };
+        if arg.is_empty() {
+            if !parg.starts_with("--") {
+                return true;
+            }
+        } else if arg == parg {
+            return true;
+        }
+    }
+    false
+}
+
+async fn secure_tcp_impl(conn: &mut Stream, key: &str, log_on_success: bool) -> ResultType<()> {
+    // Skip additional encryption when using WebSocket connections (wss://)
+    // as WebSocket Secure (wss://) already provides transport layer encryption.
+    // This doesn't affect the end-to-end encryption between clients,
+    // it only avoids redundant encryption between client and server.
+    if use_ws() {
+        return Ok(());
+    }
+    key_exchange(conn, key, log_on_success).await.map(|_| ())
+}
+
+/// The server's key exchange on `conn`. `Ok(true)` once the stream is encrypted. `Ok(false)`
+/// when the server sent something else first, nothing parseable, or closed: `secure_tcp`
+/// tolerates that for servers from before the exchange, `secure_tcp_required` does not.
+async fn key_exchange(conn: &mut Stream, key: &str, log_on_success: bool) -> ResultType<bool> {
+    let rs_pk = get_rs_pk(key);
+    let Some(rs_pk) = rs_pk else {
+        bail!("Handshake failed: invalid public key from rendezvous server");
+    };
+    match timeout(READ_TIMEOUT, conn.next()).await? {
+        Some(Ok(bytes)) => {
+            if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
+                match msg_in.union {
+                    Some(rendezvous_message::Union::KeyExchange(ex)) => {
+                        if ex.keys.len() != 1 {
+                            bail!("Handshake failed: invalid key exchange message");
+                        }
+                        let their_pk_b = sign::verify(&ex.keys[0], &rs_pk)
+                            .map_err(|_| anyhow!("Signature mismatch in key exchange"))?;
+                        let their_pk_b = get_pk(&their_pk_b)
+                            .context("Wrong their public length in key exchange")?;
+                        // The signed X25519 high bit marks servers that sign their parameters.
+                        // X25519 ignores that bit, so old clients use the key unchanged; keep
+                        // the bytes as signed, since the transcript and KxParams carry them so.
+                        if their_pk_b[31] & 0x80 != 0 || !ex.signed_params.is_empty() {
+                            let params = sign::verify(&ex.signed_params, &rs_pk)
+                                .ok()
+                                .and_then(|signed| {
+                                    let params =
+                                        signed.strip_prefix(hbb_common::tcp::KX_PARAMS_DOMAIN)?;
+                                    KxParams::parse_from_bytes(params).ok()
+                                })
+                                .ok_or_else(|| {
+                                    anyhow!("Missing or invalid signed key exchange parameters")
+                                })?;
+                            if params.pk[..] != their_pk_b[..] || params.version != ex.version {
+                                bail!("Key exchange version or public key does not match its signature");
+                            }
+                        }
+                        let (asymmetric_value, symmetric_value, key) =
+                            create_symmetric_key_msg(their_pk_b);
+                        let picked = hbb_common::tcp::kx_version_for(ex.version);
+                        let mut msg_out = RendezvousMessage::new();
+                        msg_out.set_key_exchange(KeyExchange {
+                            keys: vec![asymmetric_value.clone(), symmetric_value],
+                            version: picked,
+                            ..Default::default()
+                        });
+                        timeout(CONNECT_TIMEOUT, conn.send(&msg_out)).await??;
+                        conn.set_negotiated_key(
+                            key,
+                            true,
+                            &hbb_common::tcp::KxTranscript {
+                                initiator_pk: &asymmetric_value,
+                                responder_pk: &their_pk_b,
+                                advertised: ex.version,
+                                picked,
+                            },
+                        )?;
+                        if log_on_success {
+                            log::info!("Connection secured");
+                        }
+                        return Ok(true);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(false)
+}
+
+pub async fn secure_tcp(conn: &mut Stream, key: &str) -> ResultType<()> {
+    secure_tcp_impl(conn, key, true).await
+}
+
+async fn secure_tcp_silent(conn: &mut Stream, key: &str) -> ResultType<()> {
+    secure_tcp_impl(conn, key, false).await
+}
+
+/// Like [`secure_tcp`], but returns only once the server's key exchange has actually encrypted
+/// the stream; a server that answers with anything else, or with nothing, is an error, so the
+/// caller can withhold what it was about to send instead of sending it in the clear.
+/// `secure_tcp` keeps tolerating such a server, which the paths from before the exchange depend
+/// on. WebSocket is treated as `secure_tcp` treats it, as a transport that is encrypted already.
+pub async fn secure_tcp_required(conn: &mut Stream, key: &str) -> ResultType<()> {
+    if use_ws() {
+        return Ok(());
+    }
+    if key_exchange(conn, key, true).await? {
+        Ok(())
+    } else {
+        bail!("the rendezvous server did not complete the key exchange");
+    }
+}
+
+#[inline]
+fn get_pk(pk: &[u8]) -> Option<[u8; 32]> {
+    if pk.len() == 32 {
+        let mut tmp = [0u8; 32];
+        tmp[..].copy_from_slice(&pk);
+        Some(tmp)
+    } else {
+        None
+    }
+}
+
+#[inline]
+pub fn get_rs_pk(str_base64: &str) -> Option<sign::PublicKey> {
+    if let Ok(pk) = crate::decode64(str_base64) {
+        get_pk(&pk).map(|x| sign::PublicKey(x))
+    } else {
+        None
+    }
+}
+
+pub fn decode_id_pk(signed: &[u8], key: &sign::PublicKey) -> ResultType<(String, [u8; 32])> {
+    let (id, pk, _, _) = decode_id_pk_dtls(signed, key)?;
+    Ok((id, pk))
+}
+
+/// Like [`decode_id_pk`] but also returns the signed DTLS certificate fingerprint (empty string
+/// for non-WebRTC peers), used to bind a WebRTC DTLS channel to the verified peer identity, and
+/// the newest key exchange version the peer speaks (0, the original scheme, for a peer from
+/// before versions).
+pub fn decode_id_pk_dtls(
+    signed: &[u8],
+    key: &sign::PublicKey,
+) -> ResultType<(String, [u8; 32], String, u32)> {
+    let res = IdPk::parse_from_bytes(
+        &sign::verify(signed, key).map_err(|_| anyhow!("Signature mismatch"))?,
+    )?;
+    if let Some(pk) = get_pk(&res.pk) {
+        Ok((res.id, pk, res.dtls_fingerprint, res.kx_version))
+    } else {
+        bail!("Wrong their public length");
+    }
+}
+
+/// Whether the DTLS fingerprint a WebRTC peer signed into its identity is the one of the channel
+/// actually negotiated. An empty signed value binds nothing: on a WebRTC channel it is either a
+/// peer that could not sign one or a rendezvous/relay that stripped it, and both fail closed.
+pub fn dtls_fingerprint_bound(signed_fp: &str, actual_fp: &str) -> bool {
+    !signed_fp.is_empty() && signed_fp == actual_fp
+}
+
+pub fn create_symmetric_key_msg(their_pk_b: [u8; 32]) -> (Bytes, Bytes, secretbox::Key) {
+    let their_pk_b = box_::PublicKey(their_pk_b);
+    let (our_pk_b, out_sk_b) = box_::gen_keypair();
+    let key = secretbox::gen_key();
+    let nonce = box_::Nonce([0u8; box_::NONCEBYTES]);
+    let sealed_key = box_::seal(&key.0, &nonce, &their_pk_b, &out_sk_b);
+    (Vec::from(our_pk_b.0).into(), sealed_key.into(), key)
+}
+
+#[inline]
+pub fn using_public_server() -> bool {
+    crate::get_custom_rendezvous_server(get_option("custom-rendezvous-server")).is_empty()
+}
+
+pub struct ThrottledInterval {
+    interval: Interval,
+    next_tick: Instant,
+    min_interval: Duration,
+}
+
+impl ThrottledInterval {
+    pub fn new(i: Interval) -> ThrottledInterval {
+        let period = i.period();
+        ThrottledInterval {
+            interval: i,
+            next_tick: Instant::now(),
+            min_interval: Duration::from_secs_f64(period.as_secs_f64() * 0.9),
+        }
+    }
+
+    pub async fn tick(&mut self) -> Instant {
+        let instant = poll_fn(|cx| self.poll_tick(cx));
+        instant.await
+    }
+
+    pub fn poll_tick(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Instant> {
+        match self.interval.poll_tick(cx) {
+            Poll::Ready(instant) => {
+                let now = Instant::now();
+                if self.next_tick <= now {
+                    self.next_tick = now + self.min_interval;
+                    Poll::Ready(instant)
+                } else {
+                    // This call is required since tokio 1.27
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                }
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+pub type RustDeskInterval = ThrottledInterval;
+
+#[inline]
+pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
+    ThrottledInterval::new(i)
+}
+
+pub fn load_custom_client() {
+    #[cfg(debug_assertions)]
+    if let Ok(data) = std::fs::read_to_string("./custom.txt") {
+        read_custom_client(data.trim());
+        return;
+    }
+    let Some(path) = std::env::current_exe().map_or(None, |x| x.parent().map(|x| x.to_path_buf()))
+    else {
+        return;
+    };
+    #[cfg(target_os = "macos")]
+    let path = path.join("../Resources");
+    let path = path.join("custom.txt");
+    if path.is_file() {
+        let Ok(data) = std::fs::read_to_string(&path) else {
+            log::error!("Failed to read custom client config");
+            return;
+        };
+        read_custom_client(&data.trim());
+    }
+}
+
+fn read_custom_client_advanced_settings(
+    settings: serde_json::Value,
+    map_display_settings: &HashMap<String, &&str>,
+    map_local_settings: &HashMap<String, &&str>,
+    map_settings: &HashMap<String, &&str>,
+    map_buildin_settings: &HashMap<String, &&str>,
+    is_override: bool,
+) {
+    let mut display_settings = if is_override {
+        config::OVERWRITE_DISPLAY_SETTINGS.write().unwrap()
+    } else {
+        config::DEFAULT_DISPLAY_SETTINGS.write().unwrap()
+    };
+    let mut local_settings = if is_override {
+        config::OVERWRITE_LOCAL_SETTINGS.write().unwrap()
+    } else {
+        config::DEFAULT_LOCAL_SETTINGS.write().unwrap()
+    };
+    let mut server_settings = if is_override {
+        config::OVERWRITE_SETTINGS.write().unwrap()
+    } else {
+        config::DEFAULT_SETTINGS.write().unwrap()
+    };
+    let mut buildin_settings = config::BUILTIN_SETTINGS.write().unwrap();
+
+    if let Some(settings) = settings.as_object() {
+        for (k, v) in settings {
+            let Some(v) = v.as_str() else {
+                continue;
+            };
+            if let Some(k2) = map_display_settings.get(k) {
+                display_settings.insert(k2.to_string(), v.to_owned());
+            } else if let Some(k2) = map_local_settings.get(k) {
+                local_settings.insert(k2.to_string(), v.to_owned());
+            } else if let Some(k2) = map_settings.get(k) {
+                server_settings.insert(k2.to_string(), v.to_owned());
+            } else if let Some(k2) = map_buildin_settings.get(k) {
+                buildin_settings.insert(k2.to_string(), v.to_owned());
+            } else {
+                let k2 = k.replace("_", "-");
+                let k = k2.replace("-", "_");
+                // display
+                display_settings.insert(k.clone(), v.to_owned());
+                display_settings.insert(k2.clone(), v.to_owned());
+                // local
+                local_settings.insert(k.clone(), v.to_owned());
+                local_settings.insert(k2.clone(), v.to_owned());
+                // server
+                server_settings.insert(k.clone(), v.to_owned());
+                server_settings.insert(k2.clone(), v.to_owned());
+                // buildin
+                buildin_settings.insert(k.clone(), v.to_owned());
+                buildin_settings.insert(k2.clone(), v.to_owned());
+            }
+        }
+    }
+}
+
+#[inline]
+#[cfg(target_os = "macos")]
+pub fn get_dst_align_rgba() -> usize {
+    // https://developer.apple.com/forums/thread/712709
+    // Memory alignment should be multiple of 64.
+    if crate::ui_interface::use_texture_render() {
+        64
+    } else {
+        1
+    }
+}
+
+#[inline]
+#[cfg(not(target_os = "macos"))]
+pub fn get_dst_align_rgba() -> usize {
+    1
+}
+
+pub fn read_custom_client(config: &str) {
+    let Ok(data) = decode64(config) else {
+        log::error!("Failed to decode custom client config");
+        return;
+    };
+    const KEY: &str = "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=";
+    let Some(pk) = get_rs_pk(KEY) else {
+        log::error!("Failed to parse public key of custom client");
+        return;
+    };
+    let Ok(data) = sign::verify(&data, &pk) else {
+        log::error!("Failed to dec custom client config");
+        return;
+    };
+    let Ok(mut data) =
+        serde_json::from_slice::<std::collections::HashMap<String, serde_json::Value>>(&data)
+    else {
+        log::error!("Failed to parse custom client config");
+        return;
+    };
+
+    if let Some(app_name) = data.remove("app-name") {
+        if let Some(app_name) = app_name.as_str() {
+            *config::APP_NAME.write().unwrap() = app_name.to_owned();
+        }
+    }
+
+    let mut map_display_settings = HashMap::new();
+    for s in keys::KEYS_DISPLAY_SETTINGS {
+        map_display_settings.insert(s.replace("_", "-"), s);
+    }
+    let mut map_local_settings = HashMap::new();
+    for s in keys::KEYS_LOCAL_SETTINGS {
+        map_local_settings.insert(s.replace("_", "-"), s);
+    }
+    let mut map_settings = HashMap::new();
+    for s in keys::KEYS_SETTINGS {
+        map_settings.insert(s.replace("_", "-"), s);
+    }
+    let mut buildin_settings = HashMap::new();
+    for s in keys::KEYS_BUILDIN_SETTINGS {
+        buildin_settings.insert(s.replace("_", "-"), s);
+    }
+    if let Some(default_settings) = data.remove("default-settings") {
+        read_custom_client_advanced_settings(
+            default_settings,
+            &map_display_settings,
+            &map_local_settings,
+            &map_settings,
+            &buildin_settings,
+            false,
+        );
+    }
+    if let Some(overwrite_settings) = data.remove("override-settings") {
+        read_custom_client_advanced_settings(
+            overwrite_settings,
+            &map_display_settings,
+            &map_local_settings,
+            &map_settings,
+            &buildin_settings,
+            true,
+        );
+    }
+    for (k, v) in data {
+        if let Some(v) = v.as_str() {
+            config::HARD_SETTINGS
+                .write()
+                .unwrap()
+                .insert(k, v.to_owned());
+        };
+    }
+}
+
+#[inline]
+pub fn is_empty_uni_link(arg: &str) -> bool {
+    let prefix = crate::get_uri_prefix();
+    if !arg.starts_with(&prefix) {
+        return false;
+    }
+    arg[prefix.len()..].chars().all(|c| c == '/')
+}
+
+pub fn get_hwid() -> Bytes {
+    use hbb_common::sha2::{Digest, Sha256};
+
+    let uuid = hbb_common::get_uuid();
+    let mut hasher = Sha256::new();
+    hasher.update(&uuid);
+    Bytes::from(hasher.finalize().to_vec())
+}
+
+#[inline]
+pub fn get_builtin_option(key: &str) -> String {
+    config::BUILTIN_SETTINGS
+        .read()
+        .unwrap()
+        .get(key)
+        .cloned()
+        .unwrap_or_default()
+}
+
+#[inline]
+pub fn is_custom_client() -> bool {
+    get_app_name() != "RustDesk"
+}
+
+pub fn verify_login(_raw: &str, _id: &str) -> bool {
+    true
+    /*
+    if is_custom_client() {
+        return true;
+    }
+    #[cfg(debug_assertions)]
+    return true;
+    let Ok(pk) = crate::decode64("IycjQd4TmWvjjLnYd796Rd+XkK+KG+7GU1Ia7u4+vSw=") else {
+        return false;
+    };
+    let Some(key) = get_pk(&pk).map(|x| sign::PublicKey(x)) else {
+        return false;
+    };
+    let Ok(v) = crate::decode64(raw) else {
+        return false;
+    };
+    let raw = sign::verify(&v, &key).unwrap_or_default();
+    let v_str = std::str::from_utf8(&raw)
+        .unwrap_or_default()
+        .split(":")
+        .next()
+        .unwrap_or_default();
+    v_str == id
+    */
+}
+
+#[inline]
+pub fn is_udp_disabled() -> bool {
+    Config::get_option(keys::OPTION_DISABLE_UDP) == "Y"
+}
+
+/// Run KCP with its congestion window (nc=0) instead of the turbo profile it has always shipped.
+///
+/// Opt-in: which profile wins depends on why packets are lost — nc=1 deepens real congestion,
+/// while nc=0 reads random loss as congestion and its RTO backoff drops cwnd to 1. Undecidable
+/// without a shaped link, so keep what users run today.
+#[inline]
+pub fn get_kcp_cc_enabled() -> bool {
+    let k = keys::OPTION_ALLOW_KCP_CC;
+    config::option2bool(k, &Config::get_option(k))
+}
+
+// this crate https://github.com/yoshd/stun-client supports nat type
+async fn stun_ipv6_test(stun_server: String) -> ResultType<(SocketAddr, String)> {
+    use stunclient::StunClient;
+    let local_addr = SocketAddr::from(([0u16; 8], 0)); // [::]:0
+    let socket = UdpSocket::bind(&local_addr).await?;
+    // Resolve via tokio so DNS never blocks the async runtime worker.
+    let Some(stun_addr) = tokio::net::lookup_host(&stun_server)
+        .await?
+        .find(|x| x.is_ipv6())
+    else {
+        bail!(
+            "Failed to resolve STUN ipv6 server address: {}",
+            stun_server
+        );
+    };
+    let client = StunClient::new(stun_addr);
+    let addr = client.query_external_address_async(&socket).await?;
+    Ok(if addr.ip().is_ipv6() {
+        (addr, stun_server)
+    } else {
+        bail!("STUN server returned non-IPv6 address: {}", addr)
+    })
+}
+
+/// A global address to ask the kernel for a route to; libwebrtc's QueryDefaultLocalAddress asks
+/// for the same one. Nothing is ever sent to it.
+const IPV6_ROUTE_PROBE: std::net::Ipv6Addr =
+    std::net::Ipv6Addr::new(0x2001, 0x4860, 0x4860, 0, 0, 0, 0, 0x8888);
+/// The public IPv6 address the STUN servers report is looked for in the background, and for no
+/// longer than this: a probe that outlived the minute could write an earlier network's address
+/// over a later probe's.
+const STUN_IPV6_TIMEOUT_MS: u64 = 5_000;
+
+async fn test_bind_ipv6() -> ResultType<SocketAddr> {
+    let local_addr = SocketAddr::from(([0u16; 8], 0)); // [::]:0
+    let socket = UdpSocket::bind(local_addr).await?;
+    // Nothing is sent - `connect` only makes the kernel pick a route and a source address - so
+    // the target can be any global address, and given as a number it is: this is awaited on the
+    // connection path, and resolving a STUN host's name first was the one thing on it that
+    // could wait on the network - for as long as the resolver takes, when there is none.
+    socket
+        .connect(SocketAddr::from((IPV6_ROUTE_PROBE, 53)))
+        .await?;
+    Ok(socket.local_addr()?)
+}
+
+pub async fn test_ipv6() -> Option<tokio::task::JoinHandle<()>> {
+    {
+        // One look and one claim of the minute, under one lock: two connections arriving
+        // together would otherwise both find it over and both probe.
+        let mut cached = PUBLIC_IPV6_ADDR.lock().unwrap();
+        if cached
+            .1
+            .map(|x| x.elapsed().as_secs() < 60)
+            .unwrap_or(false)
+        {
+            return None;
+        }
+        cached.1 = Some(Instant::now());
+    }
+
+    match test_bind_ipv6().await {
+        Ok(mut addr) => {
+            if let std::net::IpAddr::V6(ip) = addr.ip() {
+                if !ip.is_loopback()
+                    && !ip.is_unspecified()
+                    && !ip.is_multicast()
+                    && (ip.segments()[0] & 0xe000) == 0x2000
+                {
+                    addr.set_port(0);
+                    PUBLIC_IPV6_ADDR.lock().unwrap().0 = Some(addr);
+                    log::debug!("Found public IPv6 address locally: {}", addr);
+                }
+            }
+        }
+        Err(e) => {
+            log::warn!("Failed to bind IPv6 socket: {}", e);
+        }
+    }
+    // Interestingly, on my macOS, sometimes my ipv6 works, sometimes not (test with ping6 or https://test-ipv6.com/).
+    // I checked ifconfig, could not see any difference. Both secure ipv6 and temporary ipv6 are there.
+    // So we can not rely on the local ipv6 address queries with if_addrs.
+    // above test_bind_ipv6 is safer, because it can fail in this case.
+    /*
+    std::thread::spawn(|| {
+        if let Ok(ifaces) = if_addrs::get_if_addrs() {
+            for iface in ifaces {
+                if let if_addrs::IfAddr::V6(v6) = iface.addr {
+                    let ip = v6.ip;
+                    if !ip.is_loopback()
+                        && !ip.is_unspecified()
+                        && !ip.is_multicast()
+                        && !ip.is_unique_local()
+                        && !ip.is_unicast_link_local()
+                        && (ip.segments()[0] & 0xe000) == 0x2000
+                    {
+                        // only use the first one, on mac, the first one is the stable
+                        // one, the last one is the temporary one. The middle ones are deperecated.
+                        *PUBLIC_IPV6_ADDR.lock().unwrap() =
+                            Some((SocketAddr::from((ip, 0)), Instant::now()));
+                        log::debug!("Found public IPv6 address locally: {}", ip);
+                        break;
+                    }
+                }
+            }
+        }
+    });
+    */
+
+    Some(tokio::spawn(async {
+        use hbb_common::futures::future::{select_ok, FutureExt};
+        let tests = hbb_common::webrtc::WebRTCStream::default_stun_servers()
+            .into_iter()
+            .map(|stun| stun_ipv6_test(stun).boxed())
+            .collect::<Vec<_>>();
+
+        match hbb_common::timeout(STUN_IPV6_TIMEOUT_MS, select_ok(tests)).await {
+            Ok(Ok(res)) => {
+                let mut addr = res.0 .0;
+                addr.set_port(0); // Set port to 0 to avoid conflicts
+                PUBLIC_IPV6_ADDR.lock().unwrap().0 = Some(addr);
+                log::debug!(
+                    "Found public IPv6 address via STUN server {}: {}",
+                    res.0 .1,
+                    addr
+                );
+            }
+            Ok(Err(e)) => {
+                log::error!("Failed to get public IPv6 address: {}", e);
+            }
+            Err(_) => {
+                log::warn!("No STUN server answered for IPv6 within {STUN_IPV6_TIMEOUT_MS}ms");
+            }
+        };
+    }))
+}
+
+// A punch packet carries a magic and a transaction id so a reply can be *proven* to answer this
+// probe. The punch it replaces sent a zero-length datagram and called the hole open on whatever
+// arrived next - which the rendezvous NAT test's own leftover replies satisfied instantly, so the
+// retry loop below never actually ran and its success meant nothing.
+const PUNCH_PROBE: [u8; 4] = *b"RDP?";
+const PUNCH_ACK: [u8; 4] = *b"RDP!";
+const PUNCH_PACKET_LEN: usize = 12;
+
+fn punch_packet(tag: &[u8; 4], tid: u64) -> [u8; PUNCH_PACKET_LEN] {
+    let mut packet = [0u8; PUNCH_PACKET_LEN];
+    packet[..4].copy_from_slice(tag);
+    packet[4..].copy_from_slice(&tid.to_le_bytes());
+    packet
+}
+
+fn punch_tid(packet: &[u8], tag: &[u8; 4]) -> Option<u64> {
+    if packet.len() != PUNCH_PACKET_LEN || packet[..4] != tag[..] {
+        return None;
+    }
+    packet[4..].try_into().ok().map(u64::from_le_bytes)
+}
+
+/// Punch until one of our own probes is acknowledged. Both ends run this identically - each
+/// probes, each answers the other's probes - and each returns only once a reply carrying its own
+/// transaction id comes back, the one thing that proves the pair carries traffic both ways.
+///
+/// Returning is therefore a fact rather than a guess, which is what lets the caller stop instead
+/// of handing a dead socket to a transport whose only way to discover the truth is to time out.
+///
+/// A datagram that is neither probe nor acknowledgement is returned rather than dropped: it means
+/// the peer finished first and is already speaking KCP, whose SYN is never retransmitted.
+///
+/// Only the connector stops on its own acknowledgement, because only it has something to send
+/// next. An acknowledgement proves our probe came back, not that the peer's probe was answered -
+/// and after this returns nothing answers probes any more, since KCP's io loop drops anything
+/// shorter than its header. A listener that stopped here would go mute while a peer whose own
+/// probe or answer was lost - the normal state of a hole that is still opening - kept probing an
+/// endpoint that works, until it timed out. So the listener stops on the peer's first real packet.
+pub async fn punch_udp(
+    socket: Arc<UdpSocket>,
+    listen: bool,
+) -> ResultType<Option<bytes::BytesMut>> {
+    let tid = ((hbb_common::time_based_rand() as u64) << 32) | hbb_common::time_based_rand() as u64;
+    let probe = punch_packet(&PUNCH_PROBE, tid);
+    let mut data = [0u8; 1500];
+    // `connect` does not flush the receive queue, so the NAT test's extra replies are still in it.
+    while socket.try_recv(&mut data).is_ok() {}
+
+    let mut retry_interval = Duration::from_millis(20);
+    const MAX_INTERVAL: Duration = Duration::from_millis(200);
+    // Both ends start within one rendezvous round trip of each other and the acknowledgement is
+    // one peer round trip, so a pair that has not answered in this long is not going to. The old
+    // 20s came from having no way to tell "not yet" from "never".
+    const MAX_TIME: Duration = Duration::from_secs(3);
+    let mut probes_sent = 0u32;
+    let mut probes_seen = 0u32;
+    let mut acked = false;
+    let mut recv_errors = 0u32;
+    socket.send(&probe).await.ok();
+    probes_sent += 1;
+    let tm = Instant::now();
+    // Absolute instants, not relative sleeps: `select!` rebuilds every arm each iteration, so a
+    // peer that keeps the receive side ready restarts a relative timer before it can fire. That
+    // both defeats MAX_TIME and starves the retransmit, and the peer decides the rate - an
+    // old-build peer's empty datagrams match no arm below and loop without even a pause.
+    let deadline = tm + MAX_TIME;
+    let mut next_probe = tm + retry_interval;
+
+    loop {
+        tokio::select! {
+            _ = tokio::time::sleep_until(deadline) => {
+                bail!("UDP punch is timed out, {probes_sent} probes sent, {probes_seen} probes received, acked: {acked}, {recv_errors} recv errors absorbed");
+            }
+            _ = tokio::time::sleep_until(next_probe) => {
+                socket.send(&probe).await.ok();
+                probes_sent += 1;
+                retry_interval = std::cmp::min(retry_interval.mul_f64(1.5), MAX_INTERVAL);
+                next_probe = Instant::now() + retry_interval;
+            }
+            res = socket.recv(&mut data) => match res {
+                Err(e) => {
+                    // ICMP unreachable from the peer's NAT is expected while the hole forms and
+                    // surfaces here as ConnectionReset/Refused; treat it as loss, MAX_TIME bounds
+                    // the attempt. Log only the first - this retries every 10ms.
+                    recv_errors += 1;
+                    if recv_errors == 1 {
+                        log::debug!("UDP punch recv error (treated as loss): {e}");
+                    }
+                    hbb_common::sleep(0.01).await;
+                }
+                Ok(n) => {
+                    let ack = punch_tid(&data[..n], &PUNCH_ACK);
+                    if ack == Some(tid) {
+                        if !listen {
+                            log::debug!(
+                                "UDP punch confirmed in {:?}, {probes_sent} probes sent, {probes_seen} received",
+                                tm.elapsed()
+                            );
+                            return Ok(None);
+                        }
+                        acked = true;
+                    } else if let Some(peer_tid) = punch_tid(&data[..n], &PUNCH_PROBE) {
+                        probes_seen += 1;
+                        socket.send(&punch_packet(&PUNCH_ACK, peer_tid)).await.ok();
+                    } else if ack.is_none() && n > 0 {
+                        log::debug!(
+                            "UDP punch confirmed by {n} bytes of peer data in {:?}, {probes_sent} probes sent",
+                            tm.elapsed()
+                        );
+                        return Ok(Some(bytes::BytesMut::from(&data[..n])));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn test_ipv6_sync() {
+    #[tokio::main(flavor = "current_thread")]
+    async fn func() {
+        if let Some(job) = test_ipv6().await {
+            job.await.ok();
+        }
+    }
+    std::thread::spawn(func);
+}
+
+pub async fn get_ipv6_socket() -> Option<(Arc<UdpSocket>, bytes::Bytes)> {
+    let Some(addr) = PUBLIC_IPV6_ADDR.lock().unwrap().0 else {
+        return None;
+    };
+
+    match UdpSocket::bind(addr).await {
+        Err(err) => {
+            log::warn!("Failed to create UDP socket for IPv6: {err}");
+        }
+        Ok(socket) => {
+            if let Ok(local_addr_v6) = socket.local_addr() {
+                return Some((
+                    Arc::new(socket),
+                    hbb_common::AddrMangle::encode(local_addr_v6).into(),
+                ));
+            }
+        }
+    }
+    None
+}
+
+// The color is the same to `str2color()` in flutter.
+pub fn str2color(s: &str, alpha: u8) -> u32 {
+    let bytes = s.as_bytes();
+    // dart code `160 << 16 + 114 << 8 + 91` results `0`.
+    let mut hash: u32 = 0;
+    for &byte in bytes {
+        let code = byte as u32;
+        hash = code.wrapping_add((hash << 5).wrapping_sub(hash));
+    }
+
+    hash = hash % 16777216;
+    let rgb = hash & 0xFF7FFF;
+
+    (alpha as u32) << 24 | rgb
+}
+
+/// Check control permission state from a u64 bitmap.
+/// Each permission uses 2 bits: 0 = not set, 1 = disable, 2 = enable, 3 = invalid (treated as not set)
+/// Returns: Some(true) = enabled, Some(false) = disabled, None = not set or invalid
+pub fn get_control_permission(
+    permissions: u64,
+    permission: hbb_common::rendezvous_proto::control_permissions::Permission,
+) -> Option<bool> {
+    use hbb_common::protobuf::Enum;
+    let index = permission.value();
+    if index >= 0 && index < 32 {
+        let shift = index * 2;
+        let value = (permissions >> shift) & 0b11;
+        match value {
+            1 => Some(false), // disable
+            2 => Some(true),  // enable
+            _ => None,        // 0 = not set, 3 = invalid
+        }
+    } else {
+        None
+    }
+}
+
+pub fn is_direct_ip_access(peer: &str) -> bool {
+    hbb_common::is_ip_str(peer) || hbb_common::is_domain_port_str(peer)
+}
+
+// Align the maximum length of the peer id to the maximum length of the peer id in the server.
+const MAX_UNTRUSTED_PEER_ID_LEN: usize = 253;
+const UNTRUSTED_PEER_ID_FORBIDDEN_CHARS: &[char] = &['"', '<', '>', '/', '\\', '|', '?', '*'];
+
+// Shared validation for peer/connect ids that cross untrusted boundaries before
+// they are stored or written into command/script contexts.
+pub fn is_valid_untrusted_peer_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= MAX_UNTRUSTED_PEER_ID_LEN
+        && !id.chars().any(|ch| {
+            ch.is_control() || ch.is_whitespace() || UNTRUSTED_PEER_ID_FORBIDDEN_CHARS.contains(&ch)
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hbb_common::tokio::{
+        self,
+        time::{interval, interval_at, sleep, Duration, Instant, Interval},
+    };
+    use std::collections::HashSet;
+
+    #[test]
+    fn parses_stable_rustdesk_release_url() {
+        let update_url = "https://github.com/rustdesk/rustdesk/releases/tag/v1.4.6";
+
+        assert_eq!(release_id_from_update_url(update_url).unwrap(), "v1.4.6");
+        assert_eq!(display_version_from_release_id("v1.4.6").unwrap(), "1.4.6");
+        assert_eq!(
+            release_id_from_update_url(&format!("{update_url}/")).unwrap(),
+            "v1.4.6"
+        );
+    }
+
+    #[test]
+    fn rejects_untrusted_release_urls_and_unstable_versions() {
+        for update_url in [
+            "http://github.com/rustdesk/rustdesk/releases/tag/v1.4.6",
+            "https://github.com:8443/rustdesk/rustdesk/releases/tag/v1.4.6",
+            "https://github.com:443/rustdesk/rustdesk/releases/tag/v1.4.6",
+            "https://user@github.com/rustdesk/rustdesk/releases/tag/v1.4.6",
+            "https://example.com/rustdesk/rustdesk/releases/tag/v1.4.6",
+            "https://github.com/other/rustdesk/releases/tag/v1.4.6",
+            "https://github.com/rustdesk/other/releases/tag/v1.4.6",
+            "https://github.com/rustdesk/rustdesk/releases/download/v1.4.6/rustdesk.exe",
+            "https://github.com/rustdesk/rustdesk/releases/tag/v1.4.6?x=1",
+            "https://github.com/rustdesk/rustdesk/releases/tag/v1.4.6#asset",
+            "https://github.com/rustdesk/rustdesk/releases/tag/v1.4.6/extra",
+            "https://github.com/rustdesk/rustdesk/releases/tag/v1%2F4%2F6",
+            "https://github.com/rustdesk/rustdesk/releases/tag/%2e%2e",
+        ] {
+            assert!(release_id_from_update_url(update_url).is_err());
+        }
+        for release_id in ["v1.4.6-rc1", "nightly", "v9223372036854775807.1.1"] {
+            assert!(display_version_from_release_id(release_id).is_err());
+        }
+    }
+
+    #[test]
+    fn a_cursor_content_id_fits_a_web_client_number() {
+        const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
+        for colors in [&b"arrow"[..], b"beam", b"hand", b""] {
+            for hotx in 0..64 {
+                assert!(cursor_content_id(32, 32, hotx, 0, colors) <= MAX_SAFE_INTEGER);
+            }
+        }
+    }
+
+    #[inline]
+    fn get_timestamp_secs() -> u128 {
+        (std::time::SystemTime::UNIX_EPOCH
+            .elapsed()
+            .unwrap()
+            .as_millis()
+            + 500)
+            / 1000
+    }
+
+    fn interval_maker() -> Interval {
+        interval(Duration::from_secs(1))
+    }
+
+    fn interval_at_maker() -> Interval {
+        interval_at(
+            Instant::now() + Duration::from_secs(1),
+            Duration::from_secs(1),
+        )
+    }
+
+    // The deadline must hold against a peer that keeps the receive side ready. `select!` rebuilds
+    // its arms every iteration, so a relative sleep would be restarted by every datagram and the
+    // punch would run for as long as the peer keeps talking, with no outer timeout to stop it.
+    #[tokio::test]
+    async fn test_udp_punch_deadline_survives_a_talkative_peer() {
+        let a = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let b = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let (a_addr, b_addr) = (a.local_addr().unwrap(), b.local_addr().unwrap());
+        a.connect(b_addr).await.unwrap();
+        b.connect(a_addr).await.unwrap();
+        // Empty datagrams answer no probe and match no return branch, so they only feed the loop.
+        // Sent well past the punch deadline so a restarted timer would show up as a long run.
+        let flooder = tokio::spawn(async move {
+            let end = Instant::now() + Duration::from_secs(12);
+            while Instant::now() < end {
+                if b.send(&[]).await.is_err() {
+                    break;
+                }
+                sleep(Duration::from_millis(5)).await;
+            }
+        });
+        let start = Instant::now();
+        let res = punch_udp(Arc::new(a), false).await;
+        let elapsed = start.elapsed();
+        flooder.abort();
+        assert!(res.is_err(), "the punch should have timed out");
+        assert!(
+            elapsed < Duration::from_secs(6),
+            "the punch ran for {elapsed:?}; its deadline did not hold"
+        );
+    }
+
+    #[test]
+    fn untrusted_peer_id_validation() {
+        let cases = [
+            ("123456789", true),
+            ("m\u{00FC}nchen-pc", true),
+            ("192.168.1.10:21118", true),
+            ("9123456234@public", true),
+            (
+                r#"1" & oWS.Run("cmd.exe /k whoami /priv",1,False) & ""#,
+                false,
+            ),
+            ("", false),
+            ("peer id", false),
+            ("peer\nid", false),
+            ("peer/id", false),
+            ("peer?id", false),
+        ];
+
+        for (id, expected) in cases {
+            assert_eq!(is_valid_untrusted_peer_id(id), expected, "{id:?}");
+        }
+    }
+
+    // ThrottledInterval tick less times than tokio interval, if there're sleeps
+    #[allow(non_snake_case)]
+    #[tokio::test]
+    async fn test_RustDesk_interval_sleep() {
+        let base_intervals = [interval_maker, interval_at_maker];
+        for (i, maker) in base_intervals.into_iter().enumerate() {
+            let mut timer = rustdesk_interval(maker());
+            let mut times = Vec::new();
+            sleep(Duration::from_secs(3)).await;
+            loop {
+                tokio::select! {
+                    _ = timer.tick() => {
+                        times.push(get_timestamp_secs());
+                        if times.len() == 5 {
+                            break;
+                        }
+                    }
+                }
+            }
+            // No multiple ticks in the `interval` time.
+            // Values in "times" are unique and are less than normal tokio interval.
+            let times2: HashSet<u128> = HashSet::from_iter(times.clone());
+            assert_eq!(times.len(), times2.len(), "test: {}", i);
+        }
+    }
+
+    #[test]
+    fn test_is_public_matches_rustdesk_root_domain() {
+        assert!(is_public("rustdesk.com/"));
+        assert!(is_public("rustdesk.com:21117"));
+        assert!(is_public("api.rustdesk.com:21117"));
+        assert!(!is_public("hello-rustdesk.com"));
+        assert!(!is_public("api.rustdesk.com.evil.test"));
+        assert!(!is_public("https://rustdesk.com@evil.test"));
+    }
+
+    #[test]
+    fn test_api_server_from_bare_ipv6_rendezvous_server() {
+        assert_eq!(
+            get_api_server_("".to_owned(), "2001:db8::1".to_owned()),
+            "http://[2001:db8::1]:21114"
+        );
+    }
+
+    #[test]
+    fn test_should_use_tcp_proxy_for_api_url() {
+        assert!(should_use_tcp_proxy_for_api_url(
+            "https://admin.example.com/api/login",
+            "https://admin.example.com"
+        ));
+        assert!(should_use_tcp_proxy_for_api_url(
+            "https://admin.example.com:21114/api/login",
+            "https://admin.example.com"
+        ));
+        assert!(!should_use_tcp_proxy_for_api_url(
+            "https://api.telegram.org/bot123/sendMessage",
+            "https://admin.example.com"
+        ));
+        assert!(!should_use_tcp_proxy_for_api_url(
+            "https://admin.rustdesk.com/api/login",
+            "https://admin.rustdesk.com"
+        ));
+        assert!(!should_use_tcp_proxy_for_api_url(
+            "https://admin.example.com/api/login",
+            "not a url"
+        ));
+        assert!(!should_use_tcp_proxy_for_api_url(
+            "not a url",
+            "https://admin.example.com"
+        ));
+    }
+
+    #[test]
+    fn test_parse_simple_header_preserves_non_content_type_header() {
+        let headers = parse_simple_header("Authorization: Bearer token");
+
+        assert!(headers.iter().any(|entry| {
+            entry.name.eq_ignore_ascii_case("Authorization")
+                && entry.value.as_str() == "Bearer token"
+        }));
+        assert_eq!(
+            headers
+                .iter()
+                .filter(|entry| entry.name.eq_ignore_ascii_case("Content-Type"))
+                .count(),
+            1
+        );
+        assert_eq!(
+            headers
+                .iter()
+                .find(|entry| entry.name.eq_ignore_ascii_case("Content-Type"))
+                .map(|entry| entry.value.as_str()),
+            Some("application/json")
+        );
+    }
+
+    #[test]
+    fn test_http_proxy_response_to_json() {
+        let mut resp = HttpProxyResponse {
+            status: 200,
+            body: br#"{"ok":true}"#.to_vec().into(),
+            ..Default::default()
+        };
+        resp.headers.push(HeaderEntry {
+            name: "Content-Type".into(),
+            value: "application/json".into(),
+            ..Default::default()
+        });
+
+        let json = http_proxy_response_to_json(resp).unwrap();
+        let value: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(value["status_code"], 200);
+        assert_eq!(value["headers"]["content-type"], "application/json");
+        assert_eq!(value["body"], r#"{"ok":true}"#);
+
+        let err = http_proxy_response_to_json(HttpProxyResponse {
+            error: "dial failed".into(),
+            ..Default::default()
+        })
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("TCP proxy error: dial failed"));
+    }
+
+    /// A stand-in rendezvous server on loopback: accepts one connection and hands it to `serve`.
+    async fn rendezvous_stub<F, Fut>(serve: F) -> String
+    where
+        F: FnOnce(hbb_common::tcp::FramedStream) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let listener = hbb_common::tcp::new_listener("127.0.0.1:0", false)
+            .await
+            .unwrap();
+        let host = listener.local_addr().unwrap().to_string();
+        tokio::spawn(async move {
+            if let Ok((stream, addr)) = listener.accept().await {
+                serve(hbb_common::tcp::FramedStream::from(stream, addr)).await;
+            }
+        });
+        host
+    }
+
+    fn server_key() -> (String, sign::SecretKey) {
+        let (pk, sk) = sign::gen_keypair();
+        (encode64(pk.0), sk)
+    }
+
+    fn signed_key_exchange(
+        pk: &box_::PublicKey,
+        sk: &sign::SecretKey,
+        version: u32,
+    ) -> KeyExchange {
+        let params = KxParams {
+            pk: pk.0.to_vec().into(),
+            version,
+            ..Default::default()
+        };
+        let mut payload = hbb_common::tcp::KX_PARAMS_DOMAIN.to_vec();
+        payload.extend_from_slice(&params.write_to_bytes().unwrap());
+        KeyExchange {
+            keys: vec![sign::sign(&pk.0, sk).into()],
+            version,
+            signed_params: sign::sign(&payload, sk).into(),
+            ..Default::default()
+        }
+    }
+
+    async fn connect(host: &str) -> Stream {
+        hbb_common::socket_client::connect_tcp(host.to_owned(), 3000)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_secure_tcp_required_refuses_a_server_without_the_exchange() {
+        let (key, _) = server_key();
+        // A server from before the exchange answers the first message with something else.
+        let serve = |mut s: hbb_common::tcp::FramedStream| async move {
+            let mut msg = RendezvousMessage::new();
+            msg.set_register_peer_response(RegisterPeerResponse::new());
+            s.send(&msg).await.unwrap();
+            sleep(Duration::from_secs(2)).await;
+        };
+        let host = rendezvous_stub(serve).await;
+        let mut conn = connect(&host).await;
+        assert!(secure_tcp_required(&mut conn, &key).await.is_err());
+        assert!(!conn.is_secured());
+        // The legacy call tolerates the same server, and the stream stays in the clear.
+        let host = rendezvous_stub(serve).await;
+        let mut conn = connect(&host).await;
+        secure_tcp(&mut conn, &key).await.unwrap();
+        assert!(!conn.is_secured());
+    }
+
+    #[tokio::test]
+    async fn test_secure_tcp_legacy_and_signed_servers_exchange_application_data() {
+        for (advertised, signed) in [(0, false), (1, true), (3, true)] {
+            for required in [false, true] {
+                let (key, sk) = server_key();
+                let host = rendezvous_stub(move |mut s| async move {
+                    let (mut eph_pk, eph_sk) = box_::gen_keypair();
+                    let mut msg = RendezvousMessage::new();
+                    let ex = if signed {
+                        eph_pk.0[31] |= 0x80;
+                        signed_key_exchange(&eph_pk, &sk, advertised)
+                    } else {
+                        KeyExchange {
+                            keys: vec![sign::sign(&eph_pk.0, &sk).into()],
+                            ..Default::default()
+                        }
+                    };
+                    msg.set_key_exchange(ex);
+                    s.send(&msg).await.unwrap();
+                    let reply = s.next_timeout(3000).await.unwrap().unwrap();
+                    let reply = RendezvousMessage::parse_from_bytes(&reply).unwrap();
+                    let Some(rendezvous_message::Union::KeyExchange(ex)) = reply.union else {
+                        panic!("expected the client's key exchange");
+                    };
+                    assert_eq!(ex.keys.len(), 2);
+                    assert_eq!(ex.version, hbb_common::tcp::kx_version_for(advertised));
+                    let shared =
+                        hbb_common::tcp::Encrypt::decode(&ex.keys[1], &ex.keys[0], &eph_sk)
+                            .unwrap();
+                    if ex.version >= 1 {
+                        s.set_key_split(
+                            shared,
+                            false,
+                            &hbb_common::tcp::KxTranscript {
+                                initiator_pk: &ex.keys[0],
+                                responder_pk: &eph_pk.0,
+                                advertised,
+                                picked: ex.version,
+                            },
+                        )
+                        .unwrap();
+                    } else {
+                        s.set_key(shared);
+                    }
+                    let request = s.next_timeout(3000).await.unwrap().unwrap();
+                    let request = RendezvousMessage::parse_from_bytes(&request).unwrap();
+                    let Some(rendezvous_message::Union::TestNatRequest(nat)) = request.union else {
+                        panic!("expected the client's nat request");
+                    };
+                    let mut msg = RendezvousMessage::new();
+                    msg.set_test_nat_response(TestNatResponse {
+                        port: nat.serial,
+                        ..Default::default()
+                    });
+                    s.send(&msg).await.unwrap();
+                })
+                .await;
+                let mut conn = connect(&host).await;
+                if required {
+                    secure_tcp_required(&mut conn, &key).await.unwrap();
+                } else {
+                    secure_tcp(&mut conn, &key).await.unwrap();
+                }
+                assert!(conn.is_secured());
+                let mut msg = RendezvousMessage::new();
+                msg.set_test_nat_request(TestNatRequest {
+                    serial: 7,
+                    ..Default::default()
+                });
+                conn.send(&msg).await.unwrap();
+                let reply = conn.next_timeout(3000).await.unwrap().unwrap();
+                let reply = RendezvousMessage::parse_from_bytes(&reply).unwrap();
+                let Some(rendezvous_message::Union::TestNatResponse(nat)) = reply.union else {
+                    panic!("expected the server's nat response");
+                };
+                assert_eq!(nat.port, 7);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_secure_tcp_rejects_unverified_versions_before_reply() {
+        let (key, sk) = server_key();
+        let (mut eph_pk, _) = box_::gen_keypair();
+        eph_pk.0[31] |= 0x80;
+        let (other_pk, _) = box_::gen_keypair();
+        let (_, other_sk) = sign::gen_keypair();
+        for case in [
+            "missing_signature",
+            "stripped_version_and_signature",
+            "cleared_marker_and_stripped_fields",
+            "lowered_version",
+            "raised_version",
+            "replaced_public_key",
+            "invalid_signature",
+            "wrong_signer",
+            "unstructured_payload",
+            "undomained_params",
+            "signed_id_pk_as_params",
+        ] {
+            let mut ex = signed_key_exchange(&eph_pk, &sk, 1);
+            match case {
+                "missing_signature" => ex.signed_params = Bytes::new(),
+                "stripped_version_and_signature" => {
+                    ex.signed_params = Bytes::new();
+                    ex.version = 0;
+                }
+                "cleared_marker_and_stripped_fields" => {
+                    let mut signed_pk = ex.keys[0].to_vec();
+                    *signed_pk.last_mut().unwrap() &= 0x7f;
+                    ex.keys[0] = signed_pk.into();
+                    ex.signed_params = Bytes::new();
+                    ex.version = 0;
+                }
+                "lowered_version" => ex.version = 0,
+                "raised_version" => ex.version = 2,
+                "replaced_public_key" => ex.keys[0] = sign::sign(&other_pk.0, &sk).into(),
+                "invalid_signature" => {
+                    let mut signed = ex.signed_params.to_vec();
+                    signed[0] ^= 1;
+                    ex.signed_params = signed.into();
+                }
+                "wrong_signer" => {
+                    ex.signed_params = signed_key_exchange(&eph_pk, &other_sk, 1).signed_params;
+                }
+                "unstructured_payload" => {
+                    let mut payload = eph_pk.0.to_vec();
+                    payload.extend_from_slice(&1u32.to_le_bytes());
+                    ex.signed_params = sign::sign(&payload, &sk).into();
+                }
+                "undomained_params" => {
+                    let params = KxParams {
+                        pk: eph_pk.0.to_vec().into(),
+                        version: 1,
+                        ..Default::default()
+                    };
+                    ex.signed_params = sign::sign(&params.write_to_bytes().unwrap(), &sk).into();
+                }
+                "signed_id_pk_as_params" => {
+                    // The server signs IdPk with the same key; its `id` sits where `pk` does.
+                    let mut pk = [0x2au8; box_::PUBLICKEYBYTES];
+                    pk[30] = 0xc2;
+                    pk[31] = 0xaa;
+                    let id_pk = IdPk {
+                        id: String::from_utf8(pk.to_vec()).unwrap(),
+                        pk: vec![7u8; box_::PUBLICKEYBYTES].into(),
+                        ..Default::default()
+                    };
+                    ex.keys[0] = sign::sign(&pk, &sk).into();
+                    ex.version = 0;
+                    ex.signed_params = sign::sign(&id_pk.write_to_bytes().unwrap(), &sk).into();
+                }
+                _ => unreachable!(),
+            }
+            for required in [false, true] {
+                let mut msg = RendezvousMessage::new();
+                msg.set_key_exchange(ex.clone());
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                let host = rendezvous_stub(move |mut s| async move {
+                    s.send(&msg).await.unwrap();
+                    tx.send(s.next_timeout(3000).await.is_none()).unwrap();
+                })
+                .await;
+                let mut conn = connect(&host).await;
+                let result = if required {
+                    secure_tcp_required(&mut conn, &key).await
+                } else {
+                    secure_tcp(&mut conn, &key).await
+                };
+                assert!(result.is_err(), "accepted {case}, required={required}");
+                assert!(!conn.is_secured());
+                drop(conn);
+                assert!(rx.await.unwrap(), "replied to {case}, required={required}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_dtls_fingerprint_travels_signed_and_binds() {
+        let (pk, sk) = sign::gen_keypair();
+        let fp = "sha-256 0A:1B:2C";
+        let signed = sign::sign(
+            &IdPk {
+                id: "123456789".to_owned(),
+                pk: Bytes::from(vec![7u8; 32]),
+                dtls_fingerprint: fp.to_owned(),
+                ..Default::default()
+            }
+            .write_to_bytes()
+            .unwrap(),
+            &sk,
+        );
+
+        let (id, their_pk, signed_fp, _) = decode_id_pk_dtls(&signed, &pk).unwrap();
+        assert_eq!(id, "123456789");
+        assert_eq!(their_pk, [7u8; 32]);
+        assert_eq!(signed_fp, fp);
+        assert!(dtls_fingerprint_bound(&signed_fp, fp));
+        assert!(!dtls_fingerprint_bound(&signed_fp, "sha-256 0A:1B:2D"));
+        assert!(!dtls_fingerprint_bound("", ""));
+
+        // The fingerprint is under the signature: a blob verified with another key yields
+        // nothing, and one whose payload was edited in transit fails verification.
+        let (other_pk, _) = sign::gen_keypair();
+        assert!(decode_id_pk_dtls(&signed, &other_pk).is_err());
+        let mut tampered = signed.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 1;
+        assert!(decode_id_pk_dtls(&tampered, &pk).is_err());
+
+        // `decode_id_pk` is the same blob minus the fingerprint, so the field is invisible to
+        // non-WebRTC handshakes.
+        assert_eq!(decode_id_pk(&signed, &pk).unwrap(), (id, their_pk));
+    }
+}
