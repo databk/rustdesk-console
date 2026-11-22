@@ -44,7 +44,7 @@ interface GithubDispatchInputs {
 
 function resolveWorkflowFile(os: string, arch: string | undefined): string {
   if (os === 'all') {
-    return 'flutter-build.yml';
+    return 'build-rustdesk.yml';
   }
   if (!arch) {
     throw new BadRequestException(
