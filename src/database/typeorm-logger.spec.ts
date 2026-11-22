@@ -60,6 +60,9 @@ describe('redactDriverMessage', () => {
     expect(
       redactDriverMessage("Truncated incorrect DOUBLE value: 'line1\nsecret'"),
     ).toBe("Truncated incorrect DOUBLE value: '?'");
+    expect(
+      redactDriverMessage("Truncated incorrect DOUBLE value: 'it''s secret'"),
+    ).toBe("Truncated incorrect DOUBLE value: '?'");
   });
 
   it('leaves other messages unchanged', () => {

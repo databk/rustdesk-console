@@ -52,7 +52,7 @@ function collapse(query: string): string {
 export function redactDriverMessage(message: string): string {
   return message
     .replace(/\b(entry|value:?) '.*' for /gis, "$1 '?' for ")
-    .replace(/\b(value:?) '[^']*'(?! for )/gis, "$1 '?'");
+    .replace(/\b(value:?) '.*'$/gis, "$1 '?'");
 }
 
 function isUniqueViolation(error: string | Error, message: string): boolean {
