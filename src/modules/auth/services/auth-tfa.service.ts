@@ -216,7 +216,7 @@ export class AuthTfaService {
     });
 
     this.logger.log(
-      `User ${user.username} login requires TFA verification; session created`,
+      `User ${logSafe(user.username)} login requires TFA verification; session created`,
     );
 
     return {
@@ -302,7 +302,7 @@ export class AuthTfaService {
       deviceId: id,
       deviceUuid: uuid,
       deviceInfo,
-      successMessage: `User ${user.username} TFA authentication succeeded, logged in`,
+      successMessage: `User ${logSafe(user.username)} TFA authentication succeeded, logged in`,
     });
   }
 }
