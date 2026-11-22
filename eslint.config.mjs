@@ -37,7 +37,7 @@ export default tseslint.config(
   },
   {
     // CLI entry points that run before (or without) the Nest logger.
-    files: ['src/main.ts', 'src/database/migrate.ts', 'src/database/migration-command.ts'],
+    files: ['src/main.ts', 'src/database/migrate.ts', 'src/database/migration-command.ts', 'src/common/utils/native-self-test.ts'],
     rules: {
       'no-console': 'off',
     },
@@ -57,7 +57,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.spec.ts', '**/*.test.ts'],
+    files: ['**/*.spec.ts', '**/*.test.ts', 'test/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
@@ -65,6 +65,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/unbound-method': 'off',
+      'no-console': 'off',
     },
   },
 );

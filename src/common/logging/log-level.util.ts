@@ -13,7 +13,6 @@ const LOG_LEVEL_ORDER: readonly LogLevel[] = [
 const ALIASES: Record<string, LogLevel> = {
   info: 'log',
   warning: 'warn',
-  trace: 'verbose',
 };
 
 export const DEFAULT_LOG_LEVEL: LogLevel = 'log';
@@ -29,4 +28,16 @@ export function resolveLogLevels(value: string | undefined): LogLevel[] {
   const index = (LOG_LEVEL_ORDER as readonly string[]).indexOf(level);
   const start = index >= 0 ? index : LOG_LEVEL_ORDER.indexOf(DEFAULT_LOG_LEVEL);
   return LOG_LEVEL_ORDER.slice(start);
+}
+
+/**
+ * Returns true when `value` is unset/empty or a recognised `LOG_LEVEL`.
+ */
+export function isValidLogLevel(value: string | undefined): boolean {
+  const normalised = value?.trim().toLowerCase() ?? '';
+  return (
+    normalised === '' ||
+    normalised in ALIASES ||
+    (LOG_LEVEL_ORDER as readonly string[]).includes(normalised)
+  );
 }

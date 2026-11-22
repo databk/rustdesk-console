@@ -17,12 +17,9 @@ describe('isTrustedProxyEnabled', () => {
     expect(isTrustedProxyEnabled(value)).toBe(true);
   });
 
-  it.each(['', 'false', '0', 'yes', 'on'])(
-    'stays disabled on %p',
-    (value) => {
-      expect(isTrustedProxyEnabled(value)).toBe(false);
-    },
-  );
+  it.each(['', 'false', '0', 'yes', 'on'])('stays disabled on %p', (value) => {
+    expect(isTrustedProxyEnabled(value)).toBe(false);
+  });
 
   it('stays disabled when TRUSTED_PROXY is unset', () => {
     const saved = process.env.TRUSTED_PROXY;

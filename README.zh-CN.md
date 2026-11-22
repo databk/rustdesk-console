@@ -268,7 +268,9 @@ npm run start:prod
 | `PORT` | `3000` | 后端监听端口 |
 | `JWT_SECRET` | 无（生产必须设置） | JWT 签名密钥，泄漏后需立即更换并使所有会话失效 |
 | `ADMIN_PASSWORD` | 无 | 首次初始化时创建的 `databk` 管理员密码 |
-| `LOG_LEVEL` | `log` | 最低输出日志级别：`verbose`、`debug`、`log`（别名 `info`）、`warn`、`error`、`fatal`；排查问题时可设为 `debug` |
+| `LOG_LEVEL` | `log` | 最低输出日志级别：`verbose`、`debug`、`log`（别名 `info`）、`warn`（别名 `warning`）、`error`、`fatal`；排查问题时可设为 `debug`。详见 [日志文档](docs/logging.md) |
+| `DB_LOG` | `errors` | 数据库日志模式：`off`（关闭）、`errors`（记录失败和慢查询）、`queries`（额外记录所有 SQL 语句，需同时设 `LOG_LEVEL=debug`） |
+| `DB_SLOW_QUERY_MS` | `1000` | 慢查询阈值（毫秒），超过此值的查询记录为警告；设为 `0` 可禁用 |
 | `TRUSTED_PROXY` | `false`（Compose 部署为 `true`） | 是否信任反向代理转发的客户端地址。开启后控制台审计记录取 `X-Forwarded-For` 最右侧的地址（即紧邻控制台的代理看到的地址）；仅当所有请求都经由该代理到达控制台时开启，否则客户端可伪造地址 |
 | `DATA_DIR` | `./data` | 数据目录，存放 SQLite 数据库、头像、Nexus 构建产物等 |
 | `DEVICE_CLONE_ISOLATION` | `false` | 是否按 `(UUID, RustDesk ID)` 区分克隆客户端，见 [clone-isolation.md](docs/clone-isolation.md) |

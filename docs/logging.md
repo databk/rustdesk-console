@@ -6,7 +6,7 @@ The backend writes all logs to stdout through Nest's logger. In Docker, read the
 
 | Variable | Values | Default | Effect |
 |---|---|---|---|
-| `LOG_LEVEL` | `verbose`, `debug`, `log` (alias `info`), `warn`, `error`, `fatal` | `log` | Minimum level printed. `debug` adds per-request and per-device detail such as every heartbeat. |
+| `LOG_LEVEL` | `verbose`, `debug`, `log` (alias `info`), `warn` (alias `warning`), `error`, `fatal` | `log` | Minimum level printed. `debug` adds per-request and per-device detail such as every heartbeat. |
 | `DB_LOG` | `off`, `errors`, `queries` | `errors` | Database logging. `errors` reports failed and slow queries; `queries` adds every SQL statement at `debug` level (also set `LOG_LEVEL=debug`). |
 | `DB_SLOW_QUERY_MS` | milliseconds, `0` to disable | `1000` | Queries that take longer than this are reported as slow. |
 
