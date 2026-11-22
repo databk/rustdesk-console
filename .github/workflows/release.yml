@@ -13,8 +13,8 @@ permissions:
   packages: write
 
 jobs:
-  release:
-    name: Create Release
+  changelog:
+    name: Generate Changelog
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.changelog.outputs.version }}
@@ -62,7 +62,7 @@ jobs:
           tag-prefix: ''
           version-file: './package.json,./package-lock.json'
 
-      - name: Pin release identity before building
+      - name: Pin release identity
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         id: identity
         env:
@@ -74,13 +74,49 @@ jobs:
           test "$RELEASE_VERSION" = "$(node -p 'require("./package.json").version')"
           test -z "$(git status --porcelain --untracked-files=no)"
           echo "source_commit=$COMMIT" >> "$GITHUB_OUTPUT"
-          npm run build
+
+  build:
+    name: Build
+    needs: changelog
+    if: ${{ needs.changelog.outputs.skipped == 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.changelog.outputs.source_commit }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          RELEASE_VERSION: ${{ needs.changelog.outputs.version }}
+        run: npm run build
+
+  docker:
+    name: Build and Push Docker Images
+    needs: changelog
+    if: ${{ needs.changelog.outputs.skipped == 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.changelog.outputs.source_commit }}
+          persist-credentials: false
 
       - name: Build and push Docker images
-        if: ${{ steps.changelog.outputs.skipped == 'false' }}
         env:
-          RELEASE_VERSION: ${{ steps.changelog.outputs.version }}
-          SOURCE_COMMIT: ${{ steps.identity.outputs.source_commit }}
+          RELEASE_VERSION: ${{ needs.changelog.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.changelog.outputs.source_commit }}
         run: |
           set -eu
           VERSION=$RELEASE_VERSION
@@ -132,27 +168,31 @@ jobs:
           node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync("docker-metadata.json"));const d=m["containerimage.descriptor"];if(!d||d.digest!==m["containerimage.digest"])throw Error("Missing OCI descriptor");fs.writeFileSync("docker-evidence.json",JSON.stringify({version:process.env.RELEASE_VERSION,sourceCommit:process.env.SOURCE_COMMIT,digest:d.digest,size:d.size,platforms:["linux/amd64","linux/arm64"]}));'
 
       - name: Retain immutable Docker build evidence
-        if: ${{ steps.changelog.outputs.skipped == 'false' }}
         uses: actions/upload-artifact@v7
         with:
           name: docker-build-evidence
           path: docker-evidence.json
           if-no-files-found: error
 
+  github-release:
+    name: Create GitHub Release
+    needs: changelog
+    if: ${{ needs.changelog.outputs.skipped == 'false' }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Create GitHub Release
-        if: ${{ steps.changelog.outputs.skipped == 'false' }}
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.changelog.outputs.version }}
-          name: ${{ steps.changelog.outputs.version }}
-          body: ${{ steps.changelog.outputs.clean_changelog }}
+          tag_name: ${{ needs.changelog.outputs.version }}
+          name: ${{ needs.changelog.outputs.version }}
+          body: ${{ needs.changelog.outputs.clean_changelog }}
           draft: false
           prerelease: false
 
   sea-build:
     name: Build SEA (${{ matrix.target }})
-    needs: release
-    if: ${{ needs.release.outputs.skipped == 'false' }}
+    needs: [changelog, build]
+    if: ${{ needs.changelog.outputs.skipped == 'false' }}
     strategy:
       fail-fast: false
       matrix:
@@ -172,7 +212,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release.outputs.source_commit }}
+          ref: ${{ needs.changelog.outputs.source_commit }}
           persist-credentials: false
 
       - name: Setup Node.js
@@ -189,15 +229,15 @@ jobs:
       - name: Build SEA executable
         if: runner.os != 'Linux'
         env:
-          APP_VERSION: ${{ needs.release.outputs.version }}
-          SOURCE_COMMIT: ${{ needs.release.outputs.source_commit }}
+          APP_VERSION: ${{ needs.changelog.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.changelog.outputs.source_commit }}
         run: node --test scripts/prepare-sea-archive.test.mjs && npm run build:sea
 
       - name: Build SEA on the Linux glibc baseline
         if: runner.os == 'Linux'
         env:
-          APP_VERSION: ${{ needs.release.outputs.version }}
-          SOURCE_COMMIT: ${{ needs.release.outputs.source_commit }}
+          APP_VERSION: ${{ needs.changelog.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.changelog.outputs.source_commit }}
         run: |
           docker run --rm \
             -e APP_VERSION -e SOURCE_COMMIT \
@@ -219,7 +259,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.release.outputs.version }}
+          tag_name: ${{ needs.changelog.outputs.version }}
           files: |
             rustdesk-console-${{ matrix.target }}.tar.gz
             rustdesk-console-${{ matrix.target }}.zip
@@ -227,8 +267,8 @@ jobs:
 
   sea-build-musl:
     name: Build SEA (${{ matrix.target }})
-    needs: release
-    if: ${{ needs.release.outputs.skipped == 'false' }}
+    needs: [changelog, build]
+    if: ${{ needs.changelog.outputs.skipped == 'false' }}
     strategy:
       fail-fast: false
       matrix:
@@ -242,13 +282,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release.outputs.source_commit }}
+          ref: ${{ needs.changelog.outputs.source_commit }}
           persist-credentials: false
 
       - name: Build SEA in Alpine container
         env:
-          APP_VERSION: ${{ needs.release.outputs.version }}
-          SOURCE_COMMIT: ${{ needs.release.outputs.source_commit }}
+          APP_VERSION: ${{ needs.changelog.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.changelog.outputs.source_commit }}
         run: |
           docker run --rm \
             -e APP_VERSION -e SOURCE_COMMIT \
@@ -260,20 +300,20 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ needs.release.outputs.version }}
+          tag_name: ${{ needs.changelog.outputs.version }}
           files: |
             rustdesk-console-${{ matrix.target }}.tar.gz
           fail_on_unmatched_files: false
 
   finalize:
     name: Finalize executable update manifest
-    needs: [release, sea-build, sea-build-musl]
-    if: ${{ needs.release.outputs.skipped == 'false' }}
+    needs: [changelog, github-release, sea-build, sea-build-musl]
+    if: ${{ needs.changelog.outputs.skipped == 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release.outputs.source_commit }}
+          ref: ${{ needs.changelog.outputs.source_commit }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
@@ -283,7 +323,7 @@ jobs:
       - name: Download and verify all final release artifacts
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+          RELEASE_VERSION: ${{ needs.changelog.outputs.version }}
           PEER_VERSION_RANGE: ${{ inputs.peer_version_range }}
         run: |
           set -eu
