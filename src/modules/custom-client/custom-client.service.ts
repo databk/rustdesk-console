@@ -191,17 +191,25 @@ export class CustomClientService {
     const activeBuilds = builds.filter(
       (b) => b.status === 'pending' || b.status === 'building',
     );
+    const progressMap = new Map<string, BuildProgressResponse>();
     if (activeBuilds.length > 0) {
       await Promise.allSettled(
-        activeBuilds.map((b) =>
-          this.getBuildProgress(b.uuid, userGuid).catch(() => undefined),
-        ),
+        activeBuilds.map(async (b) => {
+          const progress = await this.getBuildProgress(b.uuid, userGuid);
+          progressMap.set(b.uuid, progress);
+        }),
       );
     }
 
-    return this.buildRepository.find({
+    const fresh = await this.buildRepository.find({
       where: { userGuid },
       order: { createdAt: 'DESC' },
+    });
+    return fresh.map((b) => {
+      const progress = progressMap.get(b.uuid);
+      return (progress
+        ? { ...b, progress }
+        : b) as CustomClientBuild & { progress?: BuildProgressResponse };
     });
   }
 
@@ -313,6 +321,11 @@ export class CustomClientService {
         runId: null,
         runStatus: 'queued',
         runConclusion: null,
+        percent: 0,
+        totalSteps: 0,
+        completedSteps: 0,
+        currentJob: null,
+        currentStep: null,
         jobs: [],
       };
     }
@@ -347,10 +360,25 @@ export class CustomClientService {
       ),
     ]);
 
+    const allSteps = jobsData.jobs.flatMap((job) => job.steps);
+    const completedSteps = allSteps.filter((s) => s.status === 'completed').length;
+    const totalSteps = allSteps.length;
+    let percent =
+      totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+    if (runData.status === 'completed') percent = 100;
+
     const result: BuildProgressResponse = {
       runId,
       runStatus: runData.status,
       runConclusion: runData.conclusion,
+      percent,
+      totalSteps,
+      completedSteps,
+      currentJob:
+        jobsData.jobs.find((j) => j.status === 'in_progress')?.name ?? null,
+      currentStep:
+        (allSteps.find((s) => s.status === 'in_progress') ??
+          allSteps.find((s) => s.status === 'queued'))?.name ?? null,
       jobs: jobsData.jobs.map((job) => ({
         name: job.name,
         status: job.status,

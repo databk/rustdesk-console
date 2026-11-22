@@ -90,6 +90,11 @@ export interface BuildProgressResponse {
   runId: number | null;
   runStatus: string;
   runConclusion: string | null;
+  percent: number;
+  totalSteps: number;
+  completedSteps: number;
+  currentJob: string | null;
+  currentStep: string | null;
   jobs: BuildProgressJob[];
 }
 
