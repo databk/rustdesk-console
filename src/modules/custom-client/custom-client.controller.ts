@@ -72,6 +72,16 @@ export class CustomClientController {
     await this.customClientService.deleteBuild(userGuid, uuid);
   }
 
+  @Post('builds/:uuid/cancel')
+  @ConsoleAuditAction('custom_client.build.cancel', { targetGuidParam: 'uuid' })
+  @HttpCode(HttpStatus.OK)
+  async cancelBuild(
+    @CurrentUser('id') userGuid: string,
+    @Param('uuid') uuid: string,
+  ) {
+    return this.customClientService.cancelBuild(userGuid, uuid);
+  }
+
   @Get('builds/:uuid/files')
   async listBuildFiles(
     @CurrentUser('id') userGuid: string,

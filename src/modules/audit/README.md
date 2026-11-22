@@ -76,8 +76,8 @@ Main action groups:
   `web_client.request_denied`, `web_client.request_allowed`,
   `web_client.gateway_open`, and `web_client.session_ended`
 - Custom client: `custom_client.build.create`, `custom_client.build.delete`,
-  `custom_client.logo.upload`, `custom_client.logo.delete`,
-  `custom_client.settings.update`
+  `custom_client.build.cancel`, `custom_client.logo.upload`,
+  `custom_client.logo.delete`, `custom_client.settings.update`
 
 ## Database Table Structure
 

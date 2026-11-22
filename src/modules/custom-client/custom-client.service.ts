@@ -281,6 +281,58 @@ export class CustomClientService {
     rmSync(this.safeJoin(uuid), { recursive: true, force: true });
   }
 
+  async cancelBuild(
+    userGuid: string,
+    uuid: string,
+  ): Promise<{ status: string }> {
+    const build = await this.findOwnedBuild(uuid, userGuid);
+    if (build.status !== 'pending' && build.status !== 'building') {
+      throw new BadRequestException(
+        'Only a build in progress can be cancelled',
+      );
+    }
+
+    if (build.githubRunId) {
+      const settings = await this.settingsService.getActiveSettings();
+      if (!settings.githubToken) {
+        throw new BadRequestException(
+          'GitHub token is not configured, please configure it in custom-client settings first',
+        );
+      }
+      const response = await fetch(
+        `${GITHUB_API}/repos/${settings.generatorRepo}/actions/runs/${build.githubRunId}/cancel`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${settings.githubToken}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2026-03-10',
+          },
+          signal: AbortSignal.timeout(CALLBACK_TIMEOUT_MS),
+        },
+      );
+
+      if (response.status === 409 || response.status === 404) {
+        // 运行已经结束或已不存在，同步一次真实状态后返回。
+        await this.getBuildProgress(uuid, userGuid).catch(() => undefined);
+        const refreshed = await this.buildRepository.findOne({
+          where: { uuid },
+        });
+        return { status: refreshed?.status ?? build.status };
+      }
+      if (!response.ok) {
+        this.logger.error(
+          `GitHub cancel failed: ${response.status} ${await response.text()}`,
+        );
+        throw new BadGatewayException('Failed to cancel build on GitHub');
+      }
+    }
+
+    await this.buildRepository.update({ uuid }, { status: 'cancelled' });
+    this.logger.log(`Build ${uuid} cancelled by user ${userGuid}`);
+    return { status: 'cancelled' };
+  }
+
   async listBuildFiles(
     uuid: string,
     userGuid: string,
