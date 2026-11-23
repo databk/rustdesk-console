@@ -107,6 +107,22 @@ See [Managed system updates](docs/system-update.md) for SQLite/MySQL prerequisit
 
 Images are published to both Docker Hub (`databk/rustdesk-console`) and GitHub Container Registry (`ghcr.io/databk/rustdesk-console`) for `linux/amd64` and `linux/arm64`. To use the GitHub Container Registry mirror, replace `databk/rustdesk-console` with `ghcr.io/databk/rustdesk-console`.
 
+### All-in-one image (single container)
+
+`databk/rustdesk-console:allinone` serves the web console and the API from one container on a single port (`8080` inside, published as `21114`). It is available for `linux/amd64` and `linux/arm64` and contains no updater, so updates are manual.
+
+```bash
+docker run -d --name rustdesk-console \
+  -p 21114:8080 \
+  -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -e ADMIN_PASSWORD='change-me' \
+  -v "$PWD/data:/data" \
+  --restart unless-stopped \
+  databk/rustdesk-console:allinone
+```
+
+Alternatively use [`docker-compose.allinone.yml`](docker-compose.allinone.yml).
+
 <details>
 <summary>📋 Docker CLI (without Compose)</summary>
 

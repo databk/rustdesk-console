@@ -1,0 +1,92 @@
+# All-in-one image: API + web console + nginx in a single container.
+#
+# The web assets are built once in CI from the console-web repository and
+# placed in ./frontend-dist before this image is built. The backend is built
+# per target architecture (sqlite3 is a native module), so the image can be
+# published for linux/amd64 and linux/arm64 without cross-arch npm builds.
+#
+# Usage:
+#   docker build -f Dockerfile.allinone -t rustdesk-console:allinone .
+# (requires ./frontend-dist/index.html)
+
+# Build stage
+FROM node:24-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM node:24-alpine AS production
+
+WORKDIR /app
+
+# nginx serves the web console and proxies /api to the local Node process;
+# supervisor keeps both processes alive inside the single container.
+RUN apk add --no-cache docker-cli docker-cli-compose sqlite mariadb-client \
+    mariadb-connector-c util-linux ca-certificates tar su-exec iproute2 \
+    nginx supervisor
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm ci --omit=dev
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+COPY deployment/compose-bootstrap.mjs ./deployment/compose-bootstrap.mjs
+COPY deployment/docker-entrypoint.sh /usr/local/bin/console-entrypoint
+COPY network/tcp-observation.js ./network/
+
+# Prebuilt web console (produced by the console-web build in CI)
+COPY frontend-dist/ /usr/share/nginx/html/
+
+# Single-container runtime configuration (nginx runs as UID 1000, no root)
+COPY deployment/allinone/nginx.conf /etc/nginx/nginx.conf
+COPY deployment/allinone/supervisord.conf /etc/supervisord.conf
+
+# nginx runs as UID 1000, so its temporary paths must already be writable.
+RUN chmod 755 /usr/local/bin/console-entrypoint \
+    && mkdir -p /data \
+    && mkdir -p /tmp/nginx/client_body /tmp/nginx/proxy /tmp/nginx/fastcgi \
+       /tmp/nginx/uwsgi /tmp/nginx/scgi \
+    && chown -R 1000:1000 /tmp/nginx \
+    && test -s /usr/share/nginx/html/index.html
+
+# The web console and API share one port.
+EXPOSE 8080
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV DATA_DIR=/data
+
+# Inject application version from package.json at build time
+ARG APP_VERSION=unknown
+ENV APP_VERSION=${APP_VERSION}
+ARG SOURCE_COMMIT=unknown
+ENV SOURCE_COMMIT=${SOURCE_COMMIT}
+RUN node -e "require('fs').writeFileSync('/app/release-metadata.json', JSON.stringify({version:process.env.APP_VERSION,sourceCommit:process.env.SOURCE_COMMIT}))"
+LABEL org.opencontainers.image.version=${APP_VERSION} \
+      org.opencontainers.image.revision=${SOURCE_COMMIT} \
+      org.opencontainers.image.source="https://github.com/databk/rustdesk-console" \
+      org.opencontainers.image.title="rustdesk-console (all-in-one)"
+
+# Health check through nginx so a broken web layer is detected as well.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8080/api/login-options', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
+
+# console-entrypoint drops to UID 1000 and execs supervisord.
+ENTRYPOINT ["console-entrypoint"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

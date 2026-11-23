@@ -1,0 +1,87 @@
+# All-in-one deployment: one container serves the web console and the API on
+# a single port (8080 inside the container, 21114 on the host by default).
+#
+#   cp this file next to your .env, then:
+#   docker compose -f docker-compose.allinone.yml up -d
+#
+# Differences from docker-compose.yml:
+#   * no separate rustdesk-console-web container and no updater service;
+#   * updates are manual (`docker compose pull && docker compose up -d`);
+#   * the optional hbbs/hbbr profile is unchanged.
+
+services:
+  rustdesk-console:
+    image: databk/rustdesk-console:${CONSOLE_IMAGE_TAG:-allinone}
+    restart: unless-stopped
+    ports:
+      - '${CONSOLE_PORT:-21114}:8080'
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      DB_TYPE: ${DB_TYPE:-sqlite}
+      DB_MIGRATE_ON_START: ${DB_MIGRATE_ON_START:-1}
+      LOG_LEVEL: ${LOG_LEVEL:-log}
+
+      DB_HOST: ${DB_HOST:-localhost}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USERNAME: ${DB_USERNAME:-rustdesk_console}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_DATABASE: ${DB_DATABASE:-rustdesk_console}
+    volumes:
+      - ./data:/data
+    # supervisor lets the backend finish its graceful shutdown.
+    stop_grace_period: 30s
+    networks:
+      - default
+      - rustdesk
+
+  # Optional RustDesk server (hbbs/hbbr). Enable with COMPOSE_PROFILES=server
+  # (or `docker compose -f docker-compose.allinone.yml --profile server up -d`)
+  # and set SERVER_MANAGEMENT_TOKEN and RUSTDESK_RELAY_ADDRESS in .env. The
+  # Console-side management connection (URL http://hbbs:21120, the same token
+  # and the node identity) is configured in Settings -> Server management.
+  hbbs:
+    image: databk/rustdesk-server:latest
+    profiles: [server]
+    container_name: hbbs
+    command: ['hbbs', '-r', '${RUSTDESK_RELAY_ADDRESS:-}']
+    working_dir: /data
+    restart: unless-stopped
+    environment:
+      HOME: /data
+      RD_MANAGEMENT_BIND: 0.0.0.0:21120
+      RD_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:-}
+      RD_MANAGEMENT_DIR: /data/management
+    ports:
+      - '21115:21115'
+      - '21116:21116'
+      - '21116:21116/udp'
+      - '21118:21118'
+    volumes:
+      - ./data/server:/data
+    networks:
+      - rustdesk
+
+  hbbr:
+    image: databk/rustdesk-server:latest
+    profiles: [server]
+    container_name: hbbr
+    command: ['hbbr']
+    working_dir: /data
+    restart: unless-stopped
+    environment:
+      HOME: /data
+      RD_HBBS_API_URL: ws://hbbs:21120/v1/control
+      RD_MANAGEMENT_TOKEN: ${SERVER_MANAGEMENT_TOKEN:-}
+      RD_RELAY_ID: relay-1
+      RD_RELAY_ADDRESS: ${RUSTDESK_RELAY_ADDRESS:-}
+    ports:
+      - '21117:21117'
+      - '21119:21119'
+    volumes:
+      - ./data/server-relay:/data
+    networks:
+      - rustdesk
+
+networks:
+  rustdesk: {}

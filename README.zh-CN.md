@@ -32,6 +32,7 @@
 - [方式二：Docker CLI](#方式二docker-cli)
 - [方式三：预编译二进制](#方式三预编译二进制)
 - [方式四：从源码构建](#方式四从源码构建)
+- [方式五：一体化单镜像（全平台）](#方式五一体化单镜像全平台)
 - [配置项说明](#配置项说明)
 - [首次登录与初始化](#首次登录与初始化)
 - [界面菜单对照](#界面菜单对照)
@@ -83,6 +84,7 @@ Console 不替代 hbbs/hbbr。它管理的是"谁可以使用、能管理哪些�
 | 方式 | 适合场景 | 是否支持界面内自动更新 |
 | --- | --- | --- |
 | Docker Compose | 生产环境首选，Linux Docker 主机 | ✅ 支持 |
+| 一体化单镜像（all-in-one） | 任意平台一条命令启动，NAS / VPS / Windows·macOS Docker | ❌ 手动更新 |
 | 预编译二进制 + `install-linux.sh` | 全新 Linux + systemd 主机，不想依赖 Docker | ✅ 支持 |
 | Docker CLI 手动运行 | 临时测试、已有自定义编排 | ❌ 手动更新 |
 | 源码运行 | 开发、二次开发 | ❌ 手动更新 |
@@ -256,6 +258,33 @@ npm run start:prod
 | `npm run build` | 生产构建 |
 | `npm run db:migrate` | 构建并执行数据库迁移 |
 | `npm run db:show` | 查看未执行的迁移 |
+
+## 方式五：一体化单镜像（全平台）
+
+`databk/rustdesk-console:allinone` 在同一个容器里运行后端、网页控制台和 nginx，对外只暴露一个端口。镜像同时提供 `linux/amd64` 与 `linux/arm64`，适用于 NAS、VPS、树莓派（64 位系统），以及 Windows / macOS 上的 Docker。
+
+```bash
+docker run -d --name rustdesk-console \
+  -p 21114:8080 \
+  -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -e ADMIN_PASSWORD='换成你的强密码' \
+  -v "$PWD/data:/data" \
+  --restart unless-stopped \
+  databk/rustdesk-console:allinone
+```
+
+打开 `http://服务器IP:21114` 即可。也可以使用本仓库的编排文件：
+
+```bash
+cp .env.example .env   # 至少填写 JWT_SECRET 和 ADMIN_PASSWORD
+docker compose -f docker-compose.allinone.yml up -d
+```
+
+- 容器内只有 `8080` 一个端口：nginx 提供静态页面，并把 `/api` 反向代理到同一容器内的后端。
+- 数据仍保存在 `./data`。升级为手动操作：`docker compose -f docker-compose.allinone.yml pull && docker compose -f docker-compose.allinone.yml up -d`。
+- 该形态**不包含**受控更新器，界面中的“系统更新”不可用；需要界面内自动更新请使用方式一。
+- 需要同时运行 hbbs/hbbr 时，在 `.env` 中设置 `COMPOSE_PROFILES=server`、`RUSTDESK_RELAY_ADDRESS`、`SERVER_MANAGEMENT_TOKEN`，与方式一相同。
+- 自行构建：先在前端仓库构建出 `dist/` 并放到本仓库的 `frontend-dist/`，再执行 `docker build -f Dockerfile.allinone -t rustdesk-console:allinone .`。
 
 ## 配置项说明
 
