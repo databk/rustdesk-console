@@ -61,11 +61,29 @@ jobs:
           with open("docs/dockerhub-overview.zh-CN.md", encoding="utf-8") as fh:
               overview = fh.read()
 
+          # A scoped PAT cannot be sent as a bearer token directly; exchange it
+          # for a scoped access token via the Hub auth API first.
+          bearer = None
+          for payload in (
+              {"identifier": user, "secret": token},
+              {"username": user, "password": token},
+          ):
+              try:
+                  _, auth_body = call(
+                      "https://hub.docker.com/v2/auth/token", payload, "POST"
+                  )
+                  auth_data = json.loads(auth_body)
+                  bearer = auth_data.get("access_token") or auth_data.get("token")
+                  if bearer:
+                      break
+              except urllib.error.HTTPError as exc:
+                  print("auth/token attempt failed:", exc.code, exc.read().decode()[:200])
+
           repo_url = f"https://hub.docker.com/v2/repositories/{user}/rustdesk-console/"
+          attempts = [("Bearer", bearer)] if bearer else []
+          attempts.append(("JWT", jwt))
           last_error = None
-          # Hub accepts both the exchanged JWT and, on newer tokens, the PAT
-          # itself as a bearer credential; try both before giving up.
-          for scheme, credential in (("JWT", jwt), ("Bearer", token)):
+          for scheme, credential in attempts:
               try:
                   status, _ = call(
                       repo_url,
