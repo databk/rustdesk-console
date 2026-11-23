@@ -295,6 +295,25 @@ docker compose -f docker-compose.allinone.yml up -d
 - 需要同时运行 hbbs/hbbr 时，在 `.env` 中设置 `COMPOSE_PROFILES=server`、`RUSTDESK_RELAY_ADDRESS`、`SERVER_MANAGEMENT_TOKEN`，与方式一相同。
 - 自行构建：先在前端仓库构建出 `dist/` 并放到本仓库的 `frontend-dist/`，再执行 `docker build -f Dockerfile.allinone -t rustdesk-console:allinone .`。
 
+## 方式六：群晖 DSM 7 套件（SPK）
+
+发布页提供两个 SPK：`rustdesk-console-synology-<版本>-x86_64.spk`（Intel/AMD 机型）和 `-armv8.spk`（rtd1296 / rtd1619b 等 64 位 ARM 机型）。
+
+1. 套件中心先安装 **Node.js v20**（套件不捆绑 Node，DSM 的 glibc 太旧，官方 Node 24 二进制无法启动）。
+2. 套件中心 → 设置 → 常规 → 信任层级，选择允许第三方/任何发行者。
+3. 套件中心 → 手动安装 → 选择对应机型的 spk。
+
+安装后打开 `http://<NAS-IP>:3000/setup` 完成初始化。
+
+| 项目 | 位置 |
+| --- | --- |
+| 数据目录（SQLite、日志） | `/var/packages/rustdesk-console/var` |
+| 配置文件 | `/var/packages/rustdesk-console/var/.env` |
+| 程序目录 | `/var/packages/rustdesk-console/target` |
+| 服务控制 | `synopkg start/stop/restart rustdesk-console` |
+
+套件在 DSM 防火墙中自动放行 3000 端口；卸载会删除整个 `/var/packages/rustdesk-console`，请先备份 `var/`。
+
 ## 配置项说明
 
 以下是最常用的环境变量。完整示例见 [`.env.example`](.env.example)。
