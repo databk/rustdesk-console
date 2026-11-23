@@ -280,6 +280,15 @@ cp .env.example .env   # 至少填写 JWT_SECRET 和 ADMIN_PASSWORD
 docker compose -f docker-compose.allinone.yml up -d
 ```
 
+挂载卷只需要一个 `/data`，**必须持久化**，否则容器重建即丢数据：
+
+| 容器路径 | 是否必需 | 用途 |
+| --- | --- | --- |
+| `/data` | 是 | SQLite 数据库、上传文件、日志、运行时配置；容器内属主为 UID/GID 1000 |
+| `/var/run/docker.sock` | 否 | 仅“本地 Docker 方式管理系统服务”，默认不要挂载 |
+
+完整运行参数、卷权限与备份说明见 [`docs/dockerhub-overview.zh-CN.md`](docs/dockerhub-overview.zh-CN.md)。
+
 - 容器内只有 `8080` 一个端口：nginx 提供静态页面，并把 `/api` 反向代理到同一容器内的后端。
 - 数据仍保存在 `./data`。升级为手动操作：`docker compose -f docker-compose.allinone.yml pull && docker compose -f docker-compose.allinone.yml up -d`。
 - 该形态**不包含**受控更新器，界面中的“系统更新”不可用；需要界面内自动更新请使用方式一。
