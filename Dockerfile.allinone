@@ -46,22 +46,22 @@ RUN npm ci --omit=dev
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 COPY deployment/compose-bootstrap.mjs ./deployment/compose-bootstrap.mjs
-COPY deployment/docker-entrypoint.sh /usr/local/bin/console-entrypoint
+COPY deployment/allinone/entrypoint.sh /usr/local/bin/allinone-entrypoint
 COPY network/tcp-observation.js ./network/
 
 # Prebuilt web console (produced by the console-web build in CI)
 COPY frontend-dist/ /usr/share/nginx/html/
 
-# Single-container runtime configuration (nginx runs as UID 1000, no root)
+# Single-container runtime configuration.
 COPY deployment/allinone/nginx.conf /etc/nginx/nginx.conf
 COPY deployment/allinone/supervisord.conf /etc/supervisord.conf
 
-# nginx runs as UID 1000, so its temporary paths must already be writable.
-RUN chmod 755 /usr/local/bin/console-entrypoint \
+# nginx workers run as `nginx`, so the temp paths must be writable by them.
+RUN chmod 755 /usr/local/bin/allinone-entrypoint \
     && mkdir -p /data \
     && mkdir -p /tmp/nginx/client_body /tmp/nginx/proxy /tmp/nginx/fastcgi \
        /tmp/nginx/uwsgi /tmp/nginx/scgi \
-    && chown -R 1000:1000 /tmp/nginx \
+    && chown -R nginx:nginx /tmp/nginx \
     && test -s /usr/share/nginx/html/index.html
 
 # The web console and API share one port.
@@ -87,6 +87,5 @@ LABEL org.opencontainers.image.version=${APP_VERSION} \
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8080/api/login-options', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)}).on('error', () => process.exit(1))"
 
-# console-entrypoint drops to UID 1000 and execs supervisord.
-ENTRYPOINT ["console-entrypoint"]
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# allinone-entrypoint prepares /data and starts supervisord.
+ENTRYPOINT ["/usr/local/bin/allinone-entrypoint"]
