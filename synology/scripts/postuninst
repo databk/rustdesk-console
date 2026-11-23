@@ -1,0 +1,3 @@
+#!/bin/sh
+# DSM removes /var/packages/rustdesk-console (including var/) on uninstall.
+exit 0

@@ -1,0 +1,5 @@
+#!/bin/sh
+PKG_NAME=rustdesk-console
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+"$SCRIPT_DIR/start-stop-status" stop >/dev/null 2>&1 || true
+exit 0

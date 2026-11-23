@@ -1,0 +1,271 @@
+name: Synology Build (SPK)
+
+# 群晖套件（SPK）：
+#   · x86_64  — apollolake / geminilake / v1000 等 DSM 7 机型
+#   · armv8   — rtd1296 / rtd1619b 等 64 位 ARM 机型
+#
+# 运行时依赖套件中心里的官方 Node.js v20（DSM 7 自带 glibc 较旧，捆绑官方
+# Node 24 二进制会因 GLIBC_2.28 缺失无法启动）。
+
+on:
+  push:
+    tags:
+      - 'synology-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'SPK 版本号'
+        required: true
+        default: '1.13.53'
+        type: string
+      frontend_repo:
+        description: '前端仓库 (owner/repo)'
+        required: true
+        default: 'fengyun1980/rustdesk-console-web'
+        type: string
+      frontend_branch:
+        description: '前端分支/tag'
+        required: true
+        default: 'fnos-setup-wizard-v2'
+        type: string
+      publish:
+        description: '发布到 Release'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────
+  # 1. x86_64 后端产物
+  # ──────────────────────────────────────────────────────────────────
+  backend-x64-build:
+    name: Build Backend (x86_64)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#synology-}"
+          [[ "$TAG" != synology-* ]] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Build dist + production node_modules
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          npm install --omit=dev --no-audit --no-fund
+          mkdir -p templates
+          cp -r dist/modules/email/templates templates/email 2>/dev/null || true
+          cp -r dist/modules/oidc/templates templates/oidc 2>/dev/null || true
+          ls templates/
+          mkdir -p artifacts
+          tar czf artifacts/backend-x64.tar.gz dist node_modules templates
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-x64
+          path: artifacts/backend-x64.tar.gz
+
+  # ──────────────────────────────────────────────────────────────────
+  # 2. armv8 后端产物（QEMU 下装 arm64 预编译模块）
+  # ──────────────────────────────────────────────────────────────────
+  backend-arm64-build:
+    name: Build Backend (armv8)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#synology-}"
+          [[ "$TAG" != synology-* ]] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: QEMU
+        run: |
+          docker run --rm --privileged multiarch/qemu-user-static \
+            --reset -p yes --credential yes
+
+      - name: Build arm64 dist + node_modules (Docker)
+        run: |
+          rm -rf /tmp/arm64-out && mkdir -p /tmp/arm64-out
+          docker run --rm --platform linux/arm64 \
+            -v "${PWD}:/src" \
+            -v /tmp/arm64-out:/out \
+            node:24-bookworm \
+            bash -c '
+              set -e
+              cd /src
+              npm ci --ignore-scripts --no-audit --no-fund
+              npm run build
+              npm install --omit=dev --no-audit --no-fund
+              mkdir -p templates
+              cp -r dist/modules/email/templates templates/email 2>/dev/null || true
+              cp -r dist/modules/oidc/templates templates/oidc 2>/dev/null || true
+              tar czf /out/backend-arm64.tar.gz dist node_modules templates
+            '
+          mkdir -p artifacts
+          cp /tmp/arm64-out/backend-arm64.tar.gz artifacts/
+          tar tzf artifacts/backend-arm64.tar.gz | head -5
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-arm64
+          path: artifacts/backend-arm64.tar.gz
+
+  # ──────────────────────────────────────────────────────────────────
+  # 3. 前端
+  # ──────────────────────────────────────────────────────────────────
+  frontend-build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_repo || 'fengyun1980/rustdesk-console-web' }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.frontend_branch || 'fnos-setup-wizard-v2' }}
+          path: frontend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: cd frontend && npm ci --ignore-scripts && npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  # ──────────────────────────────────────────────────────────────────
+  # 4. 组装两个 SPK
+  # ──────────────────────────────────────────────────────────────────
+  spk-x64:
+    name: Assemble SPK (x86_64)
+    needs: [backend-x64-build, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Build SPK
+        env:
+          VERSION: ${{ needs.backend-x64-build.outputs.version }}
+          ARCH_NAME: x86_64
+          ARCH_INFO: 'apollolake avoton braswell broadwell broadwellnk broadwellnkv2 bromolow cedarville cedarview denverton epyc7002 geminilake grantley kvmx64 purley v1000 v1000nk r1000 x86_64'
+        run: |
+          set -euo pipefail
+          bash synology/build-spk.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synology-x64
+          path: '*.spk'
+
+  spk-arm64:
+    name: Assemble SPK (armv8)
+    needs: [backend-arm64-build, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Build SPK
+        env:
+          VERSION: ${{ needs.backend-arm64-build.outputs.version }}
+          ARCH_NAME: armv8
+          ARCH_INFO: 'rtd1296 rtd1619 rtd1619b'
+        run: |
+          set -euo pipefail
+          bash synology/build-spk.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synology-arm64
+          path: '*.spk'
+
+  # ──────────────────────────────────────────────────────────────────
+  # 5. 发布
+  # ──────────────────────────────────────────────────────────────────
+  publish:
+    name: Publish SPK
+    needs: [spk-x64, spk-arm64]
+    if: ${{ (inputs.publish == true) || (github.event_name == 'push') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: synology-*
+          merge-multiple: true
+
+      - name: Determine version
+        id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#synology-}"
+          [[ "$TAG" != synology-* ]] && VERSION="${{ inputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          ls -lh artifacts
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Synology RustDesk Console v${{ steps.meta.outputs.version }}
+          body: |
+            ## RustDesk Console · Synology DSM 7
+
+            ### 安装前提
+            1. 套件中心先安装 **Node.js v20**（本套件不捆绑 Node，DSM 的 glibc 版本太旧）
+            2. 套件中心 → 设置 → 常规 → 信任层级：允许「任何发行者」或手动安装第三方套件
+
+            ### 安装
+            套件中心 → 手动安装 → 选择对应机型的 spk：
+            - `x86_64`：apollolake / geminilake / v1000 等 Intel/AMD 机型
+            - `armv8`：rtd1296 / rtd1619b 等 64 位 ARM 机型
+
+            ### 使用
+            - 浏览器打开 `http://<NAS-IP>:3000/setup` 完成初始化
+            - 数据目录：`/var/packages/rustdesk-console/var`（含 SQLite 数据库与日志）
+            - 配置文件：`/var/packages/rustdesk-console/var/.env`
+            - 执行 `synopkg restart rustdesk-console` 可重启服务
+
+            ### 注意
+            - 卸载套件会删除 `/var/packages/rustdesk-console`，请先备份 `var/` 目录
+            - 端口 3000 需未被占用；套件会在 DSM 防火墙中自动放行
+          files: |
+            artifacts/*.spk
+          fail_on_unmatched_files: true

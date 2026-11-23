@@ -1,0 +1,59 @@
+#!/bin/sh
+# Runs once on install and again on every upgrade (see postupgrade).
+set -eu
+
+PKG_NAME=rustdesk-console
+PKG_DIR="${SYNOPKG_PKGDEST:-/var/packages/${PKG_NAME}/target}"
+VAR_DIR="${SYNOPKG_PKGVAR:-/var/packages/${PKG_NAME}/var}"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+
+find_node() {
+    for candidate in \
+        /var/packages/Node.js_v20/target/usr/local/bin/node \
+        /var/packages/Node.js_v20/target/bin/node \
+        /var/packages/Node.js_v18/target/usr/local/bin/node \
+        /var/packages/Node.js_v18/target/bin/node \
+        /usr/local/bin/node \
+        /usr/bin/node; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+mkdir -p "$VAR_DIR"
+chmod 755 "$VAR_DIR"
+
+if [ ! -f "$VAR_DIR/.env" ]; then
+    SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    cat > "$VAR_DIR/.env" <<EOF
+# RustDesk Console configuration
+# Edit and restart the package for changes to take effect.
+PORT=3000
+NODE_ENV=production
+JWT_SECRET=$SECRET
+DB_TYPE=sqlite
+DATA_DIR=$VAR_DIR
+EOF
+    chmod 600 "$VAR_DIR/.env"
+    echo "[postinst] generated $VAR_DIR/.env"
+fi
+
+NODE_BIN=$(find_node) || {
+    echo "[postinst] Node.js runtime not found." >&2
+    echo "[postinst] Install 'Node.js v20' from Package Center, then start RustDesk Console again." >&2
+    exit 1
+}
+echo "[postinst] node runtime: $NODE_BIN"
+
+set -a
+. "$VAR_DIR/.env"
+set +a
+
+cd "$PKG_DIR"
+"$NODE_BIN" dist/main.js migrate
+
+"$SCRIPT_DIR/start-stop-status" start
+echo "[postinst] RustDesk Console is ready on http://<nas-ip>:${PORT:-3000}"
