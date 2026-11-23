@@ -1,0 +1,164 @@
+name: All-in-one Image
+
+# Builds the single-container image (web console + API + nginx) and pushes it
+# to Docker Hub. Triggered by fnOS release tags, dedicated allinone-* tags, or
+# manually from the Actions tab.
+
+on:
+  push:
+    tags:
+      - 'fnos-*'
+      - 'allinone-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '镜像版本号（留空则取 package.json）'
+        required: false
+        type: string
+      frontend_repo:
+        description: '前端仓库 (owner/repo)'
+        required: false
+        default: 'fengyun1980/rustdesk-console-web'
+        type: string
+      frontend_branch:
+        description: '前端分支/tag'
+        required: false
+        default: 'fnos-setup-wizard-v2'
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: allinone-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Build web console
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.frontend_repo || 'fengyun1980/rustdesk-console-web' }}
+          ref: ${{ inputs.frontend_branch || 'fnos-setup-wizard-v2' }}
+          path: frontend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: cd frontend && npm ci --ignore-scripts && npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  image:
+    name: Build & push all-in-one image
+    needs: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist
+
+      - name: Verify web assets
+        run: test -s frontend-dist/index.html
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          INPUT_VERSION="${{ inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          elif [[ "$GITHUB_REF_NAME" == fnos-* ]]; then
+            VERSION="${GITHUB_REF_NAME#fnos-}"
+          elif [[ "$GITHUB_REF_NAME" == allinone-* ]]; then
+            VERSION="${GITHUB_REF_NAME#allinone-}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "→ image version: $VERSION"
+
+      # Never publish an image that cannot start or serve the console.
+      - name: Smoke test single container (amd64)
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          docker build -f Dockerfile.allinone \
+            --build-arg APP_VERSION="$VERSION" \
+            --build-arg SOURCE_COMMIT="${{ github.sha }}" \
+            -t rustdesk-console-allinone:smoke .
+          docker run -d --name allinone-smoke -p 18080:8080 \
+            -e JWT_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+            -e ADMIN_PASSWORD='SmokeTest-Only-1' \
+            rustdesk-console-allinone:smoke
+          ready=0
+          for _ in $(seq 1 90); do
+            if curl -fsS -o /dev/null http://127.0.0.1:18080/api/login-options; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != 1 ]; then
+            echo "API did not become ready through nginx" >&2
+            exit 1
+          fi
+          status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/)
+          test "$status" = 200
+          curl -fsS http://127.0.0.1:18080/ | grep -qi '<html'
+          echo "✓ single-container smoke test passed"
+
+      - name: Dump smoke container logs
+        if: always()
+        run: docker logs allinone-smoke 2>&1 | tail -120 || true
+
+      - name: Remove smoke container
+        if: always()
+        run: docker rm -f allinone-smoke || true
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        env:
+          DU: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          DT: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "${DU:-}" ] || [ -z "${DT:-}" ]; then
+            echo "::error::Missing DOCKER_USERNAME/DOCKERHUB_TOKEN repository secrets"
+            exit 1
+          fi
+          echo "$DT" | docker login -u "$DU" --password-stdin
+
+      - name: Build and push (amd64 + arm64)
+        env:
+          DU: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          # --provenance=false keeps the manifest acceptable for all registries.
+          docker buildx build --push --provenance=false \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg APP_VERSION="$VERSION" \
+            --build-arg SOURCE_COMMIT="${{ github.sha }}" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --tag "$DU/rustdesk-console:allinone" \
+            --tag "$DU/rustdesk-console:allinone-$VERSION" \
+            -f Dockerfile.allinone \
+            .
+          echo "✓ pushed allinone and allinone-$VERSION"
