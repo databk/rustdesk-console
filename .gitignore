@@ -76,4 +76,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /frontend-dist
 
 # 临时解包/下载目录，避免大文件入库
-.scratch/pkg*/
+.scratch/

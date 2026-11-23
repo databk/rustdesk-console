@@ -61,16 +61,24 @@ jobs:
           with open("docs/dockerhub-overview.zh-CN.md", encoding="utf-8") as fh:
               overview = fh.read()
 
-          try:
-              status, _ = call(
-                  f"https://hub.docker.com/v2/repositories/{user}/rustdesk-console/",
-                  {"full_description": overview},
-                  "PATCH",
-                  f"JWT {jwt}",
-              )
-          except urllib.error.HTTPError as exc:
-              print("Docker Hub overview update failed:", exc.code, exc.read().decode()[:500])
+          repo_url = f"https://hub.docker.com/v2/repositories/{user}/rustdesk-console/"
+          last_error = None
+          # Hub accepts both the exchanged JWT and, on newer tokens, the PAT
+          # itself as a bearer credential; try both before giving up.
+          for scheme, credential in (("JWT", jwt), ("Bearer", token)):
+              try:
+                  status, _ = call(
+                      repo_url,
+                      {"full_description": overview},
+                      "PATCH",
+                      f"{scheme} {credential}",
+                  )
+                  print(f"overview updated ({len(overview)} chars, HTTP {status}, auth {scheme})")
+                  break
+              except urllib.error.HTTPError as exc:
+                  last_error = f"{exc.code} {exc.read().decode()[:300]}"
+                  print(f"{scheme} auth failed: {last_error}")
+          else:
+              print("Docker Hub overview update failed:", last_error)
               sys.exit(1)
-
-          print(f"overview updated ({len(overview)} chars, HTTP {status})")
           PY
