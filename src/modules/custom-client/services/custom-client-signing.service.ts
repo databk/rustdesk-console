@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  createHash,
   createPrivateKey,
   createPublicKey,
   sign,
@@ -12,6 +13,19 @@ const ED25519_PKCS8_HEADER = Buffer.from(
   '302e020100300506032b657004220420',
   'hex',
 );
+
+// RustDesk 预设密码规则：salt 为空时按明文比对；salt 非空时必须存
+// "00" + base64(SHA-256(password + salt))，否则客户端会判定为无可用预设密码。
+// 控制台前端会自动生成盐并提交明文密码，这里统一转成客户端要求的哈希格式。
+const PRESET_PASSWORD_HASH_RE = /^00[A-Za-z0-9+/]{43}=$/;
+
+function normalizePresetPassword(password: string, salt?: string): string {
+  if (!salt || PRESET_PASSWORD_HASH_RE.test(password)) {
+    return password;
+  }
+  const h1 = createHash('sha256').update(password + salt, 'utf8').digest();
+  return '00' + h1.toString('base64');
+}
 
 function createEd25519PrivateKey(privateKeyBase64: string): KeyObject {
   const rawKey = Buffer.from(privateKeyBase64, 'base64');
@@ -40,7 +54,10 @@ export class CustomClientSigningService {
         config['app-name'] = custom['app-name'];
       }
       if (custom.password) {
-        config['password'] = custom.password;
+        config['password'] = normalizePresetPassword(
+          custom.password,
+          custom.salt,
+        );
       }
       if (custom.salt) {
         config['salt'] = custom.salt;
