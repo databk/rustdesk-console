@@ -1,0 +1,76 @@
+name: Docker Hub Overview
+
+# Keeps the Docker Hub repository page (README / overview) in sync with
+# docs/dockerhub-overview.zh-CN.md. Runs in seconds and never builds images.
+# Trigger: any push that touches the overview file, or a dockerhub-* tag.
+
+on:
+  push:
+    paths:
+      - 'docs/dockerhub-overview.zh-CN.md'
+    tags:
+      - 'dockerhub-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dockerhub-overview
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Update Docker Hub overview
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push overview text
+        env:
+          DU: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          DT: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "${DU:-}" ] || [ -z "${DT:-}" ]; then
+            echo "::error::Missing DOCKER_USERNAME/DOCKERHUB_TOKEN repository secrets"
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, os, sys, urllib.error, urllib.request
+
+          user = os.environ["DU"]
+          token = os.environ["DT"]
+
+          def call(url, payload=None, method="GET", auth=None):
+              data = json.dumps(payload).encode() if payload is not None else None
+              req = urllib.request.Request(url, data=data, method=method)
+              req.add_header("Content-Type", "application/json")
+              if auth:
+                  req.add_header("Authorization", auth)
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  return resp.status, resp.read()
+
+          _, body = call(
+              "https://hub.docker.com/v2/users/login/",
+              {"username": user, "password": token},
+              "POST",
+          )
+          jwt = json.loads(body)["token"]
+
+          with open("docs/dockerhub-overview.zh-CN.md", encoding="utf-8") as fh:
+              overview = fh.read()
+
+          try:
+              status, _ = call(
+                  f"https://hub.docker.com/v2/repositories/{user}/rustdesk-console/",
+                  {"full_description": overview},
+                  "PATCH",
+                  f"JWT {jwt}",
+              )
+          except urllib.error.HTTPError as exc:
+              print("Docker Hub overview update failed:", exc.code, exc.read().decode()[:500])
+              sys.exit(1)
+
+          print(f"overview updated ({len(overview)} chars, HTTP {status})")
+          PY
