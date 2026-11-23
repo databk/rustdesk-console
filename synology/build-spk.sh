@@ -62,12 +62,18 @@ echo "── spk 内容 ──"
 tar tf "$OUT"
 mkdir -p .verify
 tar -xOf "$OUT" package.tgz > .verify/package.tgz
+tar tzf .verify/package.tgz > .verify/paths.txt
+tar tzvf .verify/package.tgz > .verify/list.txt
 echo "── package.tgz 关键文件 ──"
-tar tzvf .verify/package.tgz | grep -E '(dist/main\.js|public/index\.html|^[-a-z]+ .* \./run\.sh|package\.json|release-metadata\.json)$' \
+grep -E '(dist/main\.js|public/index\.html|\.\/run\.sh|package\.json|release-metadata\.json)$' .verify/list.txt \
   || { echo "payload sanity check failed" >&2; exit 1; }
-tar tzf .verify/package.tgz | grep -q '^\./public/index.html$' \
+grep -qx '\./public/index.html' .verify/paths.txt \
   || { echo "frontend index.html missing from payload" >&2; exit 1; }
-tar tzf .verify/package.tgz | grep -q '^\./node_modules/typeorm/' \
+grep -qx '\./dist/main.js' .verify/paths.txt \
+  || { echo "backend dist/main.js missing from payload" >&2; exit 1; }
+grep -q '^\./node_modules/typeorm/' .verify/paths.txt \
   || { echo "node_modules missing from payload" >&2; exit 1; }
+grep -q '^-rwxr-xr-x .* \./run\.sh$' .verify/list.txt \
+  || { echo "run.sh missing or not executable" >&2; exit 1; }
 rm -rf .verify
 ls -lh "$OUT"
