@@ -60,6 +60,7 @@ export class StrategyService {
     strategy.configOptions = dto.config_options
       ? JSON.stringify(dto.config_options)
       : '';
+    strategy.rustdeskVersion = dto.rustdesk_version || null;
 
     await this.strategyRepository.save(strategy);
 
@@ -68,6 +69,7 @@ export class StrategyService {
       name: strategy.name,
       note: strategy.note,
       config_options: dto.config_options || {},
+      rustdesk_version: strategy.rustdeskVersion,
       updated_at: strategy.updatedAt,
     };
   }
@@ -98,6 +100,10 @@ export class StrategyService {
       strategy.configOptions = JSON.stringify(dto.config_options);
     }
 
+    if (dto.rustdesk_version !== undefined) {
+      strategy.rustdeskVersion = dto.rustdesk_version || null;
+    }
+
     await this.strategyRepository.save(strategy);
     this.strategyObjectCache.set(guid, strategy);
 
@@ -110,6 +116,7 @@ export class StrategyService {
       name: strategy.name,
       note: strategy.note,
       config_options: configOptions,
+      rustdesk_version: strategy.rustdeskVersion,
       updated_at: strategy.updatedAt,
     };
   }
@@ -154,6 +161,7 @@ export class StrategyService {
         guid: s.guid,
         name: s.name,
         note: s.note || '',
+        rustdesk_version: s.rustdeskVersion,
         updated_at: s.updatedAt,
       })),
       total,
@@ -248,6 +256,7 @@ export class StrategyService {
         string,
         string
       >,
+      rustdesk_version: strategy.rustdeskVersion,
       updated_at: strategy.updatedAt,
     };
   }

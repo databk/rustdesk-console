@@ -9,6 +9,7 @@ import { AddDeviceTombstoneReleaseTracking1791126400000 } from '../migrations/17
 import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1791212800000-ReplaceNexusWithCustomClientBuilds';
 import { SupportMariaDbDefaultGroupIndex1794700800000 } from '../migrations/1794700800000-SupportMariaDbDefaultGroupIndex';
 import { AddCustomClientBuildVersion1794800000000 } from '../migrations/1794800000000-AddCustomClientBuildVersion';
+import { AddStrategyRustdeskVersion1794900000000 } from '../migrations/1794900000000-AddStrategyRustdeskVersion';
 
 export function createDataSourceOptions(): DataSourceOptions {
   const common = {
@@ -22,6 +23,7 @@ export function createDataSourceOptions(): DataSourceOptions {
       ReplaceNexusWithCustomClientBuilds1791212800000,
       SupportMariaDbDefaultGroupIndex1794700800000,
       AddCustomClientBuildVersion1794800000000,
+      AddStrategyRustdeskVersion1794900000000,
     ],
     migrationsRun: false,
     synchronize: false,

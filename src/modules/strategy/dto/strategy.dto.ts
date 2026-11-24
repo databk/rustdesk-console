@@ -22,6 +22,10 @@ export class CreateStrategyDto {
   @IsObject()
   @IsOptional()
   config_options?: Record<string, string>;
+
+  @IsString()
+  @IsOptional()
+  rustdesk_version?: string;
 }
 
 export class UpdateStrategyDto {
@@ -36,6 +40,10 @@ export class UpdateStrategyDto {
   @IsObject()
   @IsOptional()
   config_options?: Record<string, string>;
+
+  @IsString()
+  @IsOptional()
+  rustdesk_version?: string;
 }
 
 export class AssignStrategyDto {
