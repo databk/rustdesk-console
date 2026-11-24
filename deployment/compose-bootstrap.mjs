@@ -34,7 +34,51 @@ export function describeRegistrationFailure(error) {
   return 'verify the standard deployment and official release manifests.';
 }
 
-export function validateContext(self, root) {
+// Compose's discovery order for default files (compose-go cli/options.go).
+const overrideNames = [
+  'compose.override.yml',
+  'compose.override.yaml',
+  'docker-compose.override.yml',
+  'docker-compose.override.yaml',
+];
+
+/**
+ * Compose v1 before 1.25 did not record the config file list. Fall back to the
+ * same default names Compose itself discovers in the project directory.
+ */
+export async function discoverConfigFiles(root) {
+  const baseNames = [
+    'compose.yaml',
+    'compose.yml',
+    'docker-compose.yml',
+    'docker-compose.yaml',
+  ];
+  for (const name of baseNames) {
+    const base = join(root, name);
+    try {
+      if (!(await fs.stat(base)).isFile()) continue;
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+    const files = [base];
+    for (const override of overrideNames) {
+      const candidate = join(root, override);
+      try {
+        if ((await fs.stat(candidate)).isFile()) {
+          files.push(candidate);
+          break;
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+    return files;
+  }
+  return [];
+}
+
+export function validateContext(self, root, discoveredFiles = []) {
   check(
     typeof root === 'string' &&
       root.startsWith('/') &&
@@ -47,8 +91,9 @@ export function validateContext(self, root) {
     labels['com.docker.compose.service'] === services.updater,
     'Bootstrap must run in the standard updater service.',
   );
+  const workingDirectory = labels['com.docker.compose.project.working_dir'];
   check(
-    labels['com.docker.compose.project.working_dir'] === root,
+    !workingDirectory || workingDirectory === root,
     'The configured installation directory differs from the actual Compose project.',
   );
   check(
@@ -71,20 +116,27 @@ export function validateContext(self, root) {
     ),
     'The installation mount does not match the host project.',
   );
-  const files = (labels['com.docker.compose.project.config_files'] ?? '').split(
-    ',',
-  );
+  const recorded = labels['com.docker.compose.project.config_files'];
+  const files = (recorded ? recorded.split(',') : discoveredFiles)
+    .map((file) => file.trim())
+    .filter(Boolean)
+    .map((file) =>
+      posix.isAbsolute(file)
+        ? posix.normalize(file)
+        : posix.resolve(root, file),
+    );
   check(
-    files.length > 0 &&
-      files.every(
-        (file) => posix.isAbsolute(file) && posix.dirname(file) === root,
-      ),
+    files.length > 0 && files.every((file) => posix.dirname(file) === root),
     'Compose configuration must be inside the recorded installation directory.',
   );
-  const overrideFile = join(root, 'docker-compose.override.yml');
+  const overrideFile =
+    [...files]
+      .reverse()
+      .find((file) => overrideNames.includes(posix.basename(file))) ??
+    join(root, 'docker-compose.override.yml');
   check(
     files.includes(overrideFile),
-    'The managed digest override must be part of normal Compose startup.',
+    'The managed digest override is not loaded. Start the project from its directory without an explicit --file, or include the override in the Compose file list.',
   );
   const projectName = labels['com.docker.compose.project'];
   check(
@@ -99,7 +151,8 @@ export function checkService(
   container,
   component,
   context,
-  configHash,
+  verifyInstance,
+  filesMatch,
 ) {
   const service = services[component];
   const effective = config.services[service];
@@ -115,19 +168,23 @@ export function checkService(
     'All application services must be running before registration.',
   );
   const labels = container.Config.Labels;
+  const workingDirectory = labels['com.docker.compose.project.working_dir'];
   check(
     labels['com.docker.compose.project'] === context.projectName &&
       labels['com.docker.compose.service'] === service &&
-      labels['com.docker.compose.project.working_dir'] ===
-        context.projectDirectory &&
-      labels['com.docker.compose.project.config_files'] ===
-        context.files.join(','),
+      (!workingDirectory || workingDirectory === context.projectDirectory) &&
+      filesMatch(
+        labels['com.docker.compose.project.config_files'],
+        context.projectDirectory,
+        context.files,
+      ),
     'A running service belongs to a different Compose installation.',
   );
+  const drift = verifyInstance(effective, container);
   check(
-    labels['com.docker.compose.config-hash'] ===
-      configHash.trim().split(/\s+/).at(-1),
-    'Compose configuration or shell-only environment differs from the running service.',
+    !drift,
+    drift ||
+      'Compose configuration or shell-only environment differs from the running service.',
   );
   if (component !== 'updater') {
     check(
@@ -178,7 +235,7 @@ export async function bootstrap(runtime = loadRuntime()) {
     'Managed Compose requires a local rootful Linux Docker daemon.',
   );
   const self = JSON.parse(await run(['inspect', process.env.HOSTNAME]))[0];
-  const context = validateContext(self, root);
+  const context = validateContext(self, root, await discoverConfigFiles(root));
   const compose = (args) =>
     run([
       'compose',
@@ -235,7 +292,8 @@ export async function bootstrap(runtime = loadRuntime()) {
         containers[component],
         component,
         context,
-        await compose(['config', '--hash', services[component]]),
+        runtime.verifyServiceInstance,
+        runtime.composeFilesMatch,
       );
     }
     check(
