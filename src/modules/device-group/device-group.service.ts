@@ -1033,6 +1033,24 @@ export class DeviceGroupService {
   }
 
   /**
+   * Resolve a device identifier to the peers.uuid primary key.
+   * Accepts the uuid as-is, and falls back to the RustDesk id only when it
+   * matches exactly one device.
+   */
+  private async resolveDeviceUuid(deviceKey: string): Promise<string> {
+    const byUuid = await this.peerRepository.findOne({
+      where: { uuid: deviceKey },
+      select: ['uuid'],
+    });
+    if (byUuid) return deviceKey;
+    const byId = await this.peerRepository.find({
+      where: { id: deviceKey },
+      select: ['uuid'],
+    });
+    return byId.length === 1 ? byId[0].uuid : deviceKey;
+  }
+
+  /**
    * Delete device
    *
    * Deleting only the database row was reversible by a single heartbeat,
@@ -1045,10 +1063,14 @@ export class DeviceGroupService {
    * @param guid Device GUID
    */
   async deleteDevice(
-    guid: string,
+    deviceKey: string,
     actorGuid: string,
     options: { protocolBan?: boolean; releaseId?: boolean } = {},
   ) {
+    // Older console clients (and cached bundles) address a device by its
+    // RustDesk id instead of the peers.uuid primary key. Accept both so the
+    // delete button keeps working; an ambiguous id still fails with 404.
+    const guid = await this.resolveDeviceUuid(deviceKey);
     const { scope, peer } =
       await this.rbacAuthorizationService.assertDeviceAccess(
         actorGuid,

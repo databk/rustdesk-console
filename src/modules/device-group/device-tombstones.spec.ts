@@ -50,6 +50,9 @@ describe('device deletion tombstones', () => {
       delete: jest
         .fn()
         .mockResolvedValue({ affected: options.deleteAffected ?? 1 }),
+      // deleteDevice resolves the identifier to peers.uuid before deleting.
+      findOne: jest.fn().mockResolvedValue({ uuid: 'device-guid' }),
+      find: jest.fn().mockResolvedValue([]),
     };
     const deviceTombstoneRepository = {
       upsert: jest.fn().mockResolvedValue({}),
