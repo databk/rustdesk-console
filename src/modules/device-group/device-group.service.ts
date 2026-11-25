@@ -37,6 +37,7 @@ import {
   type DeviceBanSyncResult,
 } from '../server-management/server-management.service';
 import { logSafe } from '../../common/logging/log-safe';
+import { normalizeDeviceUuid } from '../../common/utils/device-uuid.util';
 
 @Injectable()
 /**
@@ -911,13 +912,14 @@ export class DeviceGroupService {
     status: DeviceStatus,
     actorGuid: string,
   ): Promise<DeviceOperationResult> {
+    const normalizedGuids = guids.map(normalizeDeviceUuid);
     const { peers: existingPeers, scope } =
       await this.rbacAuthorizationService.assertDevicesAccess(
         actorGuid,
         'devices.status',
-        guids,
+        normalizedGuids,
       );
-    const uniqueGuids = [...new Set(guids)];
+    const uniqueGuids = [...new Set(normalizedGuids)];
     const succeeded: string[] = [];
     const failed: DeviceOperationFailure[] = [];
 

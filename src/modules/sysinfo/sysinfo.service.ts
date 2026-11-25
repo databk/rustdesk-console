@@ -12,6 +12,7 @@ import {
 } from '../address-book/entities';
 import { DeviceGroup } from '../device-group/entities/device-group.entity';
 import { resolveDeviceUuid } from '../../common/utils/device-identity.util';
+import { normalizeDeviceUuid } from '../../common/utils/device-uuid.util';
 import { GeneralSettingsService } from '../settings/services/general-settings.service';
 
 /**
@@ -68,6 +69,11 @@ export class SysinfoService {
           sysinfoDto.id,
           cloneIsolation,
         ),
+      };
+    } else {
+      sysinfoDto = {
+        ...sysinfoDto,
+        uuid: normalizeDeviceUuid(sysinfoDto.uuid),
       };
     }
     // First check whether the device is registered in the peers table

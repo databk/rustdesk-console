@@ -28,6 +28,7 @@ import {
   UserStatusSnapshot,
   getRbacRequestCache,
 } from '../rbac-request-scope';
+import { normalizeDeviceUuid } from '../../../common/utils/device-uuid.util';
 
 export type {
   PermissionScope,
@@ -319,6 +320,7 @@ export class RbacAuthorizationService {
     permissionCode: PermissionCode,
     deviceUuid: string,
   ): Promise<{ peer: Peer; scope: PermissionScope }> {
+    deviceUuid = normalizeDeviceUuid(deviceUuid);
     const scope = await this.requirePermission(userGuid, permissionCode);
     const peer = await this.peerRepository.findOne({
       where: { uuid: deviceUuid },
@@ -346,7 +348,7 @@ export class RbacAuthorizationService {
     deviceUuids: string[],
   ): Promise<{ peers: Peer[]; scope: PermissionScope }> {
     const scope = await this.requirePermission(userGuid, permissionCode);
-    const unique = [...new Set(deviceUuids)];
+    const unique = [...new Set(deviceUuids.map(normalizeDeviceUuid))];
     if (!unique.length) return { peers: [], scope };
     const peers = await this.peerRepository.find({
       where: { uuid: In(unique) },
