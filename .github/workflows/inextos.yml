@@ -195,7 +195,7 @@ jobs:
           echo "✓ debroot ready"
           find "$ROOT" -maxdepth 3 -type d | sort
 
-      # dpkg-deb 打包
+      # dpkg-deb 打包（iNextOS + Armbian 双产物）
       - name: dpkg-deb build
         run: |
           VERSION="${{ needs.backend-arm64-build.outputs.version }}"
@@ -207,10 +207,20 @@ jobs:
           dpkg-deb -I "$OUT"
           dpkg-deb -c "$OUT" | head -30
 
+          # Armbian 版：内容完全一致，仅替换安装提示中的系统名
+          ARMBIAN_ROOT=".debroot-armbian"
+          rm -rf "$ARMBIAN_ROOT"
+          cp -a "$ROOT" "$ARMBIAN_ROOT"
+          sed -i 's/installed on iNextOS/installed on Armbian/' "$ARMBIAN_ROOT/DEBIAN/postinst"
+          ARMBIAN_OUT="rustdesk-console-armbian-${VERSION}-aarch64.deb"
+          dpkg-deb --build --root-owner-group "$ARMBIAN_ROOT" "$ARMBIAN_OUT"
+          ls -lh "$ARMBIAN_OUT"
+          dpkg-deb -I "$ARMBIAN_OUT"
+
       - uses: actions/upload-artifact@v4
         with:
           name: inextos-deb
-          path: rustdesk-console-inextos-*.deb
+          path: rustdesk-console-*.deb
 
       # Release
       - name: Upload to Release
@@ -218,13 +228,19 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
-          name: iNextOS RustDesk Console v${{ needs.backend-arm64-build.outputs.version }}
+          name: iNextOS / Armbian RustDesk Console v${{ needs.backend-arm64-build.outputs.version }}
           body: |
-            ## RustDesk Console · iNextOS (aarch64)
+            ## RustDesk Console · iNextOS / Armbian (aarch64)
 
-            ### 安装
+            ### 安装（iNextOS）
             ```bash
             sudo dpkg -i rustdesk-console-inextos-${{ needs.backend-arm64-build.outputs.version }}-aarch64.deb
+            sudo systemctl enable --now rustdesk-console
+            ```
+
+            ### 安装（Armbian）
+            ```bash
+            sudo dpkg -i rustdesk-console-armbian-${{ needs.backend-arm64-build.outputs.version }}-aarch64.deb
             sudo systemctl enable --now rustdesk-console
             ```
 
@@ -239,5 +255,7 @@ jobs:
             - 默认 HTTP：**3000**
             - 如需对外访问，配置反向代理（nginx/haproxy）将 21114 转发到 127.0.0.1:3000
             - 安装后访问：`http://<设备IP>:3000/setup` 完成初始化配置
-          files: rustdesk-console-inextos-${{ needs.backend-arm64-build.outputs.version }}-aarch64.deb
+          files: |
+            rustdesk-console-inextos-${{ needs.backend-arm64-build.outputs.version }}-aarch64.deb
+            rustdesk-console-armbian-${{ needs.backend-arm64-build.outputs.version }}-aarch64.deb
           fail_on_unmatched_files: true
