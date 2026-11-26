@@ -243,4 +243,91 @@ describe('NormalizeDeviceUuids migration', () => {
       idReleased: true,
     });
   });
+
+  it('merges case-only peer rows instead of failing on PK conflict', async () => {
+    const upperUuid = canonicalUuid.toUpperCase();
+    await dataSource.getRepository(Peer).save([
+      {
+        uuid: upperUuid,
+        id: 'host-case',
+        ver: 1,
+        modifiedAt: 0,
+        status: PeerStatus.ACTIVE,
+        note: 'upper note',
+      },
+      {
+        uuid: canonicalUuid,
+        id: 'host-case',
+        ver: 2,
+        modifiedAt: 2,
+        status: PeerStatus.ACTIVE,
+      },
+    ]);
+
+    await runMigration();
+
+    const peers = await dataSource.getRepository(Peer).find();
+    expect(peers).toHaveLength(1);
+    expect(peers[0]).toMatchObject({
+      uuid: canonicalUuid,
+      note: 'upper note',
+      ver: 2,
+    });
+  });
+
+  it('merges case-only tombstone rows and preserves idReleased', async () => {
+    const upperUuid = canonicalUuid.toUpperCase();
+    await dataSource.getRepository(DeviceTombstone).save([
+      {
+        uuid: upperUuid,
+        deviceId: 'host-case',
+        idReleased: true,
+      },
+      {
+        uuid: canonicalUuid,
+        deviceId: 'host-case',
+        idReleased: false,
+      },
+    ]);
+
+    await runMigration();
+
+    const tombstones = await dataSource.getRepository(DeviceTombstone).find();
+    expect(tombstones).toHaveLength(1);
+    expect(tombstones[0]).toMatchObject({
+      uuid: canonicalUuid,
+      idReleased: true,
+    });
+  });
+
+  it('deduplicates case-only address_book_peers rows', async () => {
+    const upperDeviceId = canonicalUuid.toUpperCase();
+    const addressBook = await dataSource.getRepository(AddressBook).save({
+      guid: 'ab-3',
+      owner: 'user-3',
+      name: 'test-book-3',
+    });
+    await dataSource.getRepository(AddressBookPeer).save([
+      {
+        guid: 'abp-upper',
+        addressBookGuid: addressBook.guid,
+        deviceId: upperDeviceId,
+        alias: 'upper-alias',
+      },
+      {
+        guid: 'abp-lower',
+        addressBookGuid: addressBook.guid,
+        deviceId: canonicalUuid,
+        alias: 'lower-alias',
+      },
+    ]);
+
+    await runMigration();
+
+    const peers = await dataSource
+      .getRepository(AddressBookPeer)
+      .findBy({ addressBookGuid: addressBook.guid });
+    expect(peers).toHaveLength(1);
+    expect(peers[0].deviceId).toBe(canonicalUuid);
+  });
 });

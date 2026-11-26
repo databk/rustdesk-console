@@ -43,11 +43,34 @@ export class NormalizeDeviceUuids1794864000000 implements MigrationInterface {
       if (canonical === oldUuid) continue;
 
       if (oldUuid.toLowerCase() === canonical.toLowerCase()) {
-        await queryRunner.query(
-          `UPDATE ${quote('peers')} SET ${quote('uuid')} = ? WHERE ${quote('uuid')} = ?`,
+        const distinctTarget = (await queryRunner.query(
+          `SELECT ${quote('uuid')} FROM ${quote('peers')} WHERE ${quote('uuid')} = ? AND ${quote('uuid')} != ?`,
           [canonical, oldUuid],
-        );
-        await this.repointChildren(queryRunner, quote, oldUuid, canonical);
+        )) as unknown[];
+        if (distinctTarget.length > 0) {
+          await queryRunner.query(
+            `UPDATE ${quote('peers')} SET ${quote('userGuid')} = COALESCE(${quote('userGuid')}, ?), ${quote('deviceGroupGuid')} = COALESCE(${quote('deviceGroupGuid')}, ?), ${quote('strategyGuid')} = COALESCE(${quote('strategyGuid')}, ?), ${quote('note')} = COALESCE(${quote('note')}, ?), ${quote('lastHeartbeat')} = COALESCE(${quote('lastHeartbeat')}, ?) WHERE ${quote('uuid')} = ?`,
+            [
+              peer.userGuid,
+              peer.deviceGroupGuid,
+              peer.strategyGuid,
+              peer.note,
+              peer.lastHeartbeat,
+              canonical,
+            ],
+          );
+          await this.repointChildren(queryRunner, quote, oldUuid, canonical);
+          await queryRunner.query(
+            `DELETE FROM ${quote('peers')} WHERE ${quote('uuid')} = ?`,
+            [oldUuid],
+          );
+        } else {
+          await queryRunner.query(
+            `UPDATE ${quote('peers')} SET ${quote('uuid')} = ? WHERE ${quote('uuid')} = ?`,
+            [canonical, oldUuid],
+          );
+          await this.repointChildren(queryRunner, quote, oldUuid, canonical);
+        }
         continue;
       }
 
@@ -154,6 +177,29 @@ export class NormalizeDeviceUuids1794864000000 implements MigrationInterface {
     canonical: string,
   ): Promise<void> {
     if (oldUuid.toLowerCase() === canonical.toLowerCase()) {
+      const distinctTarget = (await queryRunner.query(
+        `SELECT ${quote('uuid')} FROM ${quote(table)} WHERE ${quote('uuid')} = ? AND ${quote('uuid')} != ?`,
+        [canonical, oldUuid],
+      )) as unknown[];
+      if (distinctTarget.length > 0) {
+        if (table === 'device_tombstones') {
+          const legacy = (await queryRunner.query(
+            `SELECT ${quote('idReleased')} FROM ${quote(table)} WHERE ${quote('uuid')} = ?`,
+            [oldUuid],
+          )) as Array<{ idReleased: unknown }>;
+          if (legacy.length > 0 && Boolean(legacy[0].idReleased)) {
+            await queryRunner.query(
+              `UPDATE ${quote(table)} SET ${quote('idReleased')} = ? WHERE ${quote('uuid')} = ?`,
+              [true, canonical],
+            );
+          }
+        }
+        await queryRunner.query(
+          `DELETE FROM ${quote(table)} WHERE ${quote('uuid')} = ?`,
+          [oldUuid],
+        );
+        return;
+      }
       await queryRunner.query(
         `UPDATE ${quote(table)} SET ${quote('uuid')} = ? WHERE ${quote('uuid')} = ?`,
         [canonical, oldUuid],
@@ -203,10 +249,21 @@ export class NormalizeDeviceUuids1794864000000 implements MigrationInterface {
 
     for (const row of rows) {
       if (oldUuid.toLowerCase() === canonical.toLowerCase()) {
-        await queryRunner.query(
-          `UPDATE ${quote('address_book_peers')} SET ${quote('deviceId')} = ? WHERE ${quote('guid')} = ?`,
-          [canonical, row.guid],
-        );
+        const distinctExisting = (await queryRunner.query(
+          `SELECT ${quote('guid')} FROM ${quote('address_book_peers')} WHERE ${quote('addressBookGuid')} = ? AND ${quote('deviceId')} = ? AND ${quote('deviceId')} != ?`,
+          [row.addressBookGuid, canonical, oldUuid],
+        )) as unknown[];
+        if (distinctExisting.length > 0) {
+          await queryRunner.query(
+            `DELETE FROM ${quote('address_book_peers')} WHERE ${quote('guid')} = ?`,
+            [row.guid],
+          );
+        } else {
+          await queryRunner.query(
+            `UPDATE ${quote('address_book_peers')} SET ${quote('deviceId')} = ? WHERE ${quote('guid')} = ?`,
+            [canonical, row.guid],
+          );
+        }
         continue;
       }
 
@@ -243,10 +300,21 @@ export class NormalizeDeviceUuids1794864000000 implements MigrationInterface {
       if (canonical === oldDeviceId) continue;
 
       if (oldDeviceId.toLowerCase() === canonical.toLowerCase()) {
-        await queryRunner.query(
-          `UPDATE ${quote('address_book_peers')} SET ${quote('deviceId')} = ? WHERE ${quote('guid')} = ?`,
-          [canonical, row.guid],
-        );
+        const distinctExisting = (await queryRunner.query(
+          `SELECT ${quote('guid')} FROM ${quote('address_book_peers')} WHERE ${quote('addressBookGuid')} = ? AND ${quote('deviceId')} = ? AND ${quote('deviceId')} != ?`,
+          [row.addressBookGuid, canonical, oldDeviceId],
+        )) as unknown[];
+        if (distinctExisting.length > 0) {
+          await queryRunner.query(
+            `DELETE FROM ${quote('address_book_peers')} WHERE ${quote('guid')} = ?`,
+            [row.guid],
+          );
+        } else {
+          await queryRunner.query(
+            `UPDATE ${quote('address_book_peers')} SET ${quote('deviceId')} = ? WHERE ${quote('guid')} = ?`,
+            [canonical, row.guid],
+          );
+        }
         continue;
       }
 
