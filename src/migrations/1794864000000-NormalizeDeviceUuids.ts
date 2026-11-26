@@ -243,11 +243,13 @@ export class NormalizeDeviceUuids1794864000000 implements MigrationInterface {
     canonical: string,
   ): Promise<void> {
     const rows = (await queryRunner.query(
-      `SELECT ${quote('guid')}, ${quote('addressBookGuid')} FROM ${quote('address_book_peers')} WHERE ${quote('deviceId')} = ?`,
+      `SELECT ${quote('guid')}, ${quote('addressBookGuid')}, ${quote('deviceId')} FROM ${quote('address_book_peers')} WHERE ${quote('deviceId')} = ?`,
       [oldUuid],
-    )) as Array<{ guid: string; addressBookGuid: string }>;
+    )) as Array<{ guid: string; addressBookGuid: string; deviceId: string }>;
 
     for (const row of rows) {
+      if (row.deviceId === canonical) continue;
+
       if (oldUuid.toLowerCase() === canonical.toLowerCase()) {
         const distinctExisting = (await queryRunner.query(
           `SELECT ${quote('guid')} FROM ${quote('address_book_peers')} WHERE ${quote('addressBookGuid')} = ? AND ${quote('deviceId')} = ? AND ${quote('guid')} != ?`,
