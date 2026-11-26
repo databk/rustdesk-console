@@ -308,7 +308,7 @@ jobs:
 
   finalize:
     name: Finalize executable update manifest
-    needs: [changelog, github-release, sea-build, sea-build-musl]
+    needs: [changelog, docker, github-release, sea-build, sea-build-musl]
     if: ${{ needs.changelog.outputs.skipped == 'false' }}
     runs-on: ubuntu-latest
     steps:
