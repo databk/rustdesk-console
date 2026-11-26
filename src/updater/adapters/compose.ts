@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import {
   Blocker,
   DeploymentAdapter,
@@ -18,20 +19,128 @@ import {
   verifyHealth,
   verifyHelper,
 } from './common';
-interface ComposeConfig {
-  name?: string;
-  services: Record<
-    string,
-    { image?: string; build?: unknown; [key: string]: unknown }
-  >;
+export interface ComposeServiceConfig {
+  image?: string;
+  build?: unknown;
+  privileged?: boolean;
+  profiles?: unknown[];
+  environment?: Record<string, string | number | boolean | null>;
+  volumes?: (
+    | string
+    | {
+        type?: string;
+        source?: string;
+        target?: string;
+        read_only?: boolean;
+      }
+  )[];
+  command?: string | string[];
+  entrypoint?: string | string[];
   [key: string]: unknown;
 }
-interface ContainerInfo {
+export interface ComposeConfig {
+  name?: string;
+  services: Record<string, ComposeServiceConfig>;
+  [key: string]: unknown;
+}
+export interface ComposeContainerInfo {
   Id: string;
   Image: string;
   State: { Running: boolean };
-  Config: { Image: string; Labels: Record<string, string> };
-  Mounts: { Type: string; Source: string; Destination: string; RW: boolean }[];
+  Config: {
+    Image: string;
+    Labels: Record<string, string>;
+    Env?: string[];
+    Cmd?: string[] | null;
+    Entrypoint?: string[] | null;
+  };
+  Mounts: {
+    Type: string;
+    Source: string;
+    Destination: string;
+    RW: boolean;
+  }[];
+}
+type ContainerInfo = ComposeContainerInfo;
+
+/**
+ * Compare the live container with the effective Compose definition instead of
+ * the version-dependent `com.docker.compose.config-hash` label. Compose itself
+ * documents that hash as an implementation detail which changes between
+ * releases, so a host using an older Compose (for example Synology Container
+ * Manager) cannot be verified with the hash computed by this image.
+ */
+export function verifyServiceInstance(
+  service: ComposeServiceConfig,
+  container: ContainerInfo,
+): string | null {
+  if (service.image && container.Config.Image !== service.image)
+    return 'The running service image differs from the Compose configuration.';
+  const environment: Record<string, string> = {};
+  for (const item of container.Config.Env ?? []) {
+    const at = item.indexOf('=');
+    if (at < 0) environment[item] = '';
+    else environment[item.slice(0, at)] = item.slice(at + 1);
+  }
+  for (const [name, value] of Object.entries(service.environment ?? {})) {
+    if (value === null || value === undefined) continue;
+    if (environment[name] !== String(value))
+      return 'The running service environment differs from the Compose configuration.';
+  }
+  for (const volume of service.volumes ?? []) {
+    if (typeof volume === 'string' || !volume.target) continue;
+    const mount = container.Mounts.find(
+      (item) => item.Destination === volume.target,
+    );
+    if (!mount)
+      return 'The running service mounts differ from the Compose configuration.';
+    if (volume.type && mount.Type !== volume.type)
+      return 'The running service mounts differ from the Compose configuration.';
+    if (
+      volume.type === 'bind' &&
+      volume.source &&
+      mount.Source !== volume.source
+    )
+      return 'The running service mounts differ from the Compose configuration.';
+    if (Boolean(volume.read_only) !== !mount.RW)
+      return 'The running service mounts differ from the Compose configuration.';
+  }
+  for (const [configured, actual] of [
+    [service.command, container.Config.Cmd],
+    [service.entrypoint, container.Config.Entrypoint],
+  ] as const) {
+    if (!Array.isArray(configured) || configured.length === 0) continue;
+    if (
+      !actual ||
+      actual.length !== configured.length ||
+      actual.some((value, index) => value !== configured[index])
+    )
+      return 'The running service command differs from the Compose configuration.';
+  }
+  return null;
+}
+
+/** Compare a recorded Compose file list, accepting older relative labels. */
+export function composeFilesMatch(
+  label: string | undefined,
+  projectDirectory: string,
+  files: string[],
+): boolean {
+  if (!label) return true;
+  const actual = label
+    .split(',')
+    .map((file) => file.trim())
+    .filter(Boolean)
+    .map((file) =>
+      posix.isAbsolute(file)
+        ? posix.normalize(file)
+        : posix.resolve(projectDirectory, file),
+    );
+  const expected = files.map((file) => posix.normalize(file));
+  return (
+    actual.length === expected.length &&
+    actual.every((file, index) => file === expected[index])
+  );
 }
 export function configurationFingerprint(
   config: ComposeConfig,
@@ -127,13 +236,18 @@ export class ComposeDeployment implements DeploymentAdapter {
         );
         const container = await this.container(service);
         const labels = container.Config.Labels;
+        const workingDirectory =
+          labels['com.docker.compose.project.working_dir'];
         assert(
           labels['com.docker.compose.project'] === this.settings.projectName &&
             labels['com.docker.compose.service'] === service &&
-            labels['com.docker.compose.project.working_dir'] ===
-              this.settings.projectDirectory &&
-            labels['com.docker.compose.project.config_files'] ===
-              this.settings.files.join(','),
+            (!workingDirectory ||
+              workingDirectory === this.settings.projectDirectory) &&
+            composeFilesMatch(
+              labels['com.docker.compose.project.config_files'],
+              this.settings.projectDirectory,
+              this.settings.files,
+            ),
           'COMPOSE_INSTANCE_DRIFT',
           'The running Compose instance does not match the recorded installation.',
         );
@@ -156,11 +270,15 @@ export class ComposeDeployment implements DeploymentAdapter {
           'IMAGE_IDENTITY_MISMATCH',
           'The running container image does not match the pinned official digest.',
         );
-        const hash = await this.compose(['config', '--hash', service]);
+        const drift = verifyServiceInstance(
+          config.services[service],
+          container,
+        );
         assert(
-          hash.split(/\s+/).at(-1) === labels['com.docker.compose.config-hash'],
+          !drift,
           'COMPOSE_INSTANCE_DRIFT',
-          'The effective service configuration differs from its running instance.',
+          drift ??
+            'The effective service configuration differs from its running instance.',
         );
         if (component === 'updater')
           for (const mount of this.settings.workerMounts)

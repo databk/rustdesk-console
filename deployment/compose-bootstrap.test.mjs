@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import {
   bootstrap,
   describeRegistrationFailure,
+  discoverConfigFiles,
   validateContext,
 } from './compose-bootstrap.mjs';
 
@@ -16,9 +17,7 @@ const require = createRequire(import.meta.url);
 const io = require('../dist/updater/io.js');
 const installationTools = require('../dist/updater/installation.js');
 const manifestTools = require('../dist/updater/manifest.js');
-const {
-  configurationFingerprint,
-} = require('../dist/updater/adapters/compose.js');
+const composeTools = require('../dist/updater/adapters/compose.js');
 
 async function fixture(t, databaseEnvironment = {}) {
   const root = await fs.mkdtemp(join(tmpdir(), 'console-register-'));
@@ -138,14 +137,22 @@ async function fixture(t, databaseEnvironment = {}) {
         },
       },
     };
-    config.services[service] = { image };
+    config.services[service] = {
+      image,
+      environment: {
+        DATA_DIR: '/data',
+        PORT: '3000',
+        DB_TYPE: 'sqlite',
+        ...databaseEnvironment,
+      },
+    };
   }
   const calls = [];
   const runtime = {
     ...io,
     ...installationTools,
     ...manifestTools,
-    configurationFingerprint,
+    ...composeTools,
     OfficialCatalog: class {
       async exact(component) {
         return manifests[component];
@@ -191,8 +198,6 @@ async function fixture(t, databaseEnvironment = {}) {
       else if (args[0] === 'run') return { stdout: 'f'.repeat(64), stderr: '' };
       else if (args[0] === 'compose') {
         const action = args.slice(9);
-        if (action[0] === 'config' && action[1] === '--hash')
-          return { stdout: action[2] + ' ' + action[2] + '-hash', stderr: '' };
         if (action[0] === 'config') {
           result = structuredClone(config);
           const overrideText = await fs.readFile(files[1], 'utf8');
@@ -236,6 +241,117 @@ test('rejects alias paths and unrelated project mounts', () => {
   assert.throws(() => validateContext(self, '/install'), /differs/);
   assert.throws(() => validateContext(self, '/real'), /identical/);
   assert.throws(() => validateContext(self, '/'), /absolute/);
+});
+
+test('discovers the default Compose files when older Compose records none', async (t) => {
+  const f = await fixture(t);
+  assert.deepEqual(await discoverConfigFiles(f.root), f.files);
+});
+
+test('asks for the managed override when Compose started with an explicit file', () => {
+  const self = {
+    Config: {
+      Labels: {
+        'com.docker.compose.service': 'updater',
+        'com.docker.compose.project': 'console',
+        'com.docker.compose.project.working_dir': '/install',
+        'com.docker.compose.project.config_files':
+          '/install/docker-compose.yml',
+      },
+    },
+    Mounts: [
+      { Type: 'bind', Source: '/install', Destination: '/install', RW: true },
+    ],
+  };
+  assert.throws(
+    () => validateContext(self, '/install'),
+    /managed digest override is not loaded/,
+  );
+});
+
+test('compares live mounts and commands with the Compose definition', () => {
+  const container = {
+    Config: {
+      Image: 'example:latest',
+      Labels: {},
+      Env: ['PORT=3000'],
+      Cmd: ['old'],
+    },
+    Mounts: [
+      { Type: 'bind', Source: '/host/data', Destination: '/data', RW: true },
+    ],
+  };
+  assert.equal(
+    composeTools.verifyServiceInstance(
+      {
+        image: 'example:latest',
+        environment: { PORT: '3000' },
+        volumes: [{ type: 'bind', source: '/host/data', target: '/data' }],
+        command: ['old'],
+      },
+      container,
+    ),
+    null,
+  );
+  assert.equal(
+    composeTools.verifyServiceInstance(
+      {
+        image: 'example:latest',
+        volumes: [{ type: 'bind', source: '/host/data', target: '/data' }],
+      },
+      { ...container, Mounts: [] },
+    ),
+    'The running service mounts differ from the Compose configuration.',
+  );
+  assert.equal(
+    composeTools.verifyServiceInstance(
+      { image: 'example:latest', command: ['new'] },
+      container,
+    ),
+    'The running service command differs from the Compose configuration.',
+  );
+});
+
+test('verifies the live service instead of a foreign Compose config hash', async (t) => {
+  const f = await fixture(t);
+  for (const container of Object.values(f.containers))
+    container.Config.Labels['com.docker.compose.config-hash'] = 'f'.repeat(64);
+  assert.equal(await bootstrap(f.runtime), null);
+});
+
+test('registers services started by an older Compose without a file list', async (t) => {
+  const f = await fixture(t);
+  for (const container of Object.values(f.containers)) {
+    delete container.Config.Labels['com.docker.compose.project.config_files'];
+    delete container.Config.Labels['com.docker.compose.project.working_dir'];
+  }
+  assert.equal(await bootstrap(f.runtime), null);
+});
+
+test('resolves a relative Compose file list from an older Compose', async (t) => {
+  const f = await fixture(t);
+  for (const container of Object.values(f.containers))
+    container.Config.Labels['com.docker.compose.project.config_files'] =
+      'docker-compose.yml,docker-compose.override.yml';
+  assert.equal(await bootstrap(f.runtime), null);
+});
+
+test('refuses a running service whose environment drifted from Compose', async (t) => {
+  const f = await fixture(t);
+  const backend = f.containers['rustdesk-console'];
+  backend.Config.Env = backend.Config.Env.map((item) =>
+    item === 'PORT=3000' ? 'PORT=3001' : item,
+  );
+  const error = await bootstrap(f.runtime).then(
+    () => assert.fail('registration must be refused'),
+    (rejection) => rejection,
+  );
+  assert.equal(
+    describeRegistrationFailure(error),
+    'The running service environment differs from the Compose configuration.',
+  );
+  await assert.rejects(fs.access(join(f.state, 'installation.json')));
+  assert.ok(!f.calls.some((args) => args[0] === 'pull' || args.includes('up')));
 });
 
 test('refuses a populated user override before any mutation', async (t) => {

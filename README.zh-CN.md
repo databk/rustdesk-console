@@ -650,7 +650,9 @@ map $http_upgrade $connection_upgrade {
 - 检查 `updater` 容器是否运行；
 - 不要使用外部 Compose `include`、`env_file`、远程/rootless daemon 或自定义编排；
 - 检查更新器 socket 路径是否短于 108 字节；
-- 配置文件、挂载或镜像 digest 发生变化会阻止更新。
+- 配置文件、挂载或镜像 digest 发生变化会阻止更新；
+- 必须让 Compose 加载 `docker-compose.override.yml`。请进入项目目录直接执行 `docker compose up -d`，不要显式传 `-f`；群晖 Container Manager 的项目若使用固定文件启动，请在 SSH 中按上述方式重新启动；
+- 更新器会直接对比运行容器与当前 Compose 配置，不依赖 Compose 版本相关的 `config-hash`；但修改 Compose 文件后未重新创建容器仍会阻止注册。
 
 ### 7. 升级后服务无法启动
 

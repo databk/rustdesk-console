@@ -14,10 +14,19 @@ path. Run `docker compose up -d` in that directory. Backend, web and updater sta
 together. The override must initially contain only `services: {}` and is reserved
 for the updater image digests.
 
-Registration verifies the running Compose services, mounts, configuration hashes,
-official manifests and immutable image digests. It records and pins the current
-release without selecting a newer version. An independent registration container
+Registration verifies the running Compose services, mounts, effective service
+configuration, official manifests and immutable image digests. The live
+container is compared with the current Compose definition directly instead of
+the version-specific `com.docker.compose.config-hash` label, so a project started
+by an older Compose (for example Synology Container Manager) can register when
+its containers still match the files. It records and pins the current release
+without selecting a newer version. An independent registration container
 finishes pinning the updater itself.
+
+The project must load the managed override during normal startup. Start it from
+the project directory without an explicit `--file`, or list both files in
+`COMPOSE_FILE`. A tool that runs `docker compose -f compose.yaml` does not load
+`docker-compose.override.yml`; use the project directory from SSH instead.
 
 When registration cannot complete, the updater logs
 `Updater registration unavailable: <reason>` and exits, and Compose restarts it
