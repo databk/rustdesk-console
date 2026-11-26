@@ -189,7 +189,7 @@ docker run -d \
   databk/rustdesk-console-web:latest
 ```
 
-镜像同时发布在 Docker Hub（`databk/rustdesk-console`）和 GitHub Container Registry（`ghcr.io/databk/rustdesk-console`），支持 `linux/amd64` 与 `linux/arm64`。国内拉取困难时可尝试 GHCR 镜像。
+镜像同时发布在 Docker Hub（`databk/rustdesk-console`）、GitHub Container Registry（`ghcr.io/databk/rustdesk-console`）和阿里云 ACR（`crpi-8wc5qc1w5xy96oh3.cn-hangzhou.personal.cr.aliyuncs.com/databk/rustdesk-console`），支持 `linux/amd64` 与 `linux/arm64`。国内拉取困难时可使用阿里云 ACR 或 GHCR 镜像。
 
 ## 方式三：预编译二进制
 
