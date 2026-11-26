@@ -107,7 +107,7 @@ See [Managed system updates](docs/system-update.md) for SQLite/MySQL prerequisit
 
 Log verbosity is controlled with `LOG_LEVEL` (default `log`); see [Logging](docs/logging.md).
 
-Images are published to both Docker Hub (`databk/rustdesk-console`) and GitHub Container Registry (`ghcr.io/databk/rustdesk-console`) for `linux/amd64` and `linux/arm64`. To use the GitHub Container Registry mirror, replace `databk/rustdesk-console` with `ghcr.io/databk/rustdesk-console`.
+Images are published to Docker Hub (`databk/rustdesk-console`), GitHub Container Registry (`ghcr.io/databk/rustdesk-console`), and Alibaba Cloud ACR (`crpi-8wc5qc1w5xy96oh3.cn-hangzhou.personal.cr.aliyuncs.com/databk/rustdesk-console`) for `linux/amd64` and `linux/arm64`. To use an alternative registry, replace `databk/rustdesk-console` with the desired mirror address.
 
 <details>
 <summary>📋 Docker CLI (without Compose)</summary>
