@@ -250,8 +250,8 @@ export class NormalizeDeviceUuids1794864000000 implements MigrationInterface {
     for (const row of rows) {
       if (oldUuid.toLowerCase() === canonical.toLowerCase()) {
         const distinctExisting = (await queryRunner.query(
-          `SELECT ${quote('guid')} FROM ${quote('address_book_peers')} WHERE ${quote('addressBookGuid')} = ? AND ${quote('deviceId')} = ? AND ${quote('deviceId')} != ?`,
-          [row.addressBookGuid, canonical, oldUuid],
+          `SELECT ${quote('guid')} FROM ${quote('address_book_peers')} WHERE ${quote('addressBookGuid')} = ? AND ${quote('deviceId')} = ? AND ${quote('guid')} != ?`,
+          [row.addressBookGuid, canonical, row.guid],
         )) as unknown[];
         if (distinctExisting.length > 0) {
           await queryRunner.query(
@@ -301,8 +301,8 @@ export class NormalizeDeviceUuids1794864000000 implements MigrationInterface {
 
       if (oldDeviceId.toLowerCase() === canonical.toLowerCase()) {
         const distinctExisting = (await queryRunner.query(
-          `SELECT ${quote('guid')} FROM ${quote('address_book_peers')} WHERE ${quote('addressBookGuid')} = ? AND ${quote('deviceId')} = ? AND ${quote('deviceId')} != ?`,
-          [row.addressBookGuid, canonical, oldDeviceId],
+          `SELECT ${quote('guid')} FROM ${quote('address_book_peers')} WHERE ${quote('addressBookGuid')} = ? AND ${quote('deviceId')} = ? AND ${quote('guid')} != ?`,
+          [row.addressBookGuid, canonical, row.guid],
         )) as unknown[];
         if (distinctExisting.length > 0) {
           await queryRunner.query(
