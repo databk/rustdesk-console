@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Peer } from '../../../common/entities';
 import { DeviceInfoDto } from '../dto/auth.dto';
 import { resolveDeviceUuid } from '../../../common/utils/device-identity.util';
+import { normalizeDeviceUuid } from '../../../common/utils/device-uuid.util';
 import { GeneralSettingsService } from '../../settings/services/general-settings.service';
 
 @Injectable()
@@ -51,6 +52,8 @@ export class AuthDeviceService {
         deviceId,
         cloneIsolation,
       );
+    } else {
+      deviceUuid = normalizeDeviceUuid(deviceUuid);
     }
 
     // Look up the peer record
@@ -92,6 +95,8 @@ export class AuthDeviceService {
         deviceId,
         cloneIsolation,
       );
+    } else {
+      deviceUuid = normalizeDeviceUuid(deviceUuid);
     }
     const peer = await this.peerRepository.findOne({
       where: { uuid: deviceUuid, userGuid },

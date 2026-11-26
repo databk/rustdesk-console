@@ -28,8 +28,9 @@ export enum PeerStatus {
 export class Peer {
   /**
    * Unique device identifier
-   * Client UUID in legacy mode; a Console-only derived key for new devices
-   * when the Device Clone Isolation setting is enabled. Never use this as an hbbs UUID.
+   * Canonical UUID derived from the client-reported base64 UUID; a Console-only
+   * derived key for new devices when the Device Clone Isolation setting is
+   * enabled. Never use this as an hbbs UUID.
    */
   @PrimaryColumn()
   uuid: string;

@@ -12,6 +12,7 @@ import { RbacAuditService } from '../rbac/services/rbac-audit.service';
 import { ActiveConnection } from '../heartbeat/entities/active-connection.entity';
 import { Peer } from '../../common/entities/peer.entity';
 import { resolveDeviceUuid } from '../../common/utils/device-identity.util';
+import { normalizeDeviceUuid } from '../../common/utils/device-uuid.util';
 import { GeneralSettingsService } from '../settings/services/general-settings.service';
 import { ActiveConnectionQueryDto } from './dto/connection-audit.dto';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
@@ -472,15 +473,19 @@ export class AuditService {
     );
 
     return {
-      data: data.map((connection) => ({
-        ...connection,
-        can_disconnect:
-          connection.connId !== null &&
-          connection.closedAt === null &&
-          disconnectable.has(
-            this.connectionKey(connection.deviceUuid, connection.connId),
-          ),
-      })),
+      data: data.map((connection) => {
+        const deviceUuid = normalizeDeviceUuid(connection.deviceUuid);
+        return {
+          ...connection,
+          deviceUuid,
+          can_disconnect:
+            connection.connId !== null &&
+            connection.closedAt === null &&
+            disconnectable.has(
+              this.connectionKey(deviceUuid, connection.connId),
+            ),
+        };
+      }),
       total,
     };
   }
@@ -546,7 +551,9 @@ export class AuditService {
     connections: ConnectionAudit[],
   ): Promise<Set<string>> {
     const deviceUuids = [
-      ...new Set(connections.map(({ deviceUuid }) => deviceUuid)),
+      ...new Set(
+        connections.map(({ deviceUuid }) => normalizeDeviceUuid(deviceUuid)),
+      ),
     ];
     if (deviceUuids.length === 0) return new Set();
 
@@ -573,7 +580,7 @@ export class AuditService {
     });
     return new Set(
       activeConnections.map(({ deviceUuid, connId }) =>
-        this.connectionKey(deviceUuid, connId),
+        this.connectionKey(normalizeDeviceUuid(deviceUuid), connId),
       ),
     );
   }
@@ -650,7 +657,10 @@ export class AuditService {
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {
-      data,
+      data: data.map((audit) => ({
+        ...audit,
+        deviceUuid: normalizeDeviceUuid(audit.deviceUuid),
+      })),
       total,
     };
   }
@@ -720,7 +730,10 @@ export class AuditService {
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {
-      data,
+      data: data.map((audit) => ({
+        ...audit,
+        deviceUuid: normalizeDeviceUuid(audit.deviceUuid),
+      })),
       total,
     };
   }

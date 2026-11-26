@@ -30,6 +30,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 import { ConsoleAuditAction } from '../rbac/decorators/console-audit-action.decorator';
 import { RbacAuthorizationService } from '../rbac/services/rbac-authorization.service';
+import { normalizeDeviceUuid } from '../../common/utils/device-uuid.util';
 
 /**
  * Device group controller
@@ -337,7 +338,11 @@ export class DeviceGroupController {
     @Body() dto: UpdateDeviceDto,
     @CurrentUser('id') userId: string,
   ) {
-    await this.deviceGroupService.updateDevice(guid, dto, userId);
+    await this.deviceGroupService.updateDevice(
+      normalizeDeviceUuid(guid),
+      dto,
+      userId,
+    );
     return { message: 'Device updated successfully' };
   }
 
@@ -368,10 +373,14 @@ export class DeviceGroupController {
     // layer so native clients cannot register either, and releases the id
     // from the hbbs peer registry so a replacement machine can claim a
     // custom id again.
-    return this.deviceGroupService.deleteDevice(guid, userId, {
-      protocolBan: protocolBan !== 'false',
-      releaseId: releaseId !== 'false',
-    });
+    return this.deviceGroupService.deleteDevice(
+      normalizeDeviceUuid(guid),
+      userId,
+      {
+        protocolBan: protocolBan !== 'false',
+        releaseId: releaseId !== 'false',
+      },
+    );
   }
 
   /**
@@ -400,7 +409,10 @@ export class DeviceGroupController {
     @Param('uuid') uuid: string,
     @CurrentUser('id') userId: string,
   ) {
-    return this.deviceGroupService.restoreTombstone(uuid, userId);
+    return this.deviceGroupService.restoreTombstone(
+      normalizeDeviceUuid(uuid),
+      userId,
+    );
   }
 
   /**
@@ -421,18 +433,19 @@ export class DeviceGroupController {
     @Body() dto: DisconnectDto,
     @CurrentUser('id') userId: string,
   ) {
+    const deviceUuid = normalizeDeviceUuid(uuid);
     // Check the current device-group scope before inspecting connections or
     // enqueueing a disconnect command. A scoped operator must not be able to
     // act on an out-of-scope device by supplying its UUID directly.
     await this.rbacAuthorizationService.assertDeviceAccess(
       userId,
       'devices.disconnect',
-      uuid,
+      deviceUuid,
     );
 
     // Verify that the connection IDs requested to be disconnected are active connections of this device
     const activeConnIds =
-      await this.heartbeatService.getActiveConnectionIds(uuid);
+      await this.heartbeatService.getActiveConnectionIds(deviceUuid);
     const activeConnIdSet = new Set(activeConnIds);
     const invalidConnIds = dto.connIds.filter((id) => !activeConnIdSet.has(id));
     if (invalidConnIds.length > 0) {
@@ -446,14 +459,14 @@ export class DeviceGroupController {
     await this.rbacAuthorizationService.assertDeviceAccess(
       userId,
       'devices.disconnect',
-      uuid,
+      deviceUuid,
     );
-    this.disconnectStoreService.addPendingDisconnects(uuid, dto.connIds);
+    this.disconnectStoreService.addPendingDisconnects(deviceUuid, dto.connIds);
     return {
       message:
         'Disconnect command submitted; it will be delivered at the next device heartbeat',
       data: {
-        uuid,
+        uuid: deviceUuid,
         pending_disconnect_count: dto.connIds.length,
       },
     };

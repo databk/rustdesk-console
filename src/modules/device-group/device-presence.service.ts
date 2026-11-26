@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Peer, PeerStatus } from '../../common/entities/peer.entity';
 import { isolatedDeviceUuid } from '../../common/utils/device-identity.util';
+import { normalizeDeviceUuid } from '../../common/utils/device-uuid.util';
 import {
   HbbsPeerSnapshot,
   HbbsPeerSnapshotEntry,
@@ -137,14 +138,16 @@ export class DevicePresenceService {
     const byUuidAndId = new Map<string, HbbsPeerSnapshotEntry>();
     const byIsolatedUuid = new Map<string, HbbsPeerSnapshotEntry>();
     for (const peer of snapshot.peers) {
-      // Both sources carry the client UUID in the same standard base64 text:
-      // the client sends `encode64(rawUuidBytes)` to the Console API, and hbbs
-      // re-encodes the raw bytes with standard base64 in `/v1/peers`. The text
-      // is therefore the canonical comparison key; decoding it would compare
-      // against Console's still-encoded value (and non-printable UUID bytes
-      // would be discarded outright).
+      // hbbs reports the client UUID as standard base64: it re-encodes the
+      // raw UUID bytes with standard base64 in `/v1/peers`, and desktop
+      // clients send the base64 of the UUID text. Console stores the
+      // canonical UUID text, so normalise the hbbs value before comparing.
+      // Indexing the raw text as well keeps pre-migration rows working.
       if (!peer.uuid) continue;
-      byUuidAndId.set(identityKey(peer.uuid, peer.id), peer);
+      const canonical = normalizeDeviceUuid(peer.uuid);
+      byUuidAndId.set(identityKey(canonical, peer.id), peer);
+      if (canonical !== peer.uuid)
+        byUuidAndId.set(identityKey(peer.uuid, peer.id), peer);
       byIsolatedUuid.set(isolatedDeviceUuid(peer.uuid, peer.id), peer);
     }
     return { byUuidAndId, byIsolatedUuid };

@@ -287,6 +287,29 @@ describe('device presence comparison', () => {
     });
   });
 
+  it('matches a canonical Console UUID to the base64 UUID that hbbs reports', async () => {
+    const canonical = '550e8400-e29b-41d4-a716-446655440000';
+    const hbbsUuid = Buffer.from(canonical.replace(/-/g, ''), 'hex').toString(
+      'base64',
+    );
+    const { service } = create({
+      available: true,
+      checked_at: snapshot.checked_at,
+      peers: [entry({ id: 'host-a', uuid: hbbsUuid, ip: '203.0.113.30' })],
+    });
+
+    const result = await service.enrich(
+      [peer({ uuid: canonical, id: 'host-a' })],
+      onlineAfter,
+    );
+
+    expect(result.byUuid.get(canonical)).toMatchObject({
+      registered: true,
+      online: true,
+      ip: '203.0.113.30',
+    });
+  });
+
   it('does not compare when server management is unavailable', async () => {
     const { service, peerRepository } = create({
       available: false,

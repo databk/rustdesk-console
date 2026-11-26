@@ -9,6 +9,7 @@ import { AddDeviceTombstoneReleaseTracking1791126400000 } from '../migrations/17
 import { ReplaceNexusWithCustomClientBuilds1791212800000 } from '../migrations/1791212800000-ReplaceNexusWithCustomClientBuilds';
 import { SupportMariaDbDefaultGroupIndex1794700800000 } from '../migrations/1794700800000-SupportMariaDbDefaultGroupIndex';
 import { AddConsoleAuditClientOrigin1794787200000 } from '../migrations/1794787200000-AddConsoleAuditClientOrigin';
+import { NormalizeDeviceUuids1794864000000 } from '../migrations/1794864000000-NormalizeDeviceUuids';
 
 import {
   resolveDbLogMode,
@@ -28,6 +29,7 @@ export function createDataSourceOptions(): DataSourceOptions {
       ReplaceNexusWithCustomClientBuilds1791212800000,
       SupportMariaDbDefaultGroupIndex1794700800000,
       AddConsoleAuditClientOrigin1794787200000,
+      NormalizeDeviceUuids1794864000000,
     ],
     migrationsRun: false,
     synchronize: false,
